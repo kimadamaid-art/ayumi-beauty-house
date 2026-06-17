@@ -1,26 +1,126 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-ayumi-primary: #D46221;
+  --color-ayumi-primary-hover: #B5531B;
+  --color-ayumi-secondary: #4E2A12;
+  --color-ayumi-accent: #F2D8C3;
+  --color-ayumi-bg: #FAF6F0;
+  --color-ayumi-text: #2C1E16;
+  --color-ayumi-text-muted: #8C7D73;
+  --color-ayumi-table-header: #F7E5D6;
+  --color-ayumi-table-hover: #FFFBF7;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Redefine pink palette to match orange-cream theme */
+  --color-pink-50: #FFFBF7;
+  --color-pink-100: #FAF1E8;
+  --color-pink-200: #F2D8C3;
+  --color-pink-300: #E8B895;
+  --color-pink-400: #DE915D;
+  --color-pink-500: #D46221;
+  --color-pink-600: #B5531B;
+  --color-pink-700: #914214;
+  --color-pink-800: #6E310E;
+  --color-pink-900: #4E2A12;
+  --color-pink-950: #2C1A0F;
+
+  /* Redefine rose palette to match orange-cream theme as well */
+  --color-rose-50: #FFFBF7;
+  --color-rose-100: #FAF1E8;
+  --color-rose-200: #F2D8C3;
+  --color-rose-300: #E8B895;
+  --color-rose-400: #DE915D;
+  --color-rose-500: #D46221;
+  --color-rose-600: #B5531B;
+  --color-rose-700: #914214;
+  --color-rose-800: #6E310E;
+  --color-rose-900: #4E2A12;
+  --color-rose-950: #2C1A0F;
+
+  /* Redefine purple / indigo if there is a gradient */
+  --color-purple-50: #FFFBF7;
+  --color-purple-100: #FAF1E8;
+  --color-purple-500: #B5531B;
+  --color-purple-600: #914214;
+
+  --font-sans: var(--font-plus-jakarta), sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-ayumi-bg);
+  color: var(--color-ayumi-text);
+  font-family: var(--font-sans);
+}
+
+/* Base styles for scrollbars to look elegant */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  background: #F2D8C3; 
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D46221; 
+}
+
+/* Global utility classes for rapid development */
+@utility card-ayumi {
+  background-color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border: 1px solid #FAF1E8;
+}
+
+@utility btn-primary {
+  background-color: var(--color-ayumi-primary);
+  color: #ffffff;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-ayumi-primary-hover);
+  box-shadow: 0 4px 6px -1px rgba(242, 216, 195, 0.5), 0 2px 4px -1px rgba(242, 216, 195, 0.3);
+}
+
+@utility btn-secondary {
+  background-color: transparent;
+  color: var(--color-ayumi-primary);
+  border: 2px solid var(--color-ayumi-primary);
+  border-radius: 0.75rem;
+  font-weight: 700;
+  transition-property: all;
+  transition-duration: 150ms;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-ayumi-bg);
+}
+
+@utility input-ayumi {
+  width: 100%;
+  border: 1px solid #f3f4f6;
+  border-radius: 0.75rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  outline: none;
+  transition-property: colors;
+  transition-duration: 150ms;
+}
+
+.input-ayumi:focus {
+  border-color: var(--color-ayumi-primary);
+  box-shadow: 0 0 0 1px var(--color-ayumi-primary);
 }
