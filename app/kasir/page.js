@@ -31,6 +31,15 @@ function PosPageContent() {
     const [searchPatientQuery, setSearchPatientQuery] = useState('')
     const [isPatientDropdownOpen, setIsPatientDropdownOpen] = useState(false)
     const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
+    const [leftPanelTab, setLeftPanelTab] = useState('pending')
+    const [expandedCartItem, setExpandedCartItem] = useState(null)
+
+    // Quick Add Patient State
+    const [quickAddForm, setQuickAddForm] = useState({ full_name: '', whatsapp: '' })
+    const [isQuickAdding, setIsQuickAdding] = useState(false)
+    const [quickAddError, setQuickAddError] = useState('')
+    const [selectedPatientDetails, setSelectedPatientDetails] = useState(null)
+    const [isQuickAddInlineOpen, setIsQuickAddInlineOpen] = useState(false)
 
     // Cart State
     const [cart, setCart] = useState([]) // { id, item_type, name, price, quantity, maxQuantity (for products) }
@@ -144,6 +153,68 @@ function PosPageContent() {
         }
     }
 
+    async function handleSelectPatient(patient) {
+        setSelectedPatient(patient)
+        setSearchPatientQuery('')
+        setIsPatientDropdownOpen(false)
+        setSelectedPatientDetails(null)
+
+        const { data: trData } = await supabase
+            .from('treatment_records')
+            .select('treatment_date')
+            .eq('patient_id', patient.id)
+            .order('treatment_date', { ascending: false })
+
+        let crmStatus = 'New'
+        let transactionCount = 0
+
+        if (trData && trData.length > 0) {
+            transactionCount = trData.length
+            const lastVisit = new Date(trData[0].treatment_date)
+            const daysSinceLastVisit = Math.floor((new Date() - lastVisit) / (1000 * 60 * 60 * 24))
+            
+            if (daysSinceLastVisit <= 30) crmStatus = 'Active'
+            else if (daysSinceLastVisit <= 90) crmStatus = 'Warm'
+            else crmStatus = 'Dormant'
+        }
+
+        setSelectedPatientDetails({ crmStatus, transactionCount })
+    }
+
+    async function handleQuickAddPatient(e) {
+        e?.preventDefault()
+        if (!quickAddForm.full_name || !quickAddForm.whatsapp) {
+            setQuickAddError('Nama dan WA wajib diisi.')
+            return
+        }
+        setIsQuickAdding(true)
+        setQuickAddError('')
+
+        try {
+            const { data, error } = await supabase
+                .from('patients')
+                .insert([{
+                    full_name: quickAddForm.full_name,
+                    whatsapp: quickAddForm.whatsapp,
+                    is_active: true
+                }])
+                .select()
+                .single()
+
+            if (error) throw error
+
+            setPatients(prev => [...prev, data].sort((a,b) => a.full_name.localeCompare(b.full_name)))
+            handleSelectPatient(data)
+            setQuickAddForm({ full_name: '', whatsapp: '' })
+            setIsQuickAddInlineOpen(false)
+        } catch (err) {
+            console.error(err)
+            setQuickAddError('Gagal menambahkan pasien: ' + err.message)
+        } finally {
+            setIsQuickAdding(false)
+        }
+    }
+
     // When branch changes, fetch available products for that branch and refresh pending bills
     useEffect(() => {
         if (selectedBranch) {
@@ -232,6 +303,7 @@ function PosPageContent() {
         const txRecordIds = txData?.map(t => t.treatment_record_id).filter(Boolean) || []
         const pending = trData.filter(tr => !txRecordIds.includes(tr.id))
         setPendingBills(pending)
+        setLeftPanelTab(prev => (prev === 'pending' && pending.length === 0) ? 'catalog' : prev)
     }
 
     const handleOpenPendingModal = () => {
@@ -241,8 +313,9 @@ function PosPageContent() {
 
     const loadPendingBillToCart = (bill) => {
         // Select patient
-        setSelectedPatient(bill.patients)
-        setSearchPatientQuery(bill.patients?.full_name || '')
+        if (bill.patients) {
+            handleSelectPatient(bill.patients)
+        }
         
         // Populate cart
         const newCart = bill.treatment_record_items.map(item => {
@@ -262,6 +335,7 @@ function PosPageContent() {
 
         setCart(newCart)
         setIsPendingModalOpen(false)
+        setLeftPanelTab('catalog')
     }
 
 
@@ -628,98 +702,288 @@ function PosPageContent() {
                     </button>
                 </div>
 
-                {/* ── Tagihan Menunggu Pembayaran ── */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-rose-50 to-pink-50">
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
-                            <h2 className="font-bold text-gray-800 text-sm">Tagihan Menunggu Pembayaran</h2>
-                        </div>
-                        <span className="bg-rose-100 text-rose-600 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                            {pendingBills.length} tagihan
+                {/* ── Left Pane Tabs (Pending Bills vs Catalog) ── */}
+                <div className="flex bg-white rounded-2xl border border-gray-100 p-1 shadow-sm">
+                    <button
+                        type="button"
+                        onClick={() => setLeftPanelTab('pending')}
+                        className={`flex-1 py-3.5 rounded-xl text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
+                            leftPanelTab === 'pending'
+                                ? 'bg-gradient-to-r from-rose-50 to-pink-50 text-ayumi-primary shadow-sm border border-pink-100/50'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        <span className="relative flex h-2 w-2">
+                            {pendingBills.length > 0 && (
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                            )}
+                            <span className={`relative inline-flex rounded-full h-2 w-2 ${pendingBills.length > 0 ? 'bg-rose-500' : 'bg-gray-300'}`}></span>
                         </span>
-                    </div>
+                        Tagihan Menunggu ({pendingBills.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setLeftPanelTab('catalog')}
+                        className={`flex-1 py-3.5 rounded-xl text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
+                            leftPanelTab === 'catalog'
+                                ? 'bg-gradient-to-r from-rose-50 to-pink-50 text-ayumi-primary shadow-sm border border-pink-100/50'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        🛍️ Katalog Item
+                    </button>
+                </div>
 
-                    {!selectedBranch ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
-                            <svg className="w-10 h-10 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
-                            <p className="text-sm font-semibold">Pilih cabang terlebih dahulu</p>
+                {/* Left Panel Tab Content */}
+                {leftPanelTab === 'pending' ? (
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
+                            <h2 className="font-bold text-gray-800 text-sm">Daftar Tagihan Menunggu</h2>
+                            <span className="bg-rose-100 text-rose-600 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                                {pendingBills.length} Tagihan
+                            </span>
                         </div>
-                    ) : pendingBills.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
-                            <svg className="w-10 h-10 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <p className="text-sm font-semibold">Semua tagihan hari ini sudah lunas</p>
-                            <p className="text-xs text-gray-300">Tagihan baru akan muncul otomatis setelah terapis menyelesaikan treatment</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-50">
-                            {pendingBills.map((bill) => {
-                                const totalBill = bill.treatment_record_items?.reduce((s, i) => s + (i.price_at_time || 0), 0) || 0
-                                const isLoaded = cart.some(c => c.treatment_record_id === bill.id)
-                                return (
-                                    <div
-                                        key={bill.id}
-                                        onClick={() => !isLoaded && loadPendingBillToCart(bill)}
-                                        className={`flex items-center gap-4 px-5 py-4 transition-all ${
-                                            isLoaded 
-                                                ? 'bg-green-50 cursor-default' 
-                                                : 'hover:bg-pink-50/50 cursor-pointer group'
-                                        }`}
-                                    >
-                                        {/* Avatar */}
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
-                                            isLoaded ? 'bg-green-500' : 'bg-gradient-to-br from-ayumi-primary to-rose-400'
-                                        }`}>
-                                            {isLoaded 
-                                                ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                                                : (bill.patients?.full_name?.charAt(0) || '?').toUpperCase()
-                                            }
-                                        </div>
 
-                                        {/* Info */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`font-bold text-sm truncate ${ isLoaded ? 'text-green-700' : 'text-gray-800 group-hover:text-ayumi-primary'}`}>
-                                                {bill.patients?.full_name || 'Pasien'}
-                                            </p>
-                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                                <span className="text-xs text-gray-400">{bill.treatment_time?.substring(0,5) || '-'} WIB</span>
-                                                <span className="text-gray-200">•</span>
-                                                <span className="text-xs text-gray-500">
-                                                    {bill.treatment_record_items?.length || 0} treatment
-                                                </span>
+                        {!selectedBranch ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-2 text-gray-400 my-auto">
+                                <svg className="w-10 h-10 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                <p className="text-sm font-semibold">Pilih cabang terlebih dahulu</p>
+                            </div>
+                        ) : pendingBills.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-2 text-gray-400 my-auto text-center px-6">
+                                <svg className="w-10 h-10 text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <p className="text-sm font-bold text-gray-700">Semua tagihan hari ini sudah lunas</p>
+                                <p className="text-xs text-gray-400 max-w-xs leading-relaxed">Tagihan baru dari terapis akan muncul otomatis setelah treatment selesai</p>
+                            </div>
+                        ) : (
+                            <div className="p-4.5 space-y-3 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                                {pendingBills.map((bill) => {
+                                    const totalBill = bill.treatment_record_items?.reduce((s, i) => s + (i.price_at_time || 0), 0) || 0
+                                    const isLoaded = cart.some(c => c.treatment_record_id === bill.id)
+                                    return (
+                                        <div
+                                            key={bill.id}
+                                            onClick={() => !isLoaded && loadPendingBillToCart(bill)}
+                                            className={`flex items-center gap-4 px-4.5 py-4 rounded-2xl border transition-all duration-200 ${
+                                                isLoaded 
+                                                    ? 'bg-emerald-50/80 border-emerald-100/60 shadow-sm cursor-default' 
+                                                    : 'bg-white border-gray-100 hover:border-pink-200 hover:shadow-md hover:scale-[1.01] cursor-pointer group shadow-[0_2px_8px_rgba(0,0,0,0.02)]'
+                                            }`}
+                                        >
+                                            {/* Avatar */}
+                                            <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0 transition-transform duration-200 ${
+                                                isLoaded ? 'bg-emerald-500 scale-105 shadow-md shadow-emerald-500/20' : 'bg-gradient-to-br from-ayumi-primary to-rose-400 group-hover:scale-105 shadow-sm'
+                                            }`}>
+                                                {isLoaded 
+                                                    ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                                    : (bill.patients?.full_name?.charAt(0) || '?').toUpperCase()
+                                                }
                                             </div>
-                                            {/* mini treatment tags */}
-                                            <div className="flex flex-wrap gap-1 mt-1.5">
-                                                {bill.treatment_record_items?.slice(0,3).map((it, i) => (
-                                                    <span key={i} className="bg-purple-50 text-purple-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                                                        {it.treatments?.name?.split(' ').slice(0,2).join(' ') || 'Treatment'}
+
+                                            {/* Info */}
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`font-extrabold text-sm truncate ${ isLoaded ? 'text-emerald-800' : 'text-gray-800 group-hover:text-ayumi-primary'}`}>
+                                                    {bill.patients?.full_name || 'Pasien'}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                    <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                                                        Hari ini, {bill.treatment_time?.substring(0,5) || '-'} WIB
                                                     </span>
-                                                ))}
-                                                {(bill.treatment_record_items?.length || 0) > 3 && (
-                                                    <span className="bg-gray-100 text-gray-500 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                                                        +{bill.treatment_record_items.length - 3} lainnya
+                                                    <span className="text-xs font-semibold text-gray-500">
+                                                        {bill.treatment_record_items?.length || 0} Treatment
+                                                    </span>
+                                                </div>
+                                                {/* mini treatment tags */}
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {bill.treatment_record_items?.slice(0,3).map((it, i) => (
+                                                        <span key={i} className="bg-purple-50/70 text-purple-700 border border-purple-100/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                            {it.treatments?.name?.split(' ').slice(0,2).join(' ') || 'Treatment'}
+                                                        </span>
+                                                    ))}
+                                                    {(bill.treatment_record_items?.length || 0) > 3 && (
+                                                        <span className="bg-gray-100 text-gray-500 border border-gray-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                            +{bill.treatment_record_items.length - 3} lainnya
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Total + Action */}
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="font-mono font-black text-sm text-ayumi-secondary">
+                                                    Rp {totalBill.toLocaleString('id-ID')}
+                                                </p>
+                                                {isLoaded ? (
+                                                    <span className="text-[10px] text-emerald-600 font-extrabold flex items-center justify-end gap-0.5 mt-1">
+                                                        Di Keranjang ✓
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-ayumi-primary font-bold group-hover:underline flex items-center justify-end gap-0.5 mt-1">
+                                                        Klik untuk bayar →
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
-
-                                        {/* Total + Action */}
-                                        <div className="text-right flex-shrink-0">
-                                            <p className="font-mono font-bold text-sm text-ayumi-secondary">
-                                                Rp {totalBill.toLocaleString('id-ID')}
-                                            </p>
-                                            {isLoaded ? (
-                                                <span className="text-[10px] text-green-600 font-bold">Di Keranjang ✓</span>
-                                            ) : (
-                                                <span className="text-[10px] text-ayumi-primary font-bold group-hover:underline">Klik untuk proses →</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                            })}
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    /* ── Katalog Item (Grid POS) ── */
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col">
+                        
+                        {/* Subtabs catalog */}
+                        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-5 py-3 gap-3">
+                            <div className="flex bg-white border border-gray-150 p-0.5 rounded-xl shadow-inner flex-1 max-w-sm">
+                                {[
+                                    { key: 'treatment', label: '💆‍♀️ Perawatan', color: 'text-purple-600' },
+                                    { key: 'product', label: '📦 Produk', color: 'text-orange-600' },
+                                    { key: 'coupon', label: '🎫 Kupon', color: 'text-pink-600' },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.key}
+                                        type="button"
+                                        onClick={() => setActiveTab(tab.key)}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${
+                                            activeTab === tab.key ? `bg-gray-100 ${tab.color}` : 'text-gray-400 hover:text-gray-600'
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                            
+                            {/* Search bar inside Catalog tab header */}
+                            <div className="relative w-48 sm:w-60 flex-shrink-0">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder={`Cari...`}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="input-ayumi pl-8 bg-white w-full text-xs py-1.5 border-gray-200 focus:border-pink-200"
+                                />
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Items list rendered as POS card grid */}
+                        <div className="p-5 overflow-y-auto max-h-[60vh] custom-scrollbar flex-1 bg-gray-50/20">
+                            {!selectedBranch && activeTab === 'product' ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-center my-auto">
+                                    <svg className="w-10 h-10 text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                    <p className="text-sm font-semibold">Pilih cabang terlebih dahulu untuk melihat stok produk</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                    {activeTab === 'treatment' && treatments
+                                        .filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                        .map(t => {
+                                            const hasDiscount = t.discount_percent > 0
+                                            const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
+                                            return (
+                                                <div
+                                                    key={t.id}
+                                                    className="bg-white p-3.5 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-between hover:border-purple-300 hover:shadow transition-all group"
+                                                >
+                                                    <div className="mb-3.5">
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <span className="bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                                                                ✨ Perawatan
+                                                            </span>
+                                                            {hasDiscount && (
+                                                                <span className="bg-rose-100 text-rose-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                                                                    -{t.discount_percent}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="font-extrabold text-xs text-gray-800 line-clamp-2 leading-tight group-hover:text-purple-700 tracking-tight">{t.name}</p>
+                                                    </div>
+                                                    <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed border-gray-100">
+                                                        <div className="flex flex-col">
+                                                            {hasDiscount && <span className="text-[9px] line-through text-gray-400 font-mono">Rp {t.price.toLocaleString('id-ID')}</span>}
+                                                            <span className="font-mono font-black text-xs text-ayumi-primary">Rp {price.toLocaleString('id-ID')}</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => addToCart(t, 'treatment')}
+                                                            className="w-7 h-7 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-black transition-all shadow-sm active:scale-95 animate-fadeIn"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    }
+                                    
+                                    {activeTab === 'product' && products
+                                        .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                        .map(p => (
+                                            <div
+                                                key={p.id}
+                                                className="bg-white p-3.5 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-between hover:border-orange-300 hover:shadow transition-all group"
+                                            >
+                                                <div className="mb-3.5">
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="bg-orange-50 text-orange-600 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                                                            📦 Produk Skincare
+                                                        </span>
+                                                        <span className="bg-orange-100 text-orange-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
+                                                            Stok: {p.quantity}
+                                                        </span>
+                                                    </div>
+                                                    <p className="font-extrabold text-xs text-gray-800 line-clamp-2 leading-tight group-hover:text-orange-700 tracking-tight">{p.name}</p>
+                                                </div>
+                                                <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed border-gray-100">
+                                                    <span className="font-mono font-black text-xs text-orange-600">Rp {p.price.toLocaleString('id-ID')}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => addToCart(p, 'product')}
+                                                        className="w-7 h-7 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-xs font-black transition-all shadow-sm active:scale-95 animate-fadeIn"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    }
+
+                                    {activeTab === 'coupon' && coupons
+                                        .filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                        .map(c => (
+                                            <div
+                                                key={c.id}
+                                                className="bg-white p-3.5 rounded-2xl border border-gray-150 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow transition-all group"
+                                            >
+                                                <div className="mb-3.5">
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="bg-pink-50 text-pink-600 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                                                            🎫 Kupon Paket
+                                                        </span>
+                                                    </div>
+                                                    <p className="font-extrabold text-xs text-gray-800 line-clamp-2 leading-tight group-hover:text-pink-700 tracking-tight">{c.name}</p>
+                                                </div>
+                                                <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed border-gray-100">
+                                                    <span className="font-mono font-black text-xs text-pink-600">Rp {c.price.toLocaleString('id-ID')}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => addToCart(c, 'coupon')}
+                                                        className="w-7 h-7 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-full flex items-center justify-center text-xs font-black transition-all shadow-sm active:scale-95 animate-fadeIn"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
             </div>
 
@@ -729,50 +993,187 @@ function PosPageContent() {
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-ayumi-secondary to-ayumi-primary"></div>
                 
                 {/* Patient Selector */}
-                <div className="p-5 border-b border-gray-100 pt-6">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pelanggan (Opsional)</label>
+                <div className="p-5 border-b border-gray-100 pt-6 bg-white">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pelanggan (Wajib Diisi)</label>
                     {selectedPatient ? (
-                        <div className="flex justify-between items-center bg-blue-50 p-3 rounded-xl border border-blue-100">
-                            <div>
-                                <p className="font-bold text-blue-900 leading-tight">{selectedPatient.full_name}</p>
-                                <p className="text-xs text-blue-700 mt-0.5">{selectedPatient.whatsapp || 'No HP Tidak ada'}</p>
+                        <div className="flex justify-between items-center bg-pink-50/50 p-4.5 rounded-2xl border border-pink-100/60 shadow-sm relative overflow-hidden transition-all">
+                            <div className="flex items-center gap-3">
+                                {/* Initial Avatar */}
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-ayumi-primary to-rose-400 flex items-center justify-center text-white font-black text-base shadow-inner flex-shrink-0">
+                                    {(selectedPatient.full_name?.charAt(0) || '?').toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="font-extrabold text-gray-900 leading-tight text-base truncate">{selectedPatient.full_name}</p>
+                                    <p className="text-xs text-gray-500 mt-1 font-mono tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
+                                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                        {/* CRM Badge */}
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-sm ${
+                                            (selectedPatientDetails?.crmStatus === 'Active') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                            (selectedPatientDetails?.crmStatus === 'Warm') ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                            (selectedPatientDetails?.crmStatus === 'Dormant') ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                            'bg-blue-50 text-blue-700 border-blue-200'
+                                        }`}>
+                                            {selectedPatientDetails?.crmStatus || 'New'}
+                                        </span>
+                                        {/* Transaction Count Badge */}
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 shadow-sm">
+                                            Transaksi ke-{selectedPatientDetails ? (selectedPatientDetails.transactionCount || 0) + 1 : '...'}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <button onClick={() => setSelectedPatient(null)} className="text-blue-400 hover:text-blue-600 p-1 bg-white rounded-full">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            <button 
+                                type="button"
+                                onClick={() => {
+                                    setSelectedPatient(null)
+                                    setSelectedPatientDetails(null)
+                                    setCart([])
+                                    if (pendingBills.length > 0) {
+                                        setLeftPanelTab('pending')
+                                    }
+                                }} 
+                                className="text-gray-400 hover:text-rose-600 p-2 bg-white hover:bg-rose-50 rounded-xl transition-all border border-gray-100 shadow-sm flex-shrink-0"
+                                title="Ganti Pasien"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
+                    ) : isQuickAddInlineOpen ? (
+                        /* Inline Quick Add Patient Form */
+                        <form onSubmit={handleQuickAddPatient} className="bg-pink-50/30 p-4.5 rounded-2xl border border-pink-100/60 shadow-sm space-y-3.5 transition-all">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-extrabold text-xs text-ayumi-secondary uppercase tracking-wider">Tambah Pasien Cepat</h3>
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setIsQuickAddInlineOpen(false)
+                                        setQuickAddError('')
+                                    }} 
+                                    className="text-xs text-gray-400 hover:text-gray-600 font-bold"
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                            
+                            {quickAddError && (
+                                <p className="text-[11px] text-red-500 font-semibold">{quickAddError}</p>
+                            )}
+
+                            <div className="space-y-2.5">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nama Lengkap</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Nama Lengkap Pasien"
+                                        value={quickAddForm.full_name}
+                                        onChange={(e) => setQuickAddForm(prev => ({ ...prev, full_name: e.target.value }))}
+                                        className="input-ayumi w-full bg-white text-xs"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">No. WhatsApp</label>
+                                    <input 
+                                        type="tel" 
+                                        placeholder="Contoh: 08123456789"
+                                        value={quickAddForm.whatsapp}
+                                        onChange={(e) => setQuickAddForm(prev => ({ ...prev, whatsapp: e.target.value }))}
+                                        className="input-ayumi w-full bg-white text-xs"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                disabled={isQuickAdding}
+                                className="w-full bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-pink-500/20"
+                            >
+                                {isQuickAdding ? (
+                                    <span className="animate-pulse">Menyimpan...</span>
+                                ) : (
+                                    <>
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                        Simpan & Pilih Pasien
+                                    </>
+                                )}
+                            </button>
+                        </form>
                     ) : (
                         <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Cari Pasien (Nama/WA)..."
-                                value={searchPatientQuery}
-                                onChange={(e) => {
-                                    setSearchPatientQuery(e.target.value)
-                                    setIsPatientDropdownOpen(true)
-                                }}
-                                onFocus={() => setIsPatientDropdownOpen(true)}
-                                className="input-ayumi w-full bg-gray-50"
-                            />
-                            {isPatientDropdownOpen && searchPatientQuery && (
-                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl max-h-60 overflow-y-auto">
+                            <div className="relative flex items-center">
+                                <span className="absolute left-3 text-gray-400">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="Cari Nama Pasien / No. WA..."
+                                    value={searchPatientQuery}
+                                    onChange={(e) => {
+                                        setSearchPatientQuery(e.target.value)
+                                        setIsPatientDropdownOpen(true)
+                                    }}
+                                    onFocus={() => setIsPatientDropdownOpen(true)}
+                                    className="input-ayumi w-full pl-9 bg-gray-50/80 border-gray-200/80 focus:bg-white text-sm"
+                                />
+                                {searchPatientQuery && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => setSearchPatientQuery('')} 
+                                        className="absolute right-3 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                )}
+                            </div>
+                            {isPatientDropdownOpen && (
+                                <div className="absolute z-20 w-full mt-1.5 bg-white border border-gray-100 shadow-xl rounded-2xl max-h-64 overflow-y-auto custom-scrollbar divide-y divide-gray-50">
                                     {filteredPatients.length > 0 ? (
-                                        filteredPatients.map(p => (
+                                        <>
+                                            {filteredPatients.map(p => (
+                                                <div 
+                                                    key={p.id} 
+                                                    onClick={() => handleSelectPatient(p)}
+                                                    className="px-4.5 py-3 hover:bg-pink-50/40 cursor-pointer transition-colors flex items-center justify-between"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-gray-800 text-sm truncate">{p.full_name}</p>
+                                                        <p className="text-xs text-gray-400 font-mono mt-0.5">{p.whatsapp || 'No HP tidak ada'}</p>
+                                                    </div>
+                                                    <span className="text-[10px] text-ayumi-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
+                                                </div>
+                                            ))}
                                             <div 
-                                                key={p.id} 
                                                 onClick={() => {
-                                                    setSelectedPatient(p)
-                                                    setSearchPatientQuery('')
+                                                    setQuickAddForm({ full_name: searchPatientQuery, whatsapp: '' })
+                                                    setIsQuickAddInlineOpen(true)
                                                     setIsPatientDropdownOpen(false)
                                                 }}
-                                                className="px-4 py-3 hover:bg-ayumi-table-hover cursor-pointer border-b border-gray-50 last:border-0"
+                                                className="px-4.5 py-3 hover:bg-pink-50/80 cursor-pointer transition-colors flex items-center justify-between text-ayumi-primary bg-pink-50/30"
                                             >
-                                                <p className="font-bold text-gray-800">{p.full_name}</p>
-                                                <p className="text-xs text-gray-500">{p.whatsapp}</p>
+                                                <span className="font-bold text-xs flex items-center gap-1.5">
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                                    Tambah Pasien Baru: "{searchPatientQuery || '...'}"
+                                                </span>
+                                                <span className="text-[9px] bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider">Cepat</span>
                                             </div>
-                                        ))
+                                        </>
                                     ) : (
-                                        <div className="px-4 py-3 text-sm text-gray-500">Pasien tidak ditemukan.</div>
+                                        <div className="p-3">
+                                            <p className="px-3 py-2 text-xs text-gray-500 text-center">Pasien tidak ditemukan.</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setQuickAddForm({ full_name: searchPatientQuery, whatsapp: '' })
+                                                    setIsQuickAddInlineOpen(true)
+                                                    setIsPatientDropdownOpen(false)
+                                                }}
+                                                className="w-full mt-1.5 bg-pink-50 hover:bg-pink-100 text-ayumi-primary text-xs font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                                            >
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                                Tambah Pasien Baru
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -781,110 +1182,161 @@ function PosPageContent() {
                 </div>
 
                 {/* Cart Items */}
-                <div className="flex-1 overflow-y-auto p-5 custom-scrollbar bg-gray-50/30">
+                <div className="flex-1 overflow-y-auto p-5 pb-24 custom-scrollbar bg-gray-50/30">
                     {cart.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3">
-                            <svg className="w-16 h-16 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                            <p className="text-sm font-semibold">Keranjang Masih Kosong</p>
-                        </div>
+                        !selectedPatient ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-4">
+                                <div className="w-20 h-20 bg-pink-50 rounded-full flex items-center justify-center shadow-inner animate-pulse">
+                                    <svg className="w-10 h-10 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-extrabold text-gray-800 leading-snug">Pilih Pelanggan Dahulu</p>
+                                    <p className="text-xs text-gray-400 mt-1 max-w-[220px] mx-auto leading-relaxed">Cari nama atau nomor WhatsApp pasien di atas untuk memulai transaksi</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-4">
+                                <div className="w-20 h-20 bg-purple-50 rounded-full flex items-center justify-center shadow-inner">
+                                    <svg className="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-extrabold text-gray-800 leading-snug">Keranjang Belum Diisi</p>
+                                    <p className="text-xs text-gray-400 mt-1 max-w-[220px] mx-auto leading-relaxed">Tambahkan perawatan, produk skincare, atau kupon paket melalui tombol '+ Tambah Item' di bawah</p>
+                                </div>
+                            </div>
+                        )
                     ) : (
                         <div className="space-y-4">
                             {cart.map((item, idx) => (
-                                <div key={idx} className="flex flex-col bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-pink-200 transition-all">
-                                    {/* Top row: badge & delete button */}
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                                            item.item_type === 'treatment' 
-                                                ? 'bg-purple-100 text-purple-700' 
-                                                : item.item_type === 'product'
-                                                ? 'bg-orange-100 text-orange-700'
-                                                : 'bg-pink-100 text-pink-700'
-                                        }`}>
-                                            {item.item_type === 'treatment' ? 'Treatment' : item.item_type === 'product' ? 'Produk Fisik' : 'Kupon Paket'}
-                                        </span>
+                                <div key={idx} className="flex flex-col bg-white p-4.5 rounded-2xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-pink-200 hover:shadow-md transition-all duration-200">
+                                    {/* Top row: badge, name & delete button */}
+                                    <div className="flex items-start justify-between gap-2 mb-3">
+                                        <div className="flex flex-col gap-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm ${
+                                                    item.item_type === 'treatment' 
+                                                        ? 'bg-purple-50 text-purple-600 border border-purple-100/70' 
+                                                        : item.item_type === 'product'
+                                                        ? 'bg-orange-50 text-orange-600 border border-orange-100/70'
+                                                        : 'bg-pink-50 text-pink-600 border border-pink-100/70'
+                                                }`}>
+                                                    <span>{item.item_type === 'treatment' ? '✨' : item.item_type === 'product' ? '📦' : '🎫'}</span>
+                                                    {item.item_type === 'treatment' ? 'Treatment' : item.item_type === 'product' ? 'Produk Fisik' : 'Kupon Paket'}
+                                                </span>
+                                            </div>
+                                            <p className="font-extrabold text-gray-800 text-sm leading-tight mt-0.5 tracking-tight break-words">{item.name}</p>
+                                        </div>
                                         <button 
+                                            type="button"
                                             onClick={() => removeFromCart(item.id, item.item_type)}
-                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-rose-100 hover:text-rose-600 hover:scale-105 hover:border-rose-200 border border-transparent shadow-sm transition-all duration-150 flex-shrink-0"
                                             title="Hapus dari keranjang"
                                         >
                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                         </button>
                                     </div>
 
-                                    {/* Item name */}
-                                    <p className="font-bold text-gray-800 text-sm leading-snug mb-2">{item.name}</p>
-
-                                    {/* 2x2 Interactive Price Grid */}
-                                    <div className="grid grid-cols-2 gap-2 mt-1.5 pt-2 border-t border-dashed border-gray-100">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-gray-400 block mb-0.5">Harga Awal</label>
-                                            <div className="relative">
-                                                <span className="absolute left-1.5 top-1 text-[10px] text-gray-400 font-mono">Rp</span>
-                                                <input 
-                                                    type="number" 
-                                                    value={item.original_price || 0} 
-                                                    onChange={(e) => handleCartItemOriginalPriceChange(item.id, item.item_type, e.target.value)}
-                                                    className="w-full text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg pl-5 pr-1 py-1 font-mono text-gray-700 focus:bg-white focus:border-pink-300 outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-gray-400 block mb-0.5">Diskon (%)</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="number" 
-                                                    value={item.discount_percent || 0} 
-                                                    onChange={(e) => handleCartItemDiscountChange(item.id, item.item_type, e.target.value)}
-                                                    className="w-full text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-1 font-mono text-gray-700 focus:bg-white focus:border-pink-300 outline-none text-right pr-4"
-                                                    min="0"
-                                                    max="100"
-                                                />
-                                                <span className="absolute right-1.5 top-1 text-[10px] text-gray-400 font-mono">%</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-gray-400 block mb-0.5">Potongan (Rp)</label>
-                                            <div className="relative">
-                                                <span className="absolute left-1.5 top-1 text-[10px] text-gray-400 font-mono">Rp</span>
-                                                <input 
-                                                    type="number" 
-                                                    value={Math.max(0, (item.original_price || 0) - (item.price || 0))} 
-                                                    onChange={(e) => handleCartItemDiscountNominalChange(item.id, item.item_type, e.target.value)}
-                                                    className="w-full text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg pl-5 pr-1 py-1 font-mono text-gray-700 focus:bg-white focus:border-pink-300 outline-none text-right"
-                                                    min="0"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-gray-400 block mb-0.5">Harga Net</label>
-                                            <div className="relative">
-                                                <span className="absolute left-1.5 top-1 text-[10px] text-ayumi-primary font-bold">Rp</span>
-                                                <input 
-                                                    type="number" 
-                                                    value={item.price || 0} 
-                                                    onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
-                                                    className="w-full text-xs font-bold bg-pink-50/50 border border-pink-100 rounded-lg pl-5 pr-1 py-1 font-mono text-ayumi-primary focus:bg-white focus:border-pink-300 outline-none"
-                                                />
-                                            </div>
-                                        </div>
+                                    {/* Collapsible toggle button */}
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setExpandedCartItem(prev => prev === `${item.id}-${item.item_type}` ? null : `${item.id}-${item.item_type}`)}
+                                            className="text-[10px] font-extrabold text-ayumi-primary hover:text-pink-700 hover:underline flex items-center gap-1 transition-all"
+                                        >
+                                            {expandedCartItem === `${item.id}-${item.item_type}` ? (
+                                                <>
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7" /></svg>
+                                                    Sembunyikan Diskon & Harga
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                                    Atur Diskon & Harga (Rp {(item.price || 0).toLocaleString('id-ID')})
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
 
+                                    {/* 2x2 Interactive Price Grid (Collapsible) */}
+                                    {expandedCartItem === `${item.id}-${item.item_type}` && (
+                                        <div className="grid grid-cols-2 gap-2 mt-1 mb-2 pt-2 border-t border-dashed border-gray-150 animate-fadeIn duration-200">
+                                            {/* Harga Awal */}
+                                            <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
+                                                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Harga Awal</label>
+                                                <div className="relative flex items-center">
+                                                    <span className="text-[10px] text-gray-400 font-mono font-bold mr-1">Rp</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.original_price || 0} 
+                                                        onChange={(e) => handleCartItemOriginalPriceChange(item.id, item.item_type, e.target.value)}
+                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none font-mono text-gray-700 p-0 focus:ring-0 focus:outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Diskon (%) */}
+                                            <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
+                                                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Diskon (%)</label>
+                                                <div className="relative flex items-center justify-between">
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.discount_percent || 0} 
+                                                        onChange={(e) => handleCartItemDiscountChange(item.id, item.item_type, e.target.value)}
+                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none font-mono text-gray-700 p-0 text-right pr-4 focus:ring-0 focus:outline-none"
+                                                        min="0"
+                                                        max="100"
+                                                    />
+                                                    <span className="absolute right-0 text-[10px] text-gray-400 font-mono font-bold">%</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Potongan (Rp) */}
+                                            <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
+                                                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Potongan (Rp)</label>
+                                                <div className="relative flex items-center">
+                                                    <span className="text-[10px] text-gray-400 font-mono font-bold mr-1">Rp</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={Math.max(0, (item.original_price || 0) - (item.price || 0))} 
+                                                        onChange={(e) => handleCartItemDiscountNominalChange(item.id, item.item_type, e.target.value)}
+                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none font-mono text-gray-700 p-0 text-right focus:ring-0 focus:outline-none"
+                                                        min="0"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Harga Net */}
+                                            <div className="bg-pink-50/30 p-2 rounded-xl border border-pink-100/50 focus-within:border-pink-300 focus-within:bg-white transition-all">
+                                                <label className="text-[9px] font-black uppercase text-pink-600/70 tracking-wider block mb-0.5">Harga Net</label>
+                                                <div className="relative flex items-center">
+                                                    <span className="text-[10px] text-ayumi-primary font-mono font-bold mr-1">Rp</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.price || 0} 
+                                                        onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
+                                                        className="w-full text-xs font-black bg-transparent border-none outline-none font-mono text-ayumi-primary p-0 focus:ring-0 focus:outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Bottom row: quantity controls & item subtotal */}
-                                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
-                                        <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg p-0.5 border border-gray-200">
+                                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
+                                        <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-1 border border-gray-100">
                                             <button 
                                                 onClick={() => updateCartQty(item.id, item.item_type, -1)} 
-                                                className="w-5.5 h-5.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-sm hover:bg-gray-100 font-bold text-xs"
+                                                className="w-6 h-6 flex items-center justify-center text-gray-500 bg-white rounded-lg shadow-sm hover:bg-gray-100 hover:text-gray-800 transition-all font-black text-sm"
                                             >-</button>
-                                            <span className="font-bold text-xs w-4 text-center text-gray-700">{item.quantity}</span>
+                                            <span className="font-extrabold text-xs w-6 text-center text-gray-700">{item.quantity}</span>
                                             <button 
                                                 onClick={() => updateCartQty(item.id, item.item_type, 1)} 
-                                                className="w-5.5 h-5.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-sm hover:bg-gray-100 font-bold text-xs"
+                                                className="w-6 h-6 flex items-center justify-center text-gray-500 bg-white rounded-lg shadow-sm hover:bg-gray-100 hover:text-gray-800 transition-all font-black text-sm"
                                             >+</button>
                                         </div>
                                         <div className="text-right">
-                                            <span className="text-[9px] font-bold text-gray-400 block">Subtotal</span>
-                                            <span className="font-mono font-bold text-xs text-ayumi-secondary">
+                                            <span className="text-[8px] font-black uppercase text-gray-400 tracking-wider block">Subtotal</span>
+                                            <span className="font-mono font-black text-sm text-ayumi-secondary">
                                                 Rp {((item.price || 0) * item.quantity).toLocaleString('id-ID')}
                                             </span>
                                         </div>
@@ -894,130 +1346,6 @@ function PosPageContent() {
                         </div>
                     )}
                 </div>
-
-                <div className="border-t border-dashed border-gray-100 mx-0">
-                        <button
-                            onClick={() => setShowAddItemPanel(prev => !prev)}
-                            className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50/80 transition-colors"
-                        >
-                            <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 bg-ayumi-primary/10 rounded-full flex items-center justify-center">
-                                    <svg className="w-3 h-3 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                </div>
-                                <span className="font-bold text-sm text-ayumi-primary">Tambah Item</span>
-                                <span className="text-xs text-gray-400 font-normal">untuk {selectedPatient?.full_name || 'pasien ini'}</span>
-                            </div>
-                            <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showAddItemPanel ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                        </button>
-
-                        {showAddItemPanel && (
-                            <div className="bg-gray-50/50 border-t border-gray-100">
-                                {/* Tabs */}
-                                <div className="flex bg-white border border-gray-100 p-1 mx-4 mt-3 rounded-xl shadow-sm">
-                                    {[
-                                        { key: 'treatment', label: 'Treatment', color: 'text-purple-600' },
-                                        { key: 'product', label: 'Produk', color: 'text-orange-600' },
-                                        { key: 'coupon', label: 'Kupon', color: 'text-pink-600' },
-                                    ].map(tab => (
-                                        <button
-                                            key={tab.key}
-                                            onClick={() => setActiveTab(tab.key)}
-                                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                                activeTab === tab.key ? `bg-gray-100 ${tab.color}` : 'text-gray-400 hover:text-gray-600'
-                                            }`}
-                                        >
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Search */}
-                                <div className="px-4 pt-3 pb-2">
-                                    <div className="relative">
-                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                                        </span>
-                                        <input
-                                            type="text"
-                                            placeholder={`Cari ${activeTab === 'treatment' ? 'treatment' : activeTab === 'product' ? 'produk skincare' : 'kupon'}...`}
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="input-ayumi pl-8 bg-white w-full text-xs py-2"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Items List (vertical, more compact) */}
-                                <div className="px-4 pb-3 max-h-56 overflow-y-auto custom-scrollbar">
-                                    {!selectedBranch && activeTab === 'product' ? (
-                                        <div className="text-center text-gray-400 py-4 text-xs">Pilih cabang terlebih dahulu</div>
-                                    ) : (
-                                        <div className="space-y-1.5">
-                                            {activeTab === 'treatment' && treatments
-                                                .filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                                .map(t => {
-                                                    const hasDiscount = t.discount_percent > 0
-                                                    const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
-                                                    return (
-                                                        <button
-                                                            key={t.id}
-                                                            type="button"
-                                                            onClick={() => addToCart(t, 'treatment')}
-                                                            className="w-full flex items-center justify-between bg-white px-3 py-2.5 rounded-xl border border-purple-100 hover:border-purple-300 hover:bg-purple-50/30 transition-all group text-left"
-                                                        >
-                                                            <span className="font-semibold text-xs text-gray-800 group-hover:text-purple-700 truncate pr-2">{t.name}</span>
-                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                                {hasDiscount && <span className="text-[9px] line-through text-gray-400">Rp {t.price.toLocaleString('id-ID')}</span>}
-                                                                <span className="font-mono font-bold text-xs text-ayumi-primary">Rp {price.toLocaleString('id-ID')}</span>
-                                                                <span className="w-5 h-5 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">+</span>
-                                                            </div>
-                                                        </button>
-                                                    )
-                                                })
-                                            }
-                                            {activeTab === 'product' && products
-                                                .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                                .map(p => (
-                                                    <button
-                                                        key={p.id}
-                                                        type="button"
-                                                        onClick={() => addToCart(p, 'product')}
-                                                        className="w-full flex items-center justify-between bg-white px-3 py-2.5 rounded-xl border border-orange-100 hover:border-orange-300 hover:bg-orange-50/30 transition-all group text-left"
-                                                    >
-                                                        <div className="flex items-center gap-2 truncate">
-                                                            <span className="font-semibold text-xs text-gray-800 group-hover:text-orange-700 truncate">{p.name}</span>
-                                                            <span className="bg-orange-100 text-orange-600 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">Stok: {p.quantity}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                                                            <span className="font-mono font-bold text-xs text-orange-600">Rp {p.price.toLocaleString('id-ID')}</span>
-                                                            <span className="w-5 h-5 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">+</span>
-                                                        </div>
-                                                    </button>
-                                                ))
-                                            }
-                                            {activeTab === 'coupon' && coupons
-                                                .filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                                .map(c => (
-                                                    <button
-                                                        key={c.id}
-                                                        type="button"
-                                                        onClick={() => addToCart(c, 'coupon')}
-                                                        className="w-full flex items-center justify-between bg-white px-3 py-2.5 rounded-xl border border-pink-200 hover:border-pink-400 hover:bg-pink-50/30 transition-all group text-left"
-                                                    >
-                                                        <span className="font-semibold text-xs text-gray-800 group-hover:text-pink-700 truncate pr-2">{c.name}</span>
-                                                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                            <span className="font-mono font-bold text-xs text-pink-600">Rp {c.price.toLocaleString('id-ID')}</span>
-                                                            <span className="w-5 h-5 bg-pink-100 text-pink-700 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">+</span>
-                                                        </div>
-                                                    </button>
-                                                ))
-                                            }
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
 
                 {/* Totals & Payment */}
                 <div className="border-t border-gray-100 bg-white p-5 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] z-10">
@@ -1055,35 +1383,51 @@ function PosPageContent() {
                             </div>
                         )}
 
-                        <div className="flex justify-between text-lg border-t border-gray-100 pt-3">
-                            <span className="font-bold text-gray-800">TOTAL BAYAR</span>
-                            <span className="font-extrabold text-2xl text-ayumi-secondary font-mono">Rp {total.toLocaleString('id-ID')}</span>
+                        <div className="flex justify-between items-baseline border-t border-gray-100 pt-3">
+                            <span className="font-black text-gray-800 text-sm">TOTAL BAYAR</span>
+                            <span className="font-extrabold text-2xl text-ayumi-secondary font-mono tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
                         </div>
                     </div>
 
                     <div className="space-y-4">
-                        <select 
-                            value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
-                            className="input-ayumi w-full bg-blue-50/50 border-blue-200 font-bold text-blue-900 py-3"
-                        >
-                            <option value="cash">💵 Uang Tunai (Cash)</option>
-                            <option value="transfer">🏦 Transfer Bank</option>
-                            <option value="qris">📱 QRIS</option>
-                            <option value="debit">💳 Kartu Debit</option>
-                            <option value="credit">💳 Kartu Kredit</option>
-                        </select>
+                        <div>
+                            <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">Metode Pembayaran</label>
+                            <div className="grid grid-cols-5 gap-1.5">
+                                {[
+                                    { id: 'cash', label: 'Cash', icon: '💵' },
+                                    { id: 'transfer', label: 'Bank', icon: '🏦' },
+                                    { id: 'qris', label: 'QRIS', icon: '📱' },
+                                    { id: 'debit', label: 'Debit', icon: '💳' },
+                                    { id: 'credit', label: 'Kredit', icon: '💳' }
+                                ].map(pm => (
+                                    <button
+                                        key={pm.id}
+                                        type="button"
+                                        onClick={() => setPaymentMethod(pm.id)}
+                                        className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border text-[10px] font-extrabold transition-all ${
+                                            paymentMethod === pm.id
+                                                ? 'bg-pink-50 border-ayumi-primary text-ayumi-primary shadow-sm scale-105'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <span className="text-base mb-0.5">{pm.icon}</span>
+                                        <span className="truncate w-full text-center">{pm.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
                         <button 
+                            type="button"
                             onClick={handleCheckout}
                             disabled={isProcessing || cart.length === 0 || !selectedBranch}
-                            className="w-full btn-primary py-4 text-lg font-bold flex justify-center items-center gap-2 shadow-xl shadow-pink-500/30"
+                            className="w-full bg-ayumi-primary hover:bg-ayumi-primary-hover disabled:opacity-50 disabled:pointer-events-none disabled:shadow-none text-white py-4 rounded-2xl text-base font-black tracking-wider flex justify-center items-center gap-2.5 shadow-lg shadow-pink-500/20 active:scale-[0.99] transition-all"
                         >
                             {isProcessing ? (
-                                <span className="animate-pulse">Memproses...</span>
+                                <span className="animate-pulse">Memproses Pembayaran...</span>
                             ) : (
                                 <>
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                                     PROSES PEMBAYARAN
                                 </>
                             )}
