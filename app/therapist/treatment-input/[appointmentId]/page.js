@@ -369,8 +369,6 @@ export default function TreatmentInputPage({ params }) {
 
     if (!appointment) return null
 
-    const totalHarga = selectedTreatments.reduce((acc, t) => acc + t.price_at_time, 0)
-
     return (
         <div className="max-w-4xl mx-auto space-y-6 p-4 md:p-6">
             <div className="flex items-center gap-4 mb-2">
@@ -524,7 +522,6 @@ export default function TreatmentInputPage({ params }) {
                                                     .filter(t => t.name.toLowerCase().includes(treatmentSearch.toLowerCase()))
                                                     .map(t => {
                                                         const isSelected = selectedTreatments.some(x => x.treatment_id === t.id)
-                                                        const price = t.discount_percent > 0 ? t.price * (1 - t.discount_percent / 100) : t.price
                                                         return (
                                                             <button
                                                                 key={t.id}
@@ -538,7 +535,6 @@ export default function TreatmentInputPage({ params }) {
                                                                 className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between text-sm cursor-pointer ${isSelected ? 'opacity-40 cursor-not-allowed' : 'hover:bg-pink-50'}`}
                                                             >
                                                                 <span className="font-bold text-ayumi-secondary truncate pr-2">{t.name}</span>
-                                                                <span className="font-bold text-gray-600 whitespace-nowrap text-xs">Rp {price.toLocaleString('id-ID')}</span>
                                                             </button>
                                                         )
                                                     })
@@ -553,7 +549,7 @@ export default function TreatmentInputPage({ params }) {
                             </div>
                         </div>
                     </div>
-
+ 
                     {selectedTreatments.length === 0 ? (
                         <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-2xl">
                             <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
@@ -574,14 +570,6 @@ export default function TreatmentInputPage({ params }) {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <div className="text-right">
-                                            {item.discount_percent > 0 && (
-                                                <div className="text-xs line-through text-gray-400">Rp {item.original_price?.toLocaleString('id-ID')}</div>
-                                            )}
-                                            <div className="font-bold text-ayumi-primary text-sm">
-                                                {item.price_at_time === 0 ? <span className="text-purple-600">Gratis (Kupon)</span> : `Rp ${item.price_at_time.toLocaleString('id-ID')}`}
-                                            </div>
-                                        </div>
                                         <button
                                             type="button"
                                             onClick={() => handleRemoveTreatment(item.treatment_id)}
@@ -592,13 +580,6 @@ export default function TreatmentInputPage({ params }) {
                                     </div>
                                 </div>
                             ))}
-                            <div className="flex justify-end pt-2 border-t border-gray-100">
-                                <div className="text-right">
-                                    <span className="text-xs text-gray-400 font-medium">Total Estimasi</span>
-                                    <div className="font-extrabold text-xl text-ayumi-secondary">Rp {totalHarga.toLocaleString('id-ID')}</div>
-                                    <span className="text-xs text-gray-400">(Diskon & pembayaran diproses di kasir)</span>
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
