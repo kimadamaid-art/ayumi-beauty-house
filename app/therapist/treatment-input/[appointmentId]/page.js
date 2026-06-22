@@ -329,11 +329,13 @@ export default function TreatmentInputPage({ params }) {
                 .update({ status: 'completed' })
                 .eq('id', appointment.id)
 
-            // 4.5 Send notifications to admins and owners of the branch
+            // 4.5 Send notifications to admins of the branch (no owners)
             const { data: recipientUsers } = await supabase
                 .from('users')
                 .select('id')
-                .or(`and(role.eq.admin,branch_id.eq.${appointment.branch_id}),role.eq.owner`)
+                .eq('role', 'admin')
+                .eq('branch_id', appointment.branch_id)
+                .eq('is_active', true)
 
             if (recipientUsers && recipientUsers.length > 0) {
                 const notificationsToInsert = recipientUsers.map(recipient => ({

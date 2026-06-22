@@ -167,14 +167,15 @@ export default function TherapistDashboard() {
             return
         }
 
-        // 2. Notify all admins and owners of this branch
+        // 2. Notify all admins of this branch (no owners)
         const { data: admins } = await supabase
             .from('users')
             .select('id, role, branch_id')
-            .in('role', ['admin', 'owner'])
+            .eq('role', 'admin')
+            .eq('branch_id', selectedBranch)
             .eq('is_active', true)
 
-        if (admins) {
+        if (admins && admins.length > 0) {
             // Fetch treatments
             const { data: apptTreatments } = await supabase
                 .from('appointment_treatments')
@@ -182,25 +183,22 @@ export default function TherapistDashboard() {
                 .eq('appointment_id', apt.id)
             
             const treatmentNames = apptTreatments?.map(t => t.treatments?.name).join(', ') || 'Treatment'
-            const adminsToNotify = admins.filter(adm => adm.role === 'owner' || adm.branch_id === selectedBranch)
+            
+            const notificationsPayload = admins.map(adm => ({
+                recipient_id: adm.id,
+                sender_id: dbUser.id,
+                appointment_id: apt.id,
+                type: 'therapist_ready',
+                title: 'Terapis Siap',
+                message: `${dbUser.full_name} sudah siap menerima ${apt.patients?.full_name} untuk ${treatmentNames}.`
+            }))
 
-            if (adminsToNotify.length > 0) {
-                const notificationsPayload = adminsToNotify.map(adm => ({
-                    recipient_id: adm.id,
-                    sender_id: dbUser.id,
-                    appointment_id: apt.id,
-                    type: 'therapist_ready',
-                    title: 'Terapis Siap',
-                    message: `${dbUser.full_name} sudah siap menerima ${apt.patients?.full_name} untuk ${treatmentNames}.`
-                }))
+            const { error: notifErr } = await supabase
+                .from('notifications')
+                .insert(notificationsPayload)
 
-                const { error: notifErr } = await supabase
-                    .from('notifications')
-                    .insert(notificationsPayload)
-
-                if (notifErr) {
-                    console.error('Gagal membuat notifikasi ke admin:', notifErr.message)
-                }
+            if (notifErr) {
+                console.error('Gagal membuat notifikasi ke admin:', notifErr.message)
             }
         }
 
