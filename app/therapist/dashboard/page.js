@@ -167,15 +167,17 @@ export default function TherapistDashboard() {
             return
         }
 
-        // 2. Notify all admins of this branch (no owners)
-        const { data: admins } = await supabase
+        // 2. Notify all admins of this branch and owners
+        const { data: allActiveUsers } = await supabase
             .from('users')
             .select('id, role, branch_id')
-            .eq('role', 'admin')
-            .eq('branch_id', selectedBranch)
             .eq('is_active', true)
 
-        if (admins && admins.length > 0) {
+        const recipients = allActiveUsers?.filter(u => 
+            u.role === 'owner' || (u.role === 'admin' && u.branch_id === selectedBranch)
+        ) || []
+
+        if (recipients.length > 0) {
             // Fetch treatments
             const { data: apptTreatments } = await supabase
                 .from('appointment_treatments')
@@ -184,8 +186,8 @@ export default function TherapistDashboard() {
             
             const treatmentNames = apptTreatments?.map(t => t.treatments?.name).join(', ') || 'Treatment'
             
-            const notificationsPayload = admins.map(adm => ({
-                recipient_id: adm.id,
+            const notificationsPayload = recipients.map(recipient => ({
+                recipient_id: recipient.id,
                 sender_id: dbUser.id,
                 appointment_id: apt.id,
                 type: 'therapist_ready',

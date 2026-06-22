@@ -100,6 +100,47 @@ export default function GlobalHeader() {
                     fetchUnreadCount(user.id)
                     if (payload.eventType === 'INSERT') {
                         playNotificationSound()
+                        const newNotif = payload.new
+                        if (newNotif) {
+                            // Show beautiful visual toast notification
+                            toast((t) => (
+                                <div 
+                                    className="flex flex-col gap-1.5 cursor-pointer text-left w-full"
+                                    onClick={() => {
+                                        toast.dismiss(t.id)
+                                        handleMarkAsRead(newNotif.id, newNotif.appointment_id, newNotif.type)
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                                        </span>
+                                        <span className="font-extrabold text-sm text-ayumi-secondary">{newNotif.title}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                                        {newNotif.message}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-ayumi-primary hover:underline flex items-center gap-1 mt-1">
+                                        {newNotif.type === 'treatment_completed' ? 'Klik untuk proses pembayaran di Kasir' : 'Klik untuk melihat detail'}
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            ), {
+                                duration: 8000,
+                                position: 'top-right',
+                                style: {
+                                    borderRadius: '1rem',
+                                    border: '1px solid #fbcfe8',
+                                    padding: '12px 16px',
+                                    background: '#ffffff',
+                                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+                                    maxWidth: '350px'
+                                }
+                            })
+                        }
                     }
                 }
             )
