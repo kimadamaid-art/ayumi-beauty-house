@@ -252,18 +252,18 @@ export default function AppointmentsPage() {
 
         if (status === 'completed' && !hasSoap) {
             return (
-                <span className="px-3 py-1 rounded-full text-xs font-bold border bg-yellow-50 text-yellow-700 border-yellow-200">
-                    Selesai (Menunggu SOAP)
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-200">
+                    Selesai (SOAP)
                 </span>
             )
         }
 
         const badges = {
-            'scheduled': 'bg-blue-100 text-blue-700 border-blue-200',
-            'confirmed': 'bg-green-100 text-green-700 border-green-200',
-            'completed': 'bg-gray-100 text-gray-700 border-gray-200',
-            'cancelled': 'bg-red-100 text-red-700 border-red-200',
-            'no_show': 'bg-orange-100 text-orange-700 border-orange-200'
+            'scheduled': 'bg-blue-50 text-blue-700 border-blue-200',
+            'confirmed': 'bg-green-50 text-green-700 border-green-200',
+            'completed': 'bg-gray-50 text-gray-700 border-gray-200',
+            'cancelled': 'bg-red-50 text-red-700 border-red-200',
+            'no_show': 'bg-orange-50 text-orange-700 border-orange-200'
         }
         
         const labels = {
@@ -274,12 +274,34 @@ export default function AppointmentsPage() {
             'no_show': 'No Show'
         }
 
-        const colorClass = badges[status] || 'bg-gray-100 text-gray-700'
+        const colorClass = badges[status] || 'bg-gray-50 text-gray-700'
         return (
-            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colorClass}`}>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${colorClass}`}>
                 {labels[status] || status}
             </span>
         )
+    }
+
+    const getMiniAptStyle = (a) => {
+        const status = a.status
+        const hasSoap = a.treatment_records && a.treatment_records.length > 0 && a.treatment_records[0].result_notes;
+        
+        if (status === 'completed' && !hasSoap) {
+            return {
+                bg: 'bg-amber-50/80 text-amber-700 border-amber-100/50',
+                dot: 'bg-amber-500'
+            }
+        }
+        
+        const styles = {
+            'scheduled': { bg: 'bg-blue-50/80 text-blue-700 border-blue-100/50', dot: 'bg-blue-500' },
+            'confirmed': { bg: 'bg-green-50/80 text-green-700 border-green-100/50', dot: 'bg-green-500' },
+            'completed': { bg: 'bg-gray-50/80 text-gray-700 border-gray-100/50', dot: 'bg-gray-500' },
+            'cancelled': { bg: 'bg-red-50/80 text-red-700 border-red-100/50', dot: 'bg-red-500' },
+            'no_show': { bg: 'bg-orange-50/80 text-orange-700 border-orange-100/50', dot: 'bg-orange-500' }
+        }
+        
+        return styles[status] || { bg: 'bg-gray-50/80 text-gray-600', dot: 'bg-gray-400' }
     }
 
     const filteredAppointments = appointments.filter(apt => {
@@ -305,6 +327,10 @@ export default function AppointmentsPage() {
     const month = currentMonth.getMonth()
     const daysInMonth = getDaysInMonth(year, month)
     const firstDay = getFirstDayOfMonth(year, month) // 0 (Sun) to 6 (Sat)
+    
+    // Calculate trailing empty cells to make calendar grid rectangular
+    const totalCellsSoFar = firstDay + daysInMonth
+    const remainingCells = (7 - (totalCellsSoFar % 7)) % 7
 
     const prevMonth = () => {
         setCurrentMonth(new Date(year, month - 1, 1))
@@ -347,41 +373,44 @@ export default function AppointmentsPage() {
     const getOtherAppointments = () => {
         return selectedDateAppointments.filter(a => {
             const hour = parseInt(a.start_time.split(':')[0], 10)
-            return hour < 8 || hour >= 16
+            return hour < 8 || hour >= 18
         })
     }
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 card-ayumi p-6">
+            {/* Header Control Card */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 card-ayumi p-6 shadow-sm border border-pink-100/50">
                 <div className="flex-1">
-                    <p className="text-sm text-ayumi-text-muted mt-1">Kelola reservasi dan jadwal kedatangan pasien klinik.</p>
+                    <h2 className="text-xl font-black text-ayumi-secondary">Kalender & Janji Temu</h2>
+                    <p className="text-xs text-ayumi-text-muted mt-0.5">Kelola reservasi dan jadwal kedatangan pasien klinik secara terpusat.</p>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="flex bg-gray-100 p-1 rounded-xl">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <div className="flex bg-gray-100/80 p-1 rounded-xl">
                         <button 
                             onClick={() => handleViewModeChange('list')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'list' ? 'bg-white text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             List View
                         </button>
                         <button 
                             onClick={() => handleViewModeChange('calendar')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'calendar' ? 'bg-white text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'calendar' ? 'bg-white text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             Calendar View
                         </button>
                     </div>
                     <Link href="/appointments/new">
-                        <button className="btn-primary py-2.5 flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                            Buat Jadwal
+                        <button className="btn-primary py-2.5 px-4 flex items-center gap-2 text-xs">
+                            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                            Buat Jadwal baru
                         </button>
                     </Link>
                 </div>
             </div>
 
-            <div className="card-ayumi p-6">
+            {/* Filter Bar */}
+            <div className="card-ayumi p-6 shadow-sm border border-pink-100/50">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
                     <div className="flex-1 relative">
                         <svg className="w-5 h-5 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -390,20 +419,20 @@ export default function AppointmentsPage() {
                             placeholder="Cari nama pasien atau WhatsApp..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input-ayumi pl-11 py-2.5 bg-gray-50 focus:bg-white"
+                            className="input-ayumi pl-11 py-2.5 bg-gray-50/50 focus:bg-white"
                         />
                     </div>
                     <input 
                         type="date" 
                         value={filterDate}
                         onChange={(e) => setFilterDate(e.target.value)}
-                        className="input-ayumi bg-gray-50 focus:bg-white w-auto"
+                        className="input-ayumi bg-gray-50/50 focus:bg-white w-full md:w-auto text-xs"
                     />
                     {isOwner && (
                         <select 
                             value={filterBranch}
                             onChange={(e) => setFilterBranch(e.target.value)}
-                            className="input-ayumi bg-gray-50 focus:bg-white w-auto"
+                            className="input-ayumi bg-gray-50/50 focus:bg-white w-full md:w-auto text-xs"
                         >
                             <option value="">Semua Cabang</option>
                             {branches.map(b => (
@@ -414,7 +443,7 @@ export default function AppointmentsPage() {
                     <select 
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        className="input-ayumi bg-gray-50 focus:bg-white w-auto"
+                        className="input-ayumi bg-gray-50/50 focus:bg-white w-full md:w-auto text-xs"
                     >
                         <option value="">Semua Status</option>
                         <option value="scheduled">Scheduled</option>
@@ -426,15 +455,16 @@ export default function AppointmentsPage() {
 
                 {loading ? (
                     <div className="text-center py-20">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#B5588A] mx-auto mb-4"></div>
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary mx-auto mb-4"></div>
                         <p className="text-gray-500 font-medium">Memuat jadwal...</p>
                     </div>
                 ) : (
                     <>
+                        {/* 1. LIST VIEW */}
                         {viewMode === 'list' ? (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm font-bold">
+                                    <thead className="bg-ayumi-table-header text-ayumi-secondary text-xs font-extrabold uppercase tracking-wider">
                                         <tr>
                                             <th className="p-4 rounded-tl-xl">Waktu</th>
                                             <th className="p-4">Pasien</th>
@@ -445,7 +475,7 @@ export default function AppointmentsPage() {
                                             <th className="p-4 text-center rounded-tr-xl">Aksi</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-50">
+                                    <tbody className="divide-y divide-gray-100 text-sm">
                                         {filteredAppointments.length === 0 ? (
                                             <tr>
                                                 <td colSpan="7" className="px-6 py-12 text-center flex flex-col items-center border-none">
@@ -461,20 +491,20 @@ export default function AppointmentsPage() {
                                                 <tr key={apt.id} className="hover:bg-ayumi-table-hover transition-colors">
                                                     <td className="p-4">
                                                         <div className="font-bold text-ayumi-text">{new Date(apt.appointment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                                                        <div className="text-sm text-ayumi-primary font-semibold mt-1">
+                                                        <div className="text-xs text-ayumi-primary font-bold mt-1">
                                                             {apt.start_time.substring(0, 5)} - {apt.end_time.substring(0, 5)}
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
                                                         <div className="font-bold text-gray-800">{apt.patients?.full_name}</div>
-                                                        <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                                                             {apt.patients?.whatsapp}
                                                         </div>
                                                     </td>
-                                                    <td className="p-4 text-gray-600 font-medium">{apt.branches?.name}</td>
-                                                    <td className="p-4 text-sm text-gray-600 font-medium">
-                                                        {apt.therapist?.full_name ? apt.therapist.full_name.split(' ')[0] : <span className="text-gray-400 italic">Belum assign</span>}
+                                                    <td className="p-4 text-gray-600 font-bold">{apt.branches?.name}</td>
+                                                    <td className="p-4 text-xs text-gray-600 font-bold">
+                                                        {apt.therapist?.full_name ? apt.therapist.full_name.split(' ')[0] : <span className="text-gray-400 italic font-normal">Belum assign</span>}
                                                     </td>
                                                     <td className="p-4">
                                                         {getArrivalStatusBadgeAndActions(apt)}
@@ -484,7 +514,7 @@ export default function AppointmentsPage() {
                                                     </td>
                                                     <td className="p-4 text-center">
                                                         <Link href={`/appointments/${apt.id}`}>
-                                                            <button className="text-sm font-bold text-ayumi-primary hover:text-ayumi-primary-hover hover:bg-pink-50 px-4 py-2 rounded-lg transition-colors border border-transparent hover:border-pink-100">
+                                                            <button className="text-xs font-extrabold text-ayumi-primary hover:text-white hover:bg-ayumi-primary px-4 py-2 rounded-lg transition-all border border-pink-100">
                                                                 Detail
                                                             </button>
                                                         </Link>
@@ -496,38 +526,40 @@ export default function AppointmentsPage() {
                                 </table>
                             </div>
                         ) : (
+                            /* 2. CALENDAR + TIMELINE VIEW */
                             <div className="flex flex-col lg:flex-row gap-6">
-                                <div className="flex-1 card-ayumi p-6 border-2 border-gray-100">
+                                {/* Calendar Grid Box */}
+                                <div className="flex-1 card-ayumi p-6 border border-gray-100 bg-white shadow-sm rounded-2xl">
                                     <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-xl font-bold text-ayumi-secondary">
+                                        <h3 className="text-lg font-black text-ayumi-secondary">
                                             {monthNames[month]} {year}
                                         </h3>
-                                        <div className="flex gap-2">
-                                            <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-pink-50 text-ayumi-primary transition-colors">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                                        <div className="flex gap-1 bg-gray-50 p-1 rounded-xl">
+                                            <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-pink-100/50 text-ayumi-primary transition-colors">
+                                                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
                                             </button>
-                                            <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-1.5 rounded-lg hover:bg-pink-50 text-sm font-bold text-ayumi-primary transition-colors">
+                                            <button onClick={() => setCurrentMonth(new Date())} className="px-3.5 py-1.5 rounded-lg hover:bg-pink-100/50 text-xs font-bold text-ayumi-primary transition-all">
                                                 Hari Ini
                                             </button>
-                                            <button onClick={nextMonth} className="p-2 rounded-lg hover:bg-pink-50 text-ayumi-primary transition-colors">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                            <button onClick={nextMonth} className="p-2 rounded-lg hover:bg-pink-100/50 text-ayumi-primary transition-colors">
+                                                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
                                             </button>
                                         </div>
                                     </div>
                                     
-                                    <div className="grid grid-cols-7 gap-2">
+                                    <div className="grid grid-cols-7 gap-1.5">
                                         {dayNames.map(day => (
-                                            <div key={day} className="text-center font-bold text-gray-400 text-xs py-2 uppercase tracking-wider">
+                                            <div key={day} className="text-center font-extrabold text-gray-400 text-[10px] py-2 uppercase tracking-wider">
                                                 {day}
                                             </div>
                                         ))}
                                         
                                         {/* Empty cells before 1st of month */}
                                         {Array.from({ length: firstDay }).map((_, i) => (
-                                            <div key={`empty-${i}`} className="p-2 h-24 rounded-xl bg-gray-50/50"></div>
+                                            <div key={`empty-${i}`} className="p-2 h-24 rounded-xl bg-gray-50/40 border border-gray-50/50"></div>
                                         ))}
                                         
-                                        {/* Days */}
+                                        {/* Days of Month */}
                                         {Array.from({ length: daysInMonth }).map((_, i) => {
                                             const d = i + 1
                                             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
@@ -539,144 +571,182 @@ export default function AppointmentsPage() {
                                                 <div 
                                                     key={d} 
                                                     onClick={() => setSelectedDate(dateStr)}
-                                                    className={`p-2 h-24 rounded-xl border-2 cursor-pointer transition-all flex flex-col relative overflow-hidden ${
+                                                    className={`p-2 h-24 rounded-xl border transition-all flex flex-col relative overflow-hidden ${
                                                         isSelected 
                                                             ? 'border-ayumi-primary bg-pink-50 shadow-sm' 
-                                                            : isToday ? 'border-pink-200 bg-white' : 'border-gray-50 hover:border-pink-100 bg-white'
+                                                            : isToday ? 'border-pink-200 bg-white shadow-sm' : 'border-gray-100 hover:border-pink-300 bg-white'
                                                     }`}
                                                 >
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-ayumi-primary text-white' : 'text-gray-700'}`}>
+                                                    <div className="flex justify-between items-start mb-1.5">
+                                                        <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-700'}`}>
                                                             {d}
                                                         </span>
                                                         {dayAppointments.length > 0 && (
-                                                            <span className="text-[10px] font-bold bg-pink-100 text-ayumi-primary px-1.5 py-0.5 rounded-md">
+                                                            <span className="text-[9px] font-extrabold bg-pink-100 text-ayumi-primary px-1.5 py-0.5 rounded">
                                                                 {dayAppointments.length}
                                                             </span>
                                                         )}
                                                     </div>
                                                     
-                                                    {/* Mini Badges for Appointments */}
-                                                    <div className="flex-1 overflow-y-auto space-y-1 mt-1 pb-1 custom-scrollbar">
-                                                        {dayAppointments.slice(0, 3).map((a, idx) => {
-                                                            const colors = {
-                                                                'scheduled': 'bg-blue-400',
-                                                                'confirmed': 'bg-green-400',
-                                                                'completed': a.treatment_records && a.treatment_records.length > 0 ? 'bg-gray-400' : 'bg-yellow-400',
-                                                                'cancelled': 'bg-red-400',
-                                                                'no_show': 'bg-orange-400'
-                                                            }
-                                                            const bg = colors[a.status] || 'bg-gray-400'
+                                                    {/* Mini Badges inside calendar cell */}
+                                                    <div className="flex-1 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
+                                                        {dayAppointments.slice(0, 2).map((a, idx) => {
+                                                            const style = getMiniAptStyle(a)
                                                             return (
-                                                                <div key={idx} className="flex items-center gap-1.5 text-[10px] leading-tight font-semibold text-gray-600 truncate bg-gray-50 px-1 py-0.5 rounded">
-                                                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${bg}`}></div>
+                                                                <div 
+                                                                    key={idx} 
+                                                                    className={`flex items-center gap-1 text-[9px] leading-tight font-bold px-1.5 py-0.5 rounded border ${style.bg}`}
+                                                                >
+                                                                    <div className={`w-1 h-1 rounded-full flex-shrink-0 ${style.dot}`}></div>
                                                                     <span className="truncate">{a.start_time.substring(0,5)} {a.patients?.full_name?.split(' ')[0]}</span>
                                                                 </div>
                                                             )
                                                         })}
-                                                        {dayAppointments.length > 3 && (
-                                                            <div className="text-[10px] text-gray-400 font-bold pl-1">
-                                                                +{dayAppointments.length - 3} lainnya
+                                                        {dayAppointments.length > 2 && (
+                                                            <div className="text-[9px] text-gray-400 font-extrabold pl-1.5">
+                                                                +{dayAppointments.length - 2} lainnya
                                                             </div>
                                                         )}
                                                     </div>
                                                 </div>
                                             )
                                         })}
+
+                                        {/* Empty cells after last day of month to complete rectangular week rows */}
+                                        {Array.from({ length: remainingCells }).map((_, i) => (
+                                            <div key={`empty-end-${i}`} className="p-2 h-24 rounded-xl bg-gray-50/40 border border-gray-50/50"></div>
+                                        ))}
                                     </div>
                                 </div>
-
-                                {/* Side Panel for Selected Date */}
+ 
+                                {/* Side Panel for Selected Date (Timeline Agenda) */}
                                 <div className="w-full lg:w-96 flex flex-col gap-4">
-                                    <div className="bg-ayumi-secondary rounded-2xl p-5 text-white shadow-md">
-                                        <div className="text-sm font-medium text-pink-200 mb-1">Jadwal pada tanggal</div>
-                                        <h3 className="text-xl font-bold">
+                                    <div className="bg-ayumi-secondary rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-8 -mt-8"></div>
+                                        <div className="text-xs font-semibold text-pink-200 mb-0.5">Jadwal pada tanggal</div>
+                                        <h3 className="text-base font-black leading-tight tracking-tight">
                                             {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                                         </h3>
                                     </div>
-
-                                    <div className="flex-1 bg-gray-50 border-2 border-gray-100 rounded-3xl p-5 space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+ 
+                                    <div className="flex-1 bg-white border border-pink-100/50 rounded-2xl p-5 space-y-5 max-h-[600px] overflow-y-auto custom-scrollbar shadow-sm">
                                         {TIME_SLOTS.map((slot, i) => {
                                             const slotApts = getAppointmentsForSlot(slot)
                                             return (
-                                                <div key={i} className="space-y-2">
-                                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">{slot.label}</div>
+                                                <div key={i} className="flex flex-col sm:flex-row gap-3 items-start border-b border-gray-100/50 pb-4 last:border-b-0 last:pb-0">
+                                                    {/* Slot Time Label (Left) */}
+                                                    <div className="w-full sm:w-28 flex-shrink-0 pt-1">
+                                                        <div className="text-[10px] font-black text-ayumi-secondary tracking-wider uppercase bg-pink-100/50 px-2.5 py-1.5 rounded-lg inline-block sm:block text-center border border-pink-100">
+                                                            {slot.label}
+                                                        </div>
+                                                    </div>
                                                     
-                                                    {slotApts.length === 0 ? (
-                                                        <Link href={`/appointments/new?date=${selectedDate}&time=${slot.timeStr}`}>
-                                                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex items-center justify-center gap-2 text-gray-400 hover:text-ayumi-primary hover:border-ayumi-primary hover:bg-pink-50 transition-all cursor-pointer group">
-                                                                <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                                                                <span className="font-bold text-sm">Isi Slot Kosong</span>
-                                                            </div>
-                                                        </Link>
-                                                    ) : (
-                                                        <div className="space-y-2">
-                                                            {slotApts.map(a => (
-                                                                <div key={a.id} className="bg-white border-2 border-pink-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                                                                    <div className={`absolute top-0 left-0 w-1 h-full ${
-                                                                        a.status === 'scheduled' ? 'bg-blue-400' :
-                                                                        a.status === 'confirmed' ? 'bg-green-400' :
-                                                                        a.status === 'completed' ? (a.treatment_records && a.treatment_records.length > 0 ? 'bg-gray-400' : 'bg-yellow-400') :
-                                                                        a.status === 'cancelled' ? 'bg-red-400' : 'bg-orange-400'
-                                                                    }`}></div>
-                                                                    <div className="flex justify-between items-start mb-2 pl-2">
-                                                                        <div>
-                                                                            <div className="font-bold text-gray-800">{a.patients?.full_name}</div>
-                                                                            <div className="text-xs text-gray-500 font-medium">{a.start_time.substring(0,5)} - {a.end_time.substring(0,5)}</div>
-                                                                        </div>
-                                                                        <div className="scale-75 origin-top-right">{getStatusBadge(a)}</div>
-                                                                    </div>
-                                                                        <div className="pl-2 mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
-                                                                            <div className="flex justify-between items-center text-xs text-gray-500 font-medium">
-                                                                                <span>Terapis: {a.therapist?.full_name ? a.therapist.full_name.split(' ')[0] : 'Belum assign'}</span>
-                                                                                <Link href={`/appointments/${a.id}`}>
-                                                                                    <span className="text-[10px] font-bold text-ayumi-primary hover:underline cursor-pointer">Detail</span>
-                                                                                </Link>
-                                                                            </div>
-                                                                            <div className="flex justify-center mt-1">
-                                                                                {getArrivalStatusBadgeAndActions(a)}
-                                                                            </div>
-                                                                        </div>
-                                                                </div>
-                                                            ))}
-                                                            {/* Allow adding more appointments in the same slot if needed */}
+                                                    {/* Slot Content Cards (Right) */}
+                                                    <div className="flex-1 w-full space-y-2">
+                                                        {slotApts.length === 0 ? (
                                                             <Link href={`/appointments/new?date=${selectedDate}&time=${slot.timeStr}`}>
-                                                                <div className="border border-dashed border-gray-300 rounded-lg p-2 flex items-center justify-center gap-1 text-gray-400 hover:text-ayumi-primary hover:border-ayumi-primary hover:bg-pink-50 transition-all cursor-pointer">
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                                                                    <span className="font-semibold text-xs">Tambah di slot ini</span>
+                                                                <div className="border border-dashed border-gray-200 rounded-xl p-3 flex items-center justify-between text-gray-400 hover:text-ayumi-primary hover:border-ayumi-primary hover:bg-pink-50/50 transition-all cursor-pointer group">
+                                                                    <span className="font-extrabold text-xs">Slot Tersedia</span>
+                                                                    <svg className="w-4 h-4 transition-transform group-hover:scale-110 text-gray-400 group-hover:text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
                                                                 </div>
                                                             </Link>
-                                                        </div>
-                                                    )}
+                                                        ) : (
+                                                            <div className="space-y-2">
+                                                                {slotApts.map(a => (
+                                                                    <div key={a.id} className="bg-white border border-pink-100/80 rounded-xl p-3 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                                                                        {/* Status color indicator bar on left */}
+                                                                        <div className={`absolute top-0 left-0 w-1 h-full ${
+                                                                            a.status === 'scheduled' ? 'bg-blue-400' :
+                                                                            a.status === 'confirmed' ? 'bg-green-400' :
+                                                                            a.status === 'completed' ? (a.treatment_records && a.treatment_records.length > 0 ? 'bg-gray-400' : 'bg-yellow-400') :
+                                                                            a.status === 'cancelled' ? 'bg-red-400' : 'bg-orange-400'
+                                                                        }`}></div>
+                                                                        
+                                                                        <div className="flex justify-between items-start pl-2">
+                                                                            <div>
+                                                                                <div className="font-bold text-sm text-gray-800 tracking-tight">{a.patients?.full_name}</div>
+                                                                                <div className="text-[10px] text-gray-500 font-semibold flex items-center gap-1 mt-0.5">
+                                                                                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                                    {a.start_time.substring(0,5)} - {a.end_time.substring(0,5)}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="scale-75 origin-top-right">{getStatusBadge(a)}</div>
+                                                                        </div>
+                                                                        
+                                                                        <div className="pl-2 mt-3 pt-2.5 border-t border-gray-50 flex flex-col gap-2">
+                                                                            <div className="flex justify-between items-center text-xs text-gray-500 font-medium">
+                                                                                <span className="flex items-center gap-1 text-[11px]">
+                                                                                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                                                                    Terapis: <span className="font-bold text-gray-700">{a.therapist?.full_name ? a.therapist.full_name.split(' ')[0] : 'Belum assign'}</span>
+                                                                                </span>
+                                                                                <Link href={`/appointments/${a.id}`}>
+                                                                                    <span className="text-[10px] font-extrabold text-ayumi-primary hover:text-ayumi-primary-hover hover:underline cursor-pointer">Detail →</span>
+                                                                                </Link>
+                                                                            </div>
+                                                                            
+                                                                            {/* Arrival status actions inside card */}
+                                                                            {getArrivalStatusBadgeAndActions(a) && (
+                                                                                <div className="flex justify-center mt-1.5 pt-2 border-t border-dashed border-gray-100">
+                                                                                    {getArrivalStatusBadgeAndActions(a)}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                                
+                                                                {/* Compact allow adding more appointments in same slot */}
+                                                                <Link href={`/appointments/new?date=${selectedDate}&time=${slot.timeStr}`}>
+                                                                    <div className="border border-dashed border-gray-200 rounded-lg p-2 flex items-center justify-center gap-1 text-gray-400 hover:text-ayumi-primary hover:border-ayumi-primary hover:bg-pink-50/50 transition-all cursor-pointer">
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                                                                        <span className="font-bold text-[10px]">Tambah Janji Temu</span>
+                                                                    </div>
+                                                                </Link>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )
                                         })}
                                         
-                                        {/* Lainnya */}
+                                        {/* Waktu Lainnya (outside 08:00 - 18:00) */}
                                         {getOtherAppointments().length > 0 && (
-                                            <div className="space-y-2 mt-4 pt-4 border-t-2 border-gray-200 border-dashed">
-                                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Waktu Lainnya</div>
-                                                <div className="space-y-2">
-                                                    {getOtherAppointments().map(a => (
-                                                        <div key={a.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                                                            <div className="flex justify-between items-start mb-2 pl-2">
-                                                                <div>
-                                                                    <div className="font-bold text-gray-800">{a.patients?.full_name}</div>
-                                                                    <div className="text-xs text-gray-500 font-medium">{a.start_time.substring(0,5)} - {a.end_time.substring(0,5)}</div>
-                                                                </div>
-                                                                <div className="scale-75 origin-top-right">{getStatusBadge(a.status)}</div>
-                                                            </div>
-                                                            <div className="pl-2 flex justify-between items-end mt-3">
-                                                                <div className="text-xs text-gray-500 font-medium truncate pr-2">Cabang: {a.branches?.name}</div>
-                                                                <Link href={`/appointments/${a.id}`}>
-                                                                    <button className="text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">
-                                                                        Detail
-                                                                    </button>
-                                                                </Link>
+                                            <div className="space-y-3 mt-4 pt-4 border-t-2 border-gray-100 border-dashed">
+                                                <div className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-2">Waktu Lainnya</div>
+                                                {getOtherAppointments().map(a => (
+                                                    <div key={a.id} className="flex flex-col sm:flex-row gap-3 items-start">
+                                                        <div className="w-full sm:w-28 flex-shrink-0 pt-1">
+                                                            <div className="text-[10px] font-black text-ayumi-secondary tracking-wider uppercase bg-pink-100/50 px-2.5 py-1.5 rounded-lg inline-block sm:block text-center border border-pink-100">
+                                                                {a.start_time.substring(0,5)} - {a.end_time.substring(0,5)}
                                                             </div>
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                        <div className="flex-1 w-full">
+                                                            <div className="bg-white border border-pink-100/80 rounded-xl p-3 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                                                                <div className={`absolute top-0 left-0 w-1 h-full ${
+                                                                    a.status === 'scheduled' ? 'bg-blue-400' :
+                                                                    a.status === 'confirmed' ? 'bg-green-400' :
+                                                                    a.status === 'completed' ? (a.treatment_records && a.treatment_records.length > 0 ? 'bg-gray-400' : 'bg-yellow-400') :
+                                                                    a.status === 'cancelled' ? 'bg-red-400' : 'bg-orange-400'
+                                                                }`}></div>
+                                                                <div className="flex justify-between items-start pl-2">
+                                                                    <div>
+                                                                        <div className="font-bold text-sm text-gray-800 tracking-tight">{a.patients?.full_name}</div>
+                                                                        <div className="text-[10px] text-gray-500 font-semibold mt-0.5">Cabang: {a.branches?.name}</div>
+                                                                    </div>
+                                                                    <div className="scale-75 origin-top-right">{getStatusBadge(a)}</div>
+                                                                </div>
+                                                                <div className="pl-2 mt-3 pt-2.5 border-t border-gray-50 flex justify-between items-center text-xs text-gray-500 font-medium">
+                                                                    <span className="flex items-center gap-1 text-[11px]">
+                                                                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                                                        Terapis: <span className="font-bold text-gray-700">{a.therapist?.full_name ? a.therapist.full_name.split(' ')[0] : 'Belum assign'}</span>
+                                                                    </span>
+                                                                    <Link href={`/appointments/${a.id}`}>
+                                                                        <span className="text-[10px] font-extrabold text-ayumi-primary hover:text-ayumi-primary-hover hover:underline cursor-pointer">Detail →</span>
+                                                                    </Link>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
