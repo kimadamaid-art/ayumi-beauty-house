@@ -14,27 +14,49 @@ export default function TreatmentRecordsPage() {
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
 
+    // Owner filters
+    const [isOwner, setIsOwner] = useState(false)
+    const [userBranchId, setUserBranchId] = useState(null)
+    const [userRole, setUserRole] = useState(null)
+    const [branches, setBranches] = useState([])
+    const [selectedBranchFilter, setSelectedBranchFilter] = useState('all')
+    const [startDate, setStartDate] = useState('')
+    const [endDate, setEndDate] = useState('')
+    const [userLoaded, setUserLoaded] = useState(false)
+
     useEffect(() => {
-        fetchRecords()
+        fetchUser()
     }, [])
 
-    const fetchRecords = async () => {
-        setLoading(true)
-
-        // Get current user's role and branch
+    const fetchUser = async () => {
         const { data: { user } } = await supabase.auth.getUser()
-        let userBranchId = null
-        let isOwner = false
-
         if (user) {
             const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
             if (userData) {
-                isOwner = userData.role === 'owner'
-                userBranchId = userData.branch_id
+                const owner = userData.role === 'owner'
+                setIsOwner(owner)
+                setUserBranchId(userData.branch_id)
+                setUserRole(userData.role)
+                
+                if (owner) {
+                    const { data: branchData } = await supabase.from('branches').select('id, name').order('name')
+                    if (branchData) setBranches(branchData)
+                }
             } else {
-                isOwner = true // fallback
+                setIsOwner(true)
             }
         }
+        setUserLoaded(true)
+    }
+
+    useEffect(() => {
+        if (userLoaded) {
+            fetchRecords()
+        }
+    }, [userLoaded, selectedBranchFilter, startDate, endDate])
+
+    const fetchRecords = async () => {
+        setLoading(true)
 
         let query = supabase
             .from('treatment_records')
@@ -53,6 +75,15 @@ export default function TreatmentRecordsPage() {
             
         if (!isOwner && userBranchId) {
             query = query.eq('branch_id', userBranchId)
+        } else if (isOwner && selectedBranchFilter !== 'all') {
+            query = query.eq('branch_id', selectedBranchFilter)
+        }
+
+        if (startDate) {
+            query = query.gte('treatment_date', startDate)
+        }
+        if (endDate) {
+            query = query.lte('treatment_date', endDate)
         }
 
         const { data, error } = await query
@@ -70,9 +101,53 @@ export default function TreatmentRecordsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    {isOwner && (
+                        <select
+                            value={selectedBranchFilter}
+                            onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                            className="input-ayumi bg-white w-full sm:w-auto"
+                        >
+                            <option value="all">Semua Cabang</option>
+                            {branches.map(b => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="input-ayumi bg-white text-sm w-full sm:w-auto"
+                            placeholder="Mulai Tanggal"
+                        />
+                        <span className="text-gray-500">-</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="input-ayumi bg-white text-sm w-full sm:w-auto"
+                            placeholder="Sampai Tanggal"
+                        />
+                    </div>
+                    {(startDate || endDate || (isOwner && selectedBranchFilter !== 'all')) && (
+                        <button 
+                            onClick={() => {
+                                setStartDate('')
+                                setEndDate('')
+                                setSelectedBranchFilter('all')
+                            }}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-2 whitespace-nowrap"
+                        >
+                            Reset Filter
+                        </button>
+                    )}
+                </div>
+                
                 {/* Search Bar */}
-                <div className="relative w-full sm:w-72">
+                <div className="relative w-full sm:w-72 ml-auto">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     </div>
@@ -129,6 +204,14 @@ export default function TreatmentRecordsPage() {
                                                             Lihat Detail
                                                         </button>
                                                     </Link>
+                                                    {(isOwner || userRole === 'admin') && (
+                                                        <Link href={`/kasir?pendingRecordId=${r.id}`}>
+                                                            <button className="text-xs bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-3 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1">
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                                                Kasir
+                                                            </button>
+                                                        </Link>
+                                                    )}
                                                     {r.patients?.whatsapp && (() => {
                                                         let waNumber = r.patients.whatsapp.replace(/[^0-9]/g, '');
                                                         if (waNumber.startsWith('0')) {

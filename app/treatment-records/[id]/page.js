@@ -42,12 +42,115 @@ export default function RecordDetailPage() {
         foto_kanan: null
     })
     const [isLoading, setIsLoading] = useState(true)
+    const [isOwner, setIsOwner] = useState(false)
+    const [userRole, setUserRole] = useState(null)
+
+    const handleDeleteRecord = async () => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus rekam medis ini? Semua data terkait (termasuk antrean followup dan item rekam medis) akan dihapus, dan kupon yang digunakan akan dikembalikan.')) {
+            return
+        }
+
+        try {
+            // 1. Fetch coupon logs related to this treatment record to rollback coupon sessions
+            const { data: logs } = await supabase
+                .from('coupon_usage_logs')
+                .select('*')
+                .eq('treatment_record_id', id)
+
+            if (logs && logs.length > 0) {
+                for (const log of logs) {
+                    const { data: itemData } = await supabase
+                        .from('patient_coupon_items')
+                        .select('used_sessions, remaining_sessions, patient_coupon_id')
+                        .eq('id', log.patient_coupon_item_id)
+                        .single()
+
+                    if (itemData) {
+                        const newUsed = Math.max(0, itemData.used_sessions - 1)
+                        const newRemaining = itemData.remaining_sessions + 1
+                        
+                        await supabase
+                            .from('patient_coupon_items')
+                            .update({
+                                used_sessions: newUsed,
+                                remaining_sessions: newRemaining,
+                                status: 'active'
+                            })
+                            .eq('id', log.patient_coupon_item_id)
+
+                        await supabase
+                            .from('patient_coupons')
+                            .update({ status: 'active' })
+                            .eq('id', itemData.patient_coupon_id)
+                    }
+                }
+
+                await supabase
+                    .from('coupon_usage_logs')
+                    .delete()
+                    .eq('treatment_record_id', id)
+            }
+
+            // 2. Delete followup reminders
+            await supabase
+                .from('followup_queue')
+                .delete()
+                .eq('treatment_record_id', id)
+
+            // 3. Delete record items
+            await supabase
+                .from('treatment_record_items')
+                .delete()
+                .eq('treatment_record_id', id)
+
+            // 4. Delete patient photos
+            await supabase
+                .from('patient_photos')
+                .delete()
+                .eq('treatment_record_id', id)
+
+            // 5. Delete the treatment record
+            const { error: deleteErr } = await supabase
+                .from('treatment_records')
+                .delete()
+                .eq('id', id)
+
+            if (deleteErr) throw deleteErr
+
+            toast.success('Rekam medis berhasil dihapus.')
+            router.push('/treatment-records')
+            router.refresh()
+
+        } catch (err) {
+            console.error('Error deleting record:', err)
+            alert('Gagal menghapus rekam medis: ' + err.message)
+        }
+    }
 
     useEffect(() => {
         if (!id) return
 
         const fetchDetails = async () => {
             setIsLoading(true)
+
+            // 0. Fetch user role
+            const { data: { user } } = await supabase.auth.getUser()
+            let userRoleVal = null
+            let userBranchIdVal = null
+            if (user) {
+                const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
+                if (userData) {
+                    userRoleVal = userData.role
+                    userBranchIdVal = userData.branch_id
+                    setUserRole(userData.role)
+                    setIsOwner(userData.role === 'owner')
+                } else {
+                    setIsOwner(true)
+                }
+            } else {
+                router.push('/login')
+                return
+            }
 
             // 1. Fetch Record with nested Patient, Provider, and Branch
             const { data: recData, error: recErr } = await supabase
@@ -63,7 +166,14 @@ export default function RecordDetailPage() {
 
             if (recErr || !recData) {
                 alert('Data rekam medis tidak ditemukan.')
-                router.push('/dashboard')
+                router.push('/treatment-records')
+                return
+            }
+
+            // Guard check for admin
+            if (userRoleVal === 'admin' && recData.branch_id !== userBranchIdVal) {
+                toast.error('Anda tidak memiliki izin untuk melihat rekam medis dari cabang lain.')
+                router.push('/treatment-records')
                 return
             }
             setRecord(recData)
@@ -451,13 +561,39 @@ export default function RecordDetailPage() {
                     <span className="text-gray-500 font-medium">Kembali ke Profil Pasien</span>
                 </div>
                 
-                <button
-                    onClick={handleSendWhatsApp}
-                    className="btn-primary py-2.5 px-5 flex items-center gap-2 text-sm font-bold shadow-md hover:shadow-lg transition-all"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                    Kirim ke WhatsApp Pasien
-                </button>
+                <div className="flex flex-wrap gap-2 items-center">
+                    {(isOwner || userRole === 'admin') && (
+                        <>
+                            {/* Tombol Proses di Kasir — langsung atur diskon & produk tanpa edit */}
+                            <Link href={`/kasir?pendingRecordId=${record.id}`}>
+                                <button className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-md hover:shadow-lg">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                    Proses di Kasir
+                                </button>
+                            </Link>
+                            <Link href={`/treatment-records/${record.id}/edit`}>
+                                <button className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-1.5 shadow-sm">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                    Edit
+                                </button>
+                            </Link>
+                            <button
+                                onClick={handleDeleteRecord}
+                                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-1.5 shadow-sm"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                Hapus
+                            </button>
+                        </>
+                    )}
+                    <button
+                        onClick={handleSendWhatsApp}
+                        className="btn-primary py-2.5 px-5 flex items-center gap-2 text-sm font-bold shadow-md hover:shadow-lg transition-all"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                        Kirim ke WhatsApp Pasien
+                    </button>
+                </div>
             </div>
 
             {/* Header Identity */}

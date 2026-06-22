@@ -66,6 +66,10 @@ export default function ProductStockPage() {
     }, [supabase])
 
     const handleOpenModal = (product, branchId) => {
+        if (dbUser?.role !== 'owner' && branchId !== dbUser?.branch_id) {
+            alert('Anda tidak memiliki izin untuk mengedit stok di cabang lain.')
+            return
+        }
         const currentStock = stocks.find(s => s.product_id === product.id && s.branch_id === branchId)
         
         setSelectedProduct(product)

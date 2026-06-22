@@ -21,6 +21,7 @@ export default function AppointmentsPage() {
     const [filterStatus, setFilterStatus] = useState('')
     const [filterDate, setFilterDate] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
+    const [isOwner, setIsOwner] = useState(false)
 
     // Calendar States
     const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -67,16 +68,24 @@ export default function AppointmentsPage() {
         // Get current user's role and branch
         const { data: { user } } = await supabase.auth.getUser()
         let userBranchId = null
-        let isOwner = false
+        let ownerFlag = false
 
         if (user) {
             const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
             if (userData) {
-                isOwner = userData.role === 'owner'
+                ownerFlag = userData.role === 'owner'
+                setIsOwner(ownerFlag)
                 userBranchId = userData.branch_id
+                if (!ownerFlag && userBranchId) {
+                    setFilterBranch(userBranchId)
+                }
             } else {
-                isOwner = true // fallback
+                ownerFlag = true
+                setIsOwner(true)
             }
+        } else {
+            ownerFlag = true
+            setIsOwner(true)
         }
 
         // Fetch Appointments with Patient Info
@@ -92,7 +101,7 @@ export default function AppointmentsPage() {
             .order('appointment_date', { ascending: false })
             .order('start_time', { ascending: true })
 
-        if (!isOwner && userBranchId) {
+        if (!ownerFlag && userBranchId) {
             query = query.eq('branch_id', userBranchId)
         }
 
@@ -390,16 +399,18 @@ export default function AppointmentsPage() {
                         onChange={(e) => setFilterDate(e.target.value)}
                         className="input-ayumi bg-gray-50 focus:bg-white w-auto"
                     />
-                    <select 
-                        value={filterBranch}
-                        onChange={(e) => setFilterBranch(e.target.value)}
-                        className="input-ayumi bg-gray-50 focus:bg-white w-auto"
-                    >
-                        <option value="">Semua Cabang</option>
-                        {branches.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                    </select>
+                    {isOwner && (
+                        <select 
+                            value={filterBranch}
+                            onChange={(e) => setFilterBranch(e.target.value)}
+                            className="input-ayumi bg-gray-50 focus:bg-white w-auto"
+                        >
+                            <option value="">Semua Cabang</option>
+                            {branches.map(b => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                    )}
                     <select 
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}

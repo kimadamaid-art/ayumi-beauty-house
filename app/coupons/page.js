@@ -94,22 +94,28 @@ export default function CouponsDashboardPage() {
     const filteredPackages = packages.filter(p => !masterCategoryFilter || p.category === masterCategoryFilter)
     const categories = [...new Set(packages.map(p => p.category).filter(Boolean))]
 
-    // --- TAB 2: KUPON PASIEN LOGIC ---
     const fetchPatientCoupons = async () => {
         setIsLoading(true)
-        const { data } = await supabase
+        
+        let query = supabase
             .from('patient_coupons')
             .select(`
                 *,
                 patients (name, phone),
                 coupon_packages (name),
+                transactions!inner (branch_id),
                 patient_coupon_items (
                     id, total_sessions, used_sessions, remaining_sessions, status,
                     treatments (name)
                 )
             `)
             .order('purchased_at', { ascending: false })
-            
+
+        if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
+            query = query.eq('transactions.branch_id', dbUser.branch_id)
+        }
+
+        const { data } = await query
         if (data) setPatientCoupons(data)
         setIsLoading(false)
     }
@@ -120,15 +126,19 @@ export default function CouponsDashboardPage() {
         return matchSearch && matchStatus
     })
 
-    // --- TAB 3: PENGGUNAAN KUPON LOGIC ---
     useEffect(() => {
         if (activeTab === 'usage' && usageSearchPatient.length >= 2 && !usageSelectedPatient) {
             const searchPts = async () => {
-                const { data } = await supabase
+                let pQuery = supabase
                     .from('patients')
                     .select('id, name, phone, patient_number')
                     .or(`name.ilike.%${usageSearchPatient}%,phone.ilike.%${usageSearchPatient}%`)
-                    .limit(5)
+                    
+                if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
+                    pQuery = pQuery.eq('branch_id', dbUser.branch_id)
+                }
+
+                const { data } = await pQuery.limit(5)
                 if (data) setUsagePatients(data)
             }
             searchPts()
@@ -242,7 +252,12 @@ export default function CouponsDashboardPage() {
 
         if (histStartDate) query = query.gte('used_at', `${histStartDate}T00:00:00Z`)
         if (histEndDate) query = query.lte('used_at', `${histEndDate}T23:59:59Z`)
-        if (histBranchFilter) query = query.eq('branch_id', histBranchFilter)
+        
+        if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
+            query = query.eq('branch_id', dbUser.branch_id)
+        } else if (histBranchFilter) {
+            query = query.eq('branch_id', histBranchFilter)
+        }
 
         const { data } = await query
         if (data) setHistoryLogs(data)

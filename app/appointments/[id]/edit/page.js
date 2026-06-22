@@ -1,28 +1,23 @@
 'use client'
 
 import { Suspense, useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 
-export default function NewAppointmentPage() {
-    return (
-        <Suspense fallback={<div className="flex justify-center p-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div></div>}>
-            <NewAppointmentForm />
-        </Suspense>
-    )
-}
-
-function NewAppointmentForm() {
+function EditAppointmentForm() {
     const router = useRouter()
-    const searchParams = useSearchParams()
+    const params = useParams()
+    const id = params.id
+
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
 
     const [isSaving, setIsSaving] = useState(false)
+    const [isLoadingAccess, setIsLoadingAccess] = useState(true)
     const [error, setError] = useState('')
 
     // Data lists
@@ -35,60 +30,92 @@ function NewAppointmentForm() {
     const [formData, setFormData] = useState({
         patient_id: '',
         branch_id: '',
-        appointment_date: searchParams.get('date') || '',
-        start_time: searchParams.get('time') || '08:00',
+        appointment_date: '',
+        start_time: '08:00',
         end_time: '10:00',
         therapist_id: '',
         notes: ''
     })
 
     useEffect(() => {
-        const localDate = new Date()
-        const offset = localDate.getTimezoneOffset()
-        const localISO = new Date(localDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
-        setFormData(prev => ({
-            ...prev,
-            appointment_date: searchParams.get('date') || localISO
-        }))
-        fetchInitialData()
-    }, [])
+        const fetchInitialAndRecordData = async () => {
+            setIsLoadingAccess(true)
+            
+            // 1. Get current logged in user & check access
+            const { data: { user } } = await supabase.auth.getUser()
+            let userRole = null
+            let userBranchId = null
 
-    const fetchInitialData = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        let userBranchId = null
-        let ownerFlag = false
-
-        if (user) {
-            const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-            if (userData?.role === 'owner') {
-                ownerFlag = true
-                setIsOwner(true)
-            } else {
+            if (user) {
+                const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
+                userRole = userData?.role
                 userBranchId = userData?.branch_id
+                if (userData?.role === 'owner') {
+                    setIsOwner(true)
+                } else if (userData?.role === 'admin') {
+                    setIsOwner(false)
+                } else {
+                    toast.error('Hanya Owner atau Admin yang diizinkan mengubah jadwal reservasi.')
+                    router.push('/appointments')
+                    return
+                }
+            } else {
+                router.push('/login')
+                return
             }
+
+            // 2. Fetch Patients
+            const { data: ptData } = await supabase.from('patients').select('id, full_name, whatsapp')
+            if (ptData) setPatients(ptData)
+
+            // 3. Fetch Branches
+            let branchQuery = supabase.from('branches').select('id, name').eq('is_active', true)
+            if (userRole !== 'owner' && userBranchId) {
+                branchQuery = branchQuery.eq('id', userBranchId)
+            }
+            const { data: brData } = await branchQuery
+            if (brData) setBranches(brData)
+
+            // 4. Fetch Therapists
+            const { data: trpData } = await supabase.from('users').select('id, full_name').eq('role', 'therapist').order('full_name')
+            if (trpData) setTherapists(trpData)
+
+            // 5. Fetch Existing Appointment Data
+            const { data: aptData, error: aptErr } = await supabase
+                .from('appointments')
+                .select(`*, patients (full_name)`)
+                .eq('id', id)
+                .single()
+
+            if (aptErr || !aptData) {
+                toast.error('Jadwal temu tidak ditemukan.')
+                router.push('/appointments')
+                return
+            }
+
+            // Guard check for admin: must match their branch
+            if (userRole === 'admin' && aptData.branch_id !== userBranchId) {
+                toast.error('Anda tidak memiliki akses ke jadwal temu di cabang lain.')
+                router.push('/appointments')
+                return
+            }
+
+            setFormData({
+                patient_id: aptData.patient_id,
+                branch_id: aptData.branch_id || '',
+                appointment_date: aptData.appointment_date,
+                start_time: aptData.start_time ? aptData.start_time.substring(0, 5) : '08:00',
+                end_time: aptData.end_time ? aptData.end_time.substring(0, 5) : '10:00',
+                therapist_id: aptData.therapist_id || '',
+                notes: aptData.notes || ''
+            })
+            setPatientSearch(aptData.patients?.full_name || '')
+
+            setIsLoadingAccess(false)
         }
+        fetchInitialAndRecordData()
+    }, [id, supabase, router])
 
-        // Fetch Patients
-        const { data: ptData } = await supabase.from('patients').select('id, full_name, whatsapp')
-        if (ptData) setPatients(ptData)
-
-        // Fetch Branches
-        let brQuery = supabase.from('branches').select('id, name').eq('is_active', true)
-        if (!ownerFlag && userBranchId) {
-            brQuery = brQuery.eq('id', userBranchId)
-        }
-        const { data: brData } = await brQuery
-        if (brData && brData.length > 0) {
-            setBranches(brData)
-            setFormData(prev => ({ ...prev, branch_id: brData[0].id }))
-        }
-
-        // Fetch Therapists
-        const { data: trpData } = await supabase.from('users').select('id, full_name').eq('role', 'therapist').order('full_name')
-        if (trpData) setTherapists(trpData)
-    }
-
-    // Filter patients based on search
     const filteredPatients = patients.filter(pt => {
         if (!patientSearch) return true
         const search = patientSearch.toLowerCase()
@@ -126,55 +153,55 @@ function NewAppointmentForm() {
         setIsSaving(true)
 
         try {
-            // Insert Appointment (tanpa treatment — treatment diisi oleh terapis saat sesi)
             const { error: aptErr } = await supabase
                 .from('appointments')
-                .insert([{
+                .update({
                     patient_id: formData.patient_id,
                     branch_id: formData.branch_id,
                     appointment_date: formData.appointment_date,
                     start_time: formData.start_time,
                     end_time: formData.end_time,
                     therapist_id: formData.therapist_id || null,
-                    status: 'scheduled',
                     notes: formData.notes
-                }])
+                })
+                .eq('id', id)
 
             if (aptErr) throw aptErr
 
-            toast.success('Jadwal temu berhasil dibuat!')
-            router.push('/appointments')
+            toast.success('Jadwal temu berhasil diperbarui!')
+            router.push(`/appointments/${id}`)
             router.refresh()
 
         } catch (err) {
             console.error('Save error:', err)
-            setError('Gagal menyimpan jadwal: ' + err.message)
-            toast.error('Gagal menyimpan jadwal: ' + err.message)
+            setError('Gagal memperbarui jadwal: ' + err.message)
+            toast.error('Gagal memperbarui jadwal: ' + err.message)
         } finally {
             setIsSaving(false)
         }
     }
 
+    if (isLoadingAccess) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                <div className="inline-block animate-spin w-10 h-10 border-4 border-ayumi-primary border-t-transparent rounded-full mb-4"></div>
+                <p className="text-ayumi-primary font-semibold">Memeriksa akses & memuat data...</p>
+            </div>
+        )
+    }
+
     return (
         <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-4 mb-4">
-                <Link href="/appointments">
-                    <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors">
+                <Link href={`/appointments/${id}`}>
+                    <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors border border-gray-100">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     </button>
                 </Link>
                 <div>
-                    <h2 className="text-xl font-bold text-ayumi-secondary">Buat Jadwal Temu</h2>
-                    <p className="text-sm text-ayumi-text-muted mt-0.5">Isi formulir untuk membuat janji temu pasien. Pilihan treatment akan diisi oleh terapis saat sesi berlangsung.</p>
+                    <h2 className="text-xl font-bold text-ayumi-secondary">Edit Jadwal Temu</h2>
+                    <p className="text-sm text-ayumi-text-muted">Ubah rincian reservasi dan janji temu pasien.</p>
                 </div>
-            </div>
-
-            {/* Info Banner */}
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
-                <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-sm text-blue-700 font-medium">
-                    <strong>Alur Baru:</strong> Cukup daftarkan pasien & jadwalnya di sini. Terapis akan memilih jenis treatment dan mengisi catatan SOAP saat pasien sudah di ruangan.
-                </p>
             </div>
 
             {error && (
@@ -192,7 +219,7 @@ function NewAppointmentForm() {
 
                 {/* Cari Pasien */}
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Cari Pasien *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Pasien *</label>
                     <input
                         type="text"
                         placeholder="Ketik nama atau WhatsApp..."
@@ -313,12 +340,12 @@ function NewAppointmentForm() {
                         onChange={handleChange}
                         rows="4"
                         className="input-ayumi focus:bg-white resize-none"
-                        placeholder="Keluhan awal, permintaan khusus, dll..."
+                        placeholder="Catatan reservasi..."
                     ></textarea>
                 </div>
 
                 <div className="border-t border-gray-100 pt-6 flex justify-end gap-4">
-                    <Link href="/appointments">
+                    <Link href={`/appointments/${id}`}>
                         <button
                             type="button"
                             className="px-8 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
@@ -329,12 +356,20 @@ function NewAppointmentForm() {
                     <button
                         type="submit"
                         disabled={isSaving}
-                        className="btn-primary px-8 py-3.5"
+                        className="btn-primary px-8 py-3.5 text-sm font-bold"
                     >
-                        {isSaving ? 'Menyimpan...' : 'Simpan Jadwal'}
+                        {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
                     </button>
                 </div>
             </form>
         </div>
+    )
+}
+
+export default function Page() {
+    return (
+        <Suspense fallback={<div className="flex justify-center p-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div></div>}>
+            <EditAppointmentForm />
+        </Suspense>
     )
 }

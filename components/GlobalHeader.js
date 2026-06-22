@@ -110,7 +110,7 @@ export default function GlobalHeader() {
         }
     }, [user])
 
-    const handleMarkAsRead = async (id, appointmentId) => {
+    const handleMarkAsRead = async (id, appointmentId, type) => {
         const { error } = await supabase
             .from('notifications')
             .update({ is_read: true })
@@ -120,7 +120,11 @@ export default function GlobalHeader() {
             fetchUnreadCount(user.id)
             setIsDropdownOpen(false)
             if (appointmentId) {
-                router.push(`/appointments/${appointmentId}`)
+                if (type === 'treatment_completed') {
+                    router.push(`/kasir?appointmentId=${appointmentId}`)
+                } else {
+                    router.push(`/appointments/${appointmentId}`)
+                }
             }
         }
     }
@@ -234,7 +238,7 @@ export default function GlobalHeader() {
                                             return (
                                                 <div 
                                                     key={n.id}
-                                                    onClick={() => handleMarkAsRead(n.id, n.appointment_id)}
+                                                    onClick={() => handleMarkAsRead(n.id, n.appointment_id, n.type)}
                                                     className={`p-3.5 cursor-pointer hover:bg-gray-50 transition-colors flex gap-3 text-left ${!n.is_read ? 'bg-pink-50/40' : ''}`}
                                                 >
                                                     <div className="shrink-0 mt-0.5">
@@ -245,6 +249,10 @@ export default function GlobalHeader() {
                                                         ) : n.type === 'therapist_ready' ? (
                                                             <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            </div>
+                                                        ) : n.type === 'treatment_completed' ? (
+                                                            <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                                                             </div>
                                                         ) : (
                                                             <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center">

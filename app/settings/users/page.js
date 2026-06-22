@@ -128,6 +128,7 @@ export default function UsersPage() {
                 // Update via API Route (Service Role) to handle password changes
                 const updatePayload = {
                     id: currentUser.id,
+                    email: formData.email,
                     full_name: formData.full_name,
                     phone: formData.phone,
                     role: formData.role,
@@ -290,11 +291,11 @@ export default function UsersPage() {
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Email *</label>
                                     <input 
-                                        type="email" required disabled={isEditing}
-                                        className="input-ayumi bg-white disabled:bg-gray-100 disabled:text-gray-500"
+                                        type="email" required
+                                        className="input-ayumi bg-white"
                                         value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
                                     />
-                                    {isEditing && <p className="text-xs text-gray-400 mt-1">Email tidak dapat diubah setelah dibuat.</p>}
+                                    {isEditing && <p className="text-xs text-gray-400 mt-1">Ubah email jika ingin mengganti email login pengguna ini.</p>}
                                 </div>
 
                                 <div>

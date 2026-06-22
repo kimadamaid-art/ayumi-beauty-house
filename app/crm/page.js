@@ -164,10 +164,14 @@ export default function CRMPage() {
 
         // 4. Fetch Logs for Analytics (Current Month)
         const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-        const { data: logData } = await supabase
+        let logsQuery = supabase
             .from('followup_logs')
             .select('*')
             .gte('created_at', firstDayOfMonth)
+        if (!isOwner && userBranchId) {
+            logsQuery = logsQuery.eq('branch_id', userBranchId)
+        }
+        const { data: logData } = await logsQuery
             
         if (logData) setLogs(logData)
 

@@ -114,7 +114,7 @@ export async function DELETE(request) {
 export async function PUT(request) {
     try {
         const body = await request.json()
-        const { id, password, full_name, phone, role, branch_id, is_active } = body
+        const { id, email, password, full_name, phone, role, branch_id, is_active } = body
 
         if (!id) {
             return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -134,10 +134,14 @@ export async function PUT(request) {
             { auth: { autoRefreshToken: false, persistSession: false } }
         )
 
-        // 1. Update auth.users if password or full_name provided
+        // 1. Update auth.users if password, email, or full_name provided
         const authUpdates = {}
         if (password) authUpdates.password = password
         if (full_name) authUpdates.user_metadata = { full_name }
+        if (email) {
+            authUpdates.email = email
+            authUpdates.email_confirm = true
+        }
 
         if (Object.keys(authUpdates).length > 0) {
             const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdates)
@@ -148,6 +152,7 @@ export async function PUT(request) {
         const { error: dbError } = await supabaseAdmin
             .from('users')
             .update({
+                email: email || null,
                 full_name,
                 phone: phone || null,
                 role,

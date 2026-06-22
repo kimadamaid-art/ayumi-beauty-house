@@ -22,9 +22,16 @@ export default function TherapistDashboard() {
 
     // Calendar States
     const [currentMonth, setCurrentMonth] = useState(new Date())
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+    const [selectedDate, setSelectedDate] = useState('')
+
+    // Helper to get local date string YYYY-MM-DD
+    const getLocalDateString = (date) => {
+        const offset = date.getTimezoneOffset()
+        return new Date(date.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
+    }
 
     useEffect(() => {
+        setSelectedDate(getLocalDateString(new Date()))
         fetchUserAndData()
     }, [])
 
@@ -315,7 +322,7 @@ export default function TherapistDashboard() {
                             const d = i + 1
                             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
                             const isSelected = selectedDate === dateStr
-                            const isToday = new Date().toISOString().split('T')[0] === dateStr
+                            const isToday = getLocalDateString(new Date()) === dateStr
                             const dayAppointments = appointmentsByDate[dateStr] || []
 
                             // Indicators

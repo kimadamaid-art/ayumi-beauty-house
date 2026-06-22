@@ -43,7 +43,8 @@ export default function NewLeadPage() {
                         setFormData(prev => ({ ...prev, branch_id: bData[0].id }))
                     }
                 } else {
-                    // Admin, auto-assign their branch
+                    // Therapist / Staff / Admin, auto-assign their branch
+                    setIsOwner(false)
                     setFormData(prev => ({ ...prev, branch_id: userData?.branch_id || null }))
                 }
             }

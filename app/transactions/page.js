@@ -51,6 +51,8 @@ export default function TransactionsPage() {
     // Detail Modal State
     const [selectedTx, setSelectedTx] = useState(null)
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+    const [isEditingTx, setIsEditingTx] = useState(false)
+    const [editTxData, setEditTxData] = useState({ payment_method: '', notes: '', created_at: '' })
 
     // Tab-Specific Sub-filters
     const [dailyReportDate, setDailyReportDate] = useState(new Date().toISOString().split('T')[0])
@@ -121,7 +123,9 @@ export default function TransactionsPage() {
             .order('created_at', { ascending: false })
 
         // Apply global branch filter
-        if (filterBranch) {
+        if (dbUser && dbUser.role !== 'owner') {
+            query = query.eq('branch_id', dbUser.branch_id || '00000000-0000-0000-0000-000000000000')
+        } else if (filterBranch) {
             query = query.eq('branch_id', filterBranch)
         }
 
@@ -137,7 +141,7 @@ export default function TransactionsPage() {
         if (isMounted) {
             fetchTransactions()
         }
-    }, [isMounted, filterBranch])
+    }, [isMounted, filterBranch, dbUser])
 
     // Get current transactions list based on main tab filter & parameters
     const filteredTransactions = useMemo(() => {
@@ -263,11 +267,94 @@ export default function TransactionsPage() {
     const openDetailModal = (tx) => {
         setSelectedTx(tx)
         setIsDetailModalOpen(true)
+        setIsEditingTx(false)
+        setEditTxData({
+            payment_method: tx.payment_method || '',
+            notes: tx.notes || '',
+            created_at: tx.created_at ? new Date(tx.created_at).toISOString().slice(0, 16) : ''
+        })
     }
 
     const closeDetailModal = () => {
         setSelectedTx(null)
         setIsDetailModalOpen(false)
+        setIsEditingTx(false)
+    }
+
+    const handleDeleteTx = async (tx) => {
+        if (!window.confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.transaction_number}? Stok produk yang dibeli akan dikembalikan dan kupon yang dibeli akan dihapus.`)) {
+            return
+        }
+
+        try {
+            // 1. Revert product stocks
+            const productItems = tx.transaction_items?.filter(item => item.item_type === 'product') || []
+            for (const item of productItems) {
+                const { data: stockData } = await supabase
+                    .from('product_stock')
+                    .select('id, quantity')
+                    .eq('product_id', item.product_id)
+                    .eq('branch_id', tx.branch_id)
+                    .maybeSingle()
+
+                if (stockData) {
+                    await supabase
+                        .from('product_stock')
+                        .update({ quantity: stockData.quantity + item.quantity })
+                        .eq('id', stockData.id)
+                }
+            }
+
+            // 2. Delete patient coupons (which cascades to patient_coupon_items)
+            await supabase
+                .from('patient_coupons')
+                .delete()
+                .eq('transaction_id', tx.id)
+
+            // 3. Delete transaction itself
+            const { error: deleteErr } = await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', tx.id)
+
+            if (deleteErr) throw deleteErr
+
+            alert('Transaksi berhasil dihapus.')
+            closeDetailModal()
+            fetchTransactions()
+
+        } catch (err) {
+            console.error('Error deleting transaction:', err)
+            alert('Gagal menghapus transaksi: ' + err.message)
+        }
+    }
+
+    const handleSaveEditedTx = async () => {
+        if (!selectedTx) return
+
+        try {
+            // Convert local datetime input back to ISO string
+            const isoCreatedAt = new Date(editTxData.created_at).toISOString()
+
+            const { error: updateErr } = await supabase
+                .from('transactions')
+                .update({
+                    payment_method: editTxData.payment_method,
+                    notes: editTxData.notes,
+                    created_at: isoCreatedAt
+                })
+                .eq('id', selectedTx.id)
+
+            if (updateErr) throw updateErr
+
+            alert('Transaksi berhasil diperbarui.')
+            closeDetailModal()
+            fetchTransactions()
+
+        } catch (err) {
+            console.error('Error updating transaction:', err)
+            alert('Gagal memperbarui transaksi: ' + err.message)
+        }
     }
 
     // Helper for Excel export
@@ -1296,7 +1383,7 @@ export default function TransactionsPage() {
                             </div>
                         </div>
 
-                        {/* Branch Breakdown for Owner */}
+                        {/* Branch Breakdown for Owner & Admin */}
                         {(!dbUser || dbUser.role === 'owner') && (
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Pendapatan per Cabang</h4>
@@ -1816,7 +1903,16 @@ export default function TransactionsPage() {
                             <div className="grid grid-cols-2 gap-3 border-b border-dashed border-gray-200 pb-3">
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Tanggal</span>
-                                    <span>{formatDate(selectedTx.created_at)}</span>
+                                    {isEditingTx ? (
+                                        <input
+                                            type="datetime-local"
+                                            value={editTxData.created_at}
+                                            onChange={(e) => setEditTxData(prev => ({ ...prev, created_at: e.target.value }))}
+                                            className="w-full p-1 border rounded text-[10px] focus:outline-none focus:border-ayumi-primary bg-white text-gray-800"
+                                        />
+                                    ) : (
+                                        <span>{formatDate(selectedTx.created_at)}</span>
+                                    )}
                                 </div>
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Kasir</span>
@@ -1828,7 +1924,21 @@ export default function TransactionsPage() {
                                 </div>
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Metode Pembayaran</span>
-                                    <span className="uppercase text-ayumi-primary font-bold">{selectedTx.payment_method}</span>
+                                    {isEditingTx ? (
+                                        <select
+                                            value={editTxData.payment_method}
+                                            onChange={(e) => setEditTxData(prev => ({ ...prev, payment_method: e.target.value }))}
+                                            className="w-full p-1 border rounded text-[10px] focus:outline-none focus:border-ayumi-primary font-bold uppercase text-ayumi-primary bg-white"
+                                        >
+                                            <option value="cash">CASH</option>
+                                            <option value="transfer">TRANSFER</option>
+                                            <option value="qris">QRIS</option>
+                                            <option value="debit">DEBIT</option>
+                                            <option value="credit">CREDIT</option>
+                                        </select>
+                                    ) : (
+                                        <span className="uppercase text-ayumi-primary font-bold">{selectedTx.payment_method}</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -1876,29 +1986,75 @@ export default function TransactionsPage() {
                             </div>
 
                             {/* Notes if exists */}
-                            {selectedTx.notes && (
+                            {(isEditingTx || selectedTx.notes) && (
                                 <div className="bg-yellow-50/50 p-2.5 rounded-lg border border-yellow-100 text-[10px] text-yellow-800 leading-relaxed">
-                                    <strong>Catatan:</strong> {selectedTx.notes}
+                                    <strong>Catatan:</strong>
+                                    {isEditingTx ? (
+                                        <textarea
+                                            value={editTxData.notes}
+                                            onChange={(e) => setEditTxData(prev => ({ ...prev, notes: e.target.value }))}
+                                            rows="2"
+                                            className="w-full mt-1 p-1.5 border border-yellow-200 rounded text-[10px] bg-white text-gray-800 focus:outline-none focus:border-ayumi-primary resize-none"
+                                            placeholder="Catatan transaksi..."
+                                        />
+                                    ) : (
+                                        <span> {selectedTx.notes}</span>
+                                    )}
                                 </div>
                             )}
                         </div>
 
                         {/* Modal Action Buttons */}
-                        <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2 justify-end">
-                            <button
-                                onClick={() => handleSendWA(selectedTx)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition-all"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.993L2 22l5.233-1.371a9.946 9.946 0 004.787 1.226h.005c5.502 0 9.985-4.479 9.986-9.987 0-2.67-1.037-5.178-2.924-7.065A9.923 9.923 0 0012.012 2zm4.857 13.913c-.266.747-1.545 1.399-2.113 1.488-.517.081-1.19.122-1.921-.112-.733-.234-1.637-.621-2.738-1.096-1.83-.791-3.23-2.56-3.32-2.682-.092-.121-.75-.992-.75-1.884v-.001c0-.893.468-1.332.635-1.514.167-.182.365-.228.487-.228.121 0 .243.002.348.006.112.005.263-.042.412.316.152.366.52.1.626.471.106.371.076.66-.046.903-.121.243-.243.402-.365.548-.121.146-.248.304-.106.548.142.244.632 1.039 1.36 1.688.937.834 1.728 1.093 1.972 1.214.244.121.385.101.527-.061.142-.162.608-.71.77-1.016.162-.304.324-.254.548-.172.223.081 1.42.67 1.663.792.244.121.405.182.466.284.061.101.061.589-.203 1.337z"/></svg>
-                                Kirim WA
-                            </button>
-                            <button
-                                onClick={() => window.print()}
-                                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                Cetak
-                            </button>
+                        <div className="p-4 bg-gray-50 border-t border-gray-100 flex flex-wrap gap-2 justify-end">
+                            {isEditingTx ? (
+                                <>
+                                    <button
+                                        onClick={handleSaveEditedTx}
+                                        className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all"
+                                    >
+                                        Simpan
+                                    </button>
+                                    <button
+                                        onClick={() => setIsEditingTx(false)}
+                                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                                    >
+                                        Batal
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
+                                        <>
+                                            <button
+                                                onClick={() => setIsEditingTx(true)}
+                                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteTx(selectedTx)}
+                                                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                Hapus
+                                            </button>
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={() => handleSendWA(selectedTx)}
+                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition-all"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.993L2 22l5.233-1.371a9.946 9.946 0 004.787 1.226h.005c5.502 0 9.985-4.479 9.986-9.987 0-2.67-1.037-5.178-2.924-7.065A9.923 9.923 0 0012.012 2zm4.857 13.913c-.266.747-1.545 1.399-2.113 1.488-.517.081-1.19.122-1.921-.112-.733-.234-1.637-.621-2.738-1.096-1.83-.791-3.23-2.56-3.32-2.682-.092-.121-.75-.992-.75-1.884v-.001c0-.893.468-1.332.635-1.514.167-.182.365-.228.487-.228.121 0 .243.002.348.006.112.005.263-.042.412.316.152.366.52.1.626.471.106.371.076.66-.046.903-.121.243-.243.402-.365.548-.121.146-.248.304-.106.548.142.244.632 1.039 1.36 1.688.937.834 1.728 1.093 1.972 1.214.244.121.385.101.527-.061.142-.162.608-.71.77-1.016.162-.304.324-.254.548-.172.223.081 1.42.67 1.663.792.244.121.405.182.466.284.061.101.061.589-.203 1.337z"/></svg>
+                                        Kirim WA
+                                    </button>
+                                    <button
+                                        onClick={() => window.print()}
+                                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                        Cetak
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

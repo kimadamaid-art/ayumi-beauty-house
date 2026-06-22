@@ -15,9 +15,137 @@ export default function AppointmentDetailPage({ params }) {
     )
 
     const [appointment, setAppointment] = useState(null)
-    const [treatments, setTreatments] = useState([])
     const [loading, setLoading] = useState(true)
     const [isUpdating, setIsUpdating] = useState(false)
+    const [isOwner, setIsOwner] = useState(false)
+    const [userRole, setUserRole] = useState('')
+
+    const handleDeleteAppointment = async () => {
+        try {
+            // Check for associated treatment record
+            const { data: recordData } = await supabase
+                .from('treatment_records')
+                .select('id')
+                .eq('appointment_id', resolvedParams.id)
+                .maybeSingle()
+
+            if (recordData) {
+                // Check if the treatment record has a transaction (payment)
+                const { data: txData } = await supabase
+                    .from('transactions')
+                    .select('transaction_number')
+                    .eq('treatment_record_id', recordData.id)
+                    .maybeSingle()
+
+                if (txData) {
+                    alert(`Tidak dapat menghapus jadwal ini karena rekam medis terkait sudah dibayar di kasir (No. Transaksi: ${txData.transaction_number}). Harap hapus transaksi pembayaran terlebih dahulu jika ingin menghapus jadwal ini.`)
+                    return
+                }
+            }
+
+            let confirmMsg = 'Apakah Anda yakin ingin menghapus jadwal temu ini? Semua tindakan terkait juga akan dihapus.'
+            if (recordData) {
+                confirmMsg = 'Jadwal ini memiliki Rekam Medis (SOAP) terkait. Menghapus jadwal ini juga akan menghapus rekam medis dan mengembalikan kupon yang digunakan. Lanjutkan?'
+            }
+
+            if (!window.confirm(confirmMsg)) {
+                return
+            }
+
+            // Perform deletion cleanup
+            if (recordData) {
+                const recordId = recordData.id
+
+                // 1. Rollback coupon sessions if any
+                const { data: logs } = await supabase
+                    .from('coupon_usage_logs')
+                    .select('*')
+                    .eq('treatment_record_id', recordId)
+
+                if (logs && logs.length > 0) {
+                    for (const log of logs) {
+                        const { data: itemData } = await supabase
+                            .from('patient_coupon_items')
+                            .select('used_sessions, remaining_sessions, patient_coupon_id')
+                            .eq('id', log.patient_coupon_item_id)
+                            .single()
+
+                        if (itemData) {
+                            const newUsed = Math.max(0, itemData.used_sessions - 1)
+                            const newRemaining = itemData.remaining_sessions + 1
+                            
+                            await supabase
+                                .from('patient_coupon_items')
+                                .update({
+                                    used_sessions: newUsed,
+                                    remaining_sessions: newRemaining,
+                                    status: 'active'
+                                })
+                                .eq('id', log.patient_coupon_item_id)
+
+                            await supabase
+                                .from('patient_coupons')
+                                .update({ status: 'active' })
+                                .eq('id', itemData.patient_coupon_id)
+                        }
+                    }
+
+                    await supabase
+                        .from('coupon_usage_logs')
+                        .delete()
+                        .eq('treatment_record_id', recordId)
+                }
+
+                // 2. Delete followup queue
+                await supabase
+                    .from('followup_queue')
+                    .delete()
+                    .eq('treatment_record_id', recordId)
+
+                // 3. Delete treatment record items
+                await supabase
+                    .from('treatment_record_items')
+                    .delete()
+                    .eq('treatment_record_id', recordId)
+
+                // 4. Delete patient photos
+                await supabase
+                    .from('patient_photos')
+                    .delete()
+                    .eq('treatment_record_id', recordId)
+
+                // 5. Delete the treatment record itself
+                const { error: recordDeleteErr } = await supabase
+                    .from('treatment_records')
+                    .delete()
+                    .eq('id', recordId)
+
+                if (recordDeleteErr) throw recordDeleteErr
+            }
+
+            // 6. Delete appointment treatments
+            await supabase
+                .from('appointment_treatments')
+                .delete()
+                .eq('appointment_id', resolvedParams.id)
+
+            // 7. Delete appointment itself
+            const { error: deleteErr } = await supabase
+                .from('appointments')
+                .delete()
+                .eq('id', resolvedParams.id)
+
+            if (deleteErr) throw deleteErr
+
+            alert('Jadwal temu berhasil dihapus.')
+            router.push('/appointments')
+            router.refresh()
+
+        } catch (err) {
+            console.error('Error deleting appointment:', err)
+            alert('Gagal menghapus jadwal: ' + err.message)
+        }
+    }
 
     const formatTime = (isoString) => {
         if (!isoString) return ''
@@ -56,6 +184,22 @@ export default function AppointmentDetailPage({ params }) {
     const fetchData = async () => {
         setLoading(true)
 
+        // Fetch user and check role
+        const { data: { user } } = await supabase.auth.getUser()
+        let loggedInUser = null
+        if (user) {
+            const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
+            if (userData) {
+                loggedInUser = userData
+                setIsOwner(userData.role === 'owner')
+                setUserRole(userData.role || '')
+            } else {
+                setIsOwner(true)
+            }
+        } else {
+            setIsOwner(true)
+        }
+
         // Fetch Appointment
         const { data: aptData } = await supabase
             .from('appointments')
@@ -63,28 +207,20 @@ export default function AppointmentDetailPage({ params }) {
                 *,
                 patients (*),
                 branches (name),
-                treatment_records (id, result_notes)
+                users!appointments_therapist_id_fkey (full_name),
+                treatment_records (id, result_notes, treatment_record_items(treatment_id, price_at_time, treatments(name)))
             `)
             .eq('id', resolvedParams.id)
             .single()
 
         if (aptData) {
-            setAppointment(aptData)
-            
-            // Fetch Appointment Treatments
-            const { data: trData } = await supabase
-                .from('appointment_treatments')
-                .select(`
-                    id,
-                    sort_order,
-                    treatments (id, name, duration_minutes, price, discount_percent)
-                `)
-                .eq('appointment_id', aptData.id)
-                .order('sort_order', { ascending: true })
-                
-            if (trData) {
-                setTreatments(trData.map(t => t.treatments))
+            // Guard: Non-owner is restricted to their branch
+            if (loggedInUser && loggedInUser.role !== 'owner' && loggedInUser.branch_id && aptData.branch_id !== loggedInUser.branch_id) {
+                alert('Anda tidak diizinkan mengakses jadwal dari cabang lain.')
+                router.push('/appointments')
+                return
             }
+            setAppointment(aptData)
         }
         setLoading(false)
     }
@@ -224,6 +360,24 @@ export default function AppointmentDetailPage({ params }) {
 
             {/* Quick Actions Bar */}
             <div className="bg-white rounded-2xl shadow-sm border border-pink-50 p-4 flex flex-wrap gap-3">
+                {isOwner && (
+                    <>
+                        <Link href={`/appointments/${appointment.id}/edit`}>
+                            <button className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 py-2.5 px-5 flex items-center gap-2 text-sm font-bold rounded-xl transition-all cursor-pointer shadow-sm">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                Edit Jadwal
+                            </button>
+                        </Link>
+                        <button 
+                            onClick={handleDeleteAppointment}
+                            className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 py-2.5 px-5 flex items-center gap-2 text-sm font-bold rounded-xl transition-all cursor-pointer shadow-sm"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            Hapus Jadwal
+                        </button>
+                    </>
+                )}
+
                 {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
                     <>
                         <button 
@@ -256,12 +410,10 @@ export default function AppointmentDetailPage({ params }) {
                             </button>
                         </Link>
                     ) : (
-                        <Link href={`/treatment-records/new?patientId=${appointment.patient_id}&appointmentId=${appointment.id}`}>
-                            <button className="btn-primary py-2.5 flex items-center gap-2 text-sm font-bold cursor-pointer">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                Buat Rekam Medis
-                            </button>
-                        </Link>
+                        <span className="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Menunggu terapis input treatment
+                        </span>
                     )
                 )}
             </div>
@@ -334,10 +486,13 @@ export default function AppointmentDetailPage({ params }) {
                 </div>
             </div>
 
-            {appointment.status === 'completed' && (!appointment.treatment_records || appointment.treatment_records.length === 0) && (
-                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-2xl flex items-center gap-3 font-semibold text-sm">
-                    <svg className="w-6 h-6 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    <span>Perhatian: Terapis belum mengisi catatan SOAP (keluhan, kondisi kulit, tindakan & rekomendasi) untuk treatment ini.</span>
+            {appointment.status !== 'cancelled' && (!appointment.treatment_records || appointment.treatment_records.length === 0) && (
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-2xl flex items-start gap-3 font-semibold text-sm">
+                    <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <div>
+                        <div>Terapis belum mengisi treatment & catatan SOAP.</div>
+                        <div className="font-normal text-xs mt-1 text-yellow-700">Terapis dapat mengisi melalui menu <strong>Dashboard Terapis → Jadwal Hari Ini → Input Treatment</strong>.</div>
+                    </div>
                 </div>
             )}
 
@@ -378,42 +533,24 @@ export default function AppointmentDetailPage({ params }) {
 
                 {/* Info Treatment & Catatan */}
                 <div className="lg:col-span-2 space-y-6">
-                    {treatments.length > 0 && (
+                    {/* Tampilkan rekam medis jika sudah ada */}
+                    {appointment.treatment_records && appointment.treatment_records.length > 0 && (
                         <div className="card-ayumi p-6">
-                            <h3 className="text-lg font-bold text-ayumi-secondary border-b border-gray-100 pb-3 mb-4">Rencana Tindakan (Treatments)</h3>
-                            <div className="space-y-3">
-                                {treatments.map((t, i) => (
-                                    <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-ayumi-primary font-bold shadow-sm">
-                                                {i+1}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-gray-800">{t.name}</div>
-                                                <div className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    {t.duration_minutes} menit
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="font-bold text-gray-700 text-right">
-                                            {t.discount_percent > 0 ? (
-                                                <div className="flex flex-col items-end">
-                                                    <span className="line-through text-xs text-gray-400">Rp {t.price?.toLocaleString('id-ID')}</span>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="bg-pink-50 text-ayumi-primary text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                                            -{t.discount_percent}%
-                                                        </span>
-                                                        <span className="font-bold text-gray-800">Rp {(t.price * (1 - t.discount_percent / 100))?.toLocaleString('id-ID')}</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <span>Rp {t.price?.toLocaleString('id-ID')}</span>
-                                            )}
-                                        </div>
+                            <h3 className="text-lg font-bold text-ayumi-secondary border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Treatment yang Dilakukan
+                            </h3>
+                            <div className="space-y-2">
+                                {appointment.treatment_records[0].treatment_record_items?.map((item, i) => (
+                                    <div key={i} className="flex justify-between items-center p-3 bg-green-50 rounded-xl border border-green-100">
+                                        <span className="font-bold text-gray-800 text-sm">{item.treatments?.name || 'Treatment'}</span>
+                                        <span className="font-bold text-green-700 text-sm">Rp {item.price_at_time?.toLocaleString('id-ID')}</span>
                                     </div>
                                 ))}
                             </div>
+                            <Link href={`/treatment-records/${appointment.treatment_records[0].id}`} className="mt-4 block">
+                                <button className="w-full text-center text-ayumi-primary text-sm font-bold hover:underline py-1">Lihat Detail Rekam Medis →</button>
+                            </Link>
                         </div>
                     )}
 

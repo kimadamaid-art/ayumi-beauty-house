@@ -101,6 +101,12 @@ export default function ReceiptPage() {
                             Buat Rekam Medis
                         </Link>
                     )}
+                    {transaction.treatment_record_id && (
+                        <Link href={`/treatment-records/${transaction.treatment_record_id}`} className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-ayumi-primary rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            Kirim Rekam Medis (WA)
+                        </Link>
+                    )}
                     <Link href="/kasir" className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-colors shadow-sm">
                         Transaksi Baru
                     </Link>
