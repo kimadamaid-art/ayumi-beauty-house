@@ -9,20 +9,35 @@ import { toast } from 'react-hot-toast'
 export default function PatientsPage() {
     const [patients, setPatients] = useState([])
     const [isLoading, setIsLoading] = useState(true)
+    const [searchInput, setSearchInput] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const [crmFilter, setCrmFilter] = useState('All')
+    const [page, setPage] = useState(1)
+    const [hasMore, setHasMore] = useState(true)
 
     // Excel Import States
     const [showImportModal, setShowImportModal] = useState(false)
     const [importData, setImportData] = useState([])
     const [existingWaList, setExistingWaList] = useState(new Set())
     const [isImporting, setIsImporting] = useState(false)
+    const [isLoadingWaList, setIsLoadingWaList] = useState(false)
     const fileInputRef = useRef(null)
+
+    const PAGE_SIZE = 50
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
+
+    // Debounce search input changes
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setSearchQuery(searchInput)
+            setPage(1) // Reset to page 1 on new search
+        }, 500)
+        return () => clearTimeout(handler)
+    }, [searchInput])
 
     useEffect(() => {
         const fetchPatients = async () => {
@@ -52,6 +67,15 @@ export default function PatientsPage() {
             if (!isOwner && userBranchId) {
                 query = query.eq('branch_id', userBranchId)
             }
+
+            if (searchQuery.trim() !== '') {
+                query = query.or(`full_name.ilike.%${searchQuery}%,whatsapp.ilike.%${searchQuery}%`)
+            }
+
+            // Apply pagination range
+            const from = (page - 1) * PAGE_SIZE
+            const to = page * PAGE_SIZE - 1
+            query = query.range(from, to)
 
             const { data, error } = await query
             
@@ -104,16 +128,19 @@ export default function PatientsPage() {
                         activeCouponsCount
                     }
                 })
-                setPatients(processed)
-                
-                // Caching all WA numbers for quick validation during import
-                const waSet = new Set(processed.map(p => p.whatsapp).filter(Boolean))
-                setExistingWaList(waSet)
+
+                if (page === 1) {
+                    setPatients(processed)
+                } else {
+                    setPatients(prev => [...prev, ...processed])
+                }
+
+                setHasMore(data.length === PAGE_SIZE)
             }
             setIsLoading(false)
         }
         fetchPatients()
-    }, [supabase])
+    }, [supabase, page, searchQuery])
 
     // --- EXCEL IMPORT LOGIC ---
     const handleDownloadTemplate = () => {
@@ -124,9 +151,46 @@ export default function PatientsPage() {
         XLSX.writeFile(wb, "Template_Import_Pasien.xlsx")
     }
 
-    const handleFileUpload = (e) => {
+    const handleFileUpload = async (e) => {
         const file = e.target.files[0]
         if (!file) return
+
+        setIsLoadingWaList(true)
+        const waSet = new Set()
+        try {
+            let fetchPage = 0
+            const fetchPageSize = 1000
+            let fetchHasMore = true
+            while (fetchHasMore) {
+                const { data, error } = await supabase
+                    .from('patients')
+                    .select('whatsapp')
+                    .range(fetchPage * fetchPageSize, (fetchPage + 1) * fetchPageSize - 1)
+                
+                if (error) throw error
+                if (!data || data.length === 0) {
+                    fetchHasMore = false
+                } else {
+                    data.forEach(p => {
+                        if (p.whatsapp) {
+                            waSet.add(p.whatsapp.replace(/[^0-9]/g, ''))
+                        }
+                    })
+                    if (data.length < fetchPageSize) {
+                        fetchHasMore = false
+                    } else {
+                        fetchPage++
+                    }
+                }
+            }
+            setExistingWaList(waSet)
+        } catch (err) {
+            console.error('Error fetching WA list:', err)
+            toast.error("Gagal memvalidasi data duplikat dari server.")
+            setIsLoadingWaList(false)
+            return
+        }
+        setIsLoadingWaList(false)
 
         const reader = new FileReader()
         reader.onload = (evt) => {
@@ -140,7 +204,7 @@ export default function PatientsPage() {
                 // Process and validate data
                 const processedData = data.map((row, index) => {
                     const wa = row.whatsapp ? String(row.whatsapp).replace(/[^0-9]/g, '') : ''
-                    const isDuplicate = wa && existingWaList.has(wa)
+                    const isDuplicate = wa && waSet.has(wa)
                     
                     return {
                         ...row,
@@ -214,12 +278,10 @@ export default function PatientsPage() {
 
     const filteredPatients = useMemo(() => {
         return patients.filter(p => {
-            const matchSearch = p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                p.whatsapp?.includes(searchQuery)
             const matchCRM = crmFilter === 'All' || p.crmStatus === crmFilter
-            return matchSearch && matchCRM
+            return matchCRM
         })
-    }, [patients, searchQuery, crmFilter])
+    }, [patients, crmFilter])
 
     const getCRMStatusBadge = (status) => {
         switch(status) {
@@ -236,10 +298,20 @@ export default function PatientsPage() {
             <div className="flex justify-end gap-3 flex-wrap">
                 <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="btn-secondary px-6 py-2 flex items-center gap-2 cursor-pointer"
+                    disabled={isLoadingWaList}
+                    className="btn-secondary px-6 py-2 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    Import Excel
+                    {isLoadingWaList ? (
+                        <>
+                            <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                            Memproses...
+                        </>
+                    ) : (
+                        <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            Import Excel
+                        </>
+                    )}
                 </button>
                 <input 
                     type="file" 
@@ -263,8 +335,8 @@ export default function PatientsPage() {
                         <input 
                             type="text" 
                             placeholder="Cari berdasarkan nama atau no whatsapp..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
                             className="input-ayumi pl-12 bg-gray-50 focus:bg-white"
                         />
                     </div>
@@ -284,7 +356,7 @@ export default function PatientsPage() {
                     </div>
                 </div>
 
-                {isLoading ? (
+                {page === 1 && isLoading ? (
                     <div className="p-12 text-center">
                         <div className="inline-block animate-spin w-8 h-8 border-4 border-[#B5588A] border-t-transparent rounded-full mb-4"></div>
                         <p className="text-gray-500 font-medium">Memuat data pasien...</p>
@@ -360,6 +432,25 @@ export default function PatientsPage() {
                     </div>
                 )}
             </div>
+
+            {hasMore && (
+                <div className="flex justify-center mt-4">
+                    <button 
+                        onClick={() => setPage(prev => prev + 1)}
+                        disabled={isLoading}
+                        className="btn-secondary px-8 py-2.5 font-bold flex items-center gap-2"
+                    >
+                        {isLoading ? (
+                            <>
+                                <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                                Memuat...
+                            </>
+                        ) : (
+                            'Muat Lebih Banyak'
+                        )}
+                    </button>
+                </div>
+            )}
 
             {/* MODAL IMPORT EXCEL */}
             {showImportModal && (
