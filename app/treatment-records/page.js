@@ -268,7 +268,7 @@ export default function TreatmentRecordsPage() {
                                             </td>
                                             <td className="px-6 py-4 font-semibold text-gray-700">
                                                 <div className="text-sm text-gray-800">Terapis: {r.therapist?.full_name || '-'}</div>
-                                                <div className="text-xs text-gray-500 mt-1">Petugas: {r.users?.full_name || '-'}</div>
+                                                <div className="text-xs text-gray-500 mt-1">Admin: {r.users?.full_name || '-'}</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-center gap-2">
