@@ -372,18 +372,7 @@ export default function TreatmentInputPage({ params }) {
     if (!appointment) return null
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6 p-4 md:p-6">
-            <div className="flex items-center gap-4 mb-2">
-                <Link href="/therapist/dashboard">
-                    <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                    </button>
-                </Link>
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Input Treatment & SOAP</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Setelah disimpan, kasir dapat memproses pembayaran.</p>
-                </div>
-            </div>
+        <div className="max-w-4xl mx-auto space-y-6">
 
             {/* Info Pasien & Jadwal */}
             <div className="card-ayumi p-5 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gradient-to-br from-pink-50 to-white border-pink-100">

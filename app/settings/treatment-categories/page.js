@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 
 export default function TreatmentCategoriesPage() {
+    const router = useRouter()
     const [categories, setCategories] = useState([])
     const [isLoading, setIsLoading] = useState(true)
     
@@ -19,8 +21,24 @@ export default function TreatmentCategoriesPage() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
 
-    const fetchCategories = async () => {
+    const checkAccess = async () => {
         setIsLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            router.push('/login')
+            return
+        }
+
+        const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+        if (!userData || userData.role !== 'owner') {
+            alert('Akses Ditolak: Halaman ini hanya boleh diakses oleh Owner.')
+            router.push('/dashboard')
+            return
+        }
+        await fetchCategories()
+    }
+
+    const fetchCategories = async () => {
         const { data, error } = await supabase
             .from('treatment_categories')
             .select('*')
@@ -33,7 +51,7 @@ export default function TreatmentCategoriesPage() {
     }
 
     useEffect(() => {
-        fetchCategories()
+        checkAccess()
     }, [supabase])
 
     const handleOpenModal = (mode, category = null) => {

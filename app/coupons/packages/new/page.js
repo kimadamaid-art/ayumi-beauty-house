@@ -30,10 +30,18 @@ export default function NewCouponPackagePage() {
 
     async function fetchInitialData() {
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-            if (data) setDbUser(data)
+        if (!user) {
+            router.push('/login')
+            return
         }
+
+        const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+        if (!data || data.role !== 'owner') {
+            alert('Akses Ditolak: Halaman ini hanya boleh diakses oleh Owner.')
+            router.push('/dashboard')
+            return
+        }
+        setDbUser(data)
 
         const { data: trs } = await supabase.from('treatments').select('id, name, price').eq('is_active', true).order('name')
         if (trs) setTreatments(trs)
@@ -119,6 +127,15 @@ export default function NewCouponPackagePage() {
     }
 
     const totalSessions = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+
+    if (!dbUser) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                <div className="animate-spin w-10 h-10 border-4 border-ayumi-primary border-t-transparent rounded-full mb-4"></div>
+                <p className="text-ayumi-primary font-semibold">Memeriksa Hak Akses...</p>
+            </div>
+        )
+    }
 
     return (
         <div className="max-w-5xl mx-auto space-y-6">

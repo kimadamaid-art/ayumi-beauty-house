@@ -233,32 +233,27 @@ export default function PatientsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex-1">
-                    <p className="text-sm text-ayumi-text-muted">Kelola data demografis dan status CRM seluruh pasien.</p>
-                </div>
-                <div className="flex gap-3 flex-wrap">
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="btn-secondary px-6 py-2 flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                        Import Excel
+            <div className="flex justify-end gap-3 flex-wrap">
+                <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn-secondary px-6 py-2 flex items-center gap-2 cursor-pointer"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    Import Excel
+                </button>
+                <input 
+                    type="file" 
+                    accept=".xlsx, .xls, .csv" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                />
+                <Link href="/patients/new">
+                    <button className="btn-primary px-6 py-2 flex items-center gap-2 cursor-pointer">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                        Tambah Pasien
                     </button>
-                    <input 
-                        type="file" 
-                        accept=".xlsx, .xls, .csv" 
-                        className="hidden" 
-                        ref={fileInputRef} 
-                        onChange={handleFileUpload} 
-                    />
-                    <Link href="/patients/new">
-                        <button className="btn-primary px-6 py-2 flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                            Tambah Pasien
-                        </button>
-                    </Link>
-                </div>
+                </Link>
             </div>
 
             <div className="card-ayumi overflow-hidden">

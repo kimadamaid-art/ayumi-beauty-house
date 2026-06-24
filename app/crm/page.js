@@ -258,10 +258,6 @@ export default function CRMPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <p className="text-sm text-ayumi-text-muted mb-2">Kelola follow-up, retensi pasien, dan lihat performa klinik.</p>
-            </div>
-
             {/* TABS */}
             <div className="flex overflow-x-auto gap-2 p-1 bg-white rounded-2xl shadow-sm border border-gray-100">
                 <button 

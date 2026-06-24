@@ -99,13 +99,7 @@ export default function TherapistAppointments() {
     }
 
     return (
-        <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 card-ayumi p-6">
-                <div className="flex-1">
-                    <h1 className="text-2xl font-extrabold text-ayumi-text mb-1">Jadwal Treatment Anda</h1>
-                    <p className="text-sm text-ayumi-text-muted">Semua jadwal yang ditugaskan kepada Anda.</p>
-                </div>
-            </div>
+        <div className="max-w-6xl mx-auto space-y-6">
 
             <div className="card-ayumi p-6">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">

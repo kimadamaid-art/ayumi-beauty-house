@@ -15,6 +15,7 @@ export default function EditCouponPackagePage() {
 
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
+    const [dbUser, setDbUser] = useState(null)
     const [treatments, setTreatments] = useState([])
     const [stats, setStats] = useState({ purchased: 0, fullyUsed: 0 })
 
@@ -30,6 +31,21 @@ export default function EditCouponPackagePage() {
 
     async function fetchInitialData() {
         setIsLoading(true)
+
+        // 0. Check Access
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            router.push('/login')
+            return
+        }
+
+        const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+        if (!userData || userData.role !== 'owner') {
+            alert('Akses Ditolak: Halaman ini hanya boleh diakses oleh Owner.')
+            router.push('/dashboard')
+            return
+        }
+        setDbUser(userData)
 
         // 1. Fetch Treatments
         const { data: trs } = await supabase.from('treatments').select('id, name, price').order('name')

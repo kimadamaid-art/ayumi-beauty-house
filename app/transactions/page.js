@@ -875,21 +875,15 @@ export default function TransactionsPage() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6 px-4 md:px-8 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
             
             {/* TAMPILAN UTAMA: GLOBAL FILTER BAR */}
             <div className="card-ayumi p-6 flex flex-col gap-4 bg-white relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-ayumi-secondary to-ayumi-primary"></div>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-800">Riwayat Penjualan</h2>
-                        <p className="text-xs text-gray-500 font-medium">Filter secara global untuk tabel utama atau buka tab laporan khusus.</p>
-                    </div>
-                    
+                <div className="flex justify-end items-center">
                     {/* Excel Export Button in Top Right */}
                     <button
                         onClick={() => handleExcelExport('Main', 'Semua_Transaksi', filteredTransactions)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-green-600/20 flex items-center gap-2 self-end md:self-auto transition-all"
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-green-600/20 flex items-center gap-2 transition-all cursor-pointer"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

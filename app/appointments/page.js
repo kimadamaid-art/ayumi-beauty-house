@@ -379,34 +379,28 @@ export default function AppointmentsPage() {
 
     return (
         <div className="space-y-6">
-            {/* Header Control Card */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 card-ayumi p-6 shadow-sm border border-pink-100/50">
-                <div className="flex-1">
-                    <h2 className="text-xl font-black text-ayumi-secondary">Kalender & Janji Temu</h2>
-                    <p className="text-xs text-ayumi-text-muted mt-0.5">Kelola reservasi dan jadwal kedatangan pasien klinik secara terpusat.</p>
+            {/* Control Bar */}
+            <div className="flex flex-col md:flex-row justify-end items-center gap-3">
+                <div className="flex bg-white border border-gray-100 p-1.5 rounded-xl shadow-sm">
+                    <button 
+                        onClick={() => handleViewModeChange('list')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'list' ? 'bg-ayumi-bg text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        List View
+                    </button>
+                    <button 
+                        onClick={() => handleViewModeChange('calendar')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'calendar' ? 'bg-ayumi-bg text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Calendar View
+                    </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <div className="flex bg-gray-100/80 p-1 rounded-xl">
-                        <button 
-                            onClick={() => handleViewModeChange('list')}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            List View
-                        </button>
-                        <button 
-                            onClick={() => handleViewModeChange('calendar')}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'calendar' ? 'bg-white text-ayumi-secondary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            Calendar View
-                        </button>
-                    </div>
-                    <Link href="/appointments/new">
-                        <button className="btn-primary py-2.5 px-4 flex items-center gap-2 text-xs">
-                            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-                            Buat Jadwal baru
-                        </button>
-                    </Link>
-                </div>
+                <Link href="/appointments/new">
+                    <button className="btn-primary py-2.5 px-5 flex items-center gap-2 text-xs cursor-pointer shadow-pink-500/10 shadow-md">
+                        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                        Buat Jadwal baru
+                    </button>
+                </Link>
             </div>
 
             {/* Filter Bar */}

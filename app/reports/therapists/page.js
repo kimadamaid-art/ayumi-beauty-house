@@ -48,33 +48,30 @@ export default function TherapistsReportPage() {
         }
 
         const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-        if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
-            alert('Akses ditolak. Halaman ini khusus untuk Owner dan Admin.')
+        if (!userData || userData.role !== 'owner') {
+            alert('Akses ditolak. Halaman ini khusus untuk Owner.')
             router.push('/dashboard')
             return
         }
 
-        const owner = userData.role === 'owner'
-        setIsOwner(owner)
+        setIsOwner(true)
         setUserBranchId(userData.branch_id)
-        
+
         // Fetch Branches
-        const { data: branchData } = await supabase.from('branches').select('id, name').eq('is_active', true).order('name')
+        const { data: branchData } = await supabase
+            .from('branches')
+            .select('id, name')
+            .eq('is_active', true)
+            .order('name')
         if (branchData) setBranches(branchData)
 
-        // Fetch Therapists (Users with role = 'therapist')
+        // Fetch Active Therapists
         const { data: therapistData } = await supabase
             .from('users')
-            .select('id, full_name, branch_id, branches(name)')
+            .select('id, full_name, role, branch_id, branches(name)')
             .eq('role', 'therapist')
-            .eq('is_active', true)
             .order('full_name')
         if (therapistData) setTherapists(therapistData)
-
-        // For admin, restrict branch filter to their own branch
-        if (!owner && userData.branch_id) {
-            setSelectedBranch(userData.branch_id)
-        }
 
         setUserLoaded(true)
     }

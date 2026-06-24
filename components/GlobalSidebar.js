@@ -124,12 +124,14 @@ export default function GlobalSidebar() {
                             </div>
                         </Link>
 
-                        <Link href="/reports/therapists">
-                            <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/reports/therapists') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                Laporan Terapis
-                            </div>
-                        </Link>
+                        {dbUser && dbUser.role === 'owner' && (
+                            <Link href="/reports/therapists">
+                                <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/reports/therapists') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                    Laporan Terapis
+                                </div>
+                            </Link>
+                        )}
                     </>
                 ) : dbUser && dbUser.role === 'therapist' ? (
                     <>
@@ -175,35 +177,37 @@ export default function GlobalSidebar() {
                         {/* Settings Submenu */}
                         {(settingsOpen || isSettingsActive) && (
                             <div className="pl-11 pr-3 py-2 space-y-2 border-l border-white/20 ml-5 mt-1">
-                                <Link href="/settings/branches">
-                                    <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/branches' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                        Manajemen Cabang
-                                    </div>
-                                </Link>
-                                
-                                {dbUser.role === 'owner' && (
-                                    <Link href="/settings/users">
-                                        <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/users' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                            Manajemen User
-                                        </div>
-                                    </Link>
-                                )}
+                                {dbUser && dbUser.role === 'owner' && (
+                                    <>
+                                        <Link href="/settings/branches">
+                                            <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/branches' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
+                                                Manajemen Cabang
+                                            </div>
+                                        </Link>
+                                        
+                                        <Link href="/settings/users">
+                                            <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/users' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
+                                                Manajemen User
+                                            </div>
+                                        </Link>
 
-                                <Link href="/settings/treatment-categories">
-                                    <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/treatment-categories' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                        Kategori Treatment
-                                    </div>
-                                </Link>
-                                <Link href="/settings/treatments">
-                                    <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/treatments' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                        Master Treatment
-                                    </div>
-                                </Link>
-                                <Link href="/settings/products">
-                                    <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/products' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                        Master Produk
-                                    </div>
-                                </Link>
+                                        <Link href="/settings/treatment-categories">
+                                            <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/treatment-categories' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
+                                                Kategori Treatment
+                                            </div>
+                                        </Link>
+                                        <Link href="/settings/treatments">
+                                            <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/treatments' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
+                                                Master Treatment
+                                            </div>
+                                        </Link>
+                                        <Link href="/settings/products">
+                                            <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/products' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
+                                                Master Produk
+                                            </div>
+                                        </Link>
+                                    </>
+                                )}
                                 <Link href="/settings/product-stock">
                                     <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/product-stock' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
                                         Stok Produk

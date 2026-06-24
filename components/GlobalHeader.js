@@ -235,7 +235,7 @@ export default function GlobalHeader() {
     return (
         <header className="bg-white border-b border-gray-100 shadow-sm px-8 py-4 flex justify-between items-center z-30 sticky top-0">
             <div>
-                <h2 className="text-xl font-bold text-ayumi-secondary">{getPageTitle()}</h2>
+                <h2 className="text-xl font-extrabold text-ayumi-primary tracking-tight">Ayumi Beauty House</h2>
             </div>
             
             <div className="flex items-center gap-6">

@@ -66,6 +66,10 @@ export default function ProductStockPage() {
     }, [supabase])
 
     const handleOpenModal = (product, branchId) => {
+        if (dbUser?.role === 'therapist') {
+            alert('Akses Ditolak: Terapis tidak diizinkan mengedit stok produk.')
+            return
+        }
         if (dbUser?.role !== 'owner' && branchId !== dbUser?.branch_id) {
             alert('Anda tidak memiliki izin untuk mengedit stok di cabang lain.')
             return

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 
 export default function BranchesPage() {
+    const router = useRouter()
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -26,11 +28,27 @@ export default function BranchesPage() {
     })
 
     useEffect(() => {
-        fetchBranches()
+        checkAccess()
     }, [])
 
-    const fetchBranches = async () => {
+    const checkAccess = async () => {
         setLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            router.push('/login')
+            return
+        }
+
+        const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+        if (!userData || userData.role !== 'owner') {
+            alert('Akses Ditolak: Halaman ini hanya boleh diakses oleh Owner.')
+            router.push('/dashboard')
+            return
+        }
+        await fetchBranches()
+    }
+
+    const fetchBranches = async () => {
         const { data, error } = await supabase
             .from('branches')
             .select('*')

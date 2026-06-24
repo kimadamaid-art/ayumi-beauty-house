@@ -260,22 +260,21 @@ export default function TherapistDashboard() {
     }
 
     return (
-        <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
-            {/* Header Welcome */}
-            <div className="card-ayumi p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-2 border-pink-100">
+        <div className="max-w-6xl mx-auto space-y-6">
+            {/* Branch Selector Card */}
+            <div className="card-ayumi p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-2 border-pink-100/50 bg-white">
                 <div>
-                    <h1 className="text-2xl font-extrabold text-ayumi-text">Selamat datang, {dbUser?.full_name?.split(' ')[0]} 👋</h1>
-                    <p className="text-ayumi-text-muted font-medium mt-1">
+                    <p className="text-sm font-semibold text-gray-600">
                         Cabang Penempatan: <span className="text-ayumi-primary font-bold">{dbUser?.branches?.name || 'Tidak ada penempatan'}</span>
                     </p>
                 </div>
 
                 <div className="flex flex-col gap-1 w-full md:w-auto">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Pilih Cabang Lihat Jadwal</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Pilih Cabang Lihat Jadwal</label>
                     <select
                         value={selectedBranch}
                         onChange={(e) => setSelectedBranch(e.target.value)}
-                        className="input-ayumi bg-pink-50 border-pink-200 text-ayumi-primary font-bold py-2"
+                        className="input-ayumi bg-pink-50 border-pink-200 text-ayumi-primary font-bold py-2 cursor-pointer"
                     >
                         {branches.map(b => (
                             <option key={b.id} value={b.id}>{b.name}</option>

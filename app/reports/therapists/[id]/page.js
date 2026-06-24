@@ -64,14 +64,13 @@ export default function TherapistDetailPage() {
         }
 
         const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-        if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
-            alert('Akses ditolak. Halaman ini khusus untuk Owner dan Admin.')
+        if (!userData || userData.role !== 'owner') {
+            alert('Akses ditolak. Halaman ini khusus untuk Owner.')
             router.push('/dashboard')
             return
         }
 
-        const owner = userData.role === 'owner'
-        setIsOwner(owner)
+        setIsOwner(true)
         setUserBranchId(userData.branch_id)
 
         // Fetch Therapist Details

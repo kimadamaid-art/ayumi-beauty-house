@@ -8,6 +8,7 @@ export default function CouponsDashboardPage() {
     const [activeTab, setActiveTab] = useState('master') // 'master', 'patients', 'usage', 'history'
     const [isLoading, setIsLoading] = useState(false)
     const [dbUser, setDbUser] = useState(null)
+    const [userLoaded, setUserLoaded] = useState(false)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -24,6 +25,7 @@ export default function CouponsDashboardPage() {
             const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
             if (data) setDbUser(data)
         }
+        setUserLoaded(true)
     }
 
     // --- STATES FOR TAB 1: MASTER PAKET ---
@@ -53,12 +55,13 @@ export default function CouponsDashboardPage() {
     const [branches, setBranches] = useState([])
 
     useEffect(() => {
+        if (!userLoaded) return
         if (activeTab === 'master') fetchPackages()
         else if (activeTab === 'patients') fetchPatientCoupons()
         else if (activeTab === 'history') fetchHistoryLogs()
         
         if (activeTab === 'history' && branches.length === 0) fetchBranches()
-    }, [activeTab])
+    }, [activeTab, userLoaded, dbUser])
 
     const fetchBranches = async () => {
         const { data } = await supabase.from('branches').select('id, name')
@@ -84,6 +87,10 @@ export default function CouponsDashboardPage() {
     }
 
     const togglePackageStatus = async (pkg) => {
+        if (dbUser?.role !== 'owner') {
+            alert('Akses Ditolak: Hanya Owner yang bisa mengaktifkan/menonaktifkan paket.')
+            return
+        }
         const { error } = await supabase
             .from('coupon_packages')
             .update({ is_active: !pkg.is_active })
@@ -127,6 +134,7 @@ export default function CouponsDashboardPage() {
     })
 
     useEffect(() => {
+        if (!userLoaded) return
         if (activeTab === 'usage' && usageSearchPatient.length >= 2 && !usageSelectedPatient) {
             const searchPts = async () => {
                 let pQuery = supabase
@@ -145,7 +153,7 @@ export default function CouponsDashboardPage() {
         } else if (usageSearchPatient.length < 2) {
             setUsagePatients([])
         }
-    }, [usageSearchPatient])
+    }, [usageSearchPatient, userLoaded, dbUser])
 
     const selectPatientForUsage = async (patient) => {
         setUsageSelectedPatient(patient)
@@ -265,8 +273,9 @@ export default function CouponsDashboardPage() {
     }
 
     useEffect(() => {
+        if (!userLoaded) return
         if (activeTab === 'history') fetchHistoryLogs()
-    }, [histStartDate, histEndDate, histBranchFilter])
+    }, [histStartDate, histEndDate, histBranchFilter, userLoaded, dbUser])
 
     const formatDate = (isoString) => {
         return new Date(isoString).toLocaleDateString('id-ID', {
@@ -280,22 +289,27 @@ export default function CouponsDashboardPage() {
         })
     }
 
+    if (!userLoaded) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                <div className="animate-spin w-10 h-10 border-4 border-ayumi-primary border-t-transparent rounded-full mb-4"></div>
+                <p className="text-ayumi-primary font-semibold">Memeriksa Hak Akses...</p>
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Dashboard Kupon Paket</h1>
-                    <p className="text-sm text-gray-500">Kelola master paket, riwayat kupon pasien, dan klaim sesi perawatan.</p>
-                </div>
-                {activeTab === 'master' && (
+            {activeTab === 'master' && dbUser?.role === 'owner' && (
+                <div className="flex justify-end mb-4">
                     <Link href="/coupons/packages/new">
-                        <button className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm justify-center shadow-pink-500/30 shadow-lg">
+                        <button className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm justify-center shadow-pink-500/30 shadow-lg cursor-pointer">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                             Tambah Paket Baru
                         </button>
                     </Link>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Tabs Header */}
             <div className="flex overflow-x-auto border-b border-gray-200 hide-scrollbar">
@@ -344,7 +358,8 @@ export default function CouponsDashboardPage() {
                                             </span>
                                             <button 
                                                 onClick={() => togglePackageStatus(pkg)}
-                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${pkg.is_active ? 'bg-ayumi-primary' : 'bg-gray-300'}`}
+                                                disabled={dbUser?.role !== 'owner'}
+                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${pkg.is_active ? 'bg-ayumi-primary' : 'bg-gray-300'} ${dbUser?.role !== 'owner' ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${pkg.is_active ? 'translate-x-4.5' : 'translate-x-1'}`} />
                                             </button>
@@ -364,9 +379,11 @@ export default function CouponsDashboardPage() {
                                     </div>
                                     <div className="bg-gray-50 p-3 flex justify-between items-center border-t border-gray-100">
                                         <span className="text-xs text-gray-400">{pkg.is_active ? 'Aktif' : 'Nonaktif'}</span>
-                                        <Link href={`/coupons/packages/${pkg.id}`}>
-                                            <button className="text-sm font-semibold text-ayumi-primary hover:text-ayumi-secondary">Edit Paket</button>
-                                        </Link>
+                                        {dbUser?.role === 'owner' && (
+                                            <Link href={`/coupons/packages/${pkg.id}`}>
+                                                <button className="text-sm font-semibold text-ayumi-primary hover:text-ayumi-secondary">Edit Paket</button>
+                                            </Link>
+                                        )}
                                     </div>
                                 </div>
                             ))}

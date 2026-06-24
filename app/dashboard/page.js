@@ -299,37 +299,30 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* DASHBOARD CONTENT */}
-            <main className="flex-1 overflow-y-auto p-8 relative">
-                {loading && (
-                    <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div>
-                    </div>
-                )}
-                
-                {/* Branch Filter & Page Context */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h2 className="text-2xl font-bold text-ayumi-text">Ringkasan Hari Ini</h2>
-                        <p className="text-sm text-ayumi-text-muted mt-1">Pantau metrik utama klinik Anda secara real-time.</p>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
-                        <span className="text-sm font-bold text-ayumi-secondary">Filter Cabang:</span>
-                        <select 
-                            value={selectedBranch}
-                            onChange={(e) => setSelectedBranch(e.target.value)}
-                            disabled={dbUser?.role !== 'owner'}
-                            className="bg-transparent border-none text-ayumi-primary text-sm focus:ring-0 cursor-pointer font-bold disabled:opacity-70 disabled:cursor-not-allowed outline-none"
-                        >
-                            {dbUser?.role === 'owner' && <option value="">Semua Cabang</option>}
-                            {branches.map(b => (
-                                <option key={b.id} value={b.id}>{b.name}</option>
-                            ))}
-                        </select>
-                    </div>
+        <div className="space-y-6 relative">
+            {loading && (
+                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div>
                 </div>
+            )}
+            
+            {/* Branch Filter & Page Context */}
+            <div className="flex justify-end items-center mb-6">
+                <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100">
+                    <span className="text-sm font-bold text-ayumi-secondary">Filter Cabang:</span>
+                    <select 
+                        value={selectedBranch}
+                        onChange={(e) => setSelectedBranch(e.target.value)}
+                        disabled={dbUser?.role !== 'owner'}
+                        className="bg-transparent border-none text-ayumi-primary text-sm focus:ring-0 cursor-pointer font-bold disabled:opacity-70 disabled:cursor-not-allowed outline-none"
+                    >
+                        {dbUser?.role === 'owner' && <option value="">Semua Cabang</option>}
+                        {branches.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
 
                 {/* FINANCIAL WIDGETS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -556,7 +549,6 @@ export default function Dashboard() {
                         </div>
 
                     </div>
-                </main>
         </div>
     )
 }
