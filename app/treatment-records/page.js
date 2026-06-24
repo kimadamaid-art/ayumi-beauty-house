@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 
@@ -12,7 +12,8 @@ export default function TreatmentRecordsPage() {
 
     const [records, setRecords] = useState([])
     const [loading, setLoading] = useState(true)
-    const [searchTerm, setSearchTerm] = useState('')
+    const [searchInput, setSearchInput] = useState('')
+    const [searchQuery, setSearchQuery] = useState('')
 
     // Owner filters
     const [isOwner, setIsOwner] = useState(false)
@@ -23,37 +24,72 @@ export default function TreatmentRecordsPage() {
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
     const [userLoaded, setUserLoaded] = useState(false)
+    
+    // Therapist filter & pagination states
+    const [therapists, setTherapists] = useState([])
+    const [selectedTherapistFilter, setSelectedTherapistFilter] = useState('')
+    const [page, setPage] = useState(1)
+    const [hasMore, setHasMore] = useState(true)
+    const PAGE_SIZE = 50
 
     useEffect(() => {
-        fetchUser()
+        fetchInitialData()
     }, [])
 
-    const fetchUser = async () => {
+    const fetchInitialData = async () => {
         const { data: { user } } = await supabase.auth.getUser()
+        let owner = false
+        let branchId = null
+
         if (user) {
             const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
             if (userData) {
-                const owner = userData.role === 'owner'
+                owner = userData.role === 'owner'
                 setIsOwner(owner)
                 setUserBranchId(userData.branch_id)
                 setUserRole(userData.role)
-                
-                if (owner) {
-                    const { data: branchData } = await supabase.from('branches').select('id, name').order('name')
-                    if (branchData) setBranches(branchData)
-                }
+                branchId = userData.branch_id
             } else {
                 setIsOwner(true)
+                owner = true
             }
         }
         setUserLoaded(true)
+
+        // Fetch branches if owner
+        if (owner) {
+            const { data: branchData } = await supabase.from('branches').select('id, name').order('name')
+            if (branchData) setBranches(branchData)
+        }
+
+        // Fetch active therapists for filtering
+        let thQuery = supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').eq('is_active', true)
+        if (!owner && branchId) {
+            thQuery = thQuery.eq('branch_id', branchId)
+        }
+        const { data: thData } = await thQuery.order('full_name')
+        if (thData) setTherapists(thData)
     }
+
+    // Debounce search input
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setSearchQuery(searchInput)
+            setPage(1) // Reset to page 1 on new search
+        }, 500)
+        return () => clearTimeout(handler)
+    }, [searchInput])
+
+    // Reset page whenever filters change
+    useEffect(() => {
+        setPage(1)
+    }, [selectedBranchFilter, selectedTherapistFilter, startDate, endDate])
 
     useEffect(() => {
         if (userLoaded) {
             fetchRecords()
         }
-    }, [userLoaded, selectedBranchFilter, startDate, endDate])
+    }, [userLoaded, selectedBranchFilter, selectedTherapistFilter, startDate, endDate, page, searchQuery])
 
     const fetchRecords = async () => {
         setLoading(true)
@@ -66,7 +102,7 @@ export default function TreatmentRecordsPage() {
                 treatment_time,
                 branch_id,
                 branches(name),
-                patients(full_name, whatsapp),
+                patients!inner(full_name, whatsapp),
                 users!treatment_records_performed_by_fkey(full_name),
                 therapist:users!treatment_records_therapist_id_fkey(full_name)
             `)
@@ -86,28 +122,54 @@ export default function TreatmentRecordsPage() {
             query = query.lte('treatment_date', endDate)
         }
 
+        if (selectedTherapistFilter) {
+            query = query.eq('therapist_id', selectedTherapistFilter)
+        }
+
+        if (searchQuery.trim() !== '') {
+            query = query.or(`full_name.ilike.%${searchQuery}%,whatsapp.ilike.%${searchQuery}%`, { foreignTable: 'patients' })
+        }
+
+        // Apply range pagination
+        const from = (page - 1) * PAGE_SIZE
+        const to = page * PAGE_SIZE - 1
+        query = query.range(from, to)
+
         const { data, error } = await query
 
         if (!error && data) {
-            setRecords(data)
+            if (page === 1) {
+                setRecords(data)
+            } else {
+                setRecords(prev => [...prev, ...data])
+            }
+            setHasMore(data.length === PAGE_SIZE)
         }
         setLoading(false)
     }
 
-    const filteredRecords = records.filter(r => 
-        r.patients?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.patients?.whatsapp?.includes(searchTerm)
-    )
+    // Filter therapists dropdown dynamically based on branch filter if owner
+    const filteredTherapists = useMemo(() => {
+        if (!isOwner || selectedBranchFilter === 'all') {
+            return therapists
+        }
+        return therapists.filter(t => t.branch_id === selectedBranchFilter)
+    }, [therapists, isOwner, selectedBranchFilter])
+
+    const filteredRecords = records
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto flex-wrap">
                     {isOwner && (
                         <select
                             value={selectedBranchFilter}
-                            onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                            className="input-ayumi bg-white w-full sm:w-auto"
+                            onChange={(e) => {
+                                setSelectedBranchFilter(e.target.value)
+                                setSelectedTherapistFilter('') // Reset therapist when branch changes
+                            }}
+                            className="input-ayumi bg-white w-full sm:w-auto text-sm"
                         >
                             <option value="all">Semua Cabang</option>
                             {branches.map(b => (
@@ -115,7 +177,17 @@ export default function TreatmentRecordsPage() {
                             ))}
                         </select>
                     )}
-                    <div className="flex items-center gap-2">
+                    <select
+                        value={selectedTherapistFilter}
+                        onChange={(e) => setSelectedTherapistFilter(e.target.value)}
+                        className="input-ayumi bg-white w-full sm:w-auto text-sm"
+                    >
+                        <option value="">Semua Terapis</option>
+                        {filteredTherapists.map(t => (
+                            <option key={t.id} value={t.id}>{t.full_name}</option>
+                        ))}
+                    </select>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                         <input
                             type="date"
                             value={startDate}
@@ -132,11 +204,12 @@ export default function TreatmentRecordsPage() {
                             placeholder="Sampai Tanggal"
                         />
                     </div>
-                    {(startDate || endDate || (isOwner && selectedBranchFilter !== 'all')) && (
+                    {(startDate || endDate || selectedTherapistFilter || (isOwner && selectedBranchFilter !== 'all')) && (
                         <button 
                             onClick={() => {
                                 setStartDate('')
                                 setEndDate('')
+                                setSelectedTherapistFilter('')
                                 setSelectedBranchFilter('all')
                             }}
                             className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-2 whitespace-nowrap"
@@ -147,21 +220,21 @@ export default function TreatmentRecordsPage() {
                 </div>
                 
                 {/* Search Bar */}
-                <div className="relative w-full sm:w-72 ml-auto">
+                <div className="relative w-full sm:w-72 xl:ml-auto">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     </div>
                     <input 
                         type="text" 
                         placeholder="Cari pasien atau WA..."
-                        className="input-ayumi bg-white w-full pl-10"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="input-ayumi bg-white w-full pl-10 text-sm"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
                     />
                 </div>
             </div>
 
-            {loading ? (
+            {page === 1 && loading ? (
                 <div className="flex justify-center p-12">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div>
                 </div>
@@ -245,6 +318,25 @@ export default function TreatmentRecordsPage() {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            )}
+
+            {hasMore && (
+                <div className="flex justify-center mt-4">
+                    <button 
+                        onClick={() => setPage(prev => prev + 1)}
+                        disabled={loading}
+                        className="btn-secondary px-8 py-2.5 font-bold flex items-center gap-2"
+                    >
+                        {loading ? (
+                            <>
+                                <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                                Memuat...
+                            </>
+                        ) : (
+                            'Muat Lebih Banyak'
+                        )}
+                    </button>
                 </div>
             )}
         </div>
