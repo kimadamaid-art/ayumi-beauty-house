@@ -179,7 +179,8 @@ export default function TreatmentInputPage({ params }) {
                 followup_days: t.followup_days || 0,
                 notes: couponItem ? `(Pakai Kupon: ${couponItem.patient_coupons?.coupon_packages?.name})` : '',
                 used_coupon_item_id: couponItem ? couponItem.id : null,
-                used_patient_coupon_id: couponItem ? couponItem.patient_coupon_id : null
+                used_patient_coupon_id: couponItem ? couponItem.patient_coupon_id : null,
+                commission_percent: t.commission_percent || 0
             }
         ])
     }
@@ -255,7 +256,8 @@ export default function TreatmentInputPage({ params }) {
                     original_price: t.original_price,
                     discount_percent: t.discount_percent,
                     notes: t.notes,
-                    sort_order: index + 1
+                    sort_order: index + 1,
+                    commission_percent: t.commission_percent || 0
                 })
 
                 if (t.used_coupon_item_id) {

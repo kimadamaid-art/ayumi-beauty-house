@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
+import DateRangePicker from "../../components/DateRangePicker"
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -38,12 +39,18 @@ export default function TransactionsPage() {
     const [activeMainTab, setActiveMainTab] = useState('all') // 'all' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 
     // Filters (Global for main view, tabs have specific sub-filters)
-    const [filterPeriod, setFilterPeriod] = useState('month') // 'today' | 'week' | 'month' | 'year' | 'custom'
+    const [filterPeriod, setFilterPeriod] = useState('custom')
     const [filterBranch, setFilterBranch] = useState('') // empty means 'all'
     const [filterPaymentMethod, setFilterPaymentMethod] = useState('') // empty means 'all'
     const [filterTxType, setFilterTxType] = useState('') // empty means 'all'
-    const [customStartDate, setCustomStartDate] = useState(new Date().toISOString().split('T')[0])
-    const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0])
+    const [customStartDate, setCustomStartDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    })
+    const [customEndDate, setCustomEndDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+    })
 
     // Data State
     const [transactions, setTransactions] = useState([]) // all loaded transactions for current & comparison periods
@@ -160,39 +167,11 @@ export default function TransactionsPage() {
 
             // 4. Period Date Filter
             const txDate = new Date(tx.created_at)
-            const today = new Date()
-            
-            if (filterPeriod === 'today') {
-                const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-                const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999)
-                return txDate >= start && txDate <= end
-            } 
-            else if (filterPeriod === 'week') {
-                const start = getStartOfWeek(today)
-                start.setHours(0,0,0,0)
-                const end = new Date(start)
-                end.setDate(start.getDate() + 7)
-                return txDate >= start && txDate < end
-            } 
-            else if (filterPeriod === 'month') {
-                const start = new Date(today.getFullYear(), today.getMonth(), 1)
-                const end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)
-                return txDate >= start && txDate <= end
-            } 
-            else if (filterPeriod === 'year') {
-                const start = new Date(today.getFullYear(), 0, 1)
-                const end = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999)
-                return txDate >= start && txDate <= end
-            } 
-            else if (filterPeriod === 'custom') {
-                const start = new Date(customStartDate + 'T00:00:00')
-                const end = new Date(customEndDate + 'T23:59:59')
-                return txDate >= start && txDate <= end
-            }
-
-            return true
+            const start = new Date(customStartDate + 'T00:00:00')
+            const end = new Date(customEndDate + 'T23:59:59')
+            return txDate >= start && txDate <= end
         })
-    }, [transactions, filterPeriod, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
+    }, [transactions, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
 
     // Summary calculations for the main view
     const mainSummary = useMemo(() => {
@@ -878,7 +857,7 @@ export default function TransactionsPage() {
         <div className="max-w-7xl mx-auto space-y-6">
             
             {/* TAMPILAN UTAMA: GLOBAL FILTER BAR */}
-            <div className="card-ayumi p-6 flex flex-col gap-4 bg-white relative overflow-hidden">
+            <div className="card-ayumi p-6 flex flex-col gap-4 bg-white relative">
                 <div className="flex justify-end items-center">
                     {/* Excel Export Button in Top Right */}
                     <button
@@ -893,22 +872,6 @@ export default function TransactionsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 border-t border-gray-100 pt-4">
-                    {/* Period Filter */}
-                    <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Periode</label>
-                        <select
-                            value={filterPeriod}
-                            onChange={(e) => setFilterPeriod(e.target.value)}
-                            className="input-ayumi py-2 text-xs bg-gray-50 font-semibold text-gray-700"
-                        >
-                            <option value="today">Hari Ini</option>
-                            <option value="week">Minggu Ini</option>
-                            <option value="month">Bulan Ini</option>
-                            <option value="year">Tahun Ini</option>
-                            <option value="custom">Custom Range</option>
-                        </select>
-                    </div>
-
                     {/* Branch Filter */}
                     <div>
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cabang Klinik</label>
@@ -957,29 +920,20 @@ export default function TransactionsPage() {
                         </select>
                     </div>
 
-                    {/* Custom Range select if chosen */}
-                    {filterPeriod === 'custom' && (
-                        <div className="col-span-1 sm:col-span-2 lg:col-span-1 flex gap-2">
-                            <div className="flex-1">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dari</label>
-                                <input
-                                    type="date"
-                                    value={customStartDate}
-                                    onChange={(e) => setCustomStartDate(e.target.value)}
-                                    className="input-ayumi py-2 text-xs bg-gray-50"
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">S/D</label>
-                                <input
-                                    type="date"
-                                    value={customEndDate}
-                                    onChange={(e) => setCustomEndDate(e.target.value)}
-                                    className="input-ayumi py-2 text-xs bg-gray-50"
-                                />
-                            </div>
-                        </div>
-                    )}
+                    {/* Rentang Tanggal Filter */}
+                    <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex flex-col relative z-20">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rentang Tanggal</label>
+                        <DateRangePicker 
+                            startDate={customStartDate}
+                            endDate={customEndDate}
+                            onChange={(range) => {
+                                setCustomStartDate(range.startDate);
+                                setCustomEndDate(range.endDate);
+                            }}
+                            inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
+                            align="right"
+                        />
+                    </div>
                 </div>
             </div>
 

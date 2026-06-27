@@ -18,6 +18,10 @@ export default function TreatmentsPage() {
     const [selectedTreatment, setSelectedTreatment] = useState(null)
     const [isSaving, setIsSaving] = useState(false)
 
+    // Inline edit states
+    const [editingField, setEditingField] = useState({ id: null, field: null })
+    const [inlineValue, setInlineValue] = useState('')
+
     // Form states
     const [formData, setFormData] = useState({
         name: '',
@@ -25,7 +29,8 @@ export default function TreatmentsPage() {
         duration: '60',
         followup_days: '30',
         is_active: true,
-        discount_percent: 0
+        discount_percent: 0,
+        commission_percent: 0
     })
 
     const supabase = createBrowserClient(
@@ -76,7 +81,8 @@ export default function TreatmentsPage() {
                 duration: treatment.duration_minutes || '',
                 followup_days: treatment.followup_days || '',
                 is_active: treatment.is_active !== undefined ? treatment.is_active : true,
-                discount_percent: treatment.discount_percent || 0
+                discount_percent: treatment.discount_percent || 0,
+                commission_percent: treatment.commission_percent || 0
             })
         } else {
             setFormData({
@@ -85,7 +91,8 @@ export default function TreatmentsPage() {
                 duration: '60',
                 followup_days: '30',
                 is_active: true,
-                discount_percent: 0
+                discount_percent: 0,
+                commission_percent: 0
             })
         }
         setIsModalOpen(true)
@@ -114,7 +121,8 @@ export default function TreatmentsPage() {
             duration_minutes: Number(formData.duration),
             followup_days: Number(formData.followup_days),
             is_active: formData.is_active,
-            discount_percent: Number(formData.discount_percent || 0)
+            discount_percent: Number(formData.discount_percent || 0),
+            commission_percent: Number(formData.commission_percent || 0)
         }
 
         if (modalMode === 'add') {
@@ -138,6 +146,38 @@ export default function TreatmentsPage() {
             .eq('id', treatment.id)
             
         if (!error) fetchData()
+    }
+
+    const handleInlineEditStart = (treatment, field) => {
+        setEditingField({ id: treatment.id, field })
+        const currentVal = treatment[field] || 0
+        setInlineValue(currentVal > 0 ? currentVal.toString() : '')
+    }
+
+    const handleInlineEditCancel = () => {
+        setEditingField({ id: null, field: null })
+        setInlineValue('')
+    }
+
+    const handleInlineEditSave = async (treatment) => {
+        const { field } = editingField
+        const newValue = Number(inlineValue)
+        if (newValue === (treatment[field] || 0)) {
+            handleInlineEditCancel()
+            return
+        }
+
+        const { error } = await supabase
+            .from('treatments')
+            .update({ [field]: newValue })
+            .eq('id', treatment.id)
+            
+        if (!error) {
+            fetchData()
+        } else {
+            alert(`Gagal mengupdate data: ` + error.message)
+        }
+        handleInlineEditCancel()
     }
 
     // Combine data for display
@@ -188,6 +228,7 @@ export default function TreatmentsPage() {
                                 <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                     <th className="p-4 font-semibold">Nama Treatment / Produk</th>
                                     <th className="p-4 font-semibold text-right">Harga (Rp)</th>
+                                    <th className="p-4 font-semibold text-center">Komisi</th>
                                     <th className="p-4 font-semibold text-center">Durasi</th>
                                     <th className="p-4 font-semibold text-center">Follow-up</th>
                                     <th className="p-4 font-semibold text-center">Status</th>
@@ -201,23 +242,143 @@ export default function TreatmentsPage() {
                                     return (
                                         <tr key={t.id} className={`hover:bg-ayumi-table-hover transition-colors ${!t.is_active ? 'opacity-60 bg-gray-50' : ''}`}>
                                             <td className="p-4 font-medium text-gray-800">{t.name}</td>
-                                            <td className="p-4 text-right text-gray-700 font-mono">
-                                                {hasDiscount ? (
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="line-through text-xs text-gray-400">Rp {t.price?.toLocaleString('id-ID')}</span>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                            <span className="bg-pink-50 text-ayumi-primary text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                                                -{t.discount_percent}%
-                                                            </span>
-                                                            <span className="font-bold text-gray-800">Rp {discountedPrice?.toLocaleString('id-ID')}</span>
-                                                        </div>
+                                            <td className="p-4 text-right">
+                                                {editingField.id === t.id && editingField.field === 'price' ? (
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <span className="text-xs text-gray-500">Rp</span>
+                                                        <input 
+                                                            type="number"
+                                                            value={inlineValue}
+                                                            onChange={(e) => setInlineValue(e.target.value)}
+                                                            className="w-24 px-2 py-1 text-xs border border-ayumi-primary rounded text-right font-mono focus:outline-none focus:ring-1 focus:ring-ayumi-primary bg-white"
+                                                            min="0"
+                                                            autoFocus
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleInlineEditSave(t)
+                                                                if (e.key === 'Escape') handleInlineEditCancel()
+                                                            }}
+                                                            onBlur={() => handleInlineEditSave(t)}
+                                                        />
                                                     </div>
                                                 ) : (
-                                                    <span className="font-bold">Rp {t.price?.toLocaleString('id-ID')}</span>
+                                                    <div 
+                                                        className="cursor-pointer group relative inline-flex items-center justify-end w-full"
+                                                        onClick={() => handleInlineEditStart(t, 'price')}
+                                                        title="Klik untuk ubah harga"
+                                                    >
+                                                        {hasDiscount ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="line-through text-xs text-gray-400 group-hover:text-ayumi-primary transition-colors">Rp {t.price?.toLocaleString('id-ID')}</span>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <span className="bg-pink-50 text-ayumi-primary text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                                        -{t.discount_percent}%
+                                                                    </span>
+                                                                    <span className="font-bold text-gray-800">Rp {discountedPrice?.toLocaleString('id-ID')}</span>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="font-bold text-gray-700 font-mono group-hover:text-ayumi-primary transition-colors border-b border-transparent group-hover:border-ayumi-primary">Rp {t.price?.toLocaleString('id-ID')}</span>
+                                                        )}
+                                                        <svg className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 absolute -left-4 top-1/2 -translate-y-1/2 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </div>
                                                 )}
                                             </td>
-                                            <td className="p-4 text-center text-gray-600">{t.duration_minutes || 0} mnt</td>
-                                            <td className="p-4 text-center text-gray-600">{t.followup_days || 0} hr</td>
+                                            <td className="p-4 text-center">
+                                                {editingField.id === t.id && editingField.field === 'commission_percent' ? (
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <input 
+                                                            type="number"
+                                                            value={inlineValue}
+                                                            onChange={(e) => setInlineValue(e.target.value)}
+                                                            className="w-16 px-2 py-1 text-xs border border-ayumi-primary rounded text-center focus:outline-none focus:ring-1 focus:ring-ayumi-primary bg-white"
+                                                            min="0"
+                                                            max="100"
+                                                            autoFocus
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleInlineEditSave(t)
+                                                                if (e.key === 'Escape') handleInlineEditCancel()
+                                                            }}
+                                                            onBlur={() => handleInlineEditSave(t)}
+                                                        />
+                                                        <span className="text-xs text-gray-500">%</span>
+                                                    </div>
+                                                ) : (
+                                                    <div 
+                                                        className="cursor-pointer group relative inline-flex items-center justify-center"
+                                                        onClick={() => handleInlineEditStart(t, 'commission_percent')}
+                                                        title="Klik untuk ubah komisi"
+                                                    >
+                                                        {t.commission_percent > 0 ? (
+                                                            <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-md border border-transparent group-hover:border-emerald-200 transition-colors">
+                                                                {t.commission_percent}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-xs px-2.5 py-0.5 rounded-md border border-transparent group-hover:border-gray-200 transition-colors">
+                                                                0%
+                                                            </span>
+                                                        )}
+                                                        <svg className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 absolute -right-4 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                {editingField.id === t.id && editingField.field === 'duration_minutes' ? (
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <input 
+                                                            type="number"
+                                                            value={inlineValue}
+                                                            onChange={(e) => setInlineValue(e.target.value)}
+                                                            className="w-16 px-2 py-1 text-xs border border-ayumi-primary rounded text-center focus:outline-none focus:ring-1 focus:ring-ayumi-primary bg-white"
+                                                            min="1"
+                                                            autoFocus
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleInlineEditSave(t)
+                                                                if (e.key === 'Escape') handleInlineEditCancel()
+                                                            }}
+                                                            onBlur={() => handleInlineEditSave(t)}
+                                                        />
+                                                        <span className="text-xs text-gray-500">mnt</span>
+                                                    </div>
+                                                ) : (
+                                                    <div 
+                                                        className="cursor-pointer group relative inline-flex items-center justify-center text-gray-600"
+                                                        onClick={() => handleInlineEditStart(t, 'duration_minutes')}
+                                                        title="Klik untuk ubah durasi"
+                                                    >
+                                                        <span className="border-b border-transparent group-hover:border-ayumi-primary group-hover:text-ayumi-primary transition-colors">{t.duration_minutes || 0} mnt</span>
+                                                        <svg className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 absolute -right-4 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                {editingField.id === t.id && editingField.field === 'followup_days' ? (
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <input 
+                                                            type="number"
+                                                            value={inlineValue}
+                                                            onChange={(e) => setInlineValue(e.target.value)}
+                                                            className="w-16 px-2 py-1 text-xs border border-ayumi-primary rounded text-center focus:outline-none focus:ring-1 focus:ring-ayumi-primary bg-white"
+                                                            min="0"
+                                                            autoFocus
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleInlineEditSave(t)
+                                                                if (e.key === 'Escape') handleInlineEditCancel()
+                                                            }}
+                                                            onBlur={() => handleInlineEditSave(t)}
+                                                        />
+                                                        <span className="text-xs text-gray-500">hr</span>
+                                                    </div>
+                                                ) : (
+                                                    <div 
+                                                        className="cursor-pointer group relative inline-flex items-center justify-center text-gray-600"
+                                                        onClick={() => handleInlineEditStart(t, 'followup_days')}
+                                                        title="Klik untuk ubah followup"
+                                                    >
+                                                        <span className="border-b border-transparent group-hover:border-ayumi-primary group-hover:text-ayumi-primary transition-colors">{t.followup_days || 0} hr</span>
+                                                        <svg className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 absolute -right-4 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="p-4 text-center">
                                                 <button 
                                                     onClick={() => handleToggleActive(t)}
@@ -334,6 +495,33 @@ export default function TreatmentsPage() {
                                         placeholder="Hari untuk follow up"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Komisi Terapis (%)</label>
+                                <input
+                                    type="number"
+                                    name="commission_percent"
+                                    value={formData.commission_percent}
+                                    onChange={handleChange}
+                                    min="0"
+                                    max="100"
+                                    className="input-ayumi bg-white"
+                                    placeholder="0"
+                                />
+                                {formData.commission_percent > 0 && formData.price > 0 && (
+                                    <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl flex justify-between items-center text-sm mt-2">
+                                        <span className="font-semibold text-gray-500">Estimasi Komisi per Treatment:</span>
+                                        <span className="font-extrabold text-emerald-600 font-mono text-base">
+                                            Rp {Math.round(
+                                                (formData.discount_percent > 0
+                                                    ? formData.price * (1 - formData.discount_percent / 100)
+                                                    : Number(formData.price)
+                                                ) * (formData.commission_percent / 100)
+                                            ).toLocaleString('id-ID')}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-3 pt-2">

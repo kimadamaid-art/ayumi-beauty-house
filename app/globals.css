@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../node_modules/react-tailwindcss-datepicker/dist/index.esm.js";
 
 @theme inline {
   --color-ayumi-primary: #D46221;

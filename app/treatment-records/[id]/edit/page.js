@@ -142,7 +142,8 @@ function EditRecordForm() {
                     original_price: item.original_price,
                     discount_percent: item.discount_percent,
                     notes: item.notes || '',
-                    followup_days: item.treatments?.followup_days || 0
+                    followup_days: item.treatments?.followup_days || 0,
+                    commission_percent: item.commission_percent || 0
                 })))
             }
 
@@ -217,7 +218,8 @@ function EditRecordForm() {
                 original_price: originalPrice,
                 discount_percent: discountVal,
                 notes: '',
-                followup_days: t.followup_days || 0
+                followup_days: t.followup_days || 0,
+                commission_percent: t.commission_percent || 0
             }
         ])
     }
@@ -326,7 +328,8 @@ function EditRecordForm() {
                 original_price: t.original_price,
                 discount_percent: t.discount_percent,
                 notes: t.notes,
-                sort_order: index + 1
+                sort_order: index + 1,
+                commission_percent: t.commission_percent || 0
             }))
 
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)

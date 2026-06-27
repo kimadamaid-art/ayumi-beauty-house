@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import DateRangePicker from "../../../components/DateRangePicker"
 
 export default function TherapistsReportPage() {
     const router = useRouter()
@@ -23,7 +24,14 @@ export default function TherapistsReportPage() {
     const [userLoaded, setUserLoaded] = useState(false)
 
     // Filters
-    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
+    const [startDate, setStartDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    })
+    const [endDate, setEndDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+    })
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedTherapistFilter, setSelectedTherapistFilter] = useState('all')
 
@@ -35,10 +43,10 @@ export default function TherapistsReportPage() {
     }, [])
 
     useEffect(() => {
-        if (userLoaded) {
+        if (userLoaded && startDate && endDate) {
             fetchReportData()
         }
-    }, [userLoaded, selectedMonth, selectedBranch])
+    }, [userLoaded, startDate, endDate, selectedBranch])
 
     const checkAccessAndFetchInitialData = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -77,19 +85,15 @@ export default function TherapistsReportPage() {
     }
 
     const fetchReportData = async () => {
+        if (!startDate || !endDate) return
         setIsLoading(true)
-
-        const [year, month] = selectedMonth.split('-').map(Number)
-        if (!year || !month) return
-
-        const firstDayOfMonth = new Date(year, month - 1, 1).toISOString().split('T')[0]
-        const firstDayOfNextMonth = new Date(year, month, 1).toISOString().split('T')[0]
 
         let query = supabase
             .from('treatment_record_items')
             .select(`
                 id,
                 price_at_time,
+                commission_percent,
                 treatment_records!inner(
                     id,
                     treatment_date,
@@ -98,8 +102,8 @@ export default function TherapistsReportPage() {
                     therapist_id
                 )
             `)
-            .gte('treatment_records.treatment_date', firstDayOfMonth)
-            .lt('treatment_records.treatment_date', firstDayOfNextMonth)
+            .gte('treatment_records.treatment_date', startDate)
+            .lte('treatment_records.treatment_date', endDate)
 
         // Apply branch filter
         if (selectedBranch !== 'all') {
@@ -130,12 +134,18 @@ export default function TherapistsReportPage() {
                 therapistGroups[therapistId] = {
                     id: therapistId,
                     revenue: 0,
+                    commission: 0,
                     treatmentCount: 0,
                     patients: new Set()
                 }
             }
 
-            therapistGroups[therapistId].revenue += Number(item.price_at_time || 0)
+            const priceAtTime = Number(item.price_at_time || 0)
+            const commissionPercent = Number(item.commission_percent || 0)
+            const commissionAmount = Math.round(priceAtTime * (commissionPercent / 100))
+
+            therapistGroups[therapistId].revenue += priceAtTime
+            therapistGroups[therapistId].commission += commissionAmount
             therapistGroups[therapistId].treatmentCount += 1
             if (item.treatment_records?.patient_id) {
                 therapistGroups[therapistId].patients.add(item.treatment_records.patient_id)
@@ -144,13 +154,14 @@ export default function TherapistsReportPage() {
 
         // Merge with full therapist list to include those with 0 activity
         const result = therapists.map(t => {
-            const stats = therapistGroups[t.id] || { revenue: 0, treatmentCount: 0, patients: new Set() }
+            const stats = therapistGroups[t.id] || { revenue: 0, commission: 0, treatmentCount: 0, patients: new Set() }
             return {
                 id: t.id,
                 name: t.full_name,
                 branchName: t.branches?.name || 'Tidak ada cabang',
                 branchId: t.branch_id,
                 revenue: stats.revenue,
+                commission: stats.commission,
                 treatmentCount: stats.treatmentCount,
                 uniquePatients: stats.patients.size,
                 avgPerTreatment: stats.treatmentCount > 0 ? Math.round(stats.revenue / stats.treatmentCount) : 0
@@ -167,6 +178,7 @@ export default function TherapistsReportPage() {
     // Summary Card Stats
     const summaryStats = useMemo(() => {
         const totalRevenue = therapistMetrics.reduce((acc, curr) => acc + curr.revenue, 0)
+        const totalCommission = therapistMetrics.reduce((acc, curr) => acc + curr.commission, 0)
         const totalTreatments = therapistMetrics.reduce((acc, curr) => acc + curr.treatmentCount, 0)
         
         // Find best therapist (highest revenue > 0)
@@ -178,6 +190,7 @@ export default function TherapistsReportPage() {
 
         return {
             totalRevenue,
+            totalCommission,
             bestTherapist,
             avgTreatments
         }
@@ -204,47 +217,51 @@ export default function TherapistsReportPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-16">
             
-            {/* Header & Main Filters */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <h1 className="text-2xl font-extrabold text-ayumi-secondary">Laporan Analisa Per Terapis</h1>
-                    <p className="text-sm text-ayumi-text-muted mt-1">Performa, kontribusi pendapatan, dan analisis komparasi terapis klinik.</p>
-                </div>
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-extrabold text-ayumi-secondary">Laporan Analisa Per Terapis</h1>
+                <p className="text-sm text-ayumi-text-muted mt-1">Performa, kontribusi pendapatan, dan analisis komparasi terapis klinik.</p>
+            </div>
 
-                <div className="flex flex-wrap gap-3 w-full md:w-auto">
-                    {/* Filter Bulan */}
-                    <input 
-                        type="month"
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="input-ayumi bg-white shadow-sm font-semibold max-w-[170px]"
-                    />
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm w-full sm:w-auto">
+                <DateRangePicker 
+                    startDate={startDate}
+                    endDate={endDate}
+                    onChange={(range) => {
+                        setStartDate(range.startDate);
+                        setEndDate(range.endDate);
+                    }}
+                    inputClassName="text-sm font-semibold"
+                />
 
-                    {/* Filter Cabang */}
-                    <select
-                        value={selectedBranch}
-                        onChange={(e) => setSelectedBranch(e.target.value)}
-                        disabled={!isOwner}
-                        className="input-ayumi bg-white shadow-sm font-semibold max-w-[200px]"
-                    >
-                        {isOwner && <option value="all">Semua Cabang (Gabungan)</option>}
-                        {branches.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                    </select>
+                {/* Filter Cabang */}
+                <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    disabled={!isOwner}
+                    className="input-ayumi bg-gray-50 focus:bg-white text-sm font-semibold max-w-[200px]"
+                >
+                    {isOwner && <option value="all">Semua Cabang (Gabungan)</option>}
+                    {branches.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                </select>
 
-                    {/* Pilih Terapis Dropdown */}
-                    <select
-                        value={selectedTherapistFilter}
-                        onChange={handleTherapistFilterChange}
-                        className="input-ayumi bg-white shadow-sm font-semibold max-w-[200px]"
-                    >
-                        <option value="all">Pilih Detail Terapis</option>
-                        {therapists.map(t => (
-                            <option key={t.id} value={t.id}>{t.full_name}</option>
-                        ))}
-                    </select>
-                </div>
+                {/* Separator Line (Only visible on larger screens) */}
+                <div className="hidden sm:block h-8 w-px bg-gray-200 mx-2"></div>
+
+                {/* Pilih Terapis Dropdown */}
+                <select
+                    value={selectedTherapistFilter}
+                    onChange={handleTherapistFilterChange}
+                    className="input-ayumi border-ayumi-primary/20 text-ayumi-primary bg-pink-50 hover:bg-pink-100 focus:bg-white text-sm font-bold shadow-sm max-w-[220px] transition-colors"
+                >
+                    <option value="all">Lihat Detail Terapis...</option>
+                    {therapists.map(t => (
+                        <option key={t.id} value={t.id}>{t.full_name}</option>
+                    ))}
+                </select>
             </div>
 
             {isLoading ? (
@@ -255,7 +272,7 @@ export default function TherapistsReportPage() {
             ) : (
                 <>
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {/* Card 1: Total Pendapatan */}
                         <div className="card-ayumi p-6 bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-ayumi-primary rounded-2xl flex items-center justify-center shadow-sm">
@@ -267,7 +284,18 @@ export default function TherapistsReportPage() {
                             </div>
                         </div>
 
-                        {/* Card 2: Terapis Terbaik */}
+                        {/* Card 2: Total Komisi */}
+                        <div className="card-ayumi p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-100 flex items-center gap-5 hover:shadow-md transition-shadow">
+                            <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm">
+                                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Total Komisi Terapis</p>
+                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 font-mono">Rp {summaryStats.totalCommission.toLocaleString('id-ID')}</h3>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Terapis Terbaik */}
                         <div className="card-ayumi p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 border-pink-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-rose-500 rounded-2xl flex items-center justify-center shadow-sm animate-pulse">
                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
@@ -278,7 +306,7 @@ export default function TherapistsReportPage() {
                             </div>
                         </div>
 
-                        {/* Card 3: Rata-rata Treatment */}
+                        {/* Card 4: Rata-rata Treatment */}
                         <div className="card-ayumi p-6 bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-amber-600 rounded-2xl flex items-center justify-center shadow-sm">
                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
@@ -300,19 +328,20 @@ export default function TherapistsReportPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold uppercase text-xs">
-                                    <tr>
+                                <tr>
                                         <th className="px-6 py-4 text-center">Rank</th>
                                         <th className="px-6 py-4">Terapis</th>
                                         <th className="px-6 py-4 text-center">Cabang Penempatan</th>
                                         <th className="px-6 py-4 text-center">Pasien Unik</th>
                                         <th className="px-6 py-4 text-center">Total Treatment (Sesi)</th>
                                         <th className="px-6 py-4 text-right">Total Pendapatan</th>
+                                        <th className="px-6 py-4 text-right">Total Komisi</th>
                                         <th className="px-6 py-4 text-right">Rata-rata / Treatment</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50 text-gray-700 bg-white">
                                     {therapistMetrics.length === 0 ? (
-                                        <tr><td colSpan="7" className="px-6 py-12 text-center text-gray-400">Belum ada data tindakan terapis pada periode ini.</td></tr>
+                                        <tr><td colSpan="8" className="px-6 py-12 text-center text-gray-400">Belum ada data tindakan terapis pada periode ini.</td></tr>
                                     ) : (
                                         therapistMetrics.map((t, idx) => {
                                             const nameInitials = t.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
@@ -352,6 +381,13 @@ export default function TherapistsReportPage() {
                                                     <td className="px-6 py-4 text-center font-bold text-gray-800">{t.treatmentCount}x Sesi</td>
                                                     <td className="px-6 py-4 text-right font-black text-gray-800 font-mono">
                                                         Rp {t.revenue.toLocaleString('id-ID')}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-mono">
+                                                        {t.commission > 0 ? (
+                                                            <span className="font-bold text-emerald-600">Rp {t.commission.toLocaleString('id-ID')}</span>
+                                                        ) : (
+                                                            <span className="text-gray-400">Rp 0</span>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 text-right font-semibold text-gray-600 font-mono">
                                                         Rp {t.avgPerTreatment.toLocaleString('id-ID')}
@@ -422,9 +458,10 @@ export default function TherapistsReportPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs">
                                     <thead className="bg-gray-100 text-gray-600 font-bold">
-                                        <tr>
+                                    <tr>
                                             <th className="p-3">Nama Terapis</th>
                                             <th className="p-3 text-right">Pendapatan</th>
+                                            <th className="p-3 text-right">Komisi</th>
                                             <th className="p-3 text-center">Kontribusi %</th>
                                             <th className="p-3 text-center">Jumlah Sesi</th>
                                             <th className="p-3 text-center">Pasien Unik</th>
@@ -439,6 +476,13 @@ export default function TherapistsReportPage() {
                                                 <tr key={t.id} className="hover:bg-gray-50/50">
                                                     <td className="p-3 font-bold text-gray-800">{t.name}</td>
                                                     <td className="p-3 text-right font-semibold text-gray-800 font-mono">Rp {t.revenue.toLocaleString('id-ID')}</td>
+                                                    <td className="p-3 text-right font-semibold font-mono">
+                                                        {t.commission > 0 ? (
+                                                            <span className="text-emerald-600">Rp {t.commission.toLocaleString('id-ID')}</span>
+                                                        ) : (
+                                                            <span className="text-gray-400">Rp 0</span>
+                                                        )}
+                                                    </td>
                                                     <td className="p-3 text-center">
                                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${contributionPercent > 0 ? 'bg-orange-50 text-ayumi-primary' : 'bg-gray-50 text-gray-400'}`}>
                                                             {contributionPercent}%

@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayumi Beauty House - System Mindmap & Blueprint</title>
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ayumi: {
+                            primary: '#D46221',
+                            'primary-hover': '#B5531B',
+                            secondary: '#4E2A12',
+                            accent: '#F2D8C3',
+                            bg: '#FAF6F0',
+                            text: '#2C1E16',
+                            'text-muted': '#8C7D73',
+                            'table-header': '#F7E5D6',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #faf6f0;
+            color: #2c1e16;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e8b895;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d46221;
+        }
+        /* Grid background pattern */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(78, 42, 18, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(78, 42, 18, 0.04) 1px, transparent 1px);
+        }
+        /* Connection lines styling */
+        .connection-line {
+            fill: none;
+            stroke: #e8b895;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            transition: all 0.3s ease;
+        }
+        .connection-line.highlight {
+            stroke: #d46221;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 8px rgba(212, 98, 33, 0.5));
+        }
+        .connection-line.dimmed {
+            stroke: rgba(232, 184, 149, 0.2);
+            stroke-width: 1.5;
+        }
+        /* Custom animations */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(212, 98, 33, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(212, 98, 33, 0.6); }
+        }
+        .glow-active {
+            animation: pulse-glow 2s infinite;
+        }
+        /* Zoom & pan container */
+        #viewport {
+            transform-origin: 0 0;
+            cursor: grab;
+            user-select: none;
+        }
+        #viewport:active {
+            cursor: grabbing;
+        }
+        /* Collapsible branch animations */
+        .node-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+        .node-card:hover {
+            transform: translateY(-2px) scale(1.02);
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden bg-ayumi-bg">
+
+    <!-- TOP HEADER BAR -->
+    <header class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-ayumi-secondary to-ayumi-primary shadow-lg text-white z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md">
+                <span class="font-extrabold text-xl text-ayumi-primary tracking-tighter">ab</span>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-lg tracking-wide leading-tight">Ayumi Beauty House</h1>
+                <p class="text-[10px] text-white/80 uppercase tracking-widest font-semibold">Interactive Mindmap & System Blueprint</p>
+            </div>
+        </div>
+
+        <!-- SEARCH BAR AND ACTIONS -->
+        <div class="flex items-center gap-4">
+            <div class="relative w-64 md:w-80">
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    placeholder="Cari modul, file, tabel, RLS, peran..."
+                    class="w-full bg-white/10 text-white placeholder-white/60 text-sm pl-10 pr-4 py-2 rounded-full border border-white/20 focus:outline-none focus:bg-white focus:text-ayumi-text focus:placeholder-ayumi-text-muted transition-all duration-200"
+                >
+                <svg class="w-4 h-4 text-white/60 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <button onclick="resetZoomPan()" class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all border border-white/15 flex items-center gap-1.5 shadow">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"/></svg>
+                Reset View
+            </button>
+            <button onclick="toggleAllNodes()" id="expand-collapse-all-btn" class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all border border-white/15 flex items-center gap-1.5 shadow">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                Collapse Semua
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN INTERACTIVE CONTAINER -->
+    <div class="flex flex-1 overflow-hidden relative">
+
+        <!-- SIDE TAB NAVIGATION -->
+        <nav class="w-16 md:w-60 bg-white border-r border-ayumi-accent/40 flex flex-col justify-between py-6 shadow-sm z-10 shrink-0">
+            <div class="space-y-4 px-2 md:px-4">
+                <div class="hidden md:block text-[10px] font-bold text-ayumi-text-muted uppercase tracking-widest px-3 mb-2">Pilih Peta Visual</div>
+                
+                <!-- Tab button: Sitemap -->
+                <button 
+                    onclick="switchTab('sitemap')" 
+                    id="tab-btn-sitemap" 
+                    class="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 font-bold text-sm cursor-pointer justify-center md:justify-start active-tab"
+                >
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    <span class="hidden md:block">Peta Halaman (Sitemap)</span>
+                </button>
+
+                <!-- Tab button: Database -->
+                <button 
+                    onclick="switchTab('database')" 
+                    id="tab-btn-database" 
+                    class="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 font-bold text-sm cursor-pointer justify-center md:justify-start text-ayumi-text-muted hover:bg-ayumi-accent/20 hover:text-ayumi-text"
+                >
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                    </svg>
+                    <span class="hidden md:block">Skema Database (ERD)</span>
+                </button>
+
+                <!-- Tab button: RBAC -->
+                <button 
+                    onclick="switchTab('rbac')" 
+                    id="tab-btn-rbac" 
+                    class="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 font-bold text-sm cursor-pointer justify-center md:justify-start text-ayumi-text-muted hover:bg-ayumi-accent/20 hover:text-ayumi-text"
+                >
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span class="hidden md:block">Hak Akses & Peran (RBAC)</span>
+                </button>
+
+                <!-- Tab button: Workflows -->
+                <button 
+                    onclick="switchTab('workflows')" 
+                    id="tab-btn-workflows" 
+                    class="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 font-bold text-sm cursor-pointer justify-center md:justify-start text-ayumi-text-muted hover:bg-ayumi-accent/20 hover:text-ayumi-text"
+                >
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    <span class="hidden md:block">Alur Kerja Utama</span>
+                </button>
+            </div>
+            
+            <!-- FOOTER INFO IN SIDEBAR -->
+            <div class="px-4 hidden md:block">
+                <div class="bg-ayumi-accent/15 border border-ayumi-accent/30 rounded-xl p-3 text-xs text-ayumi-text-muted">
+                    <p class="font-bold text-ayumi-secondary mb-1">Panduan Navigasi:</p>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><b>Drag Canvas</b> untuk memindahkan peta.</li>
+                        <li><b>Mouse Wheel</b> untuk memperbesar/memperkecil.</li>
+                        <li><b>Klik Node</b> untuk info detail.</li>
+                        <li><b>Klik tombol [+] / [-]</b> untuk melipat cabang.</li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- STAGE WORKSPACE (MINDMAP CANVAS) -->
+        <main class="flex-1 h-full relative overflow-hidden bg-grid" id="canvas-container">
+            
+            <!-- SVG LAYER FOR PATH CONNECTIONS -->
+            <svg id="svg-layer" class="absolute inset-0 pointer-events-none w-full h-full z-0"></svg>
+            
+            <!-- HTML LAYER FOR INTERACTIVE CARDS -->
+            <div id="viewport" class="absolute left-0 top-0 w-full h-full z-10">
+                <div id="mindmap-content" class="relative">
+                    <!-- Nodes will be rendered dynamically here -->
+                </div>
+            </div>
+
+            <!-- ZOOM CONTROL BAR -->
+            <div class="absolute bottom-6 left-6 z-20 flex bg-white/90 backdrop-blur border border-ayumi-accent/30 rounded-xl p-1.5 shadow-md gap-1">
+                <button onclick="adjustZoom(0.1)" class="w-8 h-8 rounded-lg hover:bg-ayumi-accent/25 flex items-center justify-center font-bold text-lg text-ayumi-secondary" title="Zoom In">+</button>
+                <span id="zoom-indicator" class="px-2 flex items-center justify-center text-xs font-bold text-ayumi-secondary min-w-[50px]">100%</span>
+                <button onclick="adjustZoom(-0.1)" class="w-8 h-8 rounded-lg hover:bg-ayumi-accent/25 flex items-center justify-center font-bold text-lg text-ayumi-secondary" title="Zoom Out">-</button>
+                <div class="w-[1px] bg-ayumi-accent/30 my-1 mx-0.5"></div>
+                <button onclick="resetZoomPan()" class="px-2.5 py-1 text-xs rounded-lg hover:bg-ayumi-accent/25 font-bold text-ayumi-secondary" title="Reset view">Fit</button>
+            </div>
+        </main>
+
+        <!-- DETAILS SIDEBAR PANEL -->
+        <aside id="details-panel" class="w-96 bg-white border-l border-ayumi-accent/40 shadow-xl z-20 flex flex-col translate-x-0 transition-transform duration-300 shrink-0">
+            <!-- Header Panel -->
+            <div class="p-5 border-b border-ayumi-accent/30 flex justify-between items-start bg-gradient-to-r from-ayumi-bg to-white shrink-0">
+                <div>
+                    <span id="details-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-ayumi-accent/45 text-ayumi-secondary border border-ayumi-accent/70">System Info</span>
+                    <h2 id="details-title" class="font-extrabold text-xl text-ayumi-secondary mt-1.5">Selamat Datang</h2>
+                </div>
+                <button onclick="closeDetailsPanel()" class="text-ayumi-text-muted hover:text-ayumi-primary transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Content Area (Scrollable) -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6" id="details-content">
+                <div class="space-y-4">
+                    <p class="text-sm leading-relaxed text-ayumi-text">Pilih salah satu node pada peta blueprint atau gunakan fitur pencarian di atas untuk melihat detail modul, tabel database, kebijakan keamanan, peran akses, dan file source-code yang bersangkutan.</p>
+                    <div class="border border-dashed border-ayumi-accent/60 rounded-xl p-4 bg-ayumi-bg/50">
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-ayumi-primary mb-2">Ringkasan Sistem Proyek</h4>
+                        <table class="text-xs w-full text-left space-y-1.5 text-ayumi-text">
+                            <tr>
+                                <td class="py-1 font-semibold text-ayumi-text-muted w-1/3">Framework</td>
+                                <td class="py-1">: Next.js (App Router, JS)</td>
+                            </tr>
+                            <tr>
+                                <td class="py-1 font-semibold text-ayumi-text-muted">Database</td>
+                                <td class="py-1">: Supabase / PostgreSQL</td>
+                            </tr>
+                            <tr>
+                                <td class="py-1 font-semibold text-ayumi-text-muted">Styling</td>
+                                <td class="py-1">: Tailwind CSS (v4)</td>
+                            </tr>
+                            <tr>
+                                <td class="py-1 font-semibold text-ayumi-text-muted">Peran User</td>
+                                <td class="py-1">: Owner, Admin Cabang, Terapis</td>
+                            </tr>
+                            <tr>
+                                <td class="py-1 font-semibold text-ayumi-text-muted">Integrasi POS</td>
+                                <td class="py-1">: Pasien & CRM, SOAP Notes, Kupon Paket, Stok</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action buttons in sidebar -->
+            <div class="p-5 border-t border-ayumi-accent/30 bg-ayumi-bg/30 flex gap-3 shrink-0" id="details-actions">
+                <!-- Buttons will change dynamically -->
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- CORE STYLE INJECTIONS FOR TAB STATES -->
+    <style>
+        .active-tab {
+            background-color: var(--color-ayumi-primary) !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 6px -1px rgba(212, 98, 33, 0.25), 0 2px 4px -1px rgba(212, 98, 33, 0.15);
+        }
+    </style>
+
+    <!-- MINDMAP ENGINE DATA & SCRIPT -->
+    <script>
+        // Database of everything in the app
+        const rawData = {
+            sitemap: {
+                id: "ayumi-app",
+                name: "Ayumi Beauty House App",
+                type: "ROOT",
+                desc: "Solusi SaaS terintegrasi untuk klinik kecantikan dan salon kecantikan Ayumi. Sistem mengontrol booking jadwal, rekam medis (SOAP), POS Kasir, penjualan produk/treatment/kupon, hak akses (RBAC), stock produk, dan pelaporan keuangan.",
+                file: "app/layout.tsx",
+                children: [
+                    {
+                        id: "auth-users",
+                        name: "Autentikasi & Akun",
+                        type: "MODUL",
+                        desc: "Mengelola proses login, verifikasi pengguna, hak akses user, serta toggle keamanan password.",
+                        children: [
+                            {
+                                id: "login-page",
+                                name: "Login Portal",
+                                type: "INTERFACE",
+                                desc: "Portal login utama untuk semua staf. Dilengkapi dengan toggle password visibility (show/hide password).",
+                                file: "app/login/page.js",
+                                tables: ["users"],
+                                roles: ["owner", "admin", "therapist"]
+                            },
+                            {
+                                id: "settings-users",
+                                name: "Manajemen User",
+                                type: "INTERFACE",
+                                desc: "Menu kelola akun pengguna oleh Owner. Bisa menambah, mengedit, mengganti role user, serta me-reset password staf.",
+                                file: "app/settings/users/page.js",
+                                tables: ["users", "branches"],
+                                roles: ["owner"]
+                            },
+                            {
+                                id: "api-users",
+                                name: "API User Endpoint",
+                                type: "API",
+                                desc: "Endpoint API internal untuk registrasi pengguna baru, modifikasi akun, dan sinkronisasi auth.",
+                                file: "app/api/users/route.js",
+                                tables: ["users"],
+                                roles: ["owner"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "patients-crm",
+                        name: "Pasien & CRM",
+                        type: "MODUL",
+                        desc: "Manajemen data pasien, riwayat transaksi pasien, penandaan level loyalitas CRM (e.g. VIP, Regular), poin/membership.",
+                        children: [
+                            {
+                                id: "patients-list",
+                                name: "Data Pasien",
+                                type: "INTERFACE",
+                                desc: "Daftar pasien terdaftar dengan server-side search dan pagination. Berisi profil dasar, tanggal lahir, dan whatsapp.",
+                                file: "app/patients/page.js",
+                                tables: ["patients"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "patient-details",
+                                name: "Profil & Rekam Medis Pasien",
+                                type: "INTERFACE",
+                                desc: "Detail lengkap pasien, riwayat keluhan SOAP medis, riwayat kedatangan, status CRM, dan log pembelian paket kupon.",
+                                file: "app/patients/[id]/page.js",
+                                tables: ["patients", "treatment_records", "patient_coupons"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "crm-dashboard",
+                                name: "CRM Panel",
+                                type: "INTERFACE",
+                                desc: "Analisis loyalitas pelanggan, status CRM, tanggal kunjungan terakhir, dan notifikasi follow-up.",
+                                file: "app/crm/page.js",
+                                tables: ["patients", "treatment_records", "transactions"],
+                                roles: ["owner", "admin"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "appointments-medis",
+                        name: "Jadwal & Rekam Medis",
+                        type: "MODUL",
+                        desc: "Alur klinis mulai dari booking janji temu, kedatangan pasien di cabang, pemeriksaan terapis, pencatatan rekam medis SOAP, hingga konfirmasi selesai untuk ditransaksikan.",
+                        children: [
+                            {
+                                id: "appointments-page",
+                                name: "Appointments (Jadwal)",
+                                type: "INTERFACE",
+                                desc: "Kalender grid persegi dan timeline row premium untuk melihat jadwal treatment per terapis per hari di cabang.",
+                                file: "app/appointments/page.js",
+                                tables: ["appointments", "users", "branches"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "treatment-records",
+                                name: "Rekam Medis (SOAP List)",
+                                type: "INTERFACE",
+                                desc: "Kumpulan rekam medis pasien dengan server-side search, pagination, dan filter terapis. Dapat mengunduh dan mencetak rekam medis dalam bentuk PDF via jsPDF & html2canvas.",
+                                file: "app/treatment-records/page.js",
+                                tables: ["treatment_records", "treatment_record_items", "patients", "users"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "therapist-portal",
+                                name: "Portal Terapis",
+                                type: "INTERFACE",
+                                desc: "Dasbor khusus terapis untuk melihat antrean pasien hari ini, jadwal tindakan pribadi, dan riwayat tindakan yang pernah ditangani.",
+                                file: "app/therapist/dashboard/page.js",
+                                tables: ["appointments", "treatment_records"],
+                                roles: ["therapist"]
+                            },
+                            {
+                                id: "therapist-soap-input",
+                                name: "Input Treatment & SOAP",
+                                type: "INTERFACE",
+                                desc: "Formulir terapis untuk menginput tindakan treatment dan catatan SOAP (Subjective, Objective, Assessment, Plan). Harga produk/treatment disembunyikan agar terapis fokus pada tindakan klinis.",
+                                file: "app/therapist/treatment-input/[appointmentId]/page.js",
+                                tables: ["appointments", "treatment_records", "treatment_record_items", "treatments"],
+                                roles: ["therapist"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "kasir-pos",
+                        name: "Kasir POS & Transaksi",
+                        type: "MODUL",
+                        desc: "Ujung tombak finansial cabang. Menghubungkan tindakan treatment yang diinput oleh terapis, pembelian produk, diskon, penggunaan paket kupon, stock out, cetak struk, dan pencatatan kas.",
+                        children: [
+                            {
+                                id: "pos-page",
+                                name: "Kasir / POS Page",
+                                type: "INTERFACE",
+                                desc: "Halaman Point of Sale utama. Mengambil data rekam medis terapis otomatis, mendukung quick-add patient baru, diskon (persen/nominal), metode bayar (cash/transfer/qris dll), potong saldo kupon pasien, cetak struk, dan otomatis memotong stok produk di cabang.",
+                                file: "app/kasir/page.js",
+                                tables: ["transactions", "transaction_items", "treatment_records", "products", "product_stock", "patient_coupons"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "transactions-history",
+                                name: "Riwayat Transaksi",
+                                type: "INTERFACE",
+                                desc: "Daftar riwayat transaksi yang terfilter berdasarkan tanggal, cabang, dan metode pembayaran. Memudahkan rekonsiliasi kas harian.",
+                                file: "app/transactions/page.js",
+                                tables: ["transactions", "patients", "branches", "users"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "stock-products",
+                                name: "Stok Produk Cabang",
+                                type: "INTERFACE",
+                                desc: "Daftar stok produk fisik real-time per cabang. Di-update otomatis saat penjualan di POS kasir atau restock manual.",
+                                file: "app/settings/product-stock/page.js",
+                                tables: ["product_stock", "products", "branches"],
+                                roles: ["owner", "admin"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "coupon-module",
+                        name: "Kupon Paket (Paket Hemat)",
+                        type: "MODUL",
+                        desc: "Sistem paket multi-sesi (seperti PRP 3x, Whitening 6x) untuk mengunci loyalitas pasien. Mengatur siklus hidup kupon dari pembelian, sisa kupon, pemakaian per sesi, hingga masa kedaluwarsa.",
+                        children: [
+                            {
+                                id: "coupons-dashboard",
+                                name: "Dashboard Kupon Paket",
+                                type: "INTERFACE",
+                                desc: "Terdiri dari 4 tab: Master Paket Kupon (edit/tambah oleh Owner), Kupon Pasien (daftar kupon aktif milik pasien & sisa sesi), Penggunaan Kupon (redeem sesi kupon), dan Riwayat Log Penggunaan.",
+                                file: "app/coupons/page.js",
+                                tables: ["coupon_packages", "coupon_package_items", "patient_coupons", "patient_coupon_items", "coupon_usage_logs"],
+                                roles: ["owner", "admin"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "reports-analytics",
+                        name: "Laporan & Analisis",
+                        type: "MODUL",
+                        desc: "Statistik operasional dan finansial untuk memantau performa bisnis dan komisi.",
+                        children: [
+                            {
+                                id: "report-treatments",
+                                name: "Laporan Treatment",
+                                type: "INTERFACE",
+                                desc: "Grafik bulanan/harian total treatment paling laku, kategori treatment populer, dan total omzet treatment.",
+                                file: "app/reports/treatments/page.js",
+                                tables: ["treatment_records", "treatment_record_items", "treatments", "branches"],
+                                roles: ["owner", "admin"]
+                            },
+                            {
+                                id: "report-therapists",
+                                name: "Laporan Terapis",
+                                type: "INTERFACE",
+                                desc: "Halaman khusus Owner untuk memantau jumlah tindakan/sesi treatment yang dilakukan masing-masing terapis per bulan untuk keperluan bagi hasil / insentif terapis.",
+                                file: "app/reports/therapists/page.js",
+                                tables: ["treatment_records", "users", "branches"],
+                                roles: ["owner"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "notifications-realtime",
+                        name: "Notifikasi Realtime",
+                        type: "MODUL",
+                        desc: "Alur notifikasi langsung (live toast popups) menggunakan Supabase Realtime channel. Digunakan untuk sinkronisasi antrean staf.",
+                        children: [
+                            {
+                                id: "notification-table",
+                                name: "Notifikasi Toast System",
+                                type: "COMP",
+                                desc: "Mendengarkan perubahan pada tabel `notifications` dan memunculkan toast ketika: Pasien datang (`patient_arrived`), Terapis siap dipanggil (`therapist_ready`), atau Treatment selesai. Notifikasi dibatasi hanya untuk Admin Cabang & Owner.",
+                                file: "components/GlobalHeader.js",
+                                tables: ["notifications", "appointments"],
+                                roles: ["owner", "admin"]
+                            }
+                        ]
+                    },
+                    {
+                        id: "settings-master",
+                        name: "Pengaturan & Master Data",
+                        type: "MODUL",
+                        desc: "Master konfigurasi database, data statis, daftar cabang, produk, dan treatment.",
+                        children: [
+                            {
+                                id: "settings-branches",
+                                name: "Manajemen Cabang",
+                                type: "INTERFACE",
+                                desc: "Pengaturan cabang fisik Ayumi Beauty House (e.g. Cabang A, Cabang B). Membatasi akses Admin Cabang hanya pada cabangnya sendiri. Owner Only.",
+                                file: "app/settings/branches/page.js",
+                                tables: ["branches"],
+                                roles: ["owner"]
+                            },
+                            {
+                                id: "settings-treatment-cats",
+                                name: "Kategori Treatment",
+                                type: "INTERFACE",
+                                desc: "Master klasifikasi treatment (e.g. VIP, Facial, Slimming, Whitening). Owner Only.",
+                                file: "app/settings/treatment-categories/page.js",
+                                tables: ["treatment_categories"],
+                                roles: ["owner"]
+                            },
+                            {
+                                id: "settings-treatments",
+                                name: "Master Treatment",
+                                type: "INTERFACE",
+                                desc: "Daftar seluruh menu layanan kecantikan, durasi, kategori, dan harga jual standar. Owner Only.",
+                                file: "app/settings/treatments/page.js",
+                                tables: ["treatments", "treatment_categories"],
+                                roles: ["owner"]
+                            },
+                            {
+                                id: "settings-products",
+                                name: "Master Produk",
+                                type: "INTERFACE",
+                                desc: "Katalog produk kecantikan retail fisik (skincare, krim, serum, dll.) beserta harga jual dasar. Owner Only.",
+                                file: "app/settings/products/page.js",
+                                tables: ["products"],
+                                roles: ["owner"]
+                            }
+                        ]
+                    }
+                ]
+            },
+            database: {
+                id: "postgres-db",
+                name: "Database Supabase PostgreSQL",
+                type: "ROOT",
+                desc: "Seluruh struktur penyimpanan relasional, konfigurasi keamanan Row Level Security (RLS) policies, dan API realtime Supabase.",
+                children: [
+                    {
+                        id: "db-tables-users",
+                        name: "Tabel Staf & Pengguna",
+                        type: "DB_TABLE",
+                        desc: "Menyimpan kredensial dan hak peran pengguna sistem.",
+                        schema: "id UUID PK, email VARCHAR, full_name VARCHAR, role VARCHAR (owner|admin|therapist), branch_id UUID FK, is_active BOOLEAN, created_at TIMESTAMPTZ",
+                        rls: "RLS Enabled. Owner: SELECT, INSERT, UPDATE, DELETE (Full Access). Admin & Therapist: SELECT data profile sendiri & daftar terapis."
+                    },
+                    {
+                        id: "db-tables-patients",
+                        name: "Tabel Pasien & CRM",
+                        type: "DB_TABLE",
+                        desc: "Menyimpan data profil medis dan loyalitas pasien.",
+                        schema: "id UUID PK, full_name VARCHAR, phone VARCHAR, whatsapp VARCHAR, birth_date DATE, crm_status VARCHAR (regular|vip), points INT, created_at TIMESTAMPTZ",
+                        rls: "RLS Enabled. Owner & Admin: SELECT, INSERT, UPDATE. Therapist: SELECT (Read Only)."
+                    },
+                    {
+                        id: "db-tables-appointments",
+                        name: "Tabel Appointments (Jadwal)",
+                        type: "DB_TABLE",
+                        desc: "Pusat jadwal booking pasien dan status antrean klinis.",
+                        schema: "id UUID PK, patient_id UUID FK, branch_id UUID FK, therapist_id UUID FK, appointment_date DATE, appointment_time TIME, status VARCHAR, arrival_status VARCHAR (not_arrived|arrived|therapist_ready|in_treatment), arrived_at TIMESTAMPTZ, therapist_ready_at TIMESTAMPTZ, notes TEXT",
+                        rls: "RLS Enabled. Owner & Admin: Full Access. Therapist: SELECT & UPDATE (mengubah status antrean)."
+                    },
+                    {
+                        id: "db-tables-treatment-records",
+                        name: "Tabel Treatment Records (SOAP)",
+                        type: "DB_TABLE",
+                        desc: "Menyimpan data klinis, keluhan medis, dokumentasi foto, dan catatan SOAP.",
+                        schema: "id UUID PK, appointment_id UUID FK, patient_id UUID FK, performed_by UUID FK (Users), branch_id UUID FK, complaints TEXT (Subjective), objective TEXT (Objective), assessment TEXT (Assessment), plan TEXT (Plan), result_notes TEXT, before_photos TEXT[], after_photos TEXT[], total_price NUMERIC",
+                        rls: "RLS Enabled. Owner: Full Access. Admin: SELECT, INSERT, UPDATE (Cabang sendiri). Therapist: SELECT & INSERT (Hanya record miliknya)."
+                    },
+                    {
+                        id: "db-tables-record-items",
+                        name: "Tabel Treatment Record Items",
+                        type: "DB_TABLE",
+                        desc: "Item-item tindakan yang diberikan pada satu sesi rekam medis.",
+                        schema: "id UUID PK, treatment_record_id UUID FK, treatment_id UUID FK, quantity INT, price_per_item NUMERIC, subtotal NUMERIC, notes TEXT, sort_order INT",
+                        rls: "RLS Enabled. Mengikuti hak akses tabel induk `treatment_records`."
+                    },
+                    {
+                        id: "db-tables-products-stock",
+                        name: "Tabel Produk & Stok",
+                        type: "DB_TABLE",
+                        desc: "Katalog produk dan stok fisik real-time per cabang.",
+                        schema: "Tabel products (id, name, description, price, is_active). Tabel product_stock (id, product_id UUID FK, branch_id UUID FK, quantity INT, UNIQUE(product_id, branch_id))",
+                        rls: "RLS Enabled. Semua user terotentikasi dapat SELECT. Owner & Admin bisa UPDATE stok cabang."
+                    },
+                    {
+                        id: "db-tables-transactions",
+                        name: "Tabel Transaksi & POS",
+                        type: "DB_TABLE",
+                        desc: "Menyimpan faktur penjualan dan status pembayaran kasir.",
+                        schema: "id UUID PK, transaction_number VARCHAR UNIQUE, patient_id UUID FK, branch_id UUID FK, treatment_record_id UUID FK, cashier_id UUID FK, subtotal NUMERIC, discount NUMERIC, discount_type VARCHAR (nominal|percent), total NUMERIC, payment_method VARCHAR, payment_status VARCHAR, notes TEXT, created_at TIMESTAMPTZ",
+                        rls: "RLS Enabled. Owner & Admin: SELECT, INSERT (Kasir Cabang). Therapist: SELECT (No detail pricing)."
+                    },
+                    {
+                        id: "db-tables-coupons",
+                        name: "Tabel Paket Kupon Staf & Pasien",
+                        type: "DB_TABLE",
+                        desc: "Kumpulan tabel kupon: coupon_packages, coupon_package_items, patient_coupons, patient_coupon_items, coupon_usage_logs.",
+                        schema: "Master Kupon (coupon_packages, coupon_package_items). Kupon Pasien (patient_coupons, patient_coupon_items). Log Pemakaian (coupon_usage_logs: patient_coupon_item_id, patient_id, treatment_record_id, branch_id, used_at, used_by)",
+                        rls: "RLS Enabled. Owner & Admin: Full Access. Therapist: SELECT (Melihat sisa kupon pasien)."
+                    },
+                    {
+                        id: "db-tables-notifications",
+                        name: "Tabel Notifications (Toast)",
+                        type: "DB_TABLE",
+                        desc: "Tabel penampung notifikasi realtime untuk staf.",
+                        schema: "id UUID PK, recipient_id UUID FK, sender_id UUID FK, appointment_id UUID FK, type VARCHAR (patient_arrived|therapist_ready|general), title VARCHAR, message TEXT, is_read BOOLEAN, created_at TIMESTAMPTZ",
+                        rls: "RLS Enabled. User hanya bisa SELECT & UPDATE notifikasi milik recipient_id-nya sendiri. Inserts diizinkan untuk authenticated user."
+                    }
+                ]
+            },
+            rbac: {
+                id: "rbac-root",
+                name: "Matriks Peran (RBAC)",
+                type: "ROOT",
+                desc: "Pembatasan hak akses fitur aplikasi dan data Supabase berdasarkan 3 peran pengguna utama: Owner, Admin Cabang, dan Terapis.",
+                children: [
+                    {
+                        id: "rbac-owner",
+                        name: "Peran: Owner (Pemilik)",
+                        type: "ROLE",
+                        desc: "Akses tanpa batasan (Super Admin) di seluruh cabang. Fokus pada pelaporan finansial makro dan data master.",
+                        permissions: [
+                            "Melihat semua dashboard keuangan dan grafik omzet seluruh cabang.",
+                            "Manajemen user staf (Tambah/Edit User, Reset Password, Hapus Akun).",
+                            "Manajemen Master Data: Master Treatment, Master Produk, Master Kategori, Master Cabang.",
+                            "Melihat Laporan Terapis (jumlah tindakan terapis untuk insentif).",
+                            "Menerima notifikasi realtime untuk semua aktivitas sistem."
+                        ]
+                    },
+                    {
+                        id: "rbac-admin",
+                        name: "Peran: Admin (Admin Cabang)",
+                        type: "ROLE",
+                        desc: "Membatasi operasi harian di satu cabang tertentu tempat admin ditugaskan. Tidak dapat mengakses master data global atau laporan komisi terapis.",
+                        permissions: [
+                            "Melihat Dashboard terbatas hanya pada data cabangnya sendiri.",
+                            "Mengelola antrean Appointments, pendaftaran pasien baru, dan CRM di cabangnya.",
+                            "Menjalankan POS Kasir (checkout pembayaran, potong stok, potong kupon, cetak struk) untuk pasien di cabangnya.",
+                            "Mengelola stok produk cabang (update manual & restock cabang).",
+                            "Menerima notifikasi realtime kedatangan pasien di cabangnya."
+                        ]
+                    },
+                    {
+                        id: "rbac-therapist",
+                        name: "Peran: Therapist (Terapis)",
+                        type: "ROLE",
+                        desc: "Portal klinis terbatas. Terapis hanya melihat antrean ruangan medis dan fokus mengisi catatan SOAP tindakan tanpa terpapar informasi finansial / harga.",
+                        permissions: [
+                            "Masuk ke Dashboard Terapis khusus antrean tindakan hari ini.",
+                            "Melihat Jadwal Treatment pribadi dan Riwayat Tindakan medis yang pernah dikerjakan.",
+                            "Menginput tindakan treatment dan SOAP (Subjective, Objective, Assessment, Plan) pasien saat berada di ruangan.",
+                            "Dilarang melihat harga menu treatment, harga produk, atau data omzet kasir (disembunyikan dari UI terapis).",
+                            "Tidak memiliki hak akses hapus / modifikasi data di luar catatan tindakan medis miliknya."
+                        ]
+                    }
+                ]
+            },
+            workflows: {
+                id: "workflow-root",
+                name: "Alur Kerja Utama (Workflows)",
+                type: "ROOT",
+                desc: "Siklus hidup operasional dan bisnis terintegrasi yang dijalankan oleh berbagai peran di klinik Ayumi Beauty House.",
+                children: [
+                    {
+                        id: "wf-pos-soap",
+                        name: "Alur Tindakan Medis & Pembayaran",
+                        type: "FLOW",
+                        desc: "Siklus lengkap dari pasien datang hingga checkout pembayaran kasir.",
+                        steps: [
+                            "1. Admin mendaftarkan janji temu di /appointments (Status: Scheduled).",
+                            "2. Pasien tiba di lokasi. Admin menandai status kedatangan menjadi Arrived.",
+                            "3. Sistem Supabase Realtime memicu notifikasi pop-up 'Pasien Datang' ke Admin Cabang & Owner.",
+                            "4. Terapis memanggil pasien ke ruangan medis via /therapist/dashboard.",
+                            "5. Terapis menekan 'Therapist Ready' (Status antrean bergeser) dan memulai treatment (Status: In Treatment).",
+                            "6. Selesai treatment, terapis mengisi form di /therapist/treatment-input (menginput data keluhan SOAP dan daftar treatment/produk yang digunakan). Tombol 'Selesai' ditekan.",
+                            "7. Status appointment bergeser menjadi Completed (SOAP selesai).",
+                            "8. Pasien ke kasir. Admin membuka /kasir, memilih nama pasien. Sistem otomatis menarik data SOAP terapis beserta total biaya treatment.",
+                            "9. Admin mengonfirmasi metode bayar (cash/transfer/qris dll), menginput diskon jika ada, lalu menekan checkout.",
+                            "10. Transaksi tercatat di public.transactions & public.transaction_items, stok produk cabang dikurangi otomatis, dan invoice PDF diunduh/dicetak."
+                        ]
+                    },
+                    {
+                        id: "wf-coupons",
+                        name: "Alur Pembelian & Pemakaian Kupon Paket",
+                        type: "FLOW",
+                        desc: "Bagaimana pasien membeli paket hemat multi-sesi dan menggunakannya untuk treatment.",
+                        steps: [
+                            "1. Owner membuat Master Paket Kupon (e.g. PRP 3x seharga Rp 1.5M) di /coupons.",
+                            "2. Pasien membeli paket tersebut melalui Kasir POS. Pembayaran diselesaikan.",
+                            "3. Sistem membuat baris baru di public.patient_coupons (status active) dan memecahnya ke public.patient_coupon_items (total_sessions: 3, remaining_sessions: 3).",
+                            "4. Pada kedatangan berikutnya, saat checkout di Kasir /kasir, kasir memilih opsi 'Gunakan Kupon' yang aktif milik pasien tersebut.",
+                            "5. Kasir memproses transaksi menggunakan kupon. Sesi sisa kupon didecrement (remaining: 2, used: 1).",
+                            "6. Sistem mencatat log pemakaian di public.coupon_usage_logs untuk audit history.",
+                            "7. Jika remaining_sessions mencapai 0, status kupon berubah menjadi 'fully_used' secara otomatis."
+                        ]
+                    },
+                    {
+                        id: "wf-notifications",
+                        name: "Alur Notifikasi & Sinkronisasi Staf",
+                        type: "FLOW",
+                        desc: "Bagaimana realtime channel Supabase mempercepat komunikasi antar-staf di klinik.",
+                        steps: [
+                            "1. Saat pasien ditandai 'Tiba' oleh admin di meja depan, baris notifikasi dibuat di database.",
+                            "2. Supabase Realtime mempublikasikan perubahan baris pada tabel public.notifications.",
+                            "3. GlobalHeader.js yang aktif di browser admin/owner mendeteksi pesan realtime tersebut.",
+                            "4. Pop-up toast interaktif (React Hot Toast) muncul di pojok layar berbunyi: '[Nama Pasien] telah tiba di Cabang [Nama Cabang]'.",
+                            "5. Terapis langsung mempersiapkan ruangan medis tanpa perlu admin berjalan ke ruang terapis.",
+                            "6. Setelah terapis siap, terapis menekan 'Terapis Ready' di tablet terapis, memicu notifikasi balik ke meja admin agar pasien dipersilakan masuk ruangan."
+                        ]
+                    }
+                ]
+            }
+        };
+
+        // UI state variables
+        let activeTab = 'sitemap';
+        let currentScale = 1.0;
+        let panX = 50;
+        let panY = 50;
+        let isDragging = false;
+        let startX, startY;
+        let collapsedNodes = new Set();
+        let selectedNodeId = null;
+
+        // Colors for node types
+        const typeColors = {
+            ROOT: 'bg-ayumi-secondary text-white border-ayumi-secondary ring-4 ring-ayumi-accent/50',
+            MODUL: 'bg-white text-ayumi-secondary border-ayumi-primary shadow-sm hover:shadow-md border-l-8 border-l-ayumi-primary',
+            INTERFACE: 'bg-white text-ayumi-text border-ayumi-accent shadow-xs border-l-4 border-l-orange-400',
+            API: 'bg-orange-50 text-orange-950 border-orange-200 border-l-4 border-l-orange-500',
+            COMP: 'bg-amber-50 text-amber-950 border-amber-200 border-l-4 border-l-amber-500',
+            
+            // Database Types
+            DB_TABLE: 'bg-white text-ayumi-secondary border-ayumi-primary border-l-8 border-l-ayumi-secondary shadow-sm',
+            
+            // RBAC Types
+            ROLE: 'bg-white text-ayumi-secondary border-ayumi-primary border-l-8 border-l-ayumi-primary shadow-sm',
+            
+            // Workflow Types
+            FLOW: 'bg-white text-ayumi-secondary border-ayumi-primary border-l-8 border-l-ayumi-secondary shadow-sm'
+        };
+
+        // Icons for node types
+        const typeIcons = {
+            ROOT: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>',
+            MODUL: '<svg class="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>',
+            INTERFACE: '<svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>',
+            API: '<svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>',
+            COMP: '<svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/></svg>',
+            
+            DB_TABLE: '<svg class="w-4 h-4 text-ayumi-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>',
+            ROLE: '<svg class="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>',
+            FLOW: '<svg class="w-4 h-4 text-ayumi-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>'
+        };
+
+        // Flat lookup of all nodes
+        let allNodesMap = new Map();
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            setupPanAndZoom();
+            buildFlatMap();
+            renderActiveTab();
+            setupSearch();
+            
+            // Adjust panel on smaller screens
+            if (window.innerWidth < 768) {
+                closeDetailsPanel();
+            }
+        });
+
+        // Setup Zoom and Pan on Canvas
+        function setupPanAndZoom() {
+            const container = document.getElementById('canvas-container');
+            const viewport = document.getElementById('viewport');
+
+            // Pan Handler
+            container.addEventListener('mousedown', (e) => {
+                // Only pan if clicked on background or non-interactive elements
+                if (e.target.closest('.node-card') || e.target.closest('button') || e.target.closest('input')) return;
+                isDragging = true;
+                startX = e.clientX - panX;
+                startY = e.clientY - panY;
+                container.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                panX = e.clientX - startX;
+                panY = e.clientY - startY;
+                updateViewportTransform();
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+                container.style.cursor = 'grab';
+            });
+
+            // Zoom Handler
+            container.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = 0.05;
+                const prevScale = currentScale;
+                
+                if (e.deltaY < 0) {
+                    currentScale = Math.min(2.0, currentScale + zoomFactor);
+                } else {
+                    currentScale = Math.max(0.4, currentScale - zoomFactor);
+                }
+
+                // Adjust pan to zoom towards mouse position
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                panX = mouseX - (mouseX - panX) * (currentScale / prevScale);
+                panY = mouseY - (mouseY - panY) * (currentScale / prevScale);
+
+                updateViewportTransform();
+            });
+        }
+
+        function adjustZoom(amount) {
+            currentScale = Math.max(0.4, Math.min(2.0, currentScale + amount));
+            updateViewportTransform();
+        }
+
+        function resetZoomPan() {
+            currentScale = 1.0;
+            
+            // Center the layout vertically on screen
+            const containerHeight = document.getElementById('canvas-container').offsetHeight;
+            panX = 60;
+            panY = Math.max(50, (containerHeight / 2) - 150);
+            
+            updateViewportTransform();
+        }
+
+        function updateViewportTransform() {
+            const viewport = document.getElementById('viewport');
+            viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
+            document.getElementById('zoom-indicator').innerText = `${Math.round(currentScale * 100)}%`;
+            
+            // Re-draw connections after layout transforms
+            drawConnections();
+        }
+
+        // Build flat index map of all nodes for fast lookup & search
+        function buildFlatMap() {
+            allNodesMap.clear();
+            function traverse(node, parentId = null) {
+                allNodesMap.set(node.id, {
+                    ...node,
+                    parentId: parentId
+                });
+                if (node.children) {
+                    node.children.forEach(child => traverse(child, node.id));
+                }
+            }
+            // Traverse all tabs
+            traverse(rawData.sitemap);
+            traverse(rawData.database);
+            traverse(rawData.rbac);
+            traverse(rawData.workflows);
+        }
+
+        // Switch Visual Tabs
+        function switchTab(tabId) {
+            if (activeTab === tabId) return;
+            
+            // UI tab updates
+            document.getElementById(`tab-btn-${activeTab}`).className = "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 font-bold text-sm cursor-pointer justify-center md:justify-start text-ayumi-text-muted hover:bg-ayumi-accent/20 hover:text-ayumi-text";
+            document.getElementById(`tab-btn-${tabId}`).className = "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 font-bold text-sm cursor-pointer justify-center md:justify-start active-tab";
+            
+            activeTab = tabId;
+            collapsedNodes.clear();
+            selectedNodeId = null;
+            
+            // Reset collapse button label
+            document.getElementById('expand-collapse-all-btn').innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                Collapse Semua
+            `;
+            
+            // Clean details panel
+            resetDetailsPanel();
+
+            renderActiveTab();
+            resetZoomPan();
+        }
+
+        // Render nodes of active tab
+        function renderActiveTab() {
+            const root = rawData[activeTab];
+            const container = document.getElementById('mindmap-content');
+            container.innerHTML = '';
+            
+            // Clear connections
+            document.getElementById('svg-layer').innerHTML = '';
+
+            // Compute positions
+            const layout = calculateLayout(root);
+            
+            // Render HTML elements
+            layout.nodes.forEach(node => {
+                const el = document.createElement('div');
+                el.id = `node-${node.id}`;
+                el.className = `absolute z-10 node-card flex flex-col p-3.5 rounded-xl border border-ayumi-accent/40 shadow-sm cursor-pointer min-w-[240px] max-w-[280px] bg-white text-ayumi-text ${selectedNodeId === node.id ? 'glow-active border-ayumi-primary ring-2 ring-ayumi-primary/30' : ''}`;
+                el.style.left = `${node.x}px`;
+                el.style.top = `${node.y}px`;
+                
+                // Color override based on node type
+                const styleClass = typeColors[node.type] || 'bg-white';
+                el.className = el.className.replace('bg-white text-ayumi-text', styleClass);
+                
+                const icon = typeIcons[node.type] || '';
+                const hasChildren = node.children && node.children.length > 0;
+                const isCollapsed = collapsedNodes.has(node.id);
+                
+                el.innerHTML = `
+                    <div class="flex items-start gap-2.5">
+                        <div class="p-1.5 bg-ayumi-bg rounded-lg shrink-0 flex items-center justify-center border border-ayumi-accent/30 shadow-2xs">
+                            ${icon}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[9px] font-bold text-ayumi-primary/80 uppercase tracking-widest leading-none">${node.type}</div>
+                            <h3 class="font-extrabold text-sm text-inherit truncate mt-1 leading-tight" title="${node.name}">${node.name}</h3>
+                            <p class="text-[11px] text-ayumi-text-muted/90 line-clamp-2 mt-1 leading-normal font-medium">${node.desc || ''}</p>
+                        </div>
+                    </div>
+                    ${hasChildren ? `
+                        <button onclick="event.stopPropagation(); toggleNodeCollapse('${node.id}')" class="absolute -right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white shadow-md border border-ayumi-accent/60 flex items-center justify-center text-xs font-bold text-ayumi-secondary hover:text-ayumi-primary hover:border-ayumi-primary transition-all duration-150">
+                            ${isCollapsed ? '+' : '−'}
+                        </button>
+                    ` : ''}
+                `;
+                
+                // Clicking card reveals sidebar details
+                el.addEventListener('click', () => {
+                    selectNode(node.id);
+                });
+                
+                container.appendChild(el);
+            });
+            
+            // Render connections SVG lines
+            drawConnections();
+        }
+
+        // Collapse/Expand node toggling
+        function toggleNodeCollapse(nodeId) {
+            if (collapsedNodes.has(nodeId)) {
+                collapsedNodes.delete(nodeId);
+            } else {
+                collapsedNodes.add(nodeId);
+            }
+            renderActiveTab();
+        }
+
+        function toggleAllNodes() {
+            const root = rawData[activeTab];
+            const btn = document.getElementById('expand-collapse-all-btn');
+            
+            // If some are collapsed, we expand all. Otherwise we collapse all.
+            if (collapsedNodes.size > 0) {
+                collapsedNodes.clear();
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    Collapse Semua
+                `;
+            } else {
+                // Collect all internal nodes with children
+                function collect(node) {
+                    if (node.children && node.children.length > 0) {
+                        collapsedNodes.add(node.id);
+                        node.children.forEach(collect);
+                    }
+                }
+                collect(root);
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    Expand Semua
+                `;
+            }
+            renderActiveTab();
+        }
+
+        // Layout Calculator (Horizontal Tree left-to-right)
+        // Computes coordinates (x, y) for nodes using a simple flex layout
+        function calculateLayout(rootNode) {
+            const levelWidth = 330; // Horizontal gap between levels
+            const nodeHeight = 110; // Estimated height + gap of a card
+            const nodes = [];
+            const connections = [];
+
+            // Temporary structures to compute vertical coordinates
+            // Track height usage at each horizontal level
+            const levelHeights = {};
+
+            function layoutNode(node, level = 0, parentX = 0, parentY = 0) {
+                const x = level * levelWidth;
+                
+                // Initialize height tracker for this level
+                if (levelHeights[level] === undefined) {
+                    levelHeights[level] = 0;
+                }
+
+                // Node position
+                const nodeInfo = {
+                    id: node.id,
+                    name: node.name,
+                    type: node.type,
+                    desc: node.desc,
+                    x: x,
+                    y: 0, // calculated later
+                    children: node.children || []
+                };
+
+                nodes.push(nodeInfo);
+
+                // Add connection if there is a parent
+                if (level > 0) {
+                    connections.push({
+                        from: { x: parentX + 260, y: parentY + 45 }, // node width is ~260px
+                        to: { x: x, y: 0, nodeId: node.id } // y is filled later
+                    });
+                }
+
+                // Recursively layout children if this node is not collapsed
+                const isCollapsed = collapsedNodes.has(node.id);
+                if (node.children && node.children.length > 0 && !isCollapsed) {
+                    let childrenYSum = 0;
+                    const childrenNodeCoords = [];
+                    
+                    // Layout children
+                    node.children.forEach(child => {
+                        const childLayout = layoutNode(child, level + 1, x, 0); // y updated below
+                        childrenNodeCoords.push(childLayout);
+                    });
+
+                    // Distribute children vertically
+                    const startYIndex = levelHeights[level + 1];
+                    let currentY = startYIndex * nodeHeight;
+                    
+                    childrenNodeCoords.forEach(childNode => {
+                        childNode.y = currentY;
+                        levelHeights[level + 1]++;
+                        currentY += nodeHeight;
+                        childrenYSum += childNode.y;
+                    });
+
+                    // Set parent Y as average of its children's Y coordinates
+                    nodeInfo.y = childrenYSum / childrenNodeCoords.length;
+                    
+                    // Prevent parent from crashing with prior elements in its level
+                    const minAllowedY = (levelHeights[level] || 0) * nodeHeight;
+                    if (nodeInfo.y < minAllowedY) {
+                        const shift = minAllowedY - nodeInfo.y;
+                        nodeInfo.y = minAllowedY;
+                        // Cascade shift to children
+                        shiftChildren(node, shift, nodes);
+                    }
+                    levelHeights[level] = Math.ceil((nodeInfo.y + nodeHeight) / nodeHeight);
+
+                } else {
+                    // Leaf node or collapsed
+                    nodeInfo.y = (levelHeights[level] || 0) * nodeHeight;
+                    levelHeights[level]++;
+                }
+
+                return nodeInfo;
+            }
+
+            // Perform layout
+            layoutNode(rootNode);
+
+            // Backfill connection Y coordinates
+            connections.forEach(conn => {
+                const targetNode = nodes.find(n => n.id === conn.to.nodeId);
+                if (targetNode) {
+                    conn.to.y = targetNode.y + 45;
+                }
+            });
+
+            return { nodes, connections };
+        }
+
+        // Shift children Y when parent moves down to avoid overlap
+        function shiftChildren(parentNode, shiftAmount, nodesList) {
+            if (!parentNode.children || collapsedNodes.has(parentNode.id)) return;
+            
+            parentNode.children.forEach(child => {
+                const match = nodesList.find(n => n.id === child.id);
+                if (match) {
+                    match.y += shiftAmount;
+                    shiftChildren(child, shiftAmount, nodesList);
+                }
+            });
+        }
+
+        // Draw connections lines using SVG paths
+        function drawConnections() {
+            const svg = document.getElementById('svg-layer');
+            svg.innerHTML = '';
+            
+            const root = rawData[activeTab];
+            const layout = calculateLayout(root);
+            
+            layout.connections.forEach(conn => {
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                
+                // Draw a beautiful cubic Bezier curve for horizontal tree connections
+                const x1 = conn.from.x;
+                const y1 = conn.from.y;
+                const x2 = conn.to.x;
+                const y2 = conn.to.y;
+                
+                const controlX = x1 + (x2 - x1) * 0.4;
+                const d = `M ${x1} ${y1} C ${controlX} ${y1}, ${x2 - (x2 - x1) * 0.4} ${y2}, ${x2} ${y2}`;
+                
+                path.setAttribute('d', d);
+                path.setAttribute('class', 'connection-line');
+                
+                // Highlight or dim connections if a node is selected
+                if (selectedNodeId) {
+                    const fromNode = layout.nodes.find(n => n.x === x1 - 260 && n.y === y1 - 45);
+                    const toNode = layout.nodes.find(n => n.id === conn.to.nodeId);
+                    
+                    const isRelated = isNodeRelated(selectedNodeId, conn.to.nodeId);
+                    
+                    if (isRelated) {
+                        path.classList.add('highlight');
+                    } else {
+                        path.classList.add('dimmed');
+                    }
+                }
+                
+                svg.appendChild(path);
+            });
+        }
+
+        // Check if node is child, parent or direct ancestor/descendant of another
+        function isNodeRelated(selectedId, currentId) {
+            if (selectedId === currentId) return true;
+            
+            // Check descendants
+            function checkDescendants(id) {
+                const node = allNodesMap.get(id);
+                if (!node) return false;
+                if (node.id === currentId) return true;
+                if (node.children) {
+                    for (let child of node.children) {
+                        if (checkDescendants(child.id)) return true;
+                    }
+                }
+                return false;
+            }
+
+            // Check ancestors
+            let parent = allNodesMap.get(selectedId);
+            while (parent && parent.parentId) {
+                if (parent.parentId === currentId) return true;
+                parent = allNodesMap.get(parent.parentId);
+            }
+
+            return checkDescendants(selectedId);
+        }
+
+        // Selection & Sidebar Details Management
+        function selectNode(nodeId) {
+            const previousSelected = selectedNodeId;
+            selectedNodeId = nodeId;
+            
+            // Highlight card
+            if (previousSelected) {
+                const el = document.getElementById(`node-${previousSelected}`);
+                if (el) el.classList.remove('glow-active', 'border-ayumi-primary', 'ring-2', 'ring-ayumi-primary/30');
+            }
+            
+            const newEl = document.getElementById(`node-${nodeId}`);
+            if (newEl) {
+                newEl.classList.add('glow-active', 'border-ayumi-primary', 'ring-2', 'ring-ayumi-primary/30');
+            }
+            
+            // Open panel if closed
+            const panel = document.getElementById('details-panel');
+            panel.classList.remove('translate-x-full');
+
+            // Render details content
+            const node = allNodesMap.get(nodeId);
+            renderNodeDetails(node);
+
+            // Re-draw connections to apply highlight/dim styles
+            drawConnections();
+        }
+
+        function closeDetailsPanel() {
+            const panel = document.getElementById('details-panel');
+            panel.classList.add('translate-x-full');
+            
+            if (selectedNodeId) {
+                const el = document.getElementById(`node-${selectedNodeId}`);
+                if (el) el.classList.remove('glow-active', 'border-ayumi-primary', 'ring-2', 'ring-ayumi-primary/30');
+                selectedNodeId = null;
+                drawConnections();
+            }
+        }
+
+        function resetDetailsPanel() {
+            document.getElementById('details-badge').innerText = 'System Info';
+            document.getElementById('details-title').innerText = 'Selamat Datang';
+            document.getElementById('details-content').innerHTML = `
+                <div class="space-y-4">
+                    <p class="text-sm leading-relaxed text-ayumi-text">Pilih salah satu node pada peta blueprint atau gunakan fitur pencarian di atas untuk melihat detail modul, tabel database, kebijakan keamanan, peran akses, dan file source-code yang bersangkutan.</p>
+                </div>
+            `;
+            document.getElementById('details-actions').innerHTML = '';
+        }
+
+        function renderNodeDetails(node) {
+            const badge = document.getElementById('details-badge');
+            const title = document.getElementById('details-title');
+            const content = document.getElementById('details-content');
+            const actions = document.getElementById('details-actions');
+
+            badge.innerText = node.type;
+            title.innerText = node.name;
+
+            // Generate content HTML based on node attributes
+            let html = `
+                <div class="space-y-4 text-sm text-ayumi-text">
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">Deskripsi</h4>
+                        <p class="mt-1 leading-relaxed font-medium">${node.desc || 'Tidak ada deskripsi.'}</p>
+                    </div>
+            `;
+
+            // Display details specific to sitemap tab
+            if (node.file) {
+                html += `
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">File Project</h4>
+                        <div class="flex items-center gap-2 mt-1.5 p-2 bg-ayumi-bg rounded-lg border border-ayumi-accent/40 font-mono text-xs">
+                            <svg class="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <a href="file:///${node.file}" class="text-ayumi-primary hover:underline truncate" title="Klik untuk membuka file di editor">${node.file}</a>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (node.roles && node.roles.length > 0) {
+                html += `
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">Hak Akses Peran</h4>
+                        <div class="flex flex-wrap gap-1.5 mt-1.5">
+                            ${node.roles.map(r => {
+                                const bg = r === 'owner' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                                           r === 'admin' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                                           'bg-emerald-100 text-emerald-800 border-emerald-200';
+                                return `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold border ${bg}">${r.toUpperCase()}</span>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (node.tables && node.tables.length > 0) {
+                html += `
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">Tabel Database Terkait</h4>
+                        <div class="flex flex-wrap gap-1.5 mt-1.5">
+                            ${node.tables.map(t => `<span class="px-2.5 py-0.5 rounded-md bg-stone-100 text-stone-800 border border-stone-200 font-mono text-[11px] font-semibold">${t}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Display details specific to database schema tab
+            if (node.schema) {
+                html += `
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">Struktur Kolom</h4>
+                        <div class="mt-1.5 p-3 bg-stone-900 text-stone-100 rounded-lg font-mono text-xs leading-relaxed whitespace-pre-wrap border border-stone-800 shadow-inner border-l-4 border-l-stone-500">
+${node.schema.split(', ').join('\n')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (node.rls) {
+                html += `
+                    <div class="bg-orange-50 border border-orange-200/60 rounded-xl p-3.5 mt-2">
+                        <div class="flex gap-2 items-center text-orange-800 font-bold text-xs uppercase tracking-wide">
+                            <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            Row Level Security (RLS)
+                        </div>
+                        <p class="text-xs font-medium text-orange-950 mt-1.5 leading-relaxed">${node.rls}</p>
+                    </div>
+                `;
+            }
+
+            // Display details specific to RBAC tab
+            if (node.permissions && node.permissions.length > 0) {
+                html += `
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">Daftar Wewenang Utama</h4>
+                        <ul class="list-disc pl-4 space-y-1.5 mt-2 text-xs font-medium leading-relaxed">
+                            ${node.permissions.map(p => `<li>${p}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Display details specific to Workflows tab
+            if (node.steps && node.steps.length > 0) {
+                html += `
+                    <div>
+                        <h4 class="text-xs font-bold text-ayumi-text-muted uppercase tracking-wide">Tahapan Alur Kerja</h4>
+                        <div class="space-y-3 mt-2.5">
+                            ${node.steps.map((s, idx) => {
+                                const split = s.split('. ');
+                                const num = split[0];
+                                const text = split.slice(1).join('. ');
+                                return `
+                                    <div class="flex gap-3 items-start">
+                                        <div class="w-5 h-5 rounded-full bg-ayumi-accent text-ayumi-secondary flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">${num}</div>
+                                        <p class="text-xs font-medium leading-normal mt-0.5">${text}</p>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            content.innerHTML = html;
+
+            // Render bottom actions
+            let actionHtml = '';
+            if (node.file) {
+                actionHtml += `
+                    <a href="file:///${node.file}" class="flex-1 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-center text-xs py-2.5 px-4 rounded-xl font-bold transition-all border border-ayumi-primary flex items-center justify-center gap-1.5 shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        Buka di Editor
+                    </a>
+                `;
+            }
+            if (node.parentId) {
+                const parent = allNodesMap.get(node.parentId);
+                actionHtml += `
+                    <button onclick="selectNode('${parent.id}')" class="flex-1 bg-white hover:bg-ayumi-bg text-ayumi-secondary text-xs py-2.5 px-4 rounded-xl font-bold transition-all border border-ayumi-accent flex items-center justify-center gap-1.5 shadow-2xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        Lihat Induk
+                    </button>
+                `;
+            }
+            actions.innerHTML = actionHtml;
+        }
+
+        // Setup search filter functionality
+        function setupSearch() {
+            const input = document.getElementById('search-input');
+            
+            input.addEventListener('input', (e) => {
+                const query = e.target.value.trim().toLowerCase();
+                if (!query) {
+                    renderActiveTab();
+                    return;
+                }
+                
+                // Clear any collapsed state of nodes that contain match
+                // to make sure they are visible on search
+                let nodesToExpand = new Set();
+                
+                allNodesMap.forEach(node => {
+                    const match = node.name.toLowerCase().includes(query) || 
+                                  (node.desc && node.desc.toLowerCase().includes(query)) ||
+                                  (node.file && node.file.toLowerCase().includes(query)) ||
+                                  (node.schema && node.schema.toLowerCase().includes(query)) ||
+                                  (node.rls && node.rls.toLowerCase().includes(query));
+                                  
+                    if (match) {
+                        // Expand parents up to root
+                        let parentId = node.parentId;
+                        while (parentId) {
+                            nodesToExpand.add(parentId);
+                            const parent = allNodesMap.get(parentId);
+                            parentId = parent ? parent.parentId : null;
+                        }
+                    }
+                });
+
+                // Remove from collapsed list
+                nodesToExpand.forEach(id => {
+                    collapsedNodes.delete(id);
+                });
+
+                renderActiveTab();
+                
+                // Highlight nodes matching query
+                allNodesMap.forEach(node => {
+                    const el = document.getElementById(`node-${node.id}`);
+                    if (!el) return;
+                    
+                    const match = node.name.toLowerCase().includes(query) || 
+                                  (node.desc && node.desc.toLowerCase().includes(query)) ||
+                                  (node.file && node.file.toLowerCase().includes(query)) ||
+                                  (node.schema && node.schema.toLowerCase().includes(query)) ||
+                                  (node.rls && node.rls.toLowerCase().includes(query));
+                                  
+                    if (match) {
+                        el.classList.add('ring-4', 'ring-orange-400/70', 'scale-105', 'shadow-lg');
+                    } else {
+                        el.style.opacity = '0.35';
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>

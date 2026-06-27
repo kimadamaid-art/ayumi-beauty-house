@@ -6,6 +6,7 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import DateRangePicker from "../../../../components/DateRangePicker"
 
 export default function TherapistDetailPage() {
     const params = useParams()
@@ -93,7 +94,7 @@ export default function TherapistDetailPage() {
         if (branchData) setBranches(branchData)
 
         // Restrict branch filter for admin
-        if (!owner && userData.branch_id) {
+        if (!isOwner && userData.branch_id) {
             setSelectedBranch(userData.branch_id)
         }
 
@@ -110,6 +111,7 @@ export default function TherapistDetailPage() {
                 price_at_time,
                 original_price,
                 discount_percent,
+                commission_percent,
                 notes,
                 treatment_records!inner(
                     id,
@@ -158,9 +160,15 @@ export default function TherapistDetailPage() {
     // Key Stats Calculation
     const stats = useMemo(() => {
         const totalIncome = treatmentRecords.reduce((acc, curr) => acc + Number(curr.price_at_time || 0), 0)
+        const totalCommission = treatmentRecords.reduce((acc, curr) => {
+            const price = Number(curr.price_at_time || 0)
+            const commPercent = Number(curr.commission_percent || 0)
+            return acc + Math.round(price * (commPercent / 100))
+        }, 0)
         const totalTreatments = treatmentRecords.length
         return {
             totalIncome,
+            totalCommission,
             totalTreatments
         }
     }, [treatmentRecords])
@@ -228,17 +236,24 @@ export default function TherapistDetailPage() {
         }
 
         // Map data to custom format for Excel rows
-        const rows = filteredRecords.map((r, idx) => ({
-            'No': idx + 1,
-            'Tanggal': r.treatment_records?.treatment_date || '',
-            'Waktu': r.treatment_records?.treatment_time?.substring(0, 5) || '',
-            'Nama Pasien': r.treatment_records?.patients?.full_name || 'Tidak Diketahui',
-            'WhatsApp': r.treatment_records?.patients?.whatsapp || '',
-            'Treatment': r.treatments?.name || 'Tidak Diketahui',
-            'Harga Treatment': r.price_at_time || 0,
-            'Cabang': r.treatment_records?.branches?.name || 'Pusat',
-            'Status': 'Completed'
-        }))
+        const rows = filteredRecords.map((r, idx) => {
+            const price = Number(r.price_at_time || 0)
+            const commPercent = Number(r.commission_percent || 0)
+            const commAmount = Math.round(price * (commPercent / 100))
+            return {
+                'No': idx + 1,
+                'Tanggal': r.treatment_records?.treatment_date || '',
+                'Waktu': r.treatment_records?.treatment_time?.substring(0, 5) || '',
+                'Nama Pasien': r.treatment_records?.patients?.full_name || 'Tidak Diketahui',
+                'WhatsApp': r.treatment_records?.patients?.whatsapp || '',
+                'Treatment': r.treatments?.name || 'Tidak Diketahui',
+                'Harga Treatment': price,
+                'Komisi (%)': commPercent,
+                'Komisi (Rp)': commAmount,
+                'Cabang': r.treatment_records?.branches?.name || 'Pusat',
+                'Status': 'Completed'
+            }
+        })
 
         const ws = XLSX.utils.json_to_sheet(rows)
         const wb = XLSX.utils.book_new()
@@ -276,11 +291,12 @@ export default function TherapistDetailPage() {
             {/* Top Navigation & Excel Export */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <Link href="/reports/therapists">
-                        <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors border border-gray-100 flex items-center justify-center">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                        </button>
-                    </Link>
+                    <button 
+                        onClick={() => router.push('/reports/therapists')}
+                        className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors border border-gray-100 flex items-center justify-center"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    </button>
                     <div>
                         <h1 className="text-xl font-bold text-ayumi-secondary">Kembali ke Ringkasan</h1>
                     </div>
@@ -318,6 +334,10 @@ export default function TherapistDetailPage() {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-sans">Total Pendapatan</p>
                         <h4 className="text-2xl font-black text-ayumi-primary mt-1 font-mono">Rp {stats.totalIncome.toLocaleString('id-ID')}</h4>
                     </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest font-sans">Total Komisi</p>
+                        <h4 className="text-2xl font-black text-emerald-600 mt-1 font-mono">Rp {stats.totalCommission.toLocaleString('id-ID')}</h4>
+                    </div>
                 </div>
             </div>
 
@@ -325,19 +345,15 @@ export default function TherapistDetailPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     {/* Date picker range */}
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <input 
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
-                        />
-                        <span className="text-gray-400 font-bold">-</span>
-                        <input 
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
+                    <div className="w-full sm:w-[290px] relative z-20">
+                        <DateRangePicker 
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={(range) => {
+                                setStartDate(range.startDate);
+                                setEndDate(range.endDate);
+                            }}
+                            inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
                         />
                     </div>
 
@@ -442,13 +458,14 @@ export default function TherapistDetailPage() {
                                     <th className="px-6 py-4">Treatment</th>
                                     <th className="px-6 py-4 text-center">Cabang</th>
                                     <th className="px-6 py-4 text-right">Harga</th>
+                                    <th className="px-6 py-4 text-right">Komisi</th>
                                     <th className="px-6 py-4 text-center">Status</th>
                                     <th className="px-6 py-4 text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 text-gray-700 bg-white">
                                 {filteredRecords.length === 0 ? (
-                                    <tr><td colSpan="7" className="px-6 py-12 text-center text-gray-400">Tidak ada riwayat tindakan terapis ditemukan untuk filter ini.</td></tr>
+                                    <tr><td colSpan="8" className="px-6 py-12 text-center text-gray-400">Tidak ada riwayat tindakan terapis ditemukan untuk filter ini.</td></tr>
                                 ) : (
                                     filteredRecords.map((r) => {
                                         const waNumber = formatWA(r.treatment_records?.patients?.whatsapp)
@@ -477,6 +494,21 @@ export default function TherapistDetailPage() {
                                                 </td>
                                                 <td className="px-6 py-4 text-right font-black text-gray-800 font-mono">
                                                     Rp {Number(r.price_at_time || 0).toLocaleString('id-ID')}
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-mono">
+                                                    {(() => {
+                                                        const price = Number(r.price_at_time || 0)
+                                                        const commPercent = Number(r.commission_percent || 0)
+                                                        const commAmount = Math.round(price * (commPercent / 100))
+                                                        return commAmount > 0 ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="font-bold text-emerald-600">Rp {commAmount.toLocaleString('id-ID')}</span>
+                                                                <span className="text-[10px] text-gray-400 mt-0.5">{commPercent}%</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400">Rp 0</span>
+                                                        )
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
                                                     <span className="bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-bold border border-green-200">

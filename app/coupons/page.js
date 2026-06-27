@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
+import DateRangePicker from "../../components/DateRangePicker"
 
 export default function CouponsDashboardPage() {
     const [activeTab, setActiveTab] = useState('master') // 'master', 'patients', 'usage', 'history'
@@ -664,22 +665,16 @@ export default function CouponsDashboardPage() {
             {activeTab === 'history' && (
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Dari Tanggal</label>
-                            <input
-                                type="date"
-                                value={histStartDate}
-                                onChange={(e) => setHistStartDate(e.target.value)}
-                                className="input-ayumi bg-gray-50 text-sm w-full"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Sampai Tanggal</label>
-                            <input
-                                type="date"
-                                value={histEndDate}
-                                onChange={(e) => setHistEndDate(e.target.value)}
-                                className="input-ayumi bg-gray-50 text-sm w-full"
+                        <div className="col-span-1 sm:col-span-2 flex flex-col relative z-20">
+                            <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Rentang Tanggal</label>
+                            <DateRangePicker 
+                                startDate={histStartDate}
+                                endDate={histEndDate}
+                                onChange={(range) => {
+                                    setHistStartDate(range.startDate);
+                                    setHistEndDate(range.endDate);
+                                }}
+                                inputClassName="w-full input-ayumi bg-gray-50 text-sm"
                             />
                         </div>
                         {(!dbUser || dbUser.role === 'owner') && (

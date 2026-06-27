@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
+import DateRangePicker from "../../../components/DateRangePicker"
 
 export default function TreatmentsReportPage() {
     const router = useRouter()
@@ -23,9 +24,15 @@ export default function TreatmentsReportPage() {
     const [userLoaded, setUserLoaded] = useState(false)
 
     // Filters
-    const [period, setPeriod] = useState('month') // 'today' | 'week' | 'month' | 'year' | 'custom'
-    const [customStart, setCustomStart] = useState('')
-    const [customEnd, setCustomEnd] = useState('')
+    const [period, setPeriod] = useState('custom')
+    const [customStart, setCustomStart] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    })
+    const [customEnd, setCustomEnd] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+    })
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [searchTerm, setSearchTerm] = useState('')
@@ -85,50 +92,17 @@ export default function TreatmentsReportPage() {
         const now = new Date()
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
         const todayStr = now.toISOString().split('T')[0]
-        setCustomStart(firstDay)
-        setCustomEnd(todayStr)
-
+        // Default dates are already initialized as first day and last day of month in useState
         setUserLoaded(true)
     }
 
     // Helper to calculate date string ranges
     const dateRange = useMemo(() => {
-        const today = new Date()
-        let start = new Date()
-        let end = new Date()
-
-        switch (period) {
-            case 'today':
-                start = today
-                end = today
-                break
-            case 'week':
-                // Monday to Sunday
-                const day = today.getDay()
-                const diffToMonday = today.getDate() - day + (day === 0 ? -6 : 1)
-                start = new Date(today.setDate(diffToMonday))
-                end = new Date(start)
-                end.setDate(start.getDate() + 6)
-                break
-            case 'month':
-                start = new Date(today.getFullYear(), today.getMonth(), 1)
-                end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-                break
-            case 'year':
-                start = new Date(today.getFullYear(), 0, 1)
-                end = new Date(today.getFullYear(), 12, 0)
-                break
-            case 'custom':
-                start = customStart ? new Date(customStart) : today
-                end = customEnd ? new Date(customEnd) : today
-                break
-        }
-
         return {
-            startStr: start.toISOString().split('T')[0],
-            endStr: end.toISOString().split('T')[0]
+            startStr: customStart || new Date().toISOString().split('T')[0],
+            endStr: customEnd || new Date().toISOString().split('T')[0]
         }
-    }, [period, customStart, customEnd])
+    }, [customStart, customEnd])
 
     const fetchReportData = async () => {
         setIsLoading(true)
@@ -319,43 +293,18 @@ export default function TreatmentsReportPage() {
                 {/* Row 1: Periods & Branch */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     
-                    {/* Period Tabs Selector */}
-                    <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl">
-                        {[
-                            { key: 'today', label: 'Hari Ini' },
-                            { key: 'week', label: 'Minggu Ini' },
-                            { key: 'month', label: 'Bulan Ini' },
-                            { key: 'year', label: 'Tahun Ini' },
-                            { key: 'custom', label: 'Custom Range' }
-                        ].map(item => (
-                            <button
-                                key={item.key}
-                                onClick={() => setPeriod(item.key)}
-                                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${period === item.key ? 'bg-white text-ayumi-primary shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                    </div>
-
                     {/* Date Pickers for Custom Range */}
-                    {period === 'custom' && (
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="date"
-                                value={customStart}
-                                onChange={(e) => setCustomStart(e.target.value)}
-                                className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg max-w-[150px]"
-                            />
-                            <span className="text-gray-400 font-bold">-</span>
-                            <input
-                                type="date"
-                                value={customEnd}
-                                onChange={(e) => setCustomEnd(e.target.value)}
-                                className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg max-w-[150px]"
-                            />
-                        </div>
-                    )}
+                    <div className="w-[290px] relative z-20">
+                        <DateRangePicker 
+                            startDate={customStart}
+                            endDate={customEnd}
+                            onChange={(range) => {
+                                setCustomStart(range.startDate);
+                                setCustomEnd(range.endDate);
+                            }}
+                            inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
+                        />
+                    </div>
 
                     {/* Branch Select */}
                     <select

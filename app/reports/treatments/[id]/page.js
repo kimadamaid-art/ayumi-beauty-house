@@ -6,6 +6,7 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import DateRangePicker from "../../../../components/DateRangePicker"
 
 export default function TreatmentDetailPage() {
     const params = useParams()
@@ -571,19 +572,15 @@ export default function TreatmentDetailPage() {
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     
                     {/* Custom range dates */}
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg max-w-[150px]"
-                        />
-                        <span className="text-gray-400 font-bold">-</span>
-                        <input 
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg max-w-[150px]"
+                    <div className="w-full sm:w-[290px] relative z-20">
+                        <DateRangePicker 
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={(range) => {
+                                setStartDate(range.startDate);
+                                setEndDate(range.endDate);
+                            }}
+                            inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
                         />
                     </div>
 

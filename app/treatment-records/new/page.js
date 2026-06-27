@@ -122,6 +122,11 @@ function AddRecordForm() {
                     // Prefill treatments from transaction
                     const trxTreatments = trx.transaction_items?.filter(item => item.item_type === 'treatment') || []
                     if (trxTreatments.length > 0) {
+                        // Look up commission from master treatments
+                        const { data: masterTreatments } = await supabase.from('treatments').select('id, commission_percent').in('id', trxTreatments.map(i => i.treatment_id))
+                        const commissionMap = {}
+                        if (masterTreatments) masterTreatments.forEach(mt => { commissionMap[mt.id] = mt.commission_percent || 0 })
+
                         setSelectedTreatments(trxTreatments.map(item => {
                             const originalPrice = item.subtotal / item.quantity
                             return {
@@ -131,7 +136,8 @@ function AddRecordForm() {
                                 original_price: originalPrice,
                                 discount_percent: 0,
                                 notes: '',
-                                followup_days: 0 // fetch from master if needed, default 0 for now
+                                followup_days: 0,
+                                commission_percent: commissionMap[item.treatment_id] || 0
                             }
                         }))
                     }
@@ -156,7 +162,7 @@ function AddRecordForm() {
                     // Prefill treatments from appointment if any exist
                     const { data: aptTreatments } = await supabase
                         .from('appointment_treatments')
-                        .select('treatment_id, treatments(name, price, discount_percent)')
+                        .select('treatment_id, treatments(name, price, discount_percent, commission_percent)')
                         .eq('appointment_id', urlAppointmentId)
                         .order('sort_order')
 
@@ -172,7 +178,8 @@ function AddRecordForm() {
                                 original_price: t?.price || 0,
                                 discount_percent: discountVal,
                                 notes: '',
-                                followup_days: t?.followup_days || 0
+                                followup_days: t?.followup_days || 0,
+                                commission_percent: t?.commission_percent || 0
                             }
                         }))
                     }
@@ -266,7 +273,8 @@ function AddRecordForm() {
                 notes: couponItem ? `(Pakai Kupon: ${couponItem.patient_coupons?.coupon_packages?.name})` : '',
                 followup_days: t.followup_days || 0,
                 used_coupon_item_id: couponItem ? couponItem.id : null,
-                used_patient_coupon_id: couponItem ? couponItem.patient_coupon_id : null
+                used_patient_coupon_id: couponItem ? couponItem.patient_coupon_id : null,
+                commission_percent: t.commission_percent || 0
             }
         ])
     }
@@ -397,7 +405,8 @@ function AddRecordForm() {
                     original_price: t.original_price,
                     discount_percent: t.discount_percent,
                     notes: t.notes,
-                    sort_order: index + 1
+                    sort_order: index + 1,
+                    commission_percent: t.commission_percent || 0
                 })
 
                 if (t.used_coupon_item_id) {

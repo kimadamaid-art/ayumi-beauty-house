@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
+import DateRangePicker from "../../../components/DateRangePicker"
 
 export default function TransactionsHistoryPage() {
     const supabase = createBrowserClient(
@@ -115,22 +116,16 @@ export default function TransactionsHistoryPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Dari Tanggal</label>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="input-ayumi bg-gray-50 text-sm w-full"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Sampai Tanggal</label>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="input-ayumi bg-gray-50 text-sm w-full"
+                    <div className="col-span-1 sm:col-span-2 flex flex-col relative z-20">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Rentang Tanggal</label>
+                        <DateRangePicker 
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={(range) => {
+                                setStartDate(range.startDate);
+                                setEndDate(range.endDate);
+                            }}
+                            inputClassName="w-full input-ayumi bg-gray-50 text-sm"
                         />
                     </div>
                     {(!dbUser || dbUser.role === 'owner') && (

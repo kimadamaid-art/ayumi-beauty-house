@@ -329,7 +329,8 @@ function PosPageContent() {
                 discount_percent: item.discount_percent || 0,
                 quantity: 1, // Usually 1 per item in treatment_records
                 subtotal: item.price_at_time,
-                treatment_record_id: bill.id // Temporary flag to attach to transaction later
+                treatment_record_id: bill.id, // Temporary flag to attach to transaction later
+                commission_percent: item.commission_percent || item.treatments?.commission_percent || 0
             }
         })
 
@@ -374,7 +375,8 @@ function PosPageContent() {
                     original_price: item.price,
                     discount_percent: type === 'treatment' ? (item.discount_percent || 0) : 0,
                     quantity: 1,
-                    maxQuantity: type === 'product' ? item.quantity : null
+                    maxQuantity: type === 'product' ? item.quantity : null,
+                    commission_percent: type === 'treatment' ? (item.commission_percent || 0) : 0
                 }]
             }
         })
@@ -616,7 +618,8 @@ function PosPageContent() {
                                 .update({
                                     price_at_time: cartItem.price,
                                     discount_percent: cartItem.discount_percent,
-                                    original_price: cartItem.original_price
+                                    original_price: cartItem.original_price,
+                                    commission_percent: cartItem.commission_percent || 0
                                 })
                                 .eq('treatment_record_id', treatmentRecordId)
                                 .eq('treatment_id', cartItem.id)
@@ -632,7 +635,8 @@ function PosPageContent() {
                                     original_price: cartItem.original_price,
                                     discount_percent: cartItem.discount_percent,
                                     sort_order: maxSortOrder,
-                                    notes: 'Ditambahkan oleh Kasir/Admin'
+                                    notes: 'Ditambahkan oleh Kasir/Admin',
+                                    commission_percent: cartItem.commission_percent || 0
                                 }])
                         }
                     }

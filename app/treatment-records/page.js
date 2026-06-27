@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
+import DateRangePicker from "../../components/DateRangePicker"
 
 export default function TreatmentRecordsPage() {
     const supabase = createBrowserClient(
@@ -21,8 +22,14 @@ export default function TreatmentRecordsPage() {
     const [userRole, setUserRole] = useState(null)
     const [branches, setBranches] = useState([])
     const [selectedBranchFilter, setSelectedBranchFilter] = useState('all')
-    const [startDate, setStartDate] = useState('')
-    const [endDate, setEndDate] = useState('')
+    const [startDate, setStartDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    })
+    const [endDate, setEndDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+    })
     const [userLoaded, setUserLoaded] = useState(false)
     
     // Therapist filter & pagination states
@@ -187,21 +194,15 @@ export default function TreatmentRecordsPage() {
                             <option key={t.id} value={t.id}>{t.full_name}</option>
                         ))}
                     </select>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="input-ayumi bg-white text-sm w-full sm:w-auto"
-                            placeholder="Mulai Tanggal"
-                        />
-                        <span className="text-gray-500">-</span>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="input-ayumi bg-white text-sm w-full sm:w-auto"
-                            placeholder="Sampai Tanggal"
+                    <div className="w-full sm:w-[290px] relative z-20">
+                        <DateRangePicker 
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={(range) => {
+                                setStartDate(range.startDate);
+                                setEndDate(range.endDate);
+                            }}
+                            inputClassName="w-full input-ayumi bg-white text-sm"
                         />
                     </div>
                     {(startDate || endDate || selectedTherapistFilter || (isOwner && selectedBranchFilter !== 'all')) && (
