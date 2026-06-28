@@ -33,7 +33,16 @@ export default function LoginPage() {
         } else {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+                const { data: userData } = await supabase.from('users').select('role, is_active').eq('id', user.id).maybeSingle()
+                
+                // Cek apakah akun dinonaktifkan
+                if (userData && userData.is_active === false) {
+                    await supabase.auth.signOut()
+                    setError('Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.')
+                    setLoading(false)
+                    return
+                }
+
                 if (userData?.role === 'therapist') {
                     router.push('/therapist/dashboard')
                 } else {

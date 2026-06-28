@@ -67,6 +67,21 @@ export default function AddPatientPage() {
             return
         }
 
+        // 1.5 Validasi Nama Duplikat (Warning)
+        const { data: existingNames } = await supabase
+            .from('patients')
+            .select('id, whatsapp')
+            .ilike('full_name', formData.full_name.trim())
+            .limit(1)
+
+        if (existingNames && existingNames.length > 0) {
+            const proceed = window.confirm(`PERINGATAN: Pasien dengan nama "${formData.full_name}" sudah terdaftar (WA: ${existingNames[0].whatsapp || '-'}).\n\nYakin ingin mendaftarkan sebagai pasien baru? (Klik OK jika memang orang yang berbeda)`)
+            if (!proceed) {
+                setIsSaving(false)
+                return
+            }
+        }
+
         // 2. Insert Data
         const { data: { user } } = await supabase.auth.getUser()
 

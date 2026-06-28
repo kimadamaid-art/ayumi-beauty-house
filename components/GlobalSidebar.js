@@ -27,7 +27,7 @@ export default function GlobalSidebar() {
             if (data) {
                 setDbUser(data)
             } else {
-                setDbUser({ role: 'owner' }) // fallback
+                setDbUser({ role: 'unauthorized' }) // fallback aman
             }
         }
     }

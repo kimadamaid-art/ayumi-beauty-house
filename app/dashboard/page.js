@@ -93,8 +93,8 @@ export default function Dashboard() {
             }
         } else {
             // Fallback if user is not in public.users table yet
-            console.warn('User not found in public.users, using fallback owner role')
-            setDbUser({ role: 'owner', full_name: user.email, id: user.id })
+            console.warn('User not found in public.users, unauthorized access')
+            setDbUser({ role: 'unauthorized', full_name: user.email, id: user.id })
             
             const { data: branchData } = await supabase.from('branches').select('id, name')
             if (branchData) setBranches(branchData)

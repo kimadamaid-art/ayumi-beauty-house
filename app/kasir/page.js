@@ -191,11 +191,41 @@ function PosPageContent() {
         setQuickAddError('')
 
         try {
+            // 1. Validasi WhatsApp
+            const { data: existingWa } = await supabase
+                .from('patients')
+                .select('id')
+                .eq('whatsapp', quickAddForm.whatsapp)
+                .maybeSingle()
+                
+            if (existingWa) {
+                setQuickAddError('Nomor WhatsApp ini sudah terdaftar.')
+                setIsQuickAdding(false)
+                return
+            }
+
+            // 2. Warning Nama Duplikat
+            const { data: existingNames } = await supabase
+                .from('patients')
+                .select('id, whatsapp')
+                .ilike('full_name', quickAddForm.full_name.trim())
+                .limit(1)
+
+            if (existingNames && existingNames.length > 0) {
+                const proceed = window.confirm(`PERINGATAN: Pasien dengan nama "${quickAddForm.full_name}" sudah terdaftar (WA: ${existingNames[0].whatsapp || '-'}).\n\nYakin ingin tetap menambahkan sebagai pasien baru?`)
+                if (!proceed) {
+                    setIsQuickAdding(false)
+                    return
+                }
+            }
+
+            // 3. Insert dengan branch_id
             const { data, error } = await supabase
                 .from('patients')
                 .insert([{
                     full_name: quickAddForm.full_name,
                     whatsapp: quickAddForm.whatsapp,
+                    branch_id: selectedBranch || null,
                     is_active: true
                 }])
                 .select()
@@ -209,7 +239,11 @@ function PosPageContent() {
             setIsQuickAddInlineOpen(false)
         } catch (err) {
             console.error(err)
-            setQuickAddError('Gagal menambahkan pasien: ' + err.message)
+            let msg = err.message
+            if (msg.includes('unique constraint') || msg.includes('23505')) {
+                msg = 'Nomor WhatsApp ini sudah terdaftar sebagai pasien'
+            }
+            setQuickAddError('Gagal menambahkan pasien: ' + msg)
         } finally {
             setIsQuickAdding(false)
         }

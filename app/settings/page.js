@@ -18,7 +18,10 @@ export default function SettingsDashboard() {
             if (user) {
                 const { data } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
                 if (data) setDbUser(data)
-                else setDbUser({ role: 'owner' }) // fallback
+                else {
+                    console.error("User not found in public.users")
+                    setDbUser({ role: 'unauthorized' }) // fallback aman
+                }
             }
         }
         fetchUser()
