@@ -12,6 +12,12 @@ export default function PatientsPage() {
     const [searchInput, setSearchInput] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const [crmFilter, setCrmFilter] = useState('All')
+    const [branchFilter, setBranchFilter] = useState('All')
+    const [couponFilter, setCouponFilter] = useState('All')
+    const [vipFilter, setVipFilter] = useState('All')
+    const [sortBy, setSortBy] = useState('Newest')
+    const [branches, setBranches] = useState([])
+    const [isOwner, setIsOwner] = useState(false)
     const [page, setPage] = useState(1)
     const [hasMore, setHasMore] = useState(true)
 
@@ -40,6 +46,10 @@ export default function PatientsPage() {
     }, [searchInput])
 
     useEffect(() => {
+        setPage(1)
+    }, [branchFilter])
+
+    useEffect(() => {
         const fetchPatients = async () => {
             setIsLoading(true)
 
@@ -57,6 +67,12 @@ export default function PatientsPage() {
                     isOwner = true // fallback for unrecorded auth users
                 }
             }
+            setIsOwner(isOwner)
+
+            if (isOwner && branches.length === 0) {
+                const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
+                if (brData) setBranches(brData)
+            }
 
             // Fetch patients
             let query = supabase
@@ -66,6 +82,12 @@ export default function PatientsPage() {
             
             if (!isOwner && userBranchId) {
                 query = query.eq('branch_id', userBranchId)
+            } else if (isOwner && branchFilter !== 'All') {
+                if (branchFilter === 'pusat') {
+                    query = query.is('branch_id', null)
+                } else {
+                    query = query.eq('branch_id', branchFilter)
+                }
             }
 
             if (searchQuery.trim() !== '') {
@@ -120,10 +142,13 @@ export default function PatientsPage() {
                     }
 
                     const activeCouponsCount = couponsMap[patient.id] || 0
+                    const totalVisits = patient.treatment_records ? patient.treatment_records.length : 0
 
                     return {
                         ...patient,
                         lastVisit: lastVisit ? lastVisit.toLocaleDateString('id-ID') : '-',
+                        lastVisitDate: lastVisit,
+                        totalVisits,
                         crmStatus,
                         activeCouponsCount
                     }
@@ -140,7 +165,7 @@ export default function PatientsPage() {
             setIsLoading(false)
         }
         fetchPatients()
-    }, [supabase, page, searchQuery])
+    }, [supabase, page, searchQuery, branchFilter])
 
     // --- EXCEL IMPORT LOGIC ---
     const handleDownloadTemplate = () => {
@@ -277,11 +302,33 @@ export default function PatientsPage() {
     // --------------------------
 
     const filteredPatients = useMemo(() => {
-        return patients.filter(p => {
+        let result = patients.filter(p => {
             const matchCRM = crmFilter === 'All' || p.crmStatus === crmFilter
-            return matchCRM
+            
+            const matchCoupon = couponFilter === 'All' || 
+                (couponFilter === 'HasActive' && p.activeCouponsCount > 0)
+                
+            const matchVip = vipFilter === 'All' ||
+                (vipFilter === 'VIP' && p.totalVisits > 5) ||
+                (vipFilter === 'Regular' && p.totalVisits <= 5)
+
+            return matchCRM && matchCoupon && matchVip
         })
-    }, [patients, crmFilter])
+
+        if (sortBy === 'LatestVisit') {
+            result.sort((a, b) => (b.lastVisitDate?.getTime() || 0) - (a.lastVisitDate?.getTime() || 0))
+        } else if (sortBy === 'OldestVisit') {
+            result.sort((a, b) => {
+                const timeA = a.lastVisitDate?.getTime() || 0
+                const timeB = b.lastVisitDate?.getTime() || 0
+                if (timeA === 0) return 1
+                if (timeB === 0) return -1
+                return timeA - timeB
+            })
+        }
+
+        return result
+    }, [patients, crmFilter, couponFilter, vipFilter, sortBy])
 
     const getCRMStatusBadge = (status) => {
         switch(status) {
@@ -329,29 +376,82 @@ export default function PatientsPage() {
             </div>
 
             <div className="card-ayumi overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-white flex flex-col md:flex-row gap-4 justify-between items-center">
-                    <div className="relative w-full md:w-96">
-                        <svg className="w-5 h-5 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <input 
-                            type="text" 
-                            placeholder="Cari berdasarkan nama atau no whatsapp..."
-                            value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
-                            className="input-ayumi pl-12 bg-gray-50 focus:bg-white"
-                        />
+                <div className="p-6 border-b border-gray-100 bg-white flex flex-col gap-4">
+                    {/* Baris 1: Search & Cabang */}
+                    <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                        <div className="relative w-full md:w-96">
+                            <svg className="w-5 h-5 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <input 
+                                type="text" 
+                                placeholder="Cari berdasarkan nama atau no whatsapp..."
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                className="input-ayumi pl-12 bg-gray-50 focus:bg-white"
+                            />
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                            {isOwner && (
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <span className="text-sm font-semibold text-ayumi-text-muted whitespace-nowrap">Cabang:</span>
+                                    <select 
+                                        value={branchFilter}
+                                        onChange={(e) => setBranchFilter(e.target.value)}
+                                        className="input-ayumi flex-1 bg-gray-50 focus:bg-white text-sm"
+                                    >
+                                        <option value="All">Semua Cabang</option>
+                                        <option value="pusat">Pusat (Tanpa Cabang)</option>
+                                        {branches.map(b => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <span className="text-sm font-semibold text-ayumi-text-muted">Filter CRM:</span>
+
+                    {/* Baris 2: Advanced Filters (Admin & Owner) */}
+                    <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-50">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider w-full md:w-auto mb-1 md:mb-0">Filter Data:</span>
+                        
                         <select 
                             value={crmFilter}
                             onChange={(e) => setCrmFilter(e.target.value)}
-                            className="input-ayumi flex-1 md:w-40 bg-gray-50 focus:bg-white"
+                            className="input-ayumi py-2 text-sm bg-gray-50 focus:bg-white flex-1 min-w-[140px]"
                         >
-                            <option value="All">Semua Status</option>
+                            <option value="All">Semua CRM Status</option>
                             <option value="Active">Active</option>
                             <option value="Warm">Warm</option>
                             <option value="Dormant">Dormant</option>
                             <option value="New">New</option>
+                        </select>
+
+                        <select 
+                            value={couponFilter}
+                            onChange={(e) => setCouponFilter(e.target.value)}
+                            className="input-ayumi py-2 text-sm bg-gray-50 focus:bg-white flex-1 min-w-[140px]"
+                        >
+                            <option value="All">Semua Kupon</option>
+                            <option value="HasActive">Punya Kupon Aktif</option>
+                        </select>
+
+                        <select 
+                            value={vipFilter}
+                            onChange={(e) => setVipFilter(e.target.value)}
+                            className="input-ayumi py-2 text-sm bg-gray-50 focus:bg-white flex-1 min-w-[150px]"
+                        >
+                            <option value="All">Semua Kategori (VIP)</option>
+                            <option value="VIP">VIP {'>'} 5 Kunjungan</option>
+                            <option value="Regular">Regular {'<='} 5 Kunjungan</option>
+                        </select>
+
+                        <select 
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="input-ayumi py-2 text-sm bg-gray-50 focus:bg-white flex-1 min-w-[170px]"
+                        >
+                            <option value="Newest">Pasien Baru</option>
+                            <option value="LatestVisit">Kunjungan Terbaru</option>
+                            <option value="OldestVisit">Kunjungan Terlama</option>
                         </select>
                     </div>
                 </div>
