@@ -443,7 +443,7 @@ export default function CouponsDashboardPage() {
                             <div className="p-8 text-center text-gray-500">Tidak ada kupon yang ditemukan.</div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                                <table className="whitespace-nowrap w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                             <th className="p-4 font-semibold">Pasien</th>
@@ -729,7 +729,7 @@ export default function CouponsDashboardPage() {
                             <div className="p-8 text-center text-gray-500">Tidak ada riwayat penggunaan kupon pada periode ini.</div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                                <table className="whitespace-nowrap w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                             <th className="p-4 font-semibold">Tanggal & Waktu</th>

@@ -122,7 +122,7 @@ export default function TreatmentCategoriesPage() {
                     <div className="p-8 text-center text-gray-500">Belum ada data kategori.</div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="whitespace-nowrap w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                     <th className="p-4 font-semibold w-16 text-center">No</th>

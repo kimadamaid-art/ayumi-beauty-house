@@ -326,7 +326,7 @@ export default function TherapistsReportPage() {
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
+                            <table className="whitespace-nowrap w-full text-left text-sm">
                                 <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold uppercase text-xs">
                                 <tr>
                                         <th className="px-6 py-4 text-center">Rank</th>
@@ -456,7 +456,7 @@ export default function TherapistsReportPage() {
                                 <h4 className="text-sm font-bold text-gray-800">Tabel Komparasi Head-to-Head</h4>
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs">
+                                <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead className="bg-gray-100 text-gray-600 font-bold">
                                     <tr>
                                             <th className="p-3">Nama Terapis</th>

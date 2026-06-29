@@ -304,63 +304,65 @@ export default function TherapistDashboard() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-7 gap-1.5">
-                        {dayNames.map(day => (
-                            <div key={day} className="text-center font-bold text-gray-400 text-xs py-1 uppercase tracking-wider">
-                                {day}
-                            </div>
-                        ))}
-
-                        {/* Sel Kosong sebelum Tanggal 1 */}
-                        {Array.from({ length: firstDay }).map((_, i) => (
-                            <div key={`empty-${i}`} className="p-2 h-20 rounded-xl bg-gray-50/30"></div>
-                        ))}
-
-                        {/* Hari-hari dalam bulan */}
-                        {Array.from({ length: daysInMonth }).map((_, i) => {
-                            const d = i + 1
-                            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                            const isSelected = selectedDate === dateStr
-                            const isToday = getLocalDateString(new Date()) === dateStr
-                            const dayAppointments = appointmentsByDate[dateStr] || []
-
-                            // Indicators
-                            const hasMyClaim = dayAppointments.some(a => a.therapist_id === dbUser.id)
-                            const hasUnassigned = dayAppointments.some(a => !a.therapist_id)
-
-                            return (
-                                <div
-                                    key={d}
-                                    onClick={() => setSelectedDate(dateStr)}
-                                    className={`p-2 h-20 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden ${
-                                        isSelected
-                                            ? 'border-ayumi-primary bg-pink-50 shadow-sm'
-                                            : isToday ? 'border-pink-200 bg-white' : 'border-gray-50 hover:border-pink-100 bg-white'
-                                    }`}
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-ayumi-primary text-white' : 'text-gray-700'}`}>
-                                            {d}
-                                        </span>
-                                        {dayAppointments.length > 0 && (
-                                            <span className="text-[9px] font-bold bg-pink-100 text-ayumi-primary px-1.5 py-0.5 rounded-md">
-                                                {dayAppointments.length}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Indikator Status di bagian bawah sel */}
-                                    <div className="flex gap-1 items-center justify-end mt-1">
-                                        {hasMyClaim && (
-                                            <span className="w-2 h-2 rounded-full bg-pink-500" title="Ada pasien Anda"></span>
-                                        )}
-                                        {hasUnassigned && (
-                                            <span className="w-2 h-2 rounded-full bg-blue-400" title="Ada pasien belum dihandle"></span>
-                                        )}
-                                    </div>
+                    <div className="overflow-x-auto pb-4 custom-scrollbar">
+                        <div className="grid grid-cols-7 gap-1.5 min-w-[500px] md:min-w-0">
+                            {dayNames.map(day => (
+                                <div key={day} className="text-center font-bold text-gray-400 text-xs py-1 uppercase tracking-wider">
+                                    {day}
                                 </div>
-                            )
-                        })}
+                            ))}
+
+                            {/* Sel Kosong sebelum Tanggal 1 */}
+                            {Array.from({ length: firstDay }).map((_, i) => (
+                                <div key={`empty-${i}`} className="p-2 h-20 rounded-xl bg-gray-50/30"></div>
+                            ))}
+
+                            {/* Hari-hari dalam bulan */}
+                            {Array.from({ length: daysInMonth }).map((_, i) => {
+                                const d = i + 1
+                                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+                                const isSelected = selectedDate === dateStr
+                                const isToday = getLocalDateString(new Date()) === dateStr
+                                const dayAppointments = appointmentsByDate[dateStr] || []
+
+                                // Indicators
+                                const hasMyClaim = dayAppointments.some(a => a.therapist_id === dbUser.id)
+                                const hasUnassigned = dayAppointments.some(a => !a.therapist_id)
+
+                                return (
+                                    <div
+                                        key={d}
+                                        onClick={() => setSelectedDate(dateStr)}
+                                        className={`p-2 h-20 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden ${
+                                            isSelected
+                                                ? 'border-ayumi-primary bg-pink-50 shadow-sm'
+                                                : isToday ? 'border-pink-200 bg-white' : 'border-gray-50 hover:border-pink-100 bg-white'
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-ayumi-primary text-white' : 'text-gray-700'}`}>
+                                                {d}
+                                            </span>
+                                            {dayAppointments.length > 0 && (
+                                                <span className="text-[9px] font-bold bg-pink-100 text-ayumi-primary px-1.5 py-0.5 rounded-md">
+                                                    {dayAppointments.length}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Indikator Status di bagian bawah sel */}
+                                        <div className="flex gap-1 items-center justify-end mt-1">
+                                            {hasMyClaim && (
+                                                <span className="w-2 h-2 rounded-full bg-pink-500" title="Ada pasien Anda"></span>
+                                            )}
+                                            {hasUnassigned && (
+                                                <span className="w-2 h-2 rounded-full bg-blue-400" title="Ada pasien belum dihandle"></span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
                     </div>
                 </div>
 

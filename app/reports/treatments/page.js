@@ -480,7 +480,7 @@ export default function TreatmentsReportPage() {
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
+                            <table className="whitespace-nowrap w-full text-left text-sm">
                                 <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold uppercase text-xs">
                                     <tr className="cursor-pointer select-none">
                                         <th onClick={() => handleSort('name')} className="px-6 py-4">Treatment {renderSortArrow('name')}</th>

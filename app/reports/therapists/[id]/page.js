@@ -450,7 +450,7 @@ export default function TherapistDetailPage() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
+                        <table className="whitespace-nowrap w-full text-left text-sm">
                             <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold uppercase text-xs">
                                 <tr>
                                     <th className="px-6 py-4">Tanggal & Waktu</th>

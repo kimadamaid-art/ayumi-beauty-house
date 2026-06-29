@@ -1028,7 +1028,7 @@ export default function TransactionsPage() {
                             <div className="p-10 text-center text-gray-400">Tidak ada transaksi ditemukan. Silakan ubah filter.</div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse text-sm">
+                                <table className="whitespace-nowrap w-full text-left border-collapse text-sm">
                                     <thead>
                                         <tr className="bg-ayumi-table-header text-ayumi-secondary font-bold border-b border-gray-100">
                                             <th className="p-4">No. Transaksi</th>
@@ -1145,7 +1145,7 @@ export default function TransactionsPage() {
                             {/* Payment method breakdown */}
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Metode Pembayaran</h4>
-                                <table className="w-full text-left text-xs">
+                                <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead>
                                         <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
                                             <th className="p-3">Metode Bayar</th>
@@ -1168,7 +1168,7 @@ export default function TransactionsPage() {
                             {/* Item Type breakdown */}
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Tipe Produk / Layanan</h4>
-                                <table className="w-full text-left text-xs">
+                                <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead>
                                         <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
                                             <th className="p-3">Tipe Item</th>
@@ -1218,7 +1218,7 @@ export default function TransactionsPage() {
                                 <div className="text-center p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi pada tanggal ini.</div>
                             ) : (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse text-xs">
+                                    <table className="whitespace-nowrap w-full text-left border-collapse text-xs">
                                         <thead>
                                             <tr className="bg-gray-50 text-gray-600 font-bold border-b border-gray-100">
                                                 <th className="p-3">No. Transaksi</th>
@@ -1335,7 +1335,7 @@ export default function TransactionsPage() {
                         {(!dbUser || dbUser.role === 'owner') && (
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Pendapatan per Cabang</h4>
-                                <table className="w-full text-left text-xs">
+                                <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead>
                                         <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
                                             <th className="p-3">Cabang</th>
@@ -1534,7 +1534,7 @@ export default function TransactionsPage() {
                         {/* Branch breakdown table */}
                         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                             <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown per Cabang Bulan Ini</h4>
-                            <table className="w-full text-left text-xs">
+                            <table className="whitespace-nowrap w-full text-left text-xs">
                                 <thead>
                                     <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
                                         <th className="p-3">Cabang</th>
@@ -1647,7 +1647,7 @@ export default function TransactionsPage() {
                         {/* Pivot comparison table */}
                         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
                             <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Tabel Perbandingan Cabang per Bulan</h4>
-                            <table className="w-full text-left text-[11px] border-collapse min-w-[700px]">
+                            <table className="whitespace-nowrap w-full text-left text-[11px] border-collapse min-w-[700px]">
                                 <thead>
                                     <tr className="bg-gray-100 text-gray-600 font-bold border-b border-gray-200">
                                         <th className="p-2">Cabang</th>
@@ -1784,7 +1784,7 @@ export default function TransactionsPage() {
                                         <div className="text-center p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi yang cocok.</div>
                                     ) : (
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse text-xs">
+                                            <table className="whitespace-nowrap w-full text-left border-collapse text-xs">
                                                 <thead>
                                                     <tr className="bg-gray-50 text-gray-600 font-bold border-b border-gray-100">
                                                         <th className="p-3">No. Transaksi</th>

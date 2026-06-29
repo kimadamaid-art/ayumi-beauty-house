@@ -471,7 +471,7 @@ export default function PatientsPage() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="whitespace-nowrap w-full text-left border-collapse">
                             <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm tracking-wide uppercase font-bold">
                                 <tr>
                                     <th className="p-5 font-bold whitespace-nowrap">Nama Pasien</th>
@@ -576,7 +576,7 @@ export default function PatientsPage() {
                             </div>
                             
                             <div className="border rounded-xl overflow-hidden">
-                                <table className="w-full text-left text-sm">
+                                <table className="whitespace-nowrap w-full text-left text-sm">
                                     <thead className="bg-gray-100 text-gray-700">
                                         <tr>
                                             <th className="p-3">Status</th>

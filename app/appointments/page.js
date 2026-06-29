@@ -457,7 +457,7 @@ export default function AppointmentsPage() {
                         {/* 1. LIST VIEW */}
                         {viewMode === 'list' ? (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                                <table className="whitespace-nowrap w-full text-left border-collapse">
                                     <thead className="bg-ayumi-table-header text-ayumi-secondary text-xs font-extrabold uppercase tracking-wider">
                                         <tr>
                                             <th className="p-4 rounded-tl-xl">Waktu</th>
@@ -541,7 +541,8 @@ export default function AppointmentsPage() {
                                         </div>
                                     </div>
                                     
-                                    <div className="grid grid-cols-7 gap-1.5">
+                                    <div className="overflow-x-auto pb-4 custom-scrollbar">
+                                        <div className="grid grid-cols-7 gap-1.5 min-w-[500px] md:min-w-0">
                                         {dayNames.map(day => (
                                             <div key={day} className="text-center font-extrabold text-gray-400 text-[10px] py-2 uppercase tracking-wider">
                                                 {day}
@@ -610,6 +611,7 @@ export default function AppointmentsPage() {
                                         {Array.from({ length: remainingCells }).map((_, i) => (
                                             <div key={`empty-end-${i}`} className="p-2 h-24 rounded-xl bg-gray-50/40 border border-gray-50/50"></div>
                                         ))}
+                                    </div>
                                     </div>
                                 </div>
  

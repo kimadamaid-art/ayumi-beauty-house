@@ -140,7 +140,7 @@ export default function BranchesPage() {
             ) : (
                 <div className="card-ayumi overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-gray-600">
+                        <table className="whitespace-nowrap w-full text-left text-sm text-gray-600">
                             <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm border-b border-gray-100">
                                 <tr>
                                     <th className="px-6 py-4">Nama Cabang</th>

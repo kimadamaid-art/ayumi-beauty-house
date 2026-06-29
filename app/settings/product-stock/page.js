@@ -171,7 +171,7 @@ export default function ProductStockPage() {
                     <div className="p-8 text-center text-gray-500">Tidak ada cabang ditemukan.</div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="whitespace-nowrap w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-teal-50/50 border-b border-teal-100 text-teal-800 text-sm">
                                     <th className="p-4 font-bold border-r border-teal-100 min-w-[200px]">Nama Produk</th>

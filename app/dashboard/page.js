@@ -471,7 +471,7 @@ export default function Dashboard() {
                             </Link>
                         </div>
                         <div className="p-0 overflow-x-auto flex-1">
-                            <table className="w-full text-left text-sm">
+                            <table className="whitespace-nowrap w-full text-left text-sm">
                                 <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold">
                                         <tr>
                                             <th className="px-6 py-3">Waktu</th>
@@ -514,7 +514,7 @@ export default function Dashboard() {
                                 </Link>
                             </div>
                             <div className="p-0 overflow-x-auto flex-1">
-                                <table className="w-full text-left text-sm">
+                                <table className="whitespace-nowrap w-full text-left text-sm">
                                     <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold">
                                         <tr>
                                             <th className="px-6 py-3">Pasien</th>

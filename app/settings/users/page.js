@@ -195,7 +195,7 @@ export default function UsersPage() {
             ) : (
                 <div className="card-ayumi overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-gray-600">
+                        <table className="whitespace-nowrap w-full text-left text-sm text-gray-600">
                             <thead className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                 <tr>
                                     <th className="px-6 py-4">User</th>

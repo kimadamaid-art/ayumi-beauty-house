@@ -128,7 +128,7 @@ export default function TherapistAppointments() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="whitespace-nowrap w-full text-left border-collapse">
                             <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm font-bold">
                                 <tr>
                                     <th className="p-4 rounded-tl-xl">Tanggal & Waktu</th>

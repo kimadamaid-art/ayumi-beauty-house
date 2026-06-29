@@ -242,7 +242,7 @@ export default function TreatmentRecordsPage() {
             ) : (
                 <div className="card-ayumi overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left text-gray-600">
+                        <table className="whitespace-nowrap w-full text-sm text-left text-gray-600">
                             <thead className="text-xs text-ayumi-secondary uppercase bg-ayumi-table-header font-bold">
                                 <tr>
                                     <th className="px-6 py-4">Waktu & Cabang</th>

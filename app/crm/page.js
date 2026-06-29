@@ -307,7 +307,7 @@ export default function CRMPage() {
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
+                                        <table className="whitespace-nowrap w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-ayumi-table-header text-ayumi-secondary text-sm">
                                                     <th className="p-4 font-bold rounded-tl-xl">Pasien</th>
@@ -399,7 +399,7 @@ export default function CRMPage() {
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
+                                        <table className="whitespace-nowrap w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-ayumi-table-header text-ayumi-secondary text-sm">
                                                     <th className="p-4 font-bold rounded-tl-xl">Pasien</th>

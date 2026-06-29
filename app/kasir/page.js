@@ -700,7 +700,7 @@ function PosPageContent() {
     }
 
     return (
-        <div className="flex flex-col lg:flex-row gap-5 h-[calc(100vh-100px)]">
+        <div className="flex flex-col lg:flex-row gap-5 lg:h-[calc(100vh-100px)] min-h-max">
             
             {/* ═══════════════════════════════════════════════════ */}
             {/* LEFT PANE */}
