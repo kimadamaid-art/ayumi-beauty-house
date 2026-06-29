@@ -339,7 +339,7 @@ export default function AppointmentDetailPage({ params }) {
             </div>
 
             {/* Header Card */}
-            <div className="card-ayumi p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="card-ayumi p-5 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="flex items-center gap-6">
                     <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center text-ayumi-primary">
                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -419,7 +419,7 @@ export default function AppointmentDetailPage({ params }) {
             </div>
 
             {/* Timeline Card */}
-            <div className="card-ayumi p-6 md:p-8">
+            <div className="card-ayumi p-4 md:p-6 md:p-8">
                 <h4 className="text-lg font-bold text-ayumi-secondary mb-6 flex items-center gap-2">
                     <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -499,7 +499,7 @@ export default function AppointmentDetailPage({ params }) {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Info Pasien */}
-                <div className="lg:col-span-1 card-ayumi p-6 space-y-6">
+                <div className="lg:col-span-1 card-ayumi p-4 md:p-6 space-y-6">
                     <h3 className="text-lg font-bold text-ayumi-secondary border-b border-gray-100 pb-3">Profil Pasien</h3>
                     <div className="text-center">
                         <div className="w-20 h-20 bg-pink-100 rounded-full flex items-center justify-center text-ayumi-primary text-2xl font-bold mx-auto mb-3">
@@ -535,7 +535,7 @@ export default function AppointmentDetailPage({ params }) {
                 <div className="lg:col-span-2 space-y-6">
                     {/* Tampilkan rekam medis jika sudah ada */}
                     {appointment.treatment_records && appointment.treatment_records.length > 0 && (
-                        <div className="card-ayumi p-6">
+                        <div className="card-ayumi p-4 md:p-6">
                             <h3 className="text-lg font-bold text-ayumi-secondary border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 Treatment yang Dilakukan
@@ -554,7 +554,7 @@ export default function AppointmentDetailPage({ params }) {
                         </div>
                     )}
 
-                    <div className="card-ayumi p-6">
+                    <div className="card-ayumi p-4 md:p-6">
                         <h3 className="text-lg font-bold text-ayumi-secondary border-b border-gray-100 pb-3 mb-4">Catatan</h3>
                         {appointment.notes ? (
                             <p className="text-gray-700 whitespace-pre-wrap leading-relaxed bg-yellow-50/50 p-4 rounded-xl border border-yellow-100/50">{appointment.notes}</p>
@@ -564,7 +564,7 @@ export default function AppointmentDetailPage({ params }) {
                     </div>
 
                     {appointment.status === 'cancelled' && appointment.cancel_reason && (
-                        <div className="bg-red-50 rounded-3xl border border-red-100 p-6">
+                        <div className="bg-red-50 rounded-3xl border border-red-100 p-4 md:p-6">
                             <h3 className="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                 Alasan Pembatalan

@@ -312,7 +312,7 @@ export default function TherapistDetailPage() {
             </div>
 
             {/* Profile Header Card */}
-            <div className="card-ayumi p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="card-ayumi p-5 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="flex items-center gap-5">
                     <div className="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center font-bold text-2xl text-ayumi-primary shadow-inner">
                         {therapistInfo.full_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
@@ -342,7 +342,7 @@ export default function TherapistDetailPage() {
             </div>
 
             {/* Filters Bar */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     {/* Date picker range */}
                     <div className="w-full sm:w-[290px] relative z-20">
@@ -388,7 +388,7 @@ export default function TherapistDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Daily Revenue (Line Chart) */}
-                <div className="card-ayumi p-6 lg:col-span-2">
+                <div className="card-ayumi p-4 md:p-6 lg:col-span-2">
                     <div className="border-b border-gray-100 pb-3 mb-6">
                         <h3 className="text-sm font-bold text-ayumi-secondary uppercase tracking-wide">Tren Pendapatan Harian</h3>
                         <p className="text-[10px] text-ayumi-text-muted mt-0.5">Analisis pendapatan terapis dari hari ke hari dalam periode filter.</p>
@@ -411,7 +411,7 @@ export default function TherapistDetailPage() {
                 </div>
 
                 {/* Top 5 Treatments (Bar Chart) */}
-                <div className="card-ayumi p-6">
+                <div className="card-ayumi p-4 md:p-6">
                     <div className="border-b border-gray-100 pb-3 mb-6">
                         <h3 className="text-sm font-bold text-ayumi-secondary uppercase tracking-wide">Top 5 Treatment Paling Sering</h3>
                         <p className="text-[10px] text-ayumi-text-muted mt-0.5">Jenis tindakan yang paling banyak dikerjakan terapis ini.</p>
@@ -438,7 +438,7 @@ export default function TherapistDetailPage() {
 
             {/* Treatment History Table */}
             <div className="card-ayumi overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-white">
+                <div className="p-4 md:p-6 border-b border-gray-100 bg-white">
                     <h3 className="text-lg font-bold text-ayumi-secondary">Riwayat Tindakan</h3>
                     <p className="text-xs text-ayumi-text-muted mt-1">Daftar lengkap sesi treatment yang ditangani terapis ini.</p>
                 </div>

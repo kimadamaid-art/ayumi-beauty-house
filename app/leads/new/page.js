@@ -88,7 +88,7 @@ export default function NewLeadPage() {
 
     return (
         <div className="max-w-2xl mx-auto">
-            <div className="card-ayumi p-8">
+            <div className="card-ayumi p-5 md:p-8">
                 
                 {error && (
                     <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 font-medium border border-red-100">

@@ -191,14 +191,14 @@ export default function BranchesPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in-up">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="text-xl font-bold text-gray-800">{isEditing ? 'Edit Cabang' : 'Tambah Cabang Baru'}</h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-6 space-y-4">
+                        <form onSubmit={handleSave} className="p-4 md:p-6 space-y-4">
                             {error && <div className="p-3 bg-red-50 text-red-600 text-sm font-semibold rounded-xl">{error}</div>}
                             
                             <div>

@@ -857,7 +857,7 @@ export default function TransactionsPage() {
         <div className="max-w-7xl mx-auto space-y-6">
             
             {/* TAMPILAN UTAMA: GLOBAL FILTER BAR */}
-            <div className="card-ayumi p-6 flex flex-col gap-4 bg-white relative">
+            <div className="card-ayumi p-4 md:p-6 flex flex-col gap-4 bg-white relative">
                 <div className="flex justify-end items-center">
                     {/* Excel Export Button in Top Right */}
                     <button
@@ -1016,7 +1016,7 @@ export default function TransactionsPage() {
             </div>
 
             {/* TAB PANES CONTENT CONTAINER */}
-            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-sm border border-gray-100 p-6 min-h-[400px]">
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-sm border border-gray-100 p-4 md:p-6 min-h-[400px]">
 
                 {/* ======================================================== */}
                 {/* TAB 1: ALL TRANSACTIONS */}
@@ -1215,7 +1215,7 @@ export default function TransactionsPage() {
                         <div className="space-y-3">
                             <h4 className="text-sm font-bold text-ayumi-secondary">List Transaksi Hari Terkait</h4>
                             {dailyData.txList.length === 0 ? (
-                                <div className="text-center p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi pada tanggal ini.</div>
+                                <div className="text-center p-5 md:p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi pada tanggal ini.</div>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="whitespace-nowrap w-full text-left border-collapse text-xs">
@@ -1781,7 +1781,7 @@ export default function TransactionsPage() {
                                 <div className="space-y-3">
                                     <h4 className="text-sm font-bold text-ayumi-secondary">Detail Pencarian Laporan</h4>
                                     {customReportResult.txList.length === 0 ? (
-                                        <div className="text-center p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi yang cocok.</div>
+                                        <div className="text-center p-5 md:p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi yang cocok.</div>
                                     ) : (
                                         <div className="overflow-x-auto">
                                             <table className="whitespace-nowrap w-full text-left border-collapse text-xs">
@@ -1846,7 +1846,7 @@ export default function TransactionsPage() {
                         </div>
 
                         {/* Modal Content - Scrollable */}
-                        <div className="p-6 overflow-y-auto space-y-4 text-xs font-semibold text-gray-700 flex-1">
+                        <div className="p-4 md:p-6 overflow-y-auto space-y-4 text-xs font-semibold text-gray-700 flex-1">
                             {/* Transaction Info Grid */}
                             <div className="grid grid-cols-2 gap-3 border-b border-dashed border-gray-200 pb-3">
                                 <div>

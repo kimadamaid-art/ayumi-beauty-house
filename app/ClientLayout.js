@@ -90,7 +90,7 @@ export default function ClientLayout({ children }) {
             <div className="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden">
                 <GlobalHeader onMenuToggle={() => setIsMobileMenuOpen(true)} />
                 <main className="flex-1 overflow-y-auto relative bg-ayumi-bg">
-                    <div className="px-6 md:px-8 py-6 md:py-8 space-y-6">
+                    <div className="px-4 md:px-8 py-4 md:py-8 space-y-6">
                         {pageMeta && (
                             <div className="flex items-center gap-4">
                                 {pageMeta.backPath && (

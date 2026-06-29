@@ -286,7 +286,7 @@ export default function TherapistDashboard() {
             {/* Split Calendar & Detail Harian */}
             <div className="flex flex-col lg:flex-row gap-6">
                 {/* Kolom Kiri: Kalender */}
-                <div className="flex-1 card-ayumi p-6 border border-gray-100 bg-white">
+                <div className="flex-1 card-ayumi p-4 md:p-6 border border-gray-100 bg-white">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-extrabold text-ayumi-secondary">
                             Jadwal {monthNames[month]} {year}

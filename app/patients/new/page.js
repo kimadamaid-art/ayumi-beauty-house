@@ -146,7 +146,7 @@ export default function AddPatientPage() {
                 </div>
             )}
 
-            <form onSubmit={handleSave} className="card-ayumi p-8 space-y-8">
+            <form onSubmit={handleSave} className="card-ayumi p-5 md:p-8 space-y-8">
                 
                 {/* 2 Columns Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">

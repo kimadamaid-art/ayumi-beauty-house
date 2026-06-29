@@ -103,7 +103,7 @@ export default function TransactionsHistoryPage() {
     return (
         <div className="space-y-6">
             {/* Header & Filters */}
-            <div className="card-ayumi p-6">
+            <div className="card-ayumi p-4 md:p-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800">Riwayat Transaksi</h2>
@@ -164,9 +164,9 @@ export default function TransactionsHistoryPage() {
             {/* Table */}
             <div className="card-ayumi overflow-hidden">
                 {isLoading ? (
-                    <div className="p-8 text-center text-gray-500 animate-pulse">Memuat riwayat transaksi...</div>
+                    <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat riwayat transaksi...</div>
                 ) : transactions.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">Tidak ada transaksi pada periode ini.</div>
+                    <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada transaksi pada periode ini.</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="whitespace-nowrap w-full text-left border-collapse">

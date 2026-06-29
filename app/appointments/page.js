@@ -404,7 +404,7 @@ export default function AppointmentsPage() {
             </div>
 
             {/* Filter Bar */}
-            <div className="card-ayumi p-6 shadow-sm border border-pink-100/50">
+            <div className="card-ayumi p-4 md:p-6 shadow-sm border border-pink-100/50">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
                     <div className="flex-1 relative">
                         <svg className="w-5 h-5 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -523,7 +523,7 @@ export default function AppointmentsPage() {
                             /* 2. CALENDAR + TIMELINE VIEW */
                             <div className="flex flex-col lg:flex-row gap-6">
                                 {/* Calendar Grid Box */}
-                                <div className="flex-1 card-ayumi p-6 border border-gray-100 bg-white shadow-sm rounded-2xl">
+                                <div className="flex-1 card-ayumi p-4 md:p-6 border border-gray-100 bg-white shadow-sm rounded-2xl">
                                     <div className="flex justify-between items-center mb-6">
                                         <h3 className="text-lg font-black text-ayumi-secondary">
                                             {monthNames[month]} {year}

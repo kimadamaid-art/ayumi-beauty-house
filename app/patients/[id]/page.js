@@ -210,7 +210,7 @@ export default function PatientDetailPage() {
             </div>
 
             {/* Header Profile */}
-            <div className="card-ayumi p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+            <div className="card-ayumi p-5 md:p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-pink-50 rounded-full mix-blend-multiply filter blur-3xl opacity-70 translate-x-1/2 -translate-y-1/2"></div>
                 
                 <div className="w-28 h-28 bg-gradient-to-br from-ayumi-primary to-ayumi-secondary rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl flex-shrink-0 z-10">
@@ -284,7 +284,7 @@ export default function PatientDetailPage() {
             </div>
 
             {/* Tab Content */}
-            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
+            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-sm border border-gray-100 p-5 md:p-8 min-h-[400px]">
                 
                 {/* PROFILE TAB */}
                 {activeTab === 'profile' && (
@@ -643,7 +643,7 @@ export default function PatientDetailPage() {
             {/* Modal Edit Expired Date */}
             {editExpiryModal.isOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+                    <div className="bg-white rounded-3xl p-4 md:p-6 w-full max-w-sm shadow-2xl">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Tanggal Expired</h3>
                         <div className="mb-4">
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Expired Baru</label>

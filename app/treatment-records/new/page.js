@@ -524,7 +524,7 @@ function AddRecordForm() {
                 
                 {/* Kiri: Info Umum */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <h3 className="text-lg font-bold text-ayumi-secondary border-b pb-2">Data Kunjungan</h3>
                         
                         <div>
@@ -607,7 +607,7 @@ function AddRecordForm() {
 
                 {/* Kanan: Medis & Item */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <h3 className="text-lg font-bold text-ayumi-primary border-b pb-2">Catatan Rekam Medis (SOAP)</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -658,7 +658,7 @@ function AddRecordForm() {
                         </div>
                     </div>
 
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <div className="flex justify-between items-center border-b pb-2 relative">
                             <h3 className="text-lg font-bold text-ayumi-primary">Tindakan Treatment</h3>
                             <div className="flex items-center gap-2 relative">
@@ -823,7 +823,7 @@ function AddRecordForm() {
                             </div>
                         )}
                     </div>                    {/* Foto Dokumentasi Section */}
-                    <div className="card-ayumi p-6 space-y-6">
+                    <div className="card-ayumi p-4 md:p-6 space-y-6">
                         <h3 className="text-lg font-bold text-ayumi-secondary border-b pb-2">Foto Dokumentasi</h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -880,7 +880,7 @@ function AddRecordForm() {
         {/* Modal Pilih Kupon */}
         {isCouponModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-xl">
+                <div className="bg-white rounded-3xl p-4 md:p-6 w-full max-w-lg shadow-xl">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-bold text-ayumi-secondary">Pilih Kupon Pasien</h3>
                         <button type="button" onClick={() => setIsCouponModalOpen(false)} className="text-gray-400 hover:text-red-500">

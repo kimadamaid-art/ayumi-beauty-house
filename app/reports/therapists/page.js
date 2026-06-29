@@ -274,7 +274,7 @@ export default function TherapistsReportPage() {
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {/* Card 1: Total Pendapatan */}
-                        <div className="card-ayumi p-6 bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-100 flex items-center gap-5 hover:shadow-md transition-shadow">
+                        <div className="card-ayumi p-4 md:p-6 bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-ayumi-primary rounded-2xl flex items-center justify-center shadow-sm">
                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
@@ -285,7 +285,7 @@ export default function TherapistsReportPage() {
                         </div>
 
                         {/* Card 2: Total Komisi */}
-                        <div className="card-ayumi p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-100 flex items-center gap-5 hover:shadow-md transition-shadow">
+                        <div className="card-ayumi p-4 md:p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-emerald-600 rounded-2xl flex items-center justify-center shadow-sm">
                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                             </div>
@@ -296,7 +296,7 @@ export default function TherapistsReportPage() {
                         </div>
 
                         {/* Card 3: Terapis Terbaik */}
-                        <div className="card-ayumi p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 border-pink-100 flex items-center gap-5 hover:shadow-md transition-shadow">
+                        <div className="card-ayumi p-4 md:p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 border-pink-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-rose-500 rounded-2xl flex items-center justify-center shadow-sm animate-pulse">
                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
                             </div>
@@ -307,7 +307,7 @@ export default function TherapistsReportPage() {
                         </div>
 
                         {/* Card 4: Rata-rata Treatment */}
-                        <div className="card-ayumi p-6 bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-100 flex items-center gap-5 hover:shadow-md transition-shadow">
+                        <div className="card-ayumi p-4 md:p-6 bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-100 flex items-center gap-5 hover:shadow-md transition-shadow">
                             <div className="w-14 h-14 bg-white text-amber-600 rounded-2xl flex items-center justify-center shadow-sm">
                                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                             </div>
@@ -320,7 +320,7 @@ export default function TherapistsReportPage() {
 
                     {/* Rankings Table */}
                     <div className="card-ayumi overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 bg-white">
+                        <div className="p-4 md:p-6 border-b border-gray-100 bg-white">
                             <h2 className="text-lg font-bold text-ayumi-secondary">Ranking Terapis Bulan Ini</h2>
                             <p className="text-xs text-ayumi-text-muted mt-1">Daftar terapis terurut berdasarkan kontribusi pendapatan terbesar.</p>
                         </div>
@@ -402,7 +402,7 @@ export default function TherapistsReportPage() {
                     </div>
 
                     {/* Comparison Section (Horizontal Bar Charts) */}
-                    <div className="card-ayumi p-6">
+                    <div className="card-ayumi p-4 md:p-6">
                         <div className="border-b border-gray-100 pb-4 mb-6">
                             <h2 className="text-lg font-bold text-ayumi-secondary">Perbandingan Antar Terapis</h2>
                             <p className="text-xs text-ayumi-text-muted mt-1">Grafik komparasi visual kontribusi pendapatan dan beban kerja (sesi tindakan) terapis.</p>

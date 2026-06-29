@@ -455,7 +455,7 @@ export default function TreatmentDetailPage() {
             </div>
 
             {/* Profile Header Detail */}
-            <div className="card-ayumi p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white">
+            <div className="card-ayumi p-5 md:p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white">
                 <div className="flex items-center gap-5">
                     <div className="w-16 h-16 bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl flex items-center justify-center text-ayumi-primary font-bold shadow-inner shrink-0">
                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -499,7 +499,7 @@ export default function TreatmentDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* Rasio Baru vs Repeat */}
-                <div className="card-ayumi p-6 flex flex-col justify-between">
+                <div className="card-ayumi p-4 md:p-6 flex flex-col justify-between">
                     <div>
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Rasio Pengunjung Periode Ini</h4>
                         <p className="text-xs text-ayumi-text-muted mt-1">Pasien pertama kali treatment vs melakukan tindakan ulang.</p>
@@ -517,7 +517,7 @@ export default function TreatmentDetailPage() {
                 </div>
 
                 {/* Retention Analysis */}
-                <div className="card-ayumi p-6 lg:col-span-2 flex flex-col justify-between">
+                <div className="card-ayumi p-4 md:p-6 lg:col-span-2 flex flex-col justify-between">
                     <div>
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Retention & Loyalty Treatment Ini</h4>
                         <p className="text-xs text-ayumi-text-muted mt-1">Seberapa loyal pasien kembali melakukan tindakan yang sama.</p>
@@ -568,7 +568,7 @@ export default function TreatmentDetailPage() {
             </div>
 
             {/* Filter controls */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     
                     {/* Custom range dates */}
@@ -627,7 +627,7 @@ export default function TreatmentDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Line Chart Tren Sesi */}
-                <div className="card-ayumi p-6 lg:col-span-2">
+                <div className="card-ayumi p-4 md:p-6 lg:col-span-2">
                     <div className="border-b border-gray-100 pb-3 mb-6">
                         <h3 className="text-sm font-bold text-ayumi-secondary uppercase tracking-wide">Tren Kuantitas Sesi Tindakan</h3>
                     </div>
@@ -649,7 +649,7 @@ export default function TreatmentDetailPage() {
                 </div>
 
                 {/* Bar Chart Sesi Per Cabang */}
-                <div className="card-ayumi p-6">
+                <div className="card-ayumi p-4 md:p-6">
                     <div className="border-b border-gray-100 pb-3 mb-6">
                         <h3 className="text-sm font-bold text-ayumi-secondary uppercase tracking-wide">Sebaran Sesi Per Cabang</h3>
                     </div>
@@ -675,7 +675,7 @@ export default function TreatmentDetailPage() {
 
             {/* Patient Table History */}
             <div className="card-ayumi overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-white">
+                <div className="p-4 md:p-6 border-b border-gray-100 bg-white">
                     <h3 className="text-lg font-bold text-ayumi-secondary">Daftar Kunjungan Pasien</h3>
                     <p className="text-xs text-ayumi-text-muted mt-1">Histori lengkap pasien yang melakukan perawatan ini dalam periode filter.</p>
                 </div>

@@ -96,7 +96,7 @@ export default function TherapistHistory() {
                 </div>
             </div>
 
-            <div className="card-ayumi p-6">
+            <div className="card-ayumi p-4 md:p-6">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
                     <input 
                         type="month" 

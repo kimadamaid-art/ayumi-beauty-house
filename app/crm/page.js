@@ -446,21 +446,21 @@ export default function CRMPage() {
                                 <h3 className="text-lg font-bold text-ayumi-secondary mb-4">Performa Follow Up (Bulan Ini)</h3>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
                                         <div className="text-4xl font-extrabold text-ayumi-primary mb-2">{totalLogs}</div>
                                         <div className="text-sm font-semibold text-gray-500">Total Follow Up Selesai</div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
                                         <div className="text-4xl font-extrabold text-blue-500 mb-2">{responseRate}%</div>
                                         <div className="text-sm font-semibold text-gray-500">Response Rate (Pasien Merespons)</div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
                                         <div className="text-4xl font-extrabold text-green-500 mb-2">{conversionRate}%</div>
                                         <div className="text-sm font-semibold text-gray-500">Conversion Rate (Booking Baru)</div>
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                                <div className="bg-gray-50 rounded-2xl p-4 md:p-6 border border-gray-100">
                                     <h4 className="font-bold text-gray-700 mb-4">Grafik Outcome Bulan Ini</h4>
                                     <div className="flex flex-wrap gap-4">
                                         {['responded', 'no_response', 'booked', 'not_interested', 'wrong_number'].map(out => {
@@ -487,7 +487,7 @@ export default function CRMPage() {
             {/* Modal Outcome (Selesai) */}
             {showOutcomeModal && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl border border-gray-100">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-5 md:p-8 shadow-2xl border border-gray-100">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Hasil Follow Up</h3>
                         <div className="space-y-4">
                             <div>
@@ -530,7 +530,7 @@ export default function CRMPage() {
             {/* Modal Reschedule (Tunda) */}
             {showRescheduleModal && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl border border-gray-100">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-5 md:p-8 shadow-2xl border border-gray-100">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Tunda Follow Up</h3>
                         <div className="space-y-4">
                             <div>

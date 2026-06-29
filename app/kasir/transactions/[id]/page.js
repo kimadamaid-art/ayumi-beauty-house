@@ -70,7 +70,7 @@ export default function ReceiptPage() {
         window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank')
     }
 
-    if (isLoading) return <div className="p-8 text-center animate-pulse">Memuat struk transaksi...</div>
+    if (isLoading) return <div className="p-5 md:p-8 text-center animate-pulse">Memuat struk transaksi...</div>
     if (!transaction) return null
 
     const formatDate = (isoString) => {
@@ -132,7 +132,7 @@ export default function ReceiptPage() {
             </div>
 
             {/* Receipt Area */}
-            <div className="bg-white p-8 rounded-2xl shadow-xl print:shadow-none print:p-0 print:border-none mx-auto max-w-[400px]">
+            <div className="bg-white p-5 md:p-8 rounded-2xl shadow-xl print:shadow-none print:p-0 print:border-none mx-auto max-w-[400px]">
                 <div className="text-center mb-6">
                     <div className="w-16 h-16 bg-gradient-to-br from-ayumi-secondary to-ayumi-primary rounded-full mx-auto flex items-center justify-center mb-3">
                         <span className="text-white font-extrabold text-2xl tracking-tighter">ab</span>

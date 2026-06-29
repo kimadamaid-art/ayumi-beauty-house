@@ -97,13 +97,13 @@ export default function LeadDetailPage({ params }) {
         )
     }
 
-    if (!lead) return <div className="p-8 text-center text-gray-500">Lead tidak ditemukan.</div>
+    if (!lead) return <div className="p-5 md:p-8 text-center text-gray-500">Lead tidak ditemukan.</div>
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             
             {/* Header Profil */}
-            <div className="card-ayumi p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="card-ayumi p-5 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="flex items-center gap-6">
                     <div className="w-16 h-16 bg-pink-50 text-ayumi-primary rounded-2xl flex items-center justify-center font-bold text-2xl">
                         {lead.full_name.charAt(0).toUpperCase()}
@@ -141,7 +141,7 @@ export default function LeadDetailPage({ params }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* Kiri: Update Panel */}
-                <div className="card-ayumi p-8">
+                <div className="card-ayumi p-5 md:p-8">
                     <h3 className="text-lg font-bold text-ayumi-secondary border-b border-pink-50 pb-3 mb-6">Update Pipeline</h3>
                     
                     {error && (
@@ -204,7 +204,7 @@ export default function LeadDetailPage({ params }) {
                 </div>
 
                 {/* Kanan: Info Tambahan */}
-                <div className="card-ayumi p-8">
+                <div className="card-ayumi p-5 md:p-8">
                     <h3 className="text-lg font-bold text-ayumi-secondary border-b border-pink-50 pb-3 mb-6">Detail Ketertarikan</h3>
                     
                     <div className="space-y-6">

@@ -261,14 +261,14 @@ export default function UsersPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in-up max-h-[90vh] flex flex-col">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                        <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
                             <h3 className="text-xl font-bold text-gray-800">{isEditing ? 'Edit User' : 'Tambah User Baru'}</h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-red-500">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto flex-1">
+                        <div className="p-4 md:p-6 overflow-y-auto flex-1">
                             <form onSubmit={handleSave} className="space-y-4">
                                 {error && <div className="p-3 bg-red-50 text-red-600 text-sm font-semibold rounded-xl border border-red-100">{error}</div>}
                                 

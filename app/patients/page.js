@@ -376,7 +376,7 @@ export default function PatientsPage() {
             </div>
 
             <div className="card-ayumi overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-white flex flex-col gap-4">
+                <div className="p-4 md:p-6 border-b border-gray-100 bg-white flex flex-col gap-4">
                     {/* Baris 1: Search & Cabang */}
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
                         <div className="relative w-full md:w-96">
@@ -556,7 +556,7 @@ export default function PatientsPage() {
             {showImportModal && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <div>
                                 <h3 className="text-xl font-bold text-gray-800">Preview Import Excel</h3>
                                 <p className="text-sm text-gray-500 mt-1">Total {importData.length} baris terbaca. Menampilkan maksimal 5 baris pertama.</p>
@@ -566,7 +566,7 @@ export default function PatientsPage() {
                             </button>
                         </div>
                         
-                        <div className="p-6 overflow-y-auto flex-1">
+                        <div className="p-4 md:p-6 overflow-y-auto flex-1">
                             <div className="flex justify-between items-center mb-4">
                                 <span className="text-sm font-semibold text-gray-600">Pastikan kolom sesuai dengan header format sistem.</span>
                                 <button onClick={handleDownloadTemplate} className="text-sm text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1">
@@ -619,7 +619,7 @@ export default function PatientsPage() {
                             </div>
                         </div>
 
-                        <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                        <div className="p-4 md:p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
                             <button onClick={() => setShowImportModal(false)} className="px-5 py-2.5 rounded-xl font-bold text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 transition-colors">
                                 Batal
                             </button>

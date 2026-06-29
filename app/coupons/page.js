@@ -365,7 +365,7 @@ export default function CouponsDashboardPage() {
                     </div>
 
                     {isLoading ? (
-                        <div className="p-8 text-center text-gray-500 animate-pulse">Memuat data paket...</div>
+                        <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat data paket...</div>
                     ) : filteredPackages.length === 0 ? (
                         <div className="card-ayumi p-10 text-center text-gray-500">Belum ada paket kupon yang ditambahkan.</div>
                     ) : (
@@ -438,9 +438,9 @@ export default function CouponsDashboardPage() {
 
                     <div className="card-ayumi overflow-hidden">
                         {isLoading ? (
-                            <div className="p-8 text-center text-gray-500 animate-pulse">Memuat kupon pasien...</div>
+                            <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat kupon pasien...</div>
                         ) : filteredPatientCoupons.length === 0 ? (
-                            <div className="p-8 text-center text-gray-500">Tidak ada kupon yang ditemukan.</div>
+                            <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada kupon yang ditemukan.</div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="whitespace-nowrap w-full text-left border-collapse">
@@ -588,7 +588,7 @@ export default function CouponsDashboardPage() {
                                 <p className="text-gray-500 max-w-md">Cari pasien untuk melihat daftar kupon aktif yang mereka miliki dan melakukan klaim sesi perawatan.</p>
                             </div>
                         ) : isLoading ? (
-                            <div className="card-ayumi p-8 text-center text-gray-500 animate-pulse">Memuat kupon...</div>
+                            <div className="card-ayumi p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat kupon...</div>
                         ) : (
                             <div className="space-y-4">
                                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -596,7 +596,7 @@ export default function CouponsDashboardPage() {
                                 </h3>
                                 
                                 {usageActiveCoupons.length === 0 ? (
-                                    <div className="card-ayumi p-8 text-center text-red-500 bg-red-50 border border-red-100">
+                                    <div className="card-ayumi p-5 md:p-8 text-center text-red-500 bg-red-50 border border-red-100">
                                         Pasien ini tidak memiliki kupon aktif yang bisa digunakan.
                                     </div>
                                 ) : (
@@ -724,9 +724,9 @@ export default function CouponsDashboardPage() {
 
                     <div className="card-ayumi overflow-hidden">
                         {isLoading ? (
-                            <div className="p-8 text-center text-gray-500 animate-pulse">Memuat riwayat...</div>
+                            <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat riwayat...</div>
                         ) : historyLogs.length === 0 ? (
-                            <div className="p-8 text-center text-gray-500">Tidak ada riwayat penggunaan kupon pada periode ini.</div>
+                            <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada riwayat penggunaan kupon pada periode ini.</div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="whitespace-nowrap w-full text-left border-collapse">
@@ -762,7 +762,7 @@ export default function CouponsDashboardPage() {
             {/* Modal Edit Expired Date */}
             {editExpiryModal.isOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+                    <div className="bg-white rounded-3xl p-4 md:p-6 w-full max-w-sm shadow-2xl">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Tanggal Expired</h3>
                         <div className="mb-4">
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Expired Baru</label>

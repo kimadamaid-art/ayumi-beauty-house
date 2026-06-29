@@ -164,11 +164,11 @@ export default function ProductStockPage() {
 
             <div className="card-ayumi overflow-hidden">
                 {isLoading ? (
-                    <div className="p-8 text-center text-gray-500 animate-pulse">Memuat data...</div>
+                    <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat data...</div>
                 ) : displayedProducts.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">Tidak ada data produk aktif ditemukan. Silakan tambahkan produk di Master Produk.</div>
+                    <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada data produk aktif ditemukan. Silakan tambahkan produk di Master Produk.</div>
                 ) : displayedBranches.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">Tidak ada cabang ditemukan.</div>
+                    <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada cabang ditemukan.</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="whitespace-nowrap w-full text-left border-collapse">
@@ -227,13 +227,13 @@ export default function ProductStockPage() {
             {isModalOpen && selectedProduct && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm my-8 transform transition-all">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-teal-50/50 rounded-t-2xl">
+                        <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-teal-50/50 rounded-t-2xl">
                             <h3 className="text-lg font-bold text-teal-800">Update Stok Produk</h3>
                             <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        <form onSubmit={handleSave} className="p-6 space-y-5">
+                        <form onSubmit={handleSave} className="p-4 md:p-6 space-y-5">
                             <div>
                                 <p className="text-sm text-gray-500 mb-1">Produk</p>
                                 <p className="font-bold text-gray-800">{selectedProduct.name}</p>

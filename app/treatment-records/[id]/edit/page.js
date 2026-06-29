@@ -413,7 +413,7 @@ function EditRecordForm() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Kiri: Info Umum */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <h3 className="text-lg font-bold text-ayumi-secondary border-b pb-2">Data Kunjungan</h3>
                         
                         <div>
@@ -494,7 +494,7 @@ function EditRecordForm() {
 
                 {/* Kanan: Medis & Item */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <h3 className="text-lg font-bold text-ayumi-primary border-b pb-2">Catatan SOAP</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -545,7 +545,7 @@ function EditRecordForm() {
                         </div>
                     </div>
 
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <div className="flex justify-between items-center border-b pb-2 relative">
                             <h3 className="text-lg font-bold text-ayumi-primary">Tindakan Treatment</h3>
                             <div className="flex items-center gap-2 relative">
@@ -685,7 +685,7 @@ function EditRecordForm() {
                     </div>
 
                     {/* Foto Dokumentasi Section */}
-                    <div className="card-ayumi p-6 space-y-6">
+                    <div className="card-ayumi p-4 md:p-6 space-y-6">
                         <h3 className="text-lg font-bold text-ayumi-secondary border-b pb-2">Foto Dokumentasi</h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

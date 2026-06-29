@@ -155,7 +155,7 @@ export default function NewCouponPackagePage() {
                 
                 {/* Left Pane: Detail Paket */}
                 <div className="w-full lg:w-2/3 space-y-6">
-                    <div className="card-ayumi p-6 space-y-5">
+                    <div className="card-ayumi p-4 md:p-6 space-y-5">
                         <h2 className="text-lg font-bold text-ayumi-primary border-b border-gray-100 pb-2">Informasi Paket</h2>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -225,7 +225,7 @@ export default function NewCouponPackagePage() {
                         </div>
                     </div>
 
-                    <div className="card-ayumi p-6 space-y-4">
+                    <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                             <h2 className="text-lg font-bold text-ayumi-primary">Isi Paket (Treatments)</h2>
                             <button 
@@ -294,7 +294,7 @@ export default function NewCouponPackagePage() {
                 {/* Right Pane: Summary & Submit */}
                 <div className="w-full lg:w-1/3">
                     <div className="card-ayumi sticky top-6">
-                        <div className="p-6 bg-gradient-to-br from-ayumi-secondary to-ayumi-primary text-white">
+                        <div className="p-4 md:p-6 bg-gradient-to-br from-ayumi-secondary to-ayumi-primary text-white">
                             <h3 className="font-bold mb-1 opacity-90">Preview Paket</h3>
                             <p className="text-2xl font-extrabold leading-tight">{formData.name || 'Nama Paket...'}</p>
                             {formData.category && (
@@ -304,7 +304,7 @@ export default function NewCouponPackagePage() {
                             )}
                         </div>
                         
-                        <div className="p-6 space-y-4 border-b border-gray-100">
+                        <div className="p-4 md:p-6 space-y-4 border-b border-gray-100">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm text-gray-500 font-semibold">Total Sesi Perawatan</span>
                                 <span className="text-xl font-black text-gray-800 font-mono">{totalSessions}</span>
@@ -316,7 +316,7 @@ export default function NewCouponPackagePage() {
                             </div>
                         </div>
 
-                        <div className="p-6 bg-pink-50/30">
+                        <div className="p-4 md:p-6 bg-pink-50/30">
                             <button
                                 type="submit"
                                 disabled={isLoading}
