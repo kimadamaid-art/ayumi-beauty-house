@@ -68,11 +68,10 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                             </div>
                         </Link>
                         
-
-                        <Link href="/patients" onClick={onClose}>
-                            <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/patients') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                Data Pasien
+                        <Link href="/kasir" onClick={onClose}>
+                            <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/kasir') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                                Kasir / POS
                             </div>
                         </Link>
 
@@ -83,6 +82,13 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                             </div>
                         </Link>
 
+                        <Link href="/patients" onClick={onClose}>
+                            <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/patients') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                Data Pasien
+                            </div>
+                        </Link>
+
                         <Link href="/treatment-records" onClick={onClose}>
                             <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/treatment-records') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -90,31 +96,24 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                             </div>
                         </Link>
 
-                        <Link href="/crm">
+                        <Link href="/crm" onClick={onClose}>
                             <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/crm') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                                 CRM
                             </div>
                         </Link>
 
-                        <Link href="/coupons">
+                        <Link href="/coupons" onClick={onClose}>
                             <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/coupons') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
                                 Kupon Paket
                             </div>
                         </Link>
 
-                        <Link href="/transactions">
+                        <Link href="/transactions" onClick={onClose}>
                             <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/transactions') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                 Riwayat Transaksi
-                            </div>
-                        </Link>
-
-                        <Link href="/kasir">
-                            <div className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all font-semibold cursor-pointer ${isActive('/kasir') ? 'bg-white text-ayumi-primary shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                                Kasir / POS
                             </div>
                         </Link>
 
