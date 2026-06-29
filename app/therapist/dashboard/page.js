@@ -174,7 +174,7 @@ export default function TherapistDashboard() {
             .eq('is_active', true)
 
         const recipients = allActiveUsers?.filter(u => 
-            u.role === 'owner' || (u.role === 'admin' && u.branch_id === selectedBranch)
+            u.role === 'admin' && u.branch_id === selectedBranch
         ) || []
 
         if (recipients.length > 0) {

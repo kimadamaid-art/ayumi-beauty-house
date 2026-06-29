@@ -338,7 +338,7 @@ export default function TreatmentInputPage({ params }) {
                 .eq('is_active', true)
 
             const recipients = allActiveUsers?.filter(u => 
-                u.role === 'owner' || (u.role === 'admin' && u.branch_id === appointment.branch_id)
+                u.role === 'admin' && u.branch_id === appointment.branch_id
             ) || []
 
             if (recipients.length > 0) {
