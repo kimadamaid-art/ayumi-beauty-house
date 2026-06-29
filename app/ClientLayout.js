@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useState } from 'react'
 import GlobalSidebar from '@/components/GlobalSidebar'
 import GlobalHeader from '@/components/GlobalHeader'
 
@@ -74,6 +75,7 @@ const getPageMeta = (pathname) => {
 
 export default function ClientLayout({ children }) {
     const pathname = usePathname()
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const isLogin = pathname === '/login' || pathname === '/' // Assuming / redirects to login or is public
 
     if (isLogin) {
@@ -84,9 +86,9 @@ export default function ClientLayout({ children }) {
 
     return (
         <div className="flex min-h-screen bg-ayumi-bg">
-            <GlobalSidebar />
+            <GlobalSidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
             <div className="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden">
-                <GlobalHeader />
+                <GlobalHeader onMenuToggle={() => setIsMobileMenuOpen(true)} />
                 <main className="flex-1 overflow-y-auto relative bg-ayumi-bg">
                     <div className="px-6 md:px-8 py-6 md:py-8 space-y-6">
                         {pageMeta && (

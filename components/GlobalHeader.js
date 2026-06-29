@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'react-hot-toast'
 
-export default function GlobalHeader() {
+export default function GlobalHeader({ onMenuToggle }) {
     const pathname = usePathname()
     const router = useRouter()
     const [user, setUser] = useState(null)
@@ -233,12 +233,20 @@ export default function GlobalHeader() {
     }
 
     return (
-        <header className="bg-white border-b border-gray-100 shadow-sm px-8 py-4 flex justify-between items-center z-30 sticky top-0">
-            <div>
-                <h2 className="text-xl font-extrabold text-ayumi-primary tracking-tight">Ayumi Beauty House</h2>
+        <header className="bg-white border-b border-gray-100 shadow-sm px-4 md:px-8 py-4 flex justify-between items-center z-30 sticky top-0">
+            <div className="flex items-center gap-3">
+                <button 
+                    onClick={onMenuToggle}
+                    className="md:hidden text-gray-500 hover:text-ayumi-primary p-2 rounded-xl bg-gray-50 hover:bg-pink-50 transition-all border border-gray-100 flex items-center justify-center"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+                <h2 className="text-lg md:text-xl font-extrabold text-ayumi-primary tracking-tight">Ayumi Beauty House</h2>
             </div>
             
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 md:gap-6">
                 {/* Lonceng Notifikasi */}
                 {user && (
                     <div className="relative">
