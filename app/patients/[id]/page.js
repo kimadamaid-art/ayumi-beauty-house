@@ -24,11 +24,33 @@ export default function PatientDetailPage() {
     const [patientCoupons, setPatientCoupons] = useState([])
     const [patientTransactions, setPatientTransactions] = useState([])
     const [hasExpiringCoupons, setHasExpiringCoupons] = useState(false)
+    
+    const [editExpiryModal, setEditExpiryModal] = useState({ isOpen: false, coupon: null, newDate: '' })
+    const [isUpdating, setIsUpdating] = useState(false)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
+
+    const handleUpdateExpiry = async () => {
+        if (!editExpiryModal.newDate || !editExpiryModal.coupon) return
+        
+        setIsUpdating(true)
+        const { error } = await supabase
+            .from('patient_coupons')
+            .update({ expired_at: new Date(editExpiryModal.newDate).toISOString() })
+            .eq('id', editExpiryModal.coupon.id)
+            
+        setIsUpdating(false)
+        if (error) {
+            alert('Gagal update tanggal expired: ' + error.message)
+        } else {
+            alert('Tanggal expired berhasil diperbarui!')
+            setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })
+            window.location.reload()
+        }
+    }
 
     useEffect(() => {
         if (!id) return
@@ -579,9 +601,12 @@ export default function PatientDetailPage() {
                                                     <p className="text-xs text-gray-500">
                                                         Dibeli: {new Date(coupon.purchased_at).toLocaleDateString('id-ID')}
                                                     </p>
-                                                    <p className={`text-xs mt-0.5 ${isExpiringSoon ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
-                                                        Berlaku s/d: {new Date(coupon.expired_at).toLocaleDateString('id-ID')}
-                                                        {isExpiringSoon && ` (${daysUntilExpiry} hari lagi)`}
+                                                    <p className={`text-xs mt-0.5 flex items-center gap-2 ${isExpiringSoon ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
+                                                        <span>Berlaku s/d: {new Date(coupon.expired_at).toLocaleDateString('id-ID')}</span>
+                                                        <button onClick={() => setEditExpiryModal({ isOpen: true, coupon: coupon, newDate: new Date(coupon.expired_at).toISOString().split('T')[0] })} className="text-ayumi-primary hover:text-ayumi-secondary" title="Edit Tanggal Expired">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                        </button>
+                                                        {isExpiringSoon && <span>({daysUntilExpiry} hari lagi)</span>}
                                                     </p>
                                                 </div>
                                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
@@ -614,6 +639,40 @@ export default function PatientDetailPage() {
                 )}
 
             </div>
+            </div>
+
+            {/* Modal Edit Expired Date */}
+            {editExpiryModal.isOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Tanggal Expired</h3>
+                        <div className="mb-4">
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Expired Baru</label>
+                            <input
+                                type="date"
+                                className="w-full input-ayumi"
+                                value={editExpiryModal.newDate}
+                                onChange={(e) => setEditExpiryModal({ ...editExpiryModal, newDate: e.target.value })}
+                            />
+                        </div>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })}
+                                className="px-4 py-2 text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleUpdateExpiry}
+                                disabled={isUpdating || !editExpiryModal.newDate}
+                                className="btn-ayumi px-4 py-2 text-sm"
+                            >
+                                {isUpdating ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

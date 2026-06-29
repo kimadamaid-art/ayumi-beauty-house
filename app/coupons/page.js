@@ -47,6 +47,7 @@ export default function CouponsDashboardPage() {
     const [usageSelectedCouponItem, setUsageSelectedCouponItem] = useState(null)
     const [usageNotes, setUsageNotes] = useState('')
     const [isProcessingUsage, setIsProcessingUsage] = useState(false)
+    const [editExpiryModal, setEditExpiryModal] = useState({ isOpen: false, coupon: null, newDate: '' })
 
     // --- STATES FOR TAB 4: RIWAYAT PENGGUNAAN ---
     const [historyLogs, setHistoryLogs] = useState([])
@@ -233,13 +234,32 @@ export default function CouponsDashboardPage() {
             selectPatientForUsage(usageSelectedPatient) // re-fetch
 
         } catch (err) {
+            console.error(err)
             alert('Gagal menggunakan kupon: ' + err.message)
+        } finally {
+            setIsProcessingUsage(false)
         }
-        
-        setIsProcessingUsage(false)
     }
 
-    // --- TAB 4: RIWAYAT PENGGUNAAN LOGIC ---
+    const handleUpdateExpiry = async () => {
+        if (!editExpiryModal.newDate || !editExpiryModal.coupon) return
+        
+        setIsLoading(true)
+        const { error } = await supabase
+            .from('patient_coupons')
+            .update({ expired_at: new Date(editExpiryModal.newDate).toISOString() })
+            .eq('id', editExpiryModal.coupon.id)
+            
+        setIsLoading(false)
+        if (error) {
+            alert('Gagal update tanggal expired: ' + error.message)
+        } else {
+            alert('Tanggal expired berhasil diperbarui!')
+            setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })
+            if (activeTab === 'patients') fetchPatientCoupons()
+            if (activeTab === 'usage' && usageSelectedPatient) selectPatientForUsage(usageSelectedPatient)
+        }
+    } // --- TAB 4: RIWAYAT PENGGUNAAN LOGIC ---
     const fetchHistoryLogs = async () => {
         setIsLoading(true)
         
@@ -453,9 +473,14 @@ export default function CouponsDashboardPage() {
                                                         <td className="p-4 font-semibold text-ayumi-primary">{pc.coupon_packages?.name}</td>
                                                         <td className="p-4 text-gray-600">{formatDate(pc.purchased_at)}</td>
                                                         <td className="p-4 text-gray-600">
-                                                            {formatDate(pc.expired_at)}
+                                                            <div className="flex items-center gap-2">
+                                                                <span>{formatDate(pc.expired_at)}</span>
+                                                                <button onClick={(e) => { e.stopPropagation(); setEditExpiryModal({ isOpen: true, coupon: pc, newDate: new Date(pc.expired_at).toISOString().split('T')[0] }) }} className="text-ayumi-primary hover:text-ayumi-secondary" title="Edit Tanggal Expired">
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                </button>
+                                                            </div>
                                                             {new Date(pc.expired_at) < new Date() && pc.status === 'active' && (
-                                                                <span className="ml-2 text-xs text-red-500 font-bold">(Expired!)</span>
+                                                                <div className="text-xs text-red-500 font-bold mt-1">(Expired!)</div>
                                                             )}
                                                         </td>
                                                         <td className="p-4 text-center">
@@ -585,8 +610,11 @@ export default function CouponsDashboardPage() {
                                                 <div key={coupon.id} className={`card-ayumi overflow-hidden border-2 ${isExpiringSoon ? 'border-red-300' : 'border-transparent'}`}>
                                                     <div className={`p-3 text-white flex justify-between items-center ${isExpiringSoon ? 'bg-red-500' : 'bg-gradient-to-r from-ayumi-primary to-ayumi-secondary'}`}>
                                                         <div className="font-bold">{coupon.coupon_packages?.name}</div>
-                                                        <div className="text-xs bg-white/20 px-2 py-1 rounded-lg">
-                                                            {isExpiringSoon ? `Expired dalam ${daysUntilExpiry} hari!` : `Exp: ${formatDate(coupon.expired_at)}`}
+                                                        <div className="text-xs bg-white/20 px-2 py-1 rounded-lg flex items-center gap-2">
+                                                            <span>{isExpiringSoon ? `Expired dalam ${daysUntilExpiry} hari!` : `Exp: ${formatDate(coupon.expired_at)}`}</span>
+                                                            <button onClick={(e) => { e.stopPropagation(); setEditExpiryModal({ isOpen: true, coupon: coupon, newDate: new Date(coupon.expired_at).toISOString().split('T')[0] }) }} className="hover:text-white/80 transition-colors bg-white/20 p-1 rounded" title="Edit Tanggal Expired">
+                                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                            </button>
                                                         </div>
                                                     </div>
                                                     <div className="p-4 bg-white space-y-3">
@@ -727,6 +755,39 @@ export default function CouponsDashboardPage() {
                                 </table>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Edit Expired Date */}
+            {editExpiryModal.isOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Tanggal Expired</h3>
+                        <div className="mb-4">
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Expired Baru</label>
+                            <input
+                                type="date"
+                                className="w-full input-ayumi"
+                                value={editExpiryModal.newDate}
+                                onChange={(e) => setEditExpiryModal({ ...editExpiryModal, newDate: e.target.value })}
+                            />
+                        </div>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })}
+                                className="px-4 py-2 text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleUpdateExpiry}
+                                disabled={isLoading || !editExpiryModal.newDate}
+                                className="btn-ayumi px-4 py-2 text-sm"
+                            >
+                                {isLoading ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

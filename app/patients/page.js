@@ -474,19 +474,19 @@ export default function PatientsPage() {
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm tracking-wide uppercase font-bold">
                                 <tr>
-                                    <th className="p-5 font-bold">Nama Pasien</th>
-                                    <th className="p-5 font-bold">WhatsApp</th>
-                                    <th className="p-5 font-bold">Tgl Lahir</th>
-                                    <th className="p-5 font-bold">Cabang</th>
-                                    <th className="p-5 font-bold text-center">CRM Status</th>
-                                    <th className="p-5 font-bold text-center">Kunjungan Terakhir</th>
-                                    <th className="p-5 font-bold text-center">Aksi</th>
+                                    <th className="p-5 font-bold whitespace-nowrap">Nama Pasien</th>
+                                    <th className="p-5 font-bold whitespace-nowrap">WhatsApp</th>
+                                    <th className="p-5 font-bold whitespace-nowrap">Tgl Lahir</th>
+                                    <th className="p-5 font-bold whitespace-nowrap">Cabang</th>
+                                    <th className="p-5 font-bold text-center whitespace-nowrap">CRM Status</th>
+                                    <th className="p-5 font-bold text-center whitespace-nowrap">Kunjungan Terakhir</th>
+                                    <th className="p-5 font-bold text-center whitespace-nowrap">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 text-sm bg-white">
                                 {filteredPatients.map((p) => (
                                     <tr key={p.id} className="hover:bg-ayumi-table-hover transition-colors group">
-                                        <td className="p-5 font-bold text-ayumi-text">
+                                        <td className="p-5 font-bold text-ayumi-text whitespace-nowrap">
                                             <div>{p.full_name}</div>
                                             {p.activeCouponsCount > 0 && (
                                                 <div className="inline-flex items-center gap-1 mt-1 bg-pink-50 text-ayumi-primary text-[10px] font-bold px-2 py-0.5 rounded-md">
@@ -495,10 +495,10 @@ export default function PatientsPage() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="p-5 font-medium text-gray-600">{p.whatsapp}</td>
-                                        <td className="p-5 text-gray-500">{p.birth_date ? new Date(p.birth_date).toLocaleDateString('id-ID') : '-'}</td>
-                                        <td className="p-5 text-gray-600 font-medium">
-                                            <span className="bg-purple-50 text-[#6B3A5A] px-3 py-1 rounded-md text-xs font-bold">
+                                        <td className="p-5 font-medium text-gray-600 whitespace-nowrap">{p.whatsapp}</td>
+                                        <td className="p-5 text-gray-500 whitespace-nowrap">{p.birth_date ? new Date(p.birth_date).toLocaleDateString('id-ID') : '-'}</td>
+                                        <td className="p-5 text-gray-600 font-medium whitespace-nowrap">
+                                            <span className="bg-purple-50 text-[#6B3A5A] px-3 py-1 rounded-md text-xs font-bold whitespace-nowrap inline-block">
                                                 {p.branches?.name || 'Pusat'}
                                             </span>
                                             {p.treatment_records && new Set(p.treatment_records.map(r => r.branch_id).filter(Boolean)).size > 1 && (
@@ -507,11 +507,11 @@ export default function PatientsPage() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="p-5 text-center">
+                                        <td className="p-5 text-center whitespace-nowrap">
                                             {getCRMStatusBadge(p.crmStatus)}
                                         </td>
-                                        <td className="p-5 text-center text-gray-500 font-medium">{p.lastVisit}</td>
-                                        <td className="p-5 text-center">
+                                        <td className="p-5 text-center text-gray-500 font-medium whitespace-nowrap">{p.lastVisit}</td>
+                                        <td className="p-5 text-center whitespace-nowrap">
                                             <div className="flex items-center justify-center gap-2">
                                                 <Link href={`/patients/${p.id}`}>
                                                     <button className="text-ayumi-primary hover:text-ayumi-primary-hover bg-pink-50 hover:bg-pink-100 px-3 py-1.5 rounded-lg transition-colors font-bold text-xs uppercase tracking-wider">
