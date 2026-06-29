@@ -1,0 +1,150 @@
+{
+  "rlsStatus": [
+    {
+      "table": "users",
+      "adminCount": 11,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "branches",
+      "adminCount": 3,
+      "anonCount": 3,
+      "status": "🔓 TERBUKA! Anon bisa baca semua data",
+      "risk": "HIGH"
+    },
+    {
+      "table": "patients",
+      "adminCount": 3959,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "treatments",
+      "adminCount": 127,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "appointments",
+      "adminCount": 4,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "appointment_treatments",
+      "adminCount": 0,
+      "anonCount": 0,
+      "status": "⬜ Kosong (tidak bisa test)",
+      "risk": "UNKNOWN"
+    },
+    {
+      "table": "treatment_records",
+      "adminCount": 3958,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "treatment_record_items",
+      "adminCount": 4,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "transactions",
+      "adminCount": 7,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "transaction_items",
+      "adminCount": 14,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "products",
+      "adminCount": 0,
+      "anonCount": 0,
+      "status": "⬜ Kosong (tidak bisa test)",
+      "risk": "UNKNOWN"
+    },
+    {
+      "table": "product_stock",
+      "adminCount": 0,
+      "anonCount": 0,
+      "status": "⬜ Kosong (tidak bisa test)",
+      "risk": "UNKNOWN"
+    },
+    {
+      "table": "coupon_packages",
+      "adminCount": 9,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "coupon_package_items",
+      "adminCount": 1,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "patient_coupons",
+      "adminCount": 0,
+      "anonCount": 0,
+      "status": "⬜ Kosong (tidak bisa test)",
+      "risk": "UNKNOWN"
+    },
+    {
+      "table": "patient_coupon_items",
+      "adminCount": 0,
+      "anonCount": 0,
+      "status": "⬜ Kosong (tidak bisa test)",
+      "risk": "UNKNOWN"
+    },
+    {
+      "table": "notifications",
+      "adminCount": 3,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
+      "table": "leads",
+      "adminCount": 0,
+      "anonCount": 0,
+      "status": "⬜ Kosong (tidak bisa test)",
+      "risk": "UNKNOWN"
+    }
+  ],
+  "policies": [],
+  "anonAccess": [
+    {
+      "desc": "Baca data branches",
+      "accessible": true,
+      "count": 3
+    }
+  ],
+  "issues": [
+    {
+      "type": "RLS_OPEN",
+      "table": "branches",
+      "desc": "Tabel branches terbuka — anon bisa membaca 3 records"
+    },
+    {
+      "type": "ANON_ACCESS",
+      "desc": "Baca data branches",
+      "severity": "HIGH"
+    }
+  ]
+}

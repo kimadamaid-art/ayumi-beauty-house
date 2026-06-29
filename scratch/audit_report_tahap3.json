@@ -1,0 +1,10 @@
+{
+  "branchTables": [
+    "users",
+    "patients",
+    "appointments",
+    "treatment_records",
+    "transactions",
+    "product_stock"
+  ]
+}

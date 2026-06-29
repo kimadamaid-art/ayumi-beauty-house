@@ -1,0 +1,381 @@
+{
+  "tables": [
+    {
+      "name": "users",
+      "count": 11,
+      "columns": [
+        "id",
+        "auth_id",
+        "branch_id",
+        "full_name",
+        "email",
+        "phone",
+        "role",
+        "is_active",
+        "last_login_at",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "branches",
+      "count": 3,
+      "columns": [
+        "id",
+        "name",
+        "address",
+        "phone",
+        "email",
+        "city",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "patients",
+      "count": 3959,
+      "columns": [
+        "id",
+        "branch_id",
+        "lead_id",
+        "full_name",
+        "whatsapp",
+        "birth_date",
+        "gender",
+        "address",
+        "instagram",
+        "skin_type",
+        "skin_concerns",
+        "allergies",
+        "medical_notes",
+        "notes",
+        "is_active",
+        "created_by",
+        "updated_by",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "treatments",
+      "count": 127,
+      "columns": [
+        "id",
+        "category_id",
+        "name",
+        "description",
+        "price",
+        "duration_minutes",
+        "followup_days",
+        "is_active",
+        "created_at",
+        "updated_at",
+        "discount_percent",
+        "commission_percent"
+      ]
+    },
+    {
+      "name": "appointments",
+      "count": 4,
+      "columns": [
+        "id",
+        "patient_id",
+        "branch_id",
+        "created_by",
+        "appointment_date",
+        "start_time",
+        "end_time",
+        "status",
+        "cancel_reason",
+        "notes",
+        "updated_by",
+        "created_at",
+        "updated_at",
+        "therapist_id",
+        "arrival_status",
+        "arrived_at",
+        "therapist_ready_at"
+      ]
+    },
+    {
+      "name": "appointment_treatments",
+      "count": 0,
+      "columns": []
+    },
+    {
+      "name": "treatment_records",
+      "count": 3958,
+      "columns": [
+        "id",
+        "patient_id",
+        "appointment_id",
+        "branch_id",
+        "performed_by",
+        "treatment_date",
+        "treatment_time",
+        "skin_condition",
+        "complaints",
+        "result_notes",
+        "recommendation",
+        "created_by",
+        "updated_by",
+        "created_at",
+        "updated_at",
+        "therapist_id"
+      ]
+    },
+    {
+      "name": "treatment_record_items",
+      "count": 4,
+      "columns": [
+        "id",
+        "treatment_record_id",
+        "treatment_id",
+        "price_at_time",
+        "notes",
+        "sort_order",
+        "discount_percent",
+        "original_price",
+        "commission_percent"
+      ]
+    },
+    {
+      "name": "transactions",
+      "count": 7,
+      "columns": [
+        "id",
+        "transaction_number",
+        "patient_id",
+        "branch_id",
+        "treatment_record_id",
+        "cashier_id",
+        "subtotal",
+        "discount",
+        "discount_type",
+        "total",
+        "payment_method",
+        "payment_status",
+        "notes",
+        "created_by",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "transaction_items",
+      "count": 14,
+      "columns": [
+        "id",
+        "transaction_id",
+        "item_type",
+        "treatment_id",
+        "product_id",
+        "name",
+        "price",
+        "quantity",
+        "subtotal",
+        "created_at"
+      ]
+    },
+    {
+      "name": "products",
+      "count": 0,
+      "columns": []
+    },
+    {
+      "name": "product_stock",
+      "count": 0,
+      "columns": []
+    },
+    {
+      "name": "coupon_packages",
+      "count": 9,
+      "columns": [
+        "id",
+        "name",
+        "description",
+        "category",
+        "price",
+        "is_active",
+        "created_by",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "name": "coupon_package_items",
+      "count": 1,
+      "columns": [
+        "id",
+        "package_id",
+        "treatment_id",
+        "quantity",
+        "price_per_item",
+        "sort_order"
+      ]
+    },
+    {
+      "name": "patient_coupons",
+      "count": 0,
+      "columns": []
+    },
+    {
+      "name": "patient_coupon_items",
+      "count": 0,
+      "columns": []
+    },
+    {
+      "name": "notifications",
+      "count": 3,
+      "columns": [
+        "id",
+        "recipient_id",
+        "sender_id",
+        "appointment_id",
+        "type",
+        "title",
+        "message",
+        "is_read",
+        "created_at"
+      ]
+    },
+    {
+      "name": "leads",
+      "count": 0,
+      "columns": []
+    },
+    {
+      "name": "lead_interactions",
+      "count": "?"
+    }
+  ],
+  "foreignKeys": [],
+  "constraints": [],
+  "rlsPolicies": [],
+  "orphanChecks": [
+    {
+      "desc": "Users tanpa branch (non-owner)",
+      "count": 0
+    },
+    {
+      "desc": "Treatment Records tanpa patient yang valid",
+      "count": 0
+    },
+    {
+      "desc": "Treatment Records tanpa therapist yang valid",
+      "count": 0
+    },
+    {
+      "desc": "Treatment Record Items tanpa Treatment Record",
+      "count": 0
+    },
+    {
+      "desc": "Treatment Record Items tanpa Treatment master",
+      "count": 0
+    },
+    {
+      "desc": "Transaction Items tanpa Transaction",
+      "count": 0
+    },
+    {
+      "desc": "Appointments tanpa Patient valid",
+      "count": 0
+    },
+    {
+      "desc": "Patient Coupons tanpa Patient valid",
+      "count": 0
+    },
+    {
+      "desc": "Coupon Package Items tanpa Package valid",
+      "count": 0
+    },
+    {
+      "desc": "Treatment Records tanpa Branch valid",
+      "count": 0
+    },
+    {
+      "desc": "Transactions tanpa Branch valid",
+      "count": 0
+    },
+    {
+      "desc": "Product Stock tanpa Product valid",
+      "count": 0
+    }
+  ],
+  "issues": [
+    {
+      "type": "DUPLICATE_PATIENTS",
+      "count": 67,
+      "names": [
+        "aas nurasiah",
+        "ade sinta",
+        "agis ambarwati",
+        "amelia nur sholiha",
+        "andini annurlaila",
+        "ani heryani",
+        "aprianti",
+        "astri wulandari",
+        "becik uswatun hasanah",
+        "bella",
+        "cecep agus rahmat",
+        "cici",
+        "cilpa febriani",
+        "desi juliana",
+        "dian melani",
+        "dila aprianti",
+        "dinda ayu nisa",
+        "fayza nur arofah p.s",
+        "hadia anita",
+        "irma mir'atul fauziyah",
+        "irma yunita",
+        "nida mardiana",
+        "rini anggraeni",
+        "zenny nurlestari",
+        "aan hasanah",
+        "aas",
+        "adam",
+        "adelia indrianti",
+        "adhylla herawati",
+        "adinda",
+        "adinda dwi",
+        "aenun fauzi",
+        "agni agniatunisa",
+        "ai nuraeni",
+        "ai nurjanah",
+        "ainay",
+        "ajeng putri erma",
+        "alda saparida",
+        "aldiansyah",
+        "amel",
+        "amelia",
+        "amida laelia",
+        "andin",
+        "anggia",
+        "anggie anggraeni",
+        "ani",
+        "anis",
+        "anisa",
+        "anisa latifah",
+        "anisa rahmah",
+        "annisa",
+        "april",
+        "aulia aziza",
+        "aully",
+        "ayi sulastri",
+        "ayu",
+        "ayu fatwa yunita",
+        "ayudhita",
+        "azizah",
+        "azmy nurul afifah",
+        "cahya dewi",
+        "dea",
+        "dea ayu oktapiani",
+        "dede ratmini",
+        "delinda",
+        "dena susilawati",
+        "desi ratna dewi"
+      ]
+    }
+  ]
+}

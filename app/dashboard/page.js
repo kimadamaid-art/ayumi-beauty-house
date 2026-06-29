@@ -28,7 +28,6 @@ export default function Dashboard() {
     const [statFollowups, setStatFollowups] = useState(0)
     const [statBirthdays, setStatBirthdays] = useState(0)
     const [statDormant, setStatDormant] = useState(0)
-    const [statNewLeads, setStatNewLeads] = useState(0)
     const [statNewPatients, setStatNewPatients] = useState(0)
     const [statExpiringCoupons, setStatExpiringCoupons] = useState(0)
 
@@ -128,13 +127,6 @@ export default function Dashboard() {
         fuQuery = applyBranchFilter(fuQuery)
         const { count: countFu } = await fuQuery
         setStatFollowups(countFu || 0)
-
-        // 3. Lead Baru Hari Ini
-        let leadsQuery = supabase.from('leads').select('id', { count: 'exact' })
-            .gte('created_at', `${todayDateStr}T00:00:00Z`)
-        leadsQuery = applyBranchFilter(leadsQuery)
-        const { count: countLeads } = await leadsQuery
-        setStatNewLeads(countLeads || 0)
 
         // 4. Pasien Baru Bulan Ini (Filter by branch logic for patients: patients might not have branch_id, but usually they do or tied via treatments. Assuming they have branch_id)
         const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
@@ -422,17 +414,6 @@ export default function Dashboard() {
                         <div>
                             <h3 className="text-3xl font-extrabold text-ayumi-text">{statDormant}</h3>
                             <p className="text-sm font-semibold text-ayumi-text-muted">Pasien Dormant</p>
-                        </div>
-                    </div>
-
-                    {/* Widget 5 */}
-                    <div className="card-ayumi p-4 md:p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
-                        <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
-                            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-                        </div>
-                        <div>
-                            <h3 className="text-3xl font-extrabold text-ayumi-text">{statNewLeads}</h3>
-                            <p className="text-sm font-semibold text-ayumi-text-muted">Lead Baru Hari Ini</p>
                         </div>
                     </div>
 

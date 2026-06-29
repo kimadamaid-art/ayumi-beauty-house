@@ -209,10 +209,6 @@ export default function GlobalHeader({ onMenuToggle }) {
         if (pathname.startsWith('/patients/new')) return 'Tambah Pasien Baru'
         if (pathname.match(/^\/patients\/[^/]+$/)) return 'Detail Pasien'
         if (pathname.startsWith('/patients')) return 'Manajemen Pasien'
-        
-        if (pathname.startsWith('/leads/new')) return 'Tambah Lead Baru'
-        if (pathname.match(/^\/leads\/[^/]+$/)) return 'Detail Lead'
-        if (pathname.startsWith('/leads')) return 'Manajemen Leads'
 
         if (pathname.startsWith('/appointments/new')) return 'Buat Janji Temu'
         if (pathname.startsWith('/appointments')) return 'Kalender & Jadwal'
