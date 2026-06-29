@@ -272,20 +272,25 @@ export default function TreatmentInputPage({ params }) {
                     couponsToUpdate.push(t.used_coupon_item_id)
                 }
 
-                if (t.followup_days > 0) {
+                // Auto-schedule follow-up bertahap: 3 minggu & 1 bulan
+                const followupSteps = [
+                    { days: 21, type: 'followup_3minggu', priority: 'normal' },
+                    { days: 30, type: 'followup_1bulan', priority: 'normal' }
+                ]
+                followupSteps.forEach(step => {
                     const scheduledDate = new Date()
-                    scheduledDate.setDate(scheduledDate.getDate() + t.followup_days)
+                    scheduledDate.setDate(scheduledDate.getDate() + step.days)
                     queuesToInsert.push({
                         patient_id: appointment.patient_id,
                         treatment_record_id: recordId,
                         branch_id: appointment.branch_id,
                         assigned_to: dbUser.id,
-                        followup_type: 'treatment_reminder',
+                        followup_type: step.type,
                         scheduled_date: scheduledDate.toISOString().split('T')[0],
-                        priority: 'normal',
+                        priority: step.priority,
                         status: 'pending'
                     })
-                }
+                })
             })
 
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)

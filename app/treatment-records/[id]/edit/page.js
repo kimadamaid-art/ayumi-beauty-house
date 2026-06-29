@@ -340,21 +340,26 @@ function EditRecordForm() {
 
             const queuesToInsert = []
             selectedTreatments.forEach(t => {
-                if (t.followup_days > 0) {
+                // Auto-schedule follow-up bertahap: 3 minggu & 1 bulan
+                const followupSteps = [
+                    { days: 21, type: 'followup_3minggu', priority: 'normal' },
+                    { days: 30, type: 'followup_1bulan', priority: 'normal' }
+                ]
+                followupSteps.forEach(step => {
                     const scheduledDate = new Date(formData.treatment_date)
-                    scheduledDate.setDate(scheduledDate.getDate() + t.followup_days)
+                    scheduledDate.setDate(scheduledDate.getDate() + step.days)
                     
                     queuesToInsert.push({
                         patient_id: formData.patient_id,
                         treatment_record_id: id,
                         branch_id: formData.branch_id,
                         assigned_to: formData.performed_by || null,
-                        followup_type: 'treatment_reminder',
+                        followup_type: step.type,
                         scheduled_date: scheduledDate.toISOString().split('T')[0],
-                        priority: 'normal',
+                        priority: step.priority,
                         status: 'pending'
                     })
-                }
+                })
             })
 
             if (queuesToInsert.length > 0) {

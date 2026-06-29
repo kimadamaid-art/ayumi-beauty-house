@@ -170,6 +170,46 @@ async function checkReminders() {
             }
         }
 
+        // --- 3. PENGINGAT H-1 APPOINTMENT BESOK (dimasukkan ke followup_queue) ---
+        const tomorrow = new Date(gmt7Now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = formatDate(tomorrow);
+
+        const { data: tomorrowApts, error: tomAptError } = await supabase
+            .from('appointments')
+            .select('id, patient_id, branch_id, therapist_id, start_time, patients(full_name)')
+            .eq('appointment_date', tomorrowStr)
+            .in('status', ['scheduled', 'confirmed']);
+
+        if (!tomAptError && tomorrowApts && tomorrowApts.length > 0) {
+            for (const appt of tomorrowApts) {
+                // Cek apakah sudah ada antrean followup reminder_besok untuk pasien ini pada tanggal besok
+                const { data: existingQueue, error: eqError } = await supabase
+                    .from('followup_queue')
+                    .select('id')
+                    .eq('patient_id', appt.patient_id)
+                    .eq('followup_type', 'reminder_besok')
+                    .eq('scheduled_date', tomorrowStr)
+                    .limit(1);
+
+                if (!eqError && (!existingQueue || existingQueue.length === 0)) {
+                    console.log(`Menambahkan antrean reminder_besok ke followup_queue untuk pasien ${appt.patients?.full_name || appt.patient_id} tanggal ${tomorrowStr}`);
+                    await supabase
+                        .from('followup_queue')
+                        .insert([{
+                            patient_id: appt.patient_id,
+                            branch_id: appt.branch_id,
+                            assigned_to: appt.therapist_id || null,
+                            followup_type: 'reminder_besok',
+                            scheduled_date: tomorrowStr,
+                            priority: 'high',
+                            status: 'pending',
+                            notes: `Pengingat jadwal treatment besok pukul ${appt.start_time.substring(0, 5)} WIB`
+                        }]);
+                }
+            }
+        }
+
     } catch (e) {
         console.error('Kesalahan fatal pada checkReminders:', e);
     }

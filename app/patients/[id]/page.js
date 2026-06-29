@@ -21,6 +21,7 @@ export default function PatientDetailPage() {
     const [branches, setBranches] = useState([]) // For the filter dropdown
     const [photos, setPhotos] = useState([])
     const [crmHistory, setCrmHistory] = useState([])
+    const [pendingFollowups, setPendingFollowups] = useState([])
     const [patientCoupons, setPatientCoupons] = useState([])
     const [patientTransactions, setPatientTransactions] = useState([])
     const [hasExpiringCoupons, setHasExpiringCoupons] = useState(false)
@@ -125,14 +126,23 @@ export default function PatientDetailPage() {
             
             if (phData) setPhotos(phData)
 
-            // 4. Fetch CRM Follow-up Logs
+            // 4. Fetch CRM Follow-up Logs & Pending Queue
             const { data: crmData } = await supabase
                 .from('followup_logs')
-                .select('*')
+                .select('*, users(full_name)')
                 .eq('patient_id', id)
-                .order('created_at', { ascending: false })
+                .order('performed_at', { ascending: false })
             
             if (crmData) setCrmHistory(crmData)
+
+            const { data: queueData } = await supabase
+                .from('followup_queue')
+                .select('*')
+                .eq('patient_id', id)
+                .eq('status', 'pending')
+                .order('scheduled_date', { ascending: true })
+
+            if (queueData) setPendingFollowups(queueData)
 
             // 5. Fetch Patient Coupons
             const { data: pcData } = await supabase
@@ -434,32 +444,111 @@ export default function PatientDetailPage() {
 
                 {/* CRM HISTORY TAB */}
                 {activeTab === 'crm' && (
-                    <div>
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-bold text-ayumi-secondary">Riwayat Follow-up (CRM)</h3>
-                        </div>
-                        {crmHistory.length === 0 ? (
-                            <div className="text-center p-10 bg-gray-50 rounded-2xl">
-                                <p className="text-gray-500">Belum ada riwayat follow-up yang tercatat.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {crmHistory.map((crm) => (
-                                    <div key={crm.id} className="bg-white border border-gray-100 shadow-sm p-5 rounded-2xl flex gap-4">
-                                        <div className="bg-pink-50 text-ayumi-primary w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <h4 className="font-bold text-gray-800">{crm.interaction_type || 'Follow-up'}</h4>
-                                                <span className="text-xs text-gray-400">{new Date(crm.created_at).toLocaleString('id-ID')}</span>
+                    <div className="space-y-8">
+                        {/* 1. PENDING SCHEDULES SECTION */}
+                        <div>
+                            <h3 className="text-lg font-bold text-ayumi-secondary mb-4 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                Antrean Jadwal Follow-up
+                            </h3>
+                            {pendingFollowups.length === 0 ? (
+                                <div className="p-6 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center">
+                                    <p className="text-sm text-gray-500">Tidak ada jadwal follow-up aktif untuk pasien ini.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {pendingFollowups.map((q) => {
+                                        const typeLabels = {
+                                            'followup_3minggu': { label: '📋 Cek Progres 3 Minggu', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                                            'followup_1bulan': { label: '📋 Cek Progres 1 Bulan', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                                            'reminder_besok': { label: '⏰ Reminder Besok Treatment', color: 'bg-red-50 text-red-700 border-red-200' },
+                                            'treatment_reminder': { label: '🔔 Pengingat Perawatan', color: 'bg-pink-50 text-[#B5588A] border-pink-200' },
+                                            'dormant_reminder': { label: '💤 Sapaan Pasien Dormant', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+                                            'birthday': { label: '🎂 Ucapan Ulang Tahun', color: 'bg-rose-50 text-rose-700 border-rose-200' }
+                                        }
+                                        const info = typeLabels[q.followup_type] || { label: q.followup_type?.replace(/_/g, ' ') || 'Follow Up', color: 'bg-gray-50 text-gray-700 border-gray-200' }
+                                        return (
+                                            <div key={q.id} className="bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                                                <div className="space-y-1">
+                                                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${info.color}`}>
+                                                        {info.label}
+                                                    </span>
+                                                    <p className="text-xs text-gray-500 pt-1">Rencana: <strong className="text-gray-700">{q.scheduled_date}</strong></p>
+                                                    {q.notes && <p className="text-xs text-gray-600 italic">"{q.notes}"</p>}
+                                                </div>
+                                                <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${q.priority === 'high' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                    {q.priority}
+                                                </span>
                                             </div>
-                                            <p className="text-sm text-gray-600">{crm.notes}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <hr className="border-gray-100" />
+
+                        {/* 2. HISTORY LOGS SECTION */}
+                        <div>
+                            <h3 className="text-lg font-bold text-ayumi-secondary mb-4 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                Riwayat Kontak & Interaksi (Logs)
+                            </h3>
+                            {crmHistory.length === 0 ? (
+                                <div className="text-center p-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                                    <p className="text-gray-500">Belum ada riwayat follow-up yang tercatat.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {crmHistory.map((crm) => {
+                                        const typeLabels = {
+                                            'followup_3minggu': { label: '📋 Cek Progres 3 Minggu', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                                            'followup_1bulan': { label: '📋 Cek Progres 1 Bulan', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                                            'reminder_besok': { label: '⏰ Reminder Besok Treatment', color: 'bg-red-50 text-red-700 border-red-200' },
+                                            'treatment_reminder': { label: '🔔 Pengingat Perawatan', color: 'bg-pink-50 text-[#B5588A] border-pink-200' },
+                                            'dormant_reminder': { label: '💤 Sapaan Pasien Dormant', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+                                            'birthday': { label: '🎂 Ucapan Ulang Tahun', color: 'bg-rose-50 text-rose-700 border-rose-200' }
+                                        }
+                                        const outcomeLabels = {
+                                            'booked': { label: '📅 Booking Jadwal', color: 'bg-green-100 text-green-800' },
+                                            'responded': { label: '💬 Merespon', color: 'bg-blue-100 text-blue-800' },
+                                            'no_response': { label: '🔇 Tidak Merespon', color: 'bg-gray-100 text-gray-700' },
+                                            'pending': { label: '⏳ Pending', color: 'bg-yellow-100 text-yellow-800' }
+                                        }
+                                        const info = typeLabels[crm.followup_type] || { label: crm.followup_type?.replace(/_/g, ' ') || 'Follow Up', color: 'bg-gray-50 text-gray-700 border-gray-200' }
+                                        const outcomeInfo = outcomeLabels[crm.outcome] || { label: crm.outcome || '-', color: 'bg-gray-100 text-gray-700' }
+
+                                        return (
+                                            <div key={crm.id} className="bg-white border border-gray-100 shadow-sm p-5 rounded-2xl flex gap-4 hover:border-gray-200 transition-all">
+                                                <div className="bg-green-50 text-green-600 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                                                </div>
+                                                <div className="flex-1 space-y-2">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${info.color}`}>
+                                                            {info.label}
+                                                        </span>
+                                                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${outcomeInfo.color}`}>
+                                                            Hasil: {outcomeInfo.label}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 ml-auto">
+                                                            {new Date(crm.performed_at || crm.created_at).toLocaleString('id-ID')}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                                        {crm.notes || <span className="text-gray-400 italic">Tidak ada catatan</span>}
+                                                    </p>
+                                                    <div className="flex justify-between items-center text-xs text-gray-400">
+                                                        <span>Saluran: <strong className="text-gray-600 capitalize">{crm.channel || 'WhatsApp'}</strong></span>
+                                                        <span>Oleh: <strong className="text-gray-600">{crm.users?.full_name || 'Staf'}</strong></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
