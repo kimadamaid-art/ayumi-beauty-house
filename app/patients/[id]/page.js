@@ -639,7 +639,6 @@ export default function PatientDetailPage() {
                 )}
 
             </div>
-            </div>
 
             {/* Modal Edit Expired Date */}
             {editExpiryModal.isOpen && (
