@@ -20,7 +20,7 @@ export default function GlobalSidebar({ isOpen, onClose }) {
         fetchUser()
     }, [])
 
-    const fetchUser = async () => {
+    async function fetchUser() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
             const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
@@ -45,7 +45,7 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                 />
             )}
             
-            <aside className={`w-64 bg-gradient-to-b from-ayumi-secondary to-ayumi-primary shadow-lg fixed h-full z-40 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+            <aside className={`w-64 bg-gradient-to-b from-ayumi-secondary to-ayumi-primary shadow-lg fixed top-0 left-0 h-full z-40 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
             <div className="p-6 border-b border-white/10 flex items-center gap-4">
                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md shrink-0">
                     <span className="font-extrabold text-2xl text-ayumi-primary font-sans tracking-tighter">ab</span>
@@ -228,5 +228,6 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                 )}
             </div>
         </aside>
+        </>
     )
 }
