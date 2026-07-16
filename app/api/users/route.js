@@ -1,8 +1,49 @@
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST(request) {
     try {
+        const cookieStore = await cookies()
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch (error) {
+                            // Ignored in API routes
+                        }
+                    },
+                },
+            }
+        )
+
+        // 1. Ambil user terautentikasi
+        const { data: { user }, error: userAuthError } = await supabase.auth.getUser()
+        if (userAuthError || !user) {
+            return NextResponse.json({ error: 'Unauthorized: Sesi tidak ditemukan atau kedaluwarsa.' }, { status: 401 })
+        }
+
+        // 2. Ambil role user dari tabel users
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+
+        if (userError || !userData || userData.role !== 'owner') {
+            return NextResponse.json({ error: 'Forbidden: Hanya Owner yang diizinkan melakukan tindakan ini.' }, { status: 403 })
+        }
+
         const body = await request.json()
         const { email, password, full_name, phone, role, branch_id } = body
 
@@ -72,6 +113,45 @@ export async function POST(request) {
 
 export async function DELETE(request) {
     try {
+        const cookieStore = await cookies()
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch (error) {
+                            // Ignored in API routes
+                        }
+                    },
+                },
+            }
+        )
+
+        // 1. Ambil user terautentikasi
+        const { data: { user }, error: userAuthError } = await supabase.auth.getUser()
+        if (userAuthError || !user) {
+            return NextResponse.json({ error: 'Unauthorized: Sesi tidak ditemukan atau kedaluwarsa.' }, { status: 401 })
+        }
+
+        // 2. Ambil role user dari tabel users
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+
+        if (userError || !userData || userData.role !== 'owner') {
+            return NextResponse.json({ error: 'Forbidden: Hanya Owner yang diizinkan melakukan tindakan ini.' }, { status: 403 })
+        }
+
         const { searchParams } = new URL(request.url)
         const id = searchParams.get('id')
 
@@ -113,6 +193,45 @@ export async function DELETE(request) {
 
 export async function PUT(request) {
     try {
+        const cookieStore = await cookies()
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch (error) {
+                            // Ignored in API routes
+                        }
+                    },
+                },
+            }
+        )
+
+        // 1. Ambil user terautentikasi
+        const { data: { user }, error: userAuthError } = await supabase.auth.getUser()
+        if (userAuthError || !user) {
+            return NextResponse.json({ error: 'Unauthorized: Sesi tidak ditemukan atau kedaluwarsa.' }, { status: 401 })
+        }
+
+        // 2. Ambil role user dari tabel users
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+
+        if (userError || !userData || userData.role !== 'owner') {
+            return NextResponse.json({ error: 'Forbidden: Hanya Owner yang diizinkan melakukan tindakan ini.' }, { status: 403 })
+        }
+
         const body = await request.json()
         const { id, email, password, full_name, phone, role, branch_id, is_active } = body
 
