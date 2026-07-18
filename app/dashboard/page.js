@@ -102,172 +102,191 @@ export default function Dashboard() {
     }
 
     const fetchStatistics = async () => {
-        const todayDateStr = new Date().toISOString().split('T')[0]
-        
-        // Helper to append branch filter
-        const applyBranchFilter = (query, columnName = 'branch_id') => {
-            if (selectedBranch) {
-                return query.eq(columnName, selectedBranch)
-            }
-            return query
-        }
-
-        // Define parallel promises
-        // 1. Query the today view statistics
-        let viewQuery = supabase.from('dashboard_today_view').select('*')
-        if (selectedBranch) {
-            viewQuery = viewQuery.eq('branch_id', selectedBranch)
-        }
-
-        // 2. Query expiring coupons count
-        const in30Days = new Date()
-        in30Days.setDate(in30Days.getDate() + 30)
-        const couponsQuery = supabase.from('patient_coupons').select('id', { count: 'exact' })
-            .eq('status', 'active')
-            .gte('expired_at', new Date().toISOString())
-            .lte('expired_at', in30Days.toISOString())
-
-        // 3. Query recent appointments table
-        let tableAptQuery = supabase.from('appointments').select('id, start_time, end_time, status, patients(full_name, whatsapp)')
-            .eq('appointment_date', todayDateStr)
-            .order('start_time', { ascending: true })
-            .limit(5)
-        tableAptQuery = applyBranchFilter(tableAptQuery)
-
-        // 4. Query recent followups table
-        let tableFuQuery = supabase.from('followup_queue').select('id, followup_type, priority, patients(full_name, whatsapp)')
-            .eq('status', 'pending')
-            .lte('scheduled_date', todayDateStr)
-            .order('priority', { ascending: false })
-            .limit(5)
-        tableFuQuery = applyBranchFilter(tableFuQuery)
-
-        // 5. Query today's transactions for revenue breakdown
-        let trxTodayQuery = supabase.from('transactions').select('total, payment_method')
-            .gte('created_at', `${todayDateStr}T00:00:00Z`)
-            .lte('created_at', `${todayDateStr}T23:59:59Z`)
-        trxTodayQuery = applyBranchFilter(trxTodayQuery)
-
-        // 6. Query transactions for the last 7 days sparkline
-        const sevenDaysAgo = new Date()
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-        sevenDaysAgo.setHours(0,0,0,0)
-        let sparklineQuery = supabase.from('transactions').select('total, created_at')
-            .gte('created_at', sevenDaysAgo.toISOString())
-        sparklineQuery = applyBranchFilter(sparklineQuery)
-
-        // Execute all queries in parallel
-        const [
-            viewResult,
-            couponsResult,
-            tableAptResult,
-            tableFuResult,
-            trxTodayResult,
-            sparkResult
-        ] = await Promise.all([
-            viewQuery,
-            couponsQuery,
-            tableAptQuery,
-            tableFuQuery,
-            trxTodayQuery,
-            sparklineQuery
-        ])
-
-        // --- Process View Results (Stat Cards) ---
-        let totalApt = 0
-        let totalFu = 0
-        let totalBday = 0
-        let totalDormant = 0
-        let totalNewPatients = 0
-        
-        if (viewResult.data) {
-            viewResult.data.forEach(row => {
-                totalApt += Number(row.appointments_today || 0)
-                totalFu += Number(row.followups_today || 0)
-                totalBday += Number(row.birthdays_this_week || 0)
-                totalDormant += Number(row.dormant_patients || 0)
-                totalNewPatients += Number(row.new_patients_this_month || 0)
-            })
-        }
-        setStatAppointments(totalApt)
-        setStatFollowups(totalFu)
-        setStatBirthdays(totalBday)
-        setStatDormant(totalDormant)
-        setStatNewPatients(totalNewPatients)
-
-        if (viewResult.error) {
-            console.error('Error fetching dashboard_today_view:', viewResult.error.message)
-        }
-
-        // --- Process Expiring Coupons ---
-        setStatExpiringCoupons(couponsResult.count || 0)
-
-        // --- Process Appointments List ---
-        if (tableAptResult.data) {
-            setRecentAppointments(tableAptResult.data)
-        }
-
-        // --- Process Followups List ---
-        if (tableFuResult.data) {
-            setRecentFollowups(tableFuResult.data)
-        }
-
-        // --- Process Today Transactions ---
-        let todayIncome = 0
-        let todayTxCount = 0
-        const methodCounts = {}
-        if (trxTodayResult.data) {
-            todayTxCount = trxTodayResult.data.length
-            trxTodayResult.data.forEach(tx => {
-                todayIncome += Number(tx.total || 0)
-                const m = tx.payment_method
-                if (m) {
-                    methodCounts[m] = (methodCounts[m] || 0) + 1
-                }
-            })
-        }
-        setStatTodayIncome(todayIncome)
-        setStatTodayTx(todayTxCount)
-
-        let topMethod = '-'
-        let maxCount = 0
-        Object.entries(methodCounts).forEach(([m, count]) => {
-            if (count > maxCount) {
-                maxCount = count
-                topMethod = m.toUpperCase()
-            }
-        })
-        setStatTopPaymentMethod(topMethod)
-
-        // --- Process Sparkline ---
-        const dailyMap = {}
-        for (let i = 0; i < 7; i++) {
-            const d = new Date()
-            d.setDate(d.getDate() - i)
-            const dateStr = d.toISOString().split('T')[0]
-            dailyMap[dateStr] = 0
-        }
-
-        if (sparkResult.data) {
-            sparkResult.data.forEach(tx => {
-                const dateStr = new Date(tx.created_at).toISOString().split('T')[0]
-                if (dailyMap[dateStr] !== undefined) {
-                    dailyMap[dateStr] += Number(tx.total || 0)
-                }
-            })
-        }
-
-        const formattedSpark = Object.entries(dailyMap)
-            .map(([date, total]) => {
-                const d = new Date(date)
-                const label = d.toLocaleDateString('id-ID', { weekday: 'short' })
-                return { date, label, total }
-            })
-            .sort((a, b) => new Date(a.date) - new Date(b.date))
+        setLoading(true)
+        try {
+            const todayDateStr = new Date().toISOString().split('T')[0]
             
-        setSparklineData(formattedSpark)
-        
-        setLoading(false)
+            // Helper to append branch filter
+            const applyBranchFilter = (query, columnName = 'branch_id') => {
+                if (selectedBranch) {
+                    return query.eq(columnName, selectedBranch)
+                }
+                return query
+            }
+
+            // Define parallel promises
+            // 1. Query the today view statistics
+            let viewQuery = supabase.from('dashboard_today_view').select('*')
+            if (selectedBranch) {
+                viewQuery = viewQuery.eq('branch_id', selectedBranch)
+            }
+
+            // 2. Query expiring coupons count
+            const in30Days = new Date()
+            in30Days.setDate(in30Days.getDate() + 30)
+            const couponsQuery = supabase.from('patient_coupons').select('id', { count: 'exact' })
+                .eq('status', 'active')
+                .gte('expired_at', new Date().toISOString())
+                .lte('expired_at', in30Days.toISOString())
+
+            // 3. Query recent appointments table
+            let tableAptQuery = supabase.from('appointments').select('id, start_time, end_time, status, patients(full_name, whatsapp)')
+                .eq('appointment_date', todayDateStr)
+                .order('start_time', { ascending: true })
+                .limit(5)
+            tableAptQuery = applyBranchFilter(tableAptQuery)
+
+            // 4. Query recent followups table
+            let tableFuQuery = supabase.from('followup_queue').select('id, followup_type, priority, patients(full_name, whatsapp)')
+                .eq('status', 'pending')
+                .lte('scheduled_date', todayDateStr)
+                .order('priority', { ascending: false })
+                .limit(5)
+            tableFuQuery = applyBranchFilter(tableFuQuery)
+
+            // 5. Query today's transactions for revenue breakdown
+            let trxTodayQuery = supabase.from('transactions').select('total, payment_method')
+                .gte('created_at', `${todayDateStr}T00:00:00Z`)
+                .lte('created_at', `${todayDateStr}T23:59:59Z`)
+            trxTodayQuery = applyBranchFilter(trxTodayQuery)
+
+            // 6. Query transactions for the last 7 days sparkline
+            const sevenDaysAgo = new Date()
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+            sevenDaysAgo.setHours(0,0,0,0)
+            let sparklineQuery = supabase.from('transactions').select('total, created_at')
+                .gte('created_at', sevenDaysAgo.toISOString())
+            sparklineQuery = applyBranchFilter(sparklineQuery)
+
+            // Execute all queries in parallel
+            const [
+                viewResult,
+                couponsResult,
+                tableAptResult,
+                tableFuResult,
+                trxTodayResult,
+                sparkResult
+            ] = await Promise.all([
+                viewQuery,
+                couponsQuery,
+                tableAptQuery,
+                tableFuQuery,
+                trxTodayQuery,
+                sparklineQuery
+            ])
+
+            // --- Process View Results (Stat Cards) ---
+            let totalApt = 0
+            let totalFu = 0
+            let totalBday = 0
+            let totalDormant = 0
+            let totalNewPatients = 0
+            
+            if (viewResult && viewResult.data) {
+                viewResult.data.forEach(row => {
+                    if (row) {
+                        totalApt += Number(row.appointments_today || 0)
+                        totalFu += Number(row.followups_today || 0)
+                        totalBday += Number(row.birthdays_this_week || 0)
+                        totalDormant += Number(row.dormant_patients || 0)
+                        totalNewPatients += Number(row.new_patients_this_month || 0)
+                    }
+                })
+            }
+            setStatAppointments(totalApt)
+            setStatFollowups(totalFu)
+            setStatBirthdays(totalBday)
+            setStatDormant(totalDormant)
+            setStatNewPatients(totalNewPatients)
+
+            if (viewResult && viewResult.error) {
+                console.error('Error fetching dashboard_today_view:', viewResult.error.message)
+            }
+
+            // --- Process Expiring Coupons ---
+            setStatExpiringCoupons(couponsResult?.count || 0)
+
+            // --- Process Appointments List ---
+            if (tableAptResult && tableAptResult.data) {
+                setRecentAppointments(tableAptResult.data)
+            }
+
+            // --- Process Followups List ---
+            if (tableFuResult && tableFuResult.data) {
+                setRecentFollowups(tableFuResult.data)
+            }
+
+            // --- Process Today Transactions ---
+            let todayIncome = 0
+            let todayTxCount = 0
+            const methodCounts = {}
+            if (trxTodayResult && trxTodayResult.data) {
+                todayTxCount = trxTodayResult.data.length
+                trxTodayResult.data.forEach(tx => {
+                    if (tx) {
+                        todayIncome += Number(tx.total || 0)
+                        const m = tx.payment_method
+                        if (m) {
+                            methodCounts[m] = (methodCounts[m] || 0) + 1
+                        }
+                    }
+                })
+            }
+            setStatTodayIncome(todayIncome)
+            setStatTodayTx(todayTxCount)
+
+            let topMethod = '-'
+            let maxCount = 0
+            Object.entries(methodCounts).forEach(([m, count]) => {
+                if (count > maxCount) {
+                    maxCount = count
+                    topMethod = m.toUpperCase()
+                }
+            })
+            setStatTopPaymentMethod(topMethod)
+
+            // --- Process Sparkline ---
+            const dailyMap = {}
+            for (let i = 0; i < 7; i++) {
+                const d = new Date()
+                d.setDate(d.getDate() - i)
+                const dateStr = d.toISOString().split('T')[0]
+                dailyMap[dateStr] = 0
+            }
+
+            if (sparkResult && sparkResult.data) {
+                sparkResult.data.forEach(tx => {
+                    if (tx && tx.created_at) {
+                        try {
+                            const dateStr = new Date(tx.created_at).toISOString().split('T')[0]
+                            if (dailyMap[dateStr] !== undefined) {
+                                dailyMap[dateStr] += Number(tx.total || 0)
+                            }
+                        } catch (e) {
+                            console.error('Error parsing date for sparkline:', tx.created_at, e)
+                        }
+                    }
+                })
+            }
+
+            const formattedSpark = Object.entries(dailyMap)
+                .map(([date, total]) => {
+                    try {
+                        const d = new Date(date)
+                        const label = d.toLocaleDateString('id-ID', { weekday: 'short' })
+                        return { date, label, total }
+                    } catch (e) {
+                        return { date, label: '-', total }
+                    }
+                })
+                .sort((a, b) => new Date(a.date) - new Date(b.date))
+                
+            setSparklineData(formattedSpark)
+        } catch (error) {
+            console.error("Dashboard statistics fetching crashed:", error)
+        } finally {
+            setLoading(false)
+        }
     }
 
     if (loading && !dbUser) {
@@ -348,7 +367,7 @@ export default function Dashboard() {
                             {isMounted && sparklineData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={sparklineData}>
-                                        <RechartsTooltip formatter={(value) => 'Rp ' + value.toLocaleString('id-ID')} contentStyle={{ fontSize: '10px', padding: '4px' }} />
+                                        <RechartsTooltip formatter={(value) => 'Rp ' + (typeof value === 'number' ? value.toLocaleString('id-ID') : value)} contentStyle={{ fontSize: '10px', padding: '4px' }} />
                                         <Line type="monotone" dataKey="total" stroke="#B5588A" strokeWidth={2.5} dot={false} />
                                     </LineChart>
                                 </ResponsiveContainer>
@@ -455,7 +474,7 @@ export default function Dashboard() {
                                             recentAppointments.map(apt => (
                                                 <tr key={apt.id} className="hover:bg-ayumi-table-hover transition-colors bg-white">
                                                     <td className="px-6 py-4 font-bold text-gray-700">
-                                                        {apt.start_time.substring(0,5)}
+                                                        {apt.start_time ? apt.start_time.substring(0,5) : '-'}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-bold text-gray-800">{apt.patients?.full_name}</div>

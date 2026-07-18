@@ -156,7 +156,7 @@ function AddRecordForm() {
                         patient_id: apt.patient_id,
                         branch_id: apt.branch_id,
                         treatment_date: apt.appointment_date,
-                        treatment_time: apt.start_time.substring(0, 5),
+                        treatment_time: apt.start_time ? apt.start_time.substring(0, 5) : '08:00',
                         performed_by: apt.therapist_id || ''
                     }))
 

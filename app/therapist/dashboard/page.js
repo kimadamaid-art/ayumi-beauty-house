@@ -403,7 +403,7 @@ export default function TherapistDashboard() {
                                                 <div>
                                                     <div className="font-bold text-gray-800 text-sm">{apt.patients?.full_name}</div>
                                                     <div className="text-[11px] text-gray-500 font-semibold mt-0.5">
-                                                        {apt.start_time.substring(0, 5)} - {apt.end_time.substring(0, 5)}
+                                                        {apt.start_time ? apt.start_time.substring(0, 5) : '-'} - {apt.end_time ? apt.end_time.substring(0, 5) : '-'}
                                                     </div>
                                                 </div>
                                                 <div className="scale-75 origin-top-right">

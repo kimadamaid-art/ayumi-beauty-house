@@ -153,7 +153,7 @@ export default function TherapistAppointments() {
                                             <td className="p-4">
                                                 <div className="font-bold text-ayumi-text">{new Date(apt.appointment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                                                 <div className="text-sm text-ayumi-primary font-semibold mt-1">
-                                                    {apt.start_time.substring(0, 5)} - {apt.end_time.substring(0, 5)}
+                                                    {apt.start_time ? apt.start_time.substring(0, 5) : '-'} - {apt.end_time ? apt.end_time.substring(0, 5) : '-'}
                                                 </div>
                                             </td>
                                             <td className="p-4">

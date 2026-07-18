@@ -153,7 +153,7 @@ export default function AppointmentsPage() {
                     .eq('appointment_id', apt.id)
                 
                 const treatmentNames = apptTreatments?.map(t => t.treatments?.name).join(', ') || 'Treatment'
-                const startHour = apt.start_time.substring(0, 5)
+                const startHour = apt.start_time ? apt.start_time.substring(0, 5) : ''
 
                 const { error: notifErr } = await supabase
                     .from('notifications')
@@ -486,7 +486,7 @@ export default function AppointmentsPage() {
                                                     <td className="p-4">
                                                         <div className="font-bold text-ayumi-text">{new Date(apt.appointment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                                                         <div className="text-xs text-ayumi-primary font-bold mt-1">
-                                                            {apt.start_time.substring(0, 5)} - {apt.end_time.substring(0, 5)}
+                                                            {apt.start_time ? apt.start_time.substring(0, 5) : '-'} - {apt.end_time ? apt.end_time.substring(0, 5) : '-'}
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
@@ -593,7 +593,7 @@ export default function AppointmentsPage() {
                                                                     className={`flex items-center gap-1 text-[9px] leading-tight font-bold px-1.5 py-0.5 rounded border ${style.bg}`}
                                                                 >
                                                                     <div className={`w-1 h-1 rounded-full flex-shrink-0 ${style.dot}`}></div>
-                                                                    <span className="truncate">{a.start_time.substring(0,5)} {a.patients?.full_name?.split(' ')[0]}</span>
+                                                                    <span className="truncate">{a.start_time ? a.start_time.substring(0,5) : '-'} {a.patients?.full_name?.split(' ')[0]}</span>
                                                                 </div>
                                                             )
                                                         })}
@@ -663,7 +663,7 @@ export default function AppointmentsPage() {
                                                                                 <div className="font-bold text-sm text-gray-800 tracking-tight">{a.patients?.full_name}</div>
                                                                                 <div className="text-[10px] text-gray-500 font-semibold flex items-center gap-1 mt-0.5">
                                                                                     <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                                                    {a.start_time.substring(0,5)} - {a.end_time.substring(0,5)}
+                                                                                    {a.start_time ? a.start_time.substring(0,5) : '-'} - {a.end_time ? a.end_time.substring(0,5) : '-'}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="scale-75 origin-top-right">{getStatusBadge(a)}</div>
@@ -712,7 +712,7 @@ export default function AppointmentsPage() {
                                                     <div key={a.id} className="flex flex-col sm:flex-row gap-3 items-start">
                                                         <div className="w-full sm:w-28 flex-shrink-0 pt-1">
                                                             <div className="text-[10px] font-black text-ayumi-secondary tracking-wider uppercase bg-pink-100/50 px-2.5 py-1.5 rounded-lg inline-block sm:block text-center border border-pink-100">
-                                                                {a.start_time.substring(0,5)} - {a.end_time.substring(0,5)}
+                                                                 {a.start_time ? a.start_time.substring(0,5) : '-'} - {a.end_time ? a.end_time.substring(0,5) : '-'}
                                                             </div>
                                                         </div>
                                                         <div className="flex-1 w-full">
