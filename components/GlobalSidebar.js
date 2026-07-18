@@ -216,12 +216,14 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                                                 Master Treatment
                                             </div>
                                         </Link>
-                                        <Link href="/settings/products">
-                                            <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/products' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                                Master Produk
-                                            </div>
-                                        </Link>
                                     </>
+                                )}
+                                {dbUser && (dbUser.role === 'owner' || dbUser.role === 'admin') && (
+                                    <Link href="/settings/products">
+                                        <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/products' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
+                                            Master Produk
+                                        </div>
+                                    </Link>
                                 )}
                                 <Link href="/settings/product-stock">
                                     <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/product-stock' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>

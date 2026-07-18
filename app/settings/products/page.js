@@ -40,8 +40,8 @@ export default function ProductsPage() {
         }
 
         const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
-        if (!userData || userData.role !== 'owner') {
-            alert('Akses Ditolak: Halaman ini hanya boleh diakses oleh Owner.')
+        if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
+            alert('Akses Ditolak: Halaman ini hanya boleh diakses oleh Owner atau Admin.')
             router.push('/dashboard')
             return
         }
