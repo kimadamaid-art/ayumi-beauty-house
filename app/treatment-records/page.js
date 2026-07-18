@@ -24,11 +24,11 @@ export default function TreatmentRecordsPage() {
     const [selectedBranchFilter, setSelectedBranchFilter] = useState('all')
     const [startDate, setStartDate] = useState(() => {
         const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        return now.toISOString().split('T')[0]
     })
     const [endDate, setEndDate] = useState(() => {
         const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+        return now.toISOString().split('T')[0]
     })
     const [userLoaded, setUserLoaded] = useState(false)
     
