@@ -61,10 +61,10 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                     }}
                 />
 
-                {/* Nama brand */}
-                <div className="leading-none">
-                    <h1 className="text-white font-bold text-[16px] tracking-wide leading-none">Ayumi</h1>
-                    <p className="text-white/45 text-[8.5px] uppercase tracking-[0.25em] font-semibold mt-[7px] leading-none">Beauty House</p>
+                {/* Nama brand — hierarki tipografi lebih bersih */}
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-white font-bold text-[14px] tracking-[0.1em] leading-none">AYUMI</h1>
+                    <p className="text-white/50 text-[8px] uppercase tracking-[0.22em] font-medium mt-[6px] leading-none">Beauty House</p>
                 </div>
             </div>
 
