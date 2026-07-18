@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function UsersPage() {
     const router = useRouter()
@@ -115,7 +116,7 @@ export default function UsersPage() {
             toast.success('User berhasil dihapus', { id: 'delete' })
             checkRoleAndFetchData()
         } catch (err) {
-            toast.error(err.message, { id: 'delete' })
+            toast.error(getFriendlyErrorMessage(err), { id: 'delete' })
         }
     }
 
@@ -167,8 +168,9 @@ export default function UsersPage() {
                 setTimeout(() => { setIsModalOpen(false); checkRoleAndFetchData() }, 1000)
             }
         } catch (err) {
-            setError(err.message)
-            toast.error(err.message)
+            const friendlyMsg = getFriendlyErrorMessage(err)
+            setError(friendlyMsg)
+            toast.error(friendlyMsg)
         } finally {
             setIsSaving(false)
         }

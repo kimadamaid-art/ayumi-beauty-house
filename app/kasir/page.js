@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 function PosPageContent() {
     const router = useRouter()
@@ -514,175 +515,51 @@ function PosPageContent() {
         setIsProcessing(true)
 
         try {
-            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-            // eslint-disable-next-line react-hooks/purity
-            const randomCode = Math.floor(1000 + Math.random() * 9000)
-            const trxNumber = `TRX-${dateStr}-${randomCode}`
-
             // Extract treatment_record_id if we loaded from pending bills
             const treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
 
-            // 3. Insert Transaction
-            const { data: trxData, error: trxError } = await supabase
-                .from('transactions')
-                .insert([{
-                    transaction_number: trxNumber,
-                    patient_id: selectedPatient?.id || null,
-                    branch_id: selectedBranch,
-                    treatment_record_id: treatmentRecordId,
-                    cashier_id: dbUser?.id,
-                    subtotal: subtotal,
-                    discount: Number(discountValue) || 0,
-                    discount_type: discountType,
-                    total: total,
-                    payment_method: paymentMethod,
-                    payment_status: 'paid', // Defaulting to paid for simplicity in POS
-                    notes: notes,
-                    created_by: dbUser?.id
-                }])
-                .select()
-                .single()
-
-            if (trxError) throw trxError
-
-            // 4. Insert Transaction Items
-            const itemsToInsert = cart.map(item => ({
-                transaction_id: trxData.id,
+            // Prepare items payload for RPC
+            const itemsPayload = cart.map(item => ({
+                id: item.id,
                 item_type: item.item_type,
-                treatment_id: item.item_type === 'treatment' ? item.id : null,
-                product_id: item.item_type === 'product' ? item.id : null,
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
-                subtotal: item.price * item.quantity
+                original_price: item.original_price || 0,
+                discount_percent: item.discount_percent || 0,
+                commission_percent: item.commission_percent || 0
             }))
 
-            const { error: itemsError } = await supabase.from('transaction_items').insert(itemsToInsert)
-            if (itemsError) throw itemsError
+            // Call the atomic database RPC
+            const { data: trxData, error: rpcError } = await supabase
+                .rpc('process_checkout', {
+                    p_patient_id: selectedPatient?.id || null,
+                    p_branch_id: selectedBranch,
+                    p_treatment_record_id: treatmentRecordId,
+                    p_cashier_id: dbUser?.id,
+                    p_subtotal: subtotal,
+                    p_discount: Number(discountValue) || 0,
+                    p_discount_type: discountType,
+                    p_total: total,
+                    p_payment_method: paymentMethod,
+                    p_payment_status: 'paid',
+                    p_notes: notes,
+                    p_created_by: dbUser?.id,
+                    p_items: itemsPayload
+                })
 
-            // 5. Update Product Stocks & Insert Patient Coupons
-            for (const item of cart) {
-                if (item.item_type === 'product') {
-                    // Decrease stock
-                    const { data: stockData } = await supabase
-                        .from('product_stock')
-                        .select('id, quantity')
-                        .eq('product_id', item.id)
-                        .eq('branch_id', selectedBranch)
-                        .single()
-                        
-                    if (stockData) {
-                        await supabase
-                            .from('product_stock')
-                            .update({ quantity: Math.max(0, stockData.quantity - item.quantity) })
-                            .eq('id', stockData.id)
-                    }
-                } else if (item.item_type === 'coupon') {
-                    // For each coupon quantity, generate patient_coupons
-                    for (let i = 0; i < item.quantity; i++) {
-                        // Expire 1 year from now
-                        const expiryDate = new Date()
-                        expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+            if (rpcError) throw rpcError
 
-                        const { data: pCoupon, error: pCouponError } = await supabase.from('patient_coupons').insert([{
-                            patient_id: selectedPatient.id,
-                            package_id: item.id,
-                            transaction_id: trxData.id,
-                            expired_at: expiryDate.toISOString(),
-                            status: 'active',
-                            created_by: dbUser?.id
-                        }]).select().single()
-
-                        if (pCouponError) throw pCouponError
-
-                        // Fetch package items
-                        const { data: pkgItems } = await supabase
-                            .from('coupon_package_items')
-                            .select('*')
-                            .eq('package_id', item.id)
-
-                        if (pkgItems && pkgItems.length > 0) {
-                            const pCouponItems = pkgItems.map(pi => ({
-                                patient_coupon_id: pCoupon.id,
-                                coupon_package_item_id: pi.id,
-                                treatment_id: pi.treatment_id,
-                                total_sessions: pi.quantity,
-                                remaining_sessions: pi.quantity,
-                                used_sessions: 0,
-                                status: 'active'
-                            }))
-                            await supabase.from('patient_coupon_items').insert(pCouponItems)
-                        }
-                    }
-                }
+            if (!trxData || !trxData.id) {
+                throw new Error('Gagal mendapatkan data transaksi dari database.')
             }
 
-            // 5.5 Sync treatment prices and discounts back to treatment_record_items if loaded from a pending bill
-            if (treatmentRecordId) {
-                // Get all existing items for this treatment record to know their notes and check for deletion
-                const { data: existingTrItems } = await supabase
-                    .from('treatment_record_items')
-                    .select('*')
-                    .eq('treatment_record_id', treatmentRecordId)
-
-                const cartTreatments = cart.filter(item => item.item_type === 'treatment')
-                const cartTreatmentIds = cartTreatments.map(item => item.id)
-
-                if (existingTrItems) {
-                    // a. Delete items that were removed from the cart
-                    const itemsToDelete = existingTrItems.filter(extItem => !cartTreatmentIds.includes(extItem.treatment_id))
-                    for (const itemToDelete of itemsToDelete) {
-                        await supabase
-                            .from('treatment_record_items')
-                            .delete()
-                            .eq('treatment_record_id', treatmentRecordId)
-                            .eq('treatment_id', itemToDelete.treatment_id)
-                    }
-
-                    // b. Update or insert treatments from the cart
-                    let maxSortOrder = existingTrItems.reduce((max, item) => Math.max(max, item.sort_order || 0), 0)
-
-                    for (const cartItem of cartTreatments) {
-                        const existingMatch = existingTrItems.find(extItem => extItem.treatment_id === cartItem.id)
-
-                        if (existingMatch) {
-                            // Update existing item
-                            await supabase
-                                .from('treatment_record_items')
-                                .update({
-                                    price_at_time: cartItem.price,
-                                    discount_percent: cartItem.discount_percent,
-                                    original_price: cartItem.original_price,
-                                    commission_percent: cartItem.commission_percent || 0
-                                })
-                                .eq('treatment_record_id', treatmentRecordId)
-                                .eq('treatment_id', cartItem.id)
-                        } else {
-                            // Insert new treatment added by admin
-                            maxSortOrder++
-                            await supabase
-                                .from('treatment_record_items')
-                                .insert([{
-                                    treatment_record_id: treatmentRecordId,
-                                    treatment_id: cartItem.id,
-                                    price_at_time: cartItem.price,
-                                    original_price: cartItem.original_price,
-                                    discount_percent: cartItem.discount_percent,
-                                    sort_order: maxSortOrder,
-                                    notes: 'Ditambahkan oleh Kasir/Admin',
-                                    commission_percent: cartItem.commission_percent || 0
-                                }])
-                        }
-                    }
-                }
-            }
-
-            // 6. Navigate to Receipt page
+            // Navigate to Receipt page
             router.push(`/kasir/transactions/${trxData.id}`)
             
         } catch (error) {
             console.error(error)
-            alert('Terjadi kesalahan saat memproses pembayaran: ' + error.message)
+            alert('Terjadi kesalahan saat memproses pembayaran: ' + getFriendlyErrorMessage(error))
             setIsProcessing(false)
         }
     }

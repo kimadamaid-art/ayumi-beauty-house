@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function NewAppointmentPage() {
     return (
@@ -148,8 +149,9 @@ function NewAppointmentForm() {
 
         } catch (err) {
             console.error('Save error:', err)
-            setError('Gagal menyimpan jadwal: ' + err.message)
-            toast.error('Gagal menyimpan jadwal: ' + err.message)
+            const friendlyMsg = getFriendlyErrorMessage(err)
+            setError(friendlyMsg)
+            toast.error(friendlyMsg)
         } finally {
             setIsSaving(false)
         }

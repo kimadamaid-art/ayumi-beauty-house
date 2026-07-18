@@ -112,116 +112,113 @@ export default function Dashboard() {
             return query
         }
 
-        // 1. Appointment Hari Ini (scheduled/confirmed)
-        let aptQuery = supabase.from('appointments').select('id', { count: 'exact' })
-            .in('status', ['scheduled', 'confirmed'])
-            .eq('appointment_date', todayDateStr)
-        aptQuery = applyBranchFilter(aptQuery)
-        const { count: countApt } = await aptQuery
-        setStatAppointments(countApt || 0)
-
-        // 2. Follow Up Hari Ini
-        let fuQuery = supabase.from('followup_queue').select('id', { count: 'exact' })
-            .eq('status', 'pending')
-            .lte('scheduled_date', todayDateStr)
-        fuQuery = applyBranchFilter(fuQuery)
-        const { count: countFu } = await fuQuery
-        setStatFollowups(countFu || 0)
-
-        // 4. Pasien Baru Bulan Ini (Filter by branch logic for patients: patients might not have branch_id, but usually they do or tied via treatments. Assuming they have branch_id)
-        const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-        let patientsQuery = supabase.from('patients').select('id', { count: 'exact' })
-            .gte('created_at', firstDayOfMonth)
-        // If patients table doesn't have branch_id, this might fail, so we skip branch filter or check if it exists. We'll skip branch filter for patients as it's global usually, unless specified. I will apply it just in case, if it fails it's fine. Wait, in Sprint 2 patients usually don't have branch_id, but let's try. Actually let's not filter patients by branch to avoid errors if the column isn't there.
-        const { count: countPatients, error: ptError } = await patientsQuery
-        setStatNewPatients(countPatients || 0)
-
-        // 5. Birthday Minggu Ini (Manual calculate)
-        const { data: allPatients } = await supabase.from('patients').select('id, birth_date').eq('is_active', true).not('birth_date', 'is', null)
-        let bdayCount = 0
-        if (allPatients) {
-            const today = new Date()
-            today.setHours(0,0,0,0)
-            allPatients.forEach(pt => {
-                const bDate = new Date(pt.birth_date)
-                const thisYearBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate())
-                if (thisYearBday < today) thisYearBday.setFullYear(today.getFullYear() + 1)
-                const diffTime = Math.abs(thisYearBday - today)
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                if (diffDays <= 7) bdayCount++
-            })
+        // Define parallel promises
+        // 1. Query the today view statistics
+        let viewQuery = supabase.from('dashboard_today_view').select('*')
+        if (selectedBranch) {
+            viewQuery = viewQuery.eq('branch_id', selectedBranch)
         }
-        setStatBirthdays(bdayCount)
 
-        // 6. Pasien Dormant (>90 days)
-        // Need to fetch treatment_records
-        let trQuery = supabase.from('treatment_records').select('patient_id, treatment_date')
-        trQuery = applyBranchFilter(trQuery)
-        const { data: trData } = await trQuery
-        
-        let dormantCount = 0
-        if (trData) {
-            const latestRecords = {}
-            trData.forEach(r => {
-                const d = new Date(r.treatment_date)
-                if (!latestRecords[r.patient_id] || d > latestRecords[r.patient_id]) {
-                    latestRecords[r.patient_id] = d
-                }
-            })
-            const today = new Date()
-            Object.values(latestRecords).forEach(d => {
-                const diffTime = Math.abs(today - d)
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                if (diffDays > 90) dormantCount++
-            })
-        }
-        setStatDormant(dormantCount)
-
-        // 7. Kupon Expiring (<= 30 days)
+        // 2. Query expiring coupons count
         const in30Days = new Date()
         in30Days.setDate(in30Days.getDate() + 30)
-        
-        const { count: countCoupons } = await supabase.from('patient_coupons').select('id', { count: 'exact' })
+        const couponsQuery = supabase.from('patient_coupons').select('id', { count: 'exact' })
             .eq('status', 'active')
             .gte('expired_at', new Date().toISOString())
             .lte('expired_at', in30Days.toISOString())
-            
-        setStatExpiringCoupons(countCoupons || 0)
 
-        // --- Fetch Tables ---
-        
-        // 5 Newest Appointments Today
+        // 3. Query recent appointments table
         let tableAptQuery = supabase.from('appointments').select('id, start_time, end_time, status, patients(full_name, whatsapp)')
             .eq('appointment_date', todayDateStr)
             .order('start_time', { ascending: true })
             .limit(5)
         tableAptQuery = applyBranchFilter(tableAptQuery)
-        const { data: tableApt } = await tableAptQuery
-        if (tableApt) setRecentAppointments(tableApt)
 
-        // 5 Pending Follow Ups Today
+        // 4. Query recent followups table
         let tableFuQuery = supabase.from('followup_queue').select('id, followup_type, priority, patients(full_name, whatsapp)')
             .eq('status', 'pending')
             .lte('scheduled_date', todayDateStr)
             .order('priority', { ascending: false })
             .limit(5)
         tableFuQuery = applyBranchFilter(tableFuQuery)
-        const { data: tableFu } = await tableFuQuery
-        if (tableFu) setRecentFollowups(tableFu)
-        
-        // 8. Transaksi & Pendapatan Hari Ini
+
+        // 5. Query today's transactions for revenue breakdown
         let trxTodayQuery = supabase.from('transactions').select('total, payment_method')
             .gte('created_at', `${todayDateStr}T00:00:00Z`)
             .lte('created_at', `${todayDateStr}T23:59:59Z`)
         trxTodayQuery = applyBranchFilter(trxTodayQuery)
-        const { data: trxTodayData } = await trxTodayQuery
+
+        // 6. Query transactions for the last 7 days sparkline
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+        sevenDaysAgo.setHours(0,0,0,0)
+        let sparklineQuery = supabase.from('transactions').select('total, created_at')
+            .gte('created_at', sevenDaysAgo.toISOString())
+        sparklineQuery = applyBranchFilter(sparklineQuery)
+
+        // Execute all queries in parallel
+        const [
+            viewResult,
+            couponsResult,
+            tableAptResult,
+            tableFuResult,
+            trxTodayResult,
+            sparkResult
+        ] = await Promise.all([
+            viewQuery,
+            couponsQuery,
+            tableAptQuery,
+            tableFuQuery,
+            trxTodayQuery,
+            sparklineQuery
+        ])
+
+        // --- Process View Results (Stat Cards) ---
+        let totalApt = 0
+        let totalFu = 0
+        let totalBday = 0
+        let totalDormant = 0
+        let totalNewPatients = 0
         
+        if (viewResult.data) {
+            viewResult.data.forEach(row => {
+                totalApt += Number(row.appointments_today || 0)
+                totalFu += Number(row.followups_today || 0)
+                totalBday += Number(row.birthdays_this_week || 0)
+                totalDormant += Number(row.dormant_patients || 0)
+                totalNewPatients += Number(row.new_patients_this_month || 0)
+            })
+        }
+        setStatAppointments(totalApt)
+        setStatFollowups(totalFu)
+        setStatBirthdays(totalBday)
+        setStatDormant(totalDormant)
+        setStatNewPatients(totalNewPatients)
+
+        if (viewResult.error) {
+            console.error('Error fetching dashboard_today_view:', viewResult.error.message)
+        }
+
+        // --- Process Expiring Coupons ---
+        setStatExpiringCoupons(couponsResult.count || 0)
+
+        // --- Process Appointments List ---
+        if (tableAptResult.data) {
+            setRecentAppointments(tableAptResult.data)
+        }
+
+        // --- Process Followups List ---
+        if (tableFuResult.data) {
+            setRecentFollowups(tableFuResult.data)
+        }
+
+        // --- Process Today Transactions ---
         let todayIncome = 0
         let todayTxCount = 0
         const methodCounts = {}
-        if (trxTodayData) {
-            todayTxCount = trxTodayData.length
-            trxTodayData.forEach(tx => {
+        if (trxTodayResult.data) {
+            todayTxCount = trxTodayResult.data.length
+            trxTodayResult.data.forEach(tx => {
                 todayIncome += Number(tx.total || 0)
                 const m = tx.payment_method
                 if (m) {
@@ -231,7 +228,7 @@ export default function Dashboard() {
         }
         setStatTodayIncome(todayIncome)
         setStatTodayTx(todayTxCount)
-        
+
         let topMethod = '-'
         let maxCount = 0
         Object.entries(methodCounts).forEach(([m, count]) => {
@@ -242,16 +239,7 @@ export default function Dashboard() {
         })
         setStatTopPaymentMethod(topMethod)
 
-        // 9. Sparkline 7 hari terakhir
-        const sevenDaysAgo = new Date()
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-        sevenDaysAgo.setHours(0,0,0,0)
-        
-        let sparklineQuery = supabase.from('transactions').select('total, created_at')
-            .gte('created_at', sevenDaysAgo.toISOString())
-        sparklineQuery = applyBranchFilter(sparklineQuery)
-        const { data: sparkData } = await sparklineQuery
-
+        // --- Process Sparkline ---
         const dailyMap = {}
         for (let i = 0; i < 7; i++) {
             const d = new Date()
@@ -260,8 +248,8 @@ export default function Dashboard() {
             dailyMap[dateStr] = 0
         }
 
-        if (sparkData) {
-            sparkData.forEach(tx => {
+        if (sparkResult.data) {
+            sparkResult.data.forEach(tx => {
                 const dateStr = new Date(tx.created_at).toISOString().split('T')[0]
                 if (dailyMap[dateStr] !== undefined) {
                     dailyMap[dateStr] += Number(tx.total || 0)

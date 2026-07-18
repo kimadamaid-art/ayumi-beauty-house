@@ -16,7 +16,7 @@
     },
     {
       "table": "patients",
-      "adminCount": 3959,
+      "adminCount": 3960,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
@@ -30,7 +30,7 @@
     },
     {
       "table": "appointments",
-      "adminCount": 4,
+      "adminCount": 10,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
@@ -44,28 +44,28 @@
     },
     {
       "table": "treatment_records",
-      "adminCount": 3958,
+      "adminCount": 3960,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
     },
     {
       "table": "treatment_record_items",
-      "adminCount": 4,
-      "anonCount": 0,
-      "status": "🔒 RLS AKTIF (anon blocked)",
-      "risk": "LOW"
-    },
-    {
-      "table": "transactions",
       "adminCount": 7,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
     },
     {
+      "table": "transactions",
+      "adminCount": 10,
+      "anonCount": 0,
+      "status": "🔒 RLS AKTIF (anon blocked)",
+      "risk": "LOW"
+    },
+    {
       "table": "transaction_items",
-      "adminCount": 14,
+      "adminCount": 19,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
@@ -86,14 +86,14 @@
     },
     {
       "table": "coupon_packages",
-      "adminCount": 9,
+      "adminCount": 17,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
     },
     {
       "table": "coupon_package_items",
-      "adminCount": 1,
+      "adminCount": 17,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"
@@ -114,7 +114,7 @@
     },
     {
       "table": "notifications",
-      "adminCount": 3,
+      "adminCount": 4,
       "anonCount": 0,
       "status": "🔒 RLS AKTIF (anon blocked)",
       "risk": "LOW"

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function CRMPage() {
     const supabase = createBrowserClient(
@@ -262,7 +263,7 @@ export default function CRMPage() {
         
         const { error } = await supabase.from('followup_queue').delete().eq('id', id)
         if (error) {
-            toast.error('Gagal menghapus antrean: ' + error.message)
+            toast.error('Gagal menghapus antrean: ' + getFriendlyErrorMessage(error))
         } else {
             toast.success('Antrean follow-up berhasil dihapus.')
             fetchData()
@@ -400,7 +401,7 @@ export default function CRMPage() {
         }])
 
         if (logErr) {
-            toast.error('Gagal menyimpan log: ' + logErr.message)
+            toast.error('Gagal menyimpan log: ' + getFriendlyErrorMessage(logErr))
             return false
         }
 
@@ -413,7 +414,7 @@ export default function CRMPage() {
             }).eq('id', waForm.queueId)
 
             if (qErr) {
-                toast.error('Gagal memperbarui antrean: ' + qErr.message)
+                toast.error('Gagal memperbarui antrean: ' + getFriendlyErrorMessage(qErr))
                 return false
             }
         }
@@ -494,7 +495,7 @@ export default function CRMPage() {
         }])
 
         if (logErr) {
-            toast.error('Gagal menyimpan log untuk ' + currentPatient.full_name + ': ' + logErr.message)
+            toast.error('Gagal menyimpan log untuk ' + currentPatient.full_name + ': ' + getFriendlyErrorMessage(logErr))
             return
         }
 
@@ -544,7 +545,7 @@ export default function CRMPage() {
         }])
 
         if (error) {
-            toast.error('Gagal menjadwalkan: ' + error.message)
+            toast.error('Gagal menjadwalkan: ' + getFriendlyErrorMessage(error))
         } else {
             toast.success('Follow-up manual berhasil dijadwalkan!')
             setShowManualModal(false)

@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
-import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import Link from 'next/link'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 function AddRecordForm() {
     const router = useRouter()
@@ -499,8 +500,9 @@ function AddRecordForm() {
 
         } catch (err) {
             console.error(err)
-            setError('Gagal menyimpan rekam medis: ' + err.message)
-            toast.error('Gagal menyimpan rekam medis: ' + err.message)
+            const friendlyMsg = getFriendlyErrorMessage(err)
+            setError(friendlyMsg)
+            toast.error(friendlyMsg)
         } finally {
             setIsSaving(false)
         }

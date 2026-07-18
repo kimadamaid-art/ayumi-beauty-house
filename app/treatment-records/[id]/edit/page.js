@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 function EditRecordForm() {
     const router = useRouter()
@@ -390,8 +391,9 @@ function EditRecordForm() {
 
         } catch (err) {
             console.error(err)
-            setError('Gagal memperbarui rekam medis: ' + err.message)
-            toast.error('Gagal memperbarui rekam medis: ' + err.message)
+            const friendlyMsg = getFriendlyErrorMessage(err)
+            setError(friendlyMsg)
+            toast.error(friendlyMsg)
         } finally {
             setIsSaving(false)
         }

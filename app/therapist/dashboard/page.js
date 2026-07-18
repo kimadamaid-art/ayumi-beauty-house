@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function TherapistDashboard() {
     const router = useRouter()
@@ -141,7 +142,7 @@ export default function TherapistDashboard() {
             toast.success('Pasien berhasil ditugaskan ke Anda!', { id: 'claim' })
             fetchAppointments()
         } else {
-            toast.error('Gagal memilih pasien: ' + error.message, { id: 'claim' })
+            toast.error('Gagal memilih pasien: ' + getFriendlyErrorMessage(error), { id: 'claim' })
         }
         setClaimingAptId(null)
     }
@@ -163,7 +164,7 @@ export default function TherapistDashboard() {
             .eq('id', apt.id)
 
         if (aptErr) {
-            toast.error('Gagal update status: ' + aptErr.message, { id: 'ready' })
+            toast.error('Gagal update status: ' + getFriendlyErrorMessage(aptErr), { id: 'ready' })
             return
         }
 

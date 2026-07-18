@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function BranchesPage() {
     const router = useRouter()
@@ -114,8 +115,9 @@ export default function BranchesPage() {
             toast.success(`Cabang berhasil ${isEditing ? 'diperbarui' : 'ditambahkan'}!`)
             fetchBranches()
         } catch (err) {
-            setError(err.message)
-            toast.error(err.message)
+            const friendlyMsg = getFriendlyErrorMessage(err)
+            setError(friendlyMsg)
+            toast.error(friendlyMsg)
         }
     }
 

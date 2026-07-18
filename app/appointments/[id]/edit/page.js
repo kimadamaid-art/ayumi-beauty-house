@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 function EditAppointmentForm() {
     const router = useRouter()
@@ -174,8 +175,9 @@ function EditAppointmentForm() {
 
         } catch (err) {
             console.error('Save error:', err)
-            setError('Gagal memperbarui jadwal: ' + err.message)
-            toast.error('Gagal memperbarui jadwal: ' + err.message)
+            const friendlyMsg = getFriendlyErrorMessage(err)
+            setError(friendlyMsg)
+            toast.error(friendlyMsg)
         } finally {
             setIsSaving(false)
         }
