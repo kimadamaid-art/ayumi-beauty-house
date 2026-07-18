@@ -46,15 +46,28 @@ export default function GlobalSidebar({ isOpen, onClose }) {
             )}
             
             <aside className={`w-64 bg-gradient-to-b from-ayumi-secondary to-ayumi-primary shadow-lg fixed top-0 left-0 h-full z-40 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-            <div className="p-6 border-b border-white/10 flex items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md shrink-0">
-                    <span className="font-extrabold text-2xl text-ayumi-primary font-sans tracking-tighter">ab</span>
-                </div>
-                <div>
-                    <h1 className="font-extrabold text-white tracking-wide text-lg leading-tight">Ayumi</h1>
-                    <p className="text-[10px] text-white/80 uppercase tracking-widest font-semibold mt-0.5">Beauty House</p>
+            <div className="px-4 pt-4 pb-3 border-b border-white/10 flex items-center gap-2">
+                {/* Logo 'ab' monogram */}
+                <img
+                    src="/logo-ab.png"
+                    alt="Ayumi Beauty House"
+                    style={{
+                        width: '80px',
+                        height: 'auto',
+                        flexShrink: 0,
+                        filter: 'saturate(0) invert(1)',
+                        mixBlendMode: 'screen',
+                        marginTop: '-2px',
+                    }}
+                />
+
+                {/* Nama brand */}
+                <div className="leading-none">
+                    <h1 className="text-white font-bold text-[16px] tracking-wide leading-none">Ayumi</h1>
+                    <p className="text-white/45 text-[8.5px] uppercase tracking-[0.25em] font-semibold mt-[7px] leading-none">Beauty House</p>
                 </div>
             </div>
+
 
             <div className="p-4 flex-1 overflow-y-auto space-y-1 custom-scrollbar">
                 <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2 mt-4 px-3">Menu Utama</div>
