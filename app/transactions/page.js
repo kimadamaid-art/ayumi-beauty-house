@@ -45,11 +45,11 @@ export default function TransactionsPage() {
     const [filterTxType, setFilterTxType] = useState('') // empty means 'all'
     const [customStartDate, setCustomStartDate] = useState(() => {
         const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        return now.toISOString().split('T')[0]
     })
     const [customEndDate, setCustomEndDate] = useState(() => {
         const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+        return now.toISOString().split('T')[0]
     })
 
     // Data State
