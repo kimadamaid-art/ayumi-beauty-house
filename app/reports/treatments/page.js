@@ -279,7 +279,7 @@ export default function TreatmentsReportPage() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6 pb-16">
+        <div className="space-y-6 pb-16">
             
             {/* Header Title */}
             <div>

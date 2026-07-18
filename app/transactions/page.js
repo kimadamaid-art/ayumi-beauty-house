@@ -854,7 +854,7 @@ export default function TransactionsPage() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="space-y-6">
             
             {/* TAMPILAN UTAMA: GLOBAL FILTER BAR */}
             <div className="card-ayumi p-4 md:p-6 flex flex-col gap-4 bg-white relative">

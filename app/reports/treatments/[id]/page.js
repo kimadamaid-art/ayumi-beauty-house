@@ -430,7 +430,7 @@ export default function TreatmentDetailPage() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6 pb-16">
+        <div className="space-y-6 pb-16">
             
             {/* Top Navigation & Export Buttons */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
