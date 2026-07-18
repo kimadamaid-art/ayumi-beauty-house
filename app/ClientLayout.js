@@ -2,9 +2,51 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, Component } from 'react'
 import GlobalSidebar from '@/components/GlobalSidebar'
 import GlobalHeader from '@/components/GlobalHeader'
+
+class ErrorBoundary extends Component {
+    constructor(props) {
+        super(props)
+        this.state = { hasError: false, error: null }
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error }
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("ErrorBoundary caught an error:", error, errorInfo)
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-6 md:p-10 bg-red-50/30 border border-red-100 rounded-3xl text-center space-y-4 shadow-sm my-4">
+                    <div className="w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
+                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    </div>
+                    <h2 className="text-lg font-bold text-red-800">Gagal Memuat Halaman</h2>
+                    <p className="text-sm text-red-600/80 max-w-md mx-auto">
+                        Terjadi kesalahan saat memuat komponen halaman ini. Silakan coba muat ulang halaman atau hubungi administrator jika masalah berlanjut.
+                    </p>
+                    <button 
+                        onClick={() => {
+                            this.setState({ hasError: false, error: null })
+                            window.location.reload()
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-colors cursor-pointer inline-flex items-center gap-2"
+                    >
+                        Muat Ulang Halaman
+                    </button>
+                </div>
+            )
+        }
+
+        return this.props.children
+    }
+}
 
 const getPageMeta = (pathname) => {
     // Settings Sub-Pages (Match more specific first)
@@ -110,7 +152,9 @@ export default function ClientLayout({ children }) {
                                 </div>
                             </div>
                         )}
-                        {children}
+                        <ErrorBoundary key={pathname}>
+                            {children}
+                        </ErrorBoundary>
                     </div>
                 </main>
             </div>
