@@ -180,13 +180,24 @@ export default function TransactionsPage() {
         let treatmentQty = 0
         let productQty = 0
         let couponQty = 0
+        let treatmentRevenue = 0
+        let productRevenue = 0
+        let couponRevenue = 0
 
         filteredTransactions.forEach(tx => {
             totalRevenue += Number(tx.total || 0)
             tx.transaction_items?.forEach(item => {
-                if (item.item_type === 'treatment') treatmentQty += item.quantity || 0
-                if (item.item_type === 'product') productQty += item.quantity || 0
-                if (item.item_type === 'coupon') couponQty += item.quantity || 0
+                const subtotal = Number(item.subtotal || 0)
+                if (item.item_type === 'treatment') {
+                    treatmentQty += item.quantity || 0
+                    treatmentRevenue += subtotal
+                } else if (item.item_type === 'product') {
+                    productQty += item.quantity || 0
+                    productRevenue += subtotal
+                } else if (item.item_type === 'coupon') {
+                    couponQty += item.quantity || 0
+                    couponRevenue += subtotal
+                }
             })
         })
 
@@ -198,7 +209,10 @@ export default function TransactionsPage() {
             avgRevenue,
             treatmentQty,
             productQty,
-            couponQty
+            couponQty,
+            treatmentRevenue,
+            productRevenue,
+            couponRevenue
         }
     }, [filteredTransactions])
 
@@ -820,13 +834,24 @@ export default function TransactionsPage() {
         let treatmentQty = 0
         let productQty = 0
         let couponQty = 0
+        let treatmentRevenue = 0
+        let productRevenue = 0
+        let couponRevenue = 0
 
         txList.forEach(tx => {
             revenue += Number(tx.total || 0)
             tx.transaction_items?.forEach(item => {
-                if (item.item_type === 'treatment') treatmentQty += item.quantity || 0
-                if (item.item_type === 'product') productQty += item.quantity || 0
-                if (item.item_type === 'coupon') couponQty += item.quantity || 0
+                const subtotal = Number(item.subtotal || 0)
+                if (item.item_type === 'treatment') {
+                    treatmentQty += item.quantity || 0
+                    treatmentRevenue += subtotal
+                } else if (item.item_type === 'product') {
+                    productQty += item.quantity || 0
+                    productRevenue += subtotal
+                } else if (item.item_type === 'coupon') {
+                    couponQty += item.quantity || 0
+                    couponRevenue += subtotal
+                }
             })
         })
 
@@ -837,7 +862,10 @@ export default function TransactionsPage() {
             avg: txList.length > 0 ? revenue / txList.length : 0,
             treatmentQty,
             productQty,
-            couponQty
+            couponQty,
+            treatmentRevenue,
+            productRevenue,
+            couponRevenue
         })
     }
 
@@ -938,53 +966,79 @@ export default function TransactionsPage() {
             </div>
 
             {/* SUMMARY CARDS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100">
-                    <div className="w-12 h-12 rounded-xl bg-pink-100/50 flex items-center justify-center text-ayumi-primary">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Total Pendapatan */}
+                <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm border border-emerald-100 hover:shadow-md transition-all duration-300">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-inner shrink-0">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <div>
-                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Transaksi</h4>
-                        <p className="text-xl font-black text-gray-800">{mainSummary.totalTx}</p>
+                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total Pendapatan</h4>
+                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.totalRevenue)}</p>
                     </div>
                 </div>
 
-                <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100">
-                    <div className="w-12 h-12 rounded-xl bg-green-100/50 flex items-center justify-center text-green-700">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {/* Pendapatan Treatment */}
+                <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-purple-50/50 to-white shadow-sm border border-purple-100 hover:shadow-md transition-all duration-300">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-inner shrink-0">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 9.172V5L8 4z" /></svg>
                     </div>
                     <div>
-                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Pendapatan</h4>
-                        <p className="text-xl font-black text-gray-800 font-mono">{formatCurrency(mainSummary.totalRevenue)}</p>
+                        <h4 className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Pendapatan Treatment</h4>
+                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.treatmentRevenue)}</p>
                     </div>
                 </div>
 
-                <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100">
-                    <div className="w-12 h-12 rounded-xl bg-purple-100/50 flex items-center justify-center text-purple-700">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                {/* Pendapatan Skincare */}
+                <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-orange-50/50 to-white shadow-sm border border-orange-100 hover:shadow-md transition-all duration-300">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-700 flex items-center justify-center shadow-inner shrink-0">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                     </div>
                     <div>
-                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rata-rata Penjualan</h4>
-                        <p className="text-xl font-black text-gray-800 font-mono">{formatCurrency(mainSummary.avgRevenue)}</p>
+                        <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Pendapatan Produk Skincare</h4>
+                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.productRevenue)}</p>
                     </div>
                 </div>
 
-                <div className="card-ayumi p-5 flex flex-col justify-center bg-white shadow-sm border border-pink-100">
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Item Terjual</h4>
+                {/* Total Transaksi */}
+                <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
+                    <div className="w-12 h-12 rounded-2xl bg-pink-100/50 text-ayumi-primary flex items-center justify-center shadow-inner shrink-0">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    </div>
+                    <div>
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Transaksi</h4>
+                        <p className="text-xl font-black text-gray-800 mt-0.5">{mainSummary.totalTx}</p>
+                    </div>
+                </div>
+
+                {/* Rata-rata Penjualan */}
+                <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-100/50 text-blue-700 flex items-center justify-center shadow-inner shrink-0">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    </div>
+                    <div>
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rata-rata Penjualan</h4>
+                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.avgRevenue)}</p>
+                    </div>
+                </div>
+
+                {/* Item Terjual */}
+                <div className="card-ayumi p-5 flex flex-col justify-center bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Kuantitas Item Terjual</h4>
                     <div className="flex justify-between items-center text-xs font-semibold text-gray-600">
                         <div className="flex flex-col items-center">
-                            <span className="text-[10px] text-purple-600 uppercase font-extrabold">Treatment</span>
-                            <span className="font-bold text-sm text-gray-800">{mainSummary.treatmentQty}</span>
+                            <span className="text-[9px] text-purple-600 uppercase font-extrabold tracking-wider">Treatment</span>
+                            <span className="font-bold text-sm text-gray-800 mt-0.5">{mainSummary.treatmentQty}</span>
                         </div>
                         <div className="w-px h-6 bg-gray-200"></div>
                         <div className="flex flex-col items-center">
-                            <span className="text-[10px] text-orange-600 uppercase font-extrabold">Produk</span>
-                            <span className="font-bold text-sm text-gray-800">{mainSummary.productQty}</span>
+                            <span className="text-[9px] text-orange-600 uppercase font-extrabold tracking-wider">Produk</span>
+                            <span className="font-bold text-sm text-gray-800 mt-0.5">{mainSummary.productQty}</span>
                         </div>
                         <div className="w-px h-6 bg-gray-200"></div>
                         <div className="flex flex-col items-center">
-                            <span className="text-[10px] text-pink-600 uppercase font-extrabold">Kupon</span>
-                            <span className="font-bold text-sm text-gray-800">{mainSummary.couponQty}</span>
+                            <span className="text-[9px] text-pink-600 uppercase font-extrabold tracking-wider">Kupon</span>
+                            <span className="font-bold text-sm text-gray-800 mt-0.5">{mainSummary.couponQty}</span>
                         </div>
                     </div>
                 </div>
@@ -1754,7 +1808,7 @@ export default function TransactionsPage() {
                         {customReportResult ? (
                             <div className="space-y-6">
                                 {/* Custom summaries */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi</h5>
                                         <p className="text-xl font-black text-gray-800">{customReportResult.totalTx}</p>
@@ -1762,6 +1816,14 @@ export default function TransactionsPage() {
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
                                         <p className="text-xl font-black text-green-600 font-mono">{formatCurrency(customReportResult.revenue)}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-1">Pendapatan Treatment</h5>
+                                        <p className="text-xl font-black text-purple-700 font-mono">{formatCurrency(customReportResult.treatmentRevenue)}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-orange-500 uppercase tracking-wider mb-1">Pendapatan Produk</h5>
+                                        <p className="text-xl font-black text-orange-700 font-mono">{formatCurrency(customReportResult.productRevenue)}</p>
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rata-rata Penjualan</h5>
