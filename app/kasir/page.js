@@ -493,7 +493,9 @@ function PosPageContent() {
     } else {
         discountAmount = subtotal * ((Number(discountValue) || 0) / 100)
     }
-    const total = Math.max(0, subtotal - discountAmount)
+    const afterDiscountTotal = Math.max(0, subtotal - discountAmount)
+    const qrisFee = paymentMethod === 'qris' ? Math.round(afterDiscountTotal * 0.003) : 0
+    const total = afterDiscountTotal + qrisFee
 
     // --- Checkout ---
     const handleCheckout = async () => {
@@ -1298,6 +1300,15 @@ function PosPageContent() {
                             </div>
                         )}
 
+                        {paymentMethod === 'qris' && (
+                            <div className="flex justify-between text-sm text-blue-700 font-semibold bg-blue-50/70 p-2.5 rounded-xl border border-blue-100/80 animate-fadeIn">
+                                <span className="flex items-center gap-1.5">
+                                    <span>📱 Biaya Layanan QRIS (0,3%)</span>
+                                </span>
+                                <span className="font-mono font-bold">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
+                            </div>
+                        )}
+
                         <div className="flex justify-between items-baseline border-t border-gray-100 pt-3">
                             <span className="font-black text-gray-800 text-sm">TOTAL BAYAR</span>
                             <span className="font-extrabold text-2xl text-ayumi-secondary font-mono tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
@@ -1311,7 +1322,7 @@ function PosPageContent() {
                                 {[
                                     { id: 'cash', label: 'Cash', icon: '💵' },
                                     { id: 'transfer', label: 'Bank', icon: '🏦' },
-                                    { id: 'qris', label: 'QRIS', icon: '📱' },
+                                    { id: 'qris', label: 'QRIS (+0.3%)', icon: '📱' },
                                     { id: 'debit', label: 'Debit', icon: '💳' },
                                     { id: 'credit', label: 'Kredit', icon: '💳' }
                                 ].map(pm => (

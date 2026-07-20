@@ -79,29 +79,18 @@ export default function SettingsDashboard() {
                     </>
                 )}
 
-                {/* Menu: Products */}
+                {/* Menu: Products & Stock */}
                 {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
                     <Link href="/settings/products">
                         <div className="p-4 md:p-6 border-2 border-gray-100 rounded-2xl hover:border-orange-300 hover:bg-orange-50 transition-all cursor-pointer group h-full bg-white">
                             <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                             </div>
-                            <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-orange-600 transition-colors">Master Produk</h3>
-                            <p className="text-sm text-gray-500">Kelola daftar produk skincare, nama, dan harga jual standar.</p>
+                            <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-orange-600 transition-colors">Master & Stok Produk</h3>
+                            <p className="text-sm text-gray-500">Kelola katalog produk skincare, harga jual, dan jumlah stok di seluruh cabang klinik.</p>
                         </div>
                     </Link>
                 )}
-
-                {/* Menu: Product Stock */}
-                <Link href="/settings/product-stock">
-                    <div className="p-4 md:p-6 border-2 border-gray-100 rounded-2xl hover:border-teal-300 hover:bg-teal-50 transition-all cursor-pointer group h-full bg-white">
-                        <div className="w-12 h-12 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-teal-600 transition-colors">Stok Produk</h3>
-                        <p className="text-sm text-gray-500">Kelola inventaris dan jumlah stok produk di masing-masing cabang.</p>
-                    </div>
-                </Link>
 
             </div>
     )

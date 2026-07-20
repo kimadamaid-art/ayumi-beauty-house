@@ -221,15 +221,10 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                                 {dbUser && (dbUser.role === 'owner' || dbUser.role === 'admin') && (
                                     <Link href="/settings/products">
                                         <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/products' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                            Master Produk
+                                            Master & Stok Produk
                                         </div>
                                     </Link>
                                 )}
-                                <Link href="/settings/product-stock">
-                                    <div className={`text-sm font-semibold py-1.5 transition-colors cursor-pointer ${pathname === '/settings/product-stock' ? 'text-white font-bold' : 'text-white/60 hover:text-white'}`}>
-                                        Stok Produk
-                                    </div>
-                                </Link>
                             </div>
                         )}
                     </>

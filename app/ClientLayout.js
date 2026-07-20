@@ -54,7 +54,7 @@ const getPageMeta = (pathname) => {
     if (pathname === '/settings/treatment-categories') return { title: 'Kategori Treatment', subtitle: 'Kelola kategori dan klasifikasi menu layanan treatment.', backPath: '/settings' }
     if (pathname === '/settings/branches') return { title: 'Cabang Klinik', subtitle: 'Kelola daftar cabang klinik fisik Ayumi Beauty House.', backPath: '/settings' }
     if (pathname === '/settings/users') return { title: 'Manajemen Pengguna', subtitle: 'Kelola akun staf, terapis, kasir, dan hak akses sistem.', backPath: '/settings' }
-    if (pathname === '/settings/products') return { title: 'Daftar Produk', subtitle: 'Kelola master data produk kecantikan yang dijual di klinik.', backPath: '/settings' }
+    if (pathname === '/settings/products') return { title: 'Master & Stok Produk', subtitle: 'Kelola catalog produk kecantikan dan stok inventaris di seluruh cabang.', backPath: '/settings' }
     if (pathname === '/settings/product-stock') return { title: 'Stok Produk', subtitle: 'Kelola dan pantau kuantitas stok produk di masing-masing cabang.', backPath: '/settings' }
     if (pathname === '/settings') return { title: 'Pengaturan Sistem', subtitle: 'Konfigurasi parameter sistem, manajemen data master, dan otorisasi.', backPath: '/dashboard' }
 

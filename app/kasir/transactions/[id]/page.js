@@ -65,7 +65,11 @@ export default function ReceiptPage() {
             ?.map(i => `- ${i.name} (${i.quantity}x) : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`)
             .join('%0A') || ''
 
-        const text = `Halo *${transaction.patients?.full_name}*,%0A%0ATerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.%0ABerikut adalah rincian transaksi Anda:%0A%0ANo. Transaksi: *${transaction.transaction_number}*%0ATanggal: ${formatDate(transaction.created_at)}%0ACabang: ${transaction.branches?.name || 'Ayumi Clinic'}%0A%0A*Item:*%0A${itemsText}%0A%0A*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}%0A*Diskon:* Rp ${Number(transaction.discount).toLocaleString('id-ID')}%0A*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*%0A*Metode Pembayaran:* ${transaction.payment_method.toUpperCase()}%0AStatus: LUNAS%0A%0AHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
+        const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
+        const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
+        const qrisText = qrisFee > 0 ? `%0A*Biaya QRIS (0,3%):* Rp ${qrisFee.toLocaleString('id-ID')}` : ''
+
+        const text = `Halo *${transaction.patients?.full_name}*,%0A%0ATerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.%0ABerikut adalah rincian transaksi Anda:%0A%0ANo. Transaksi: *${transaction.transaction_number}*%0ATanggal: ${formatDate(transaction.created_at)}%0ACabang: ${transaction.branches?.name || 'Ayumi Clinic'}%0A%0A*Item:*%0A${itemsText}%0A%0A*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}%0A*Diskon:* Rp ${Number(transaction.discount).toLocaleString('id-ID')}${qrisText}%0A*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*%0A*Metode Pembayaran:* ${transaction.payment_method.toUpperCase()}%0AStatus: LUNAS%0A%0AHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
 
         window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank')
     }
@@ -84,6 +88,9 @@ export default function ReceiptPage() {
             minute: '2-digit'
         })
     }
+
+    const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
+    const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8">
@@ -134,9 +141,11 @@ export default function ReceiptPage() {
             {/* Receipt Area */}
             <div className="bg-white p-5 md:p-8 rounded-2xl shadow-xl print:shadow-none print:p-0 print:border-none mx-auto max-w-[400px]">
                 <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-ayumi-secondary to-ayumi-primary rounded-full mx-auto flex items-center justify-center mb-3">
-                        <span className="text-white font-extrabold text-2xl tracking-tighter">ab</span>
-                    </div>
+                    <img 
+                        src="/logo-ab.png" 
+                        alt="Ayumi Beauty House" 
+                        className="h-16 w-auto mx-auto mb-3 object-contain"
+                    />
                     <h1 className="font-extrabold text-xl text-gray-900 tracking-wide">Ayumi Beauty House</h1>
                     <p className="text-sm text-gray-500 font-medium">{transaction.branches?.name}</p>
                     {transaction.branches?.address && <p className="text-xs text-gray-400 mt-1">{transaction.branches.address}</p>}
@@ -188,17 +197,23 @@ export default function ReceiptPage() {
                 <div className="space-y-1 mb-6">
                     <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Subtotal</span>
-                        <span className="font-mono text-gray-800">Rp {transaction.subtotal.toLocaleString('id-ID')}</span>
+                        <span className="font-mono text-gray-800">Rp {Number(transaction.subtotal).toLocaleString('id-ID')}</span>
                     </div>
-                    {transaction.discount > 0 && (
+                    {Number(transaction.discount) > 0 && (
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Diskon</span>
-                            <span className="font-mono text-gray-800">- Rp {transaction.discount.toLocaleString('id-ID')}</span>
+                            <span className="font-mono text-gray-800">- Rp {Number(transaction.discount).toLocaleString('id-ID')}</span>
+                        </div>
+                    )}
+                    {qrisFee > 0 && (
+                        <div className="flex justify-between text-sm text-blue-700 font-semibold">
+                            <span>Biaya QRIS (0,3%)</span>
+                            <span className="font-mono">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
                         </div>
                     )}
                     <div className="flex justify-between items-center text-lg mt-3 pt-3 border-t border-gray-100">
                         <span className="font-bold text-gray-800 uppercase tracking-wider">TOTAL</span>
-                        <span className="font-extrabold text-xl text-ayumi-primary font-mono">Rp {transaction.total.toLocaleString('id-ID')}</span>
+                        <span className="font-extrabold text-xl text-ayumi-primary font-mono">Rp {Number(transaction.total).toLocaleString('id-ID')}</span>
                     </div>
                 </div>
 
