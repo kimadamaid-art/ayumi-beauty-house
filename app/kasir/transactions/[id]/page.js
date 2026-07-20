@@ -11,6 +11,7 @@ export default function ReceiptPage() {
     
     const [transaction, setTransaction] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -42,12 +43,161 @@ export default function ReceiptPage() {
     }
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (id) fetchTransaction()
     }, [id])
 
     const handlePrint = () => {
         window.print()
+    }
+
+    // --- Direct Web Bluetooth Thermal Printer (ESC/POS) ---
+    const handlePrintBluetooth = async () => {
+        if (!navigator.bluetooth) {
+            alert('Browser Anda tidak mendukung Web Bluetooth API. Gunakan Google Chrome / Edge di Android atau Laptop.')
+            return
+        }
+
+        setIsBluetoothPrinting(true)
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: [
+                    '000018f0-0000-1000-8000-00805f9b34fb',
+                    '0000e025-0000-1000-8000-00805f9b34fb',
+                    '0000ff00-0000-1000-8000-00805f9b34fb',
+                    '00001101-0000-1000-8000-00805f9b34fb',
+                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+                ]
+            })
+
+            if (!device || !device.gatt) {
+                setIsBluetoothPrinting(false)
+                return
+            }
+
+            const server = await device.gatt.connect()
+            const services = await server.getPrimaryServices()
+            let writeChar = null
+
+            for (const s of services) {
+                const chars = await s.getCharacteristics()
+                for (const c of chars) {
+                    if (c.properties.write || c.properties.writeWithoutResponse) {
+                        writeChar = c
+                        break
+                    }
+                }
+                if (writeChar) break
+            }
+
+            if (!writeChar) {
+                throw new Error('Tidak dapat menemukan jalur tulis (write characteristic) pada printer ini.')
+            }
+
+            const encoder = new TextEncoder()
+            const esc = (txt) => encoder.encode(txt)
+            const concatBytes = (arrs) => {
+                const total = arrs.reduce((a, c) => a + c.length, 0)
+                const res = new Uint8Array(total)
+                let offset = 0
+                for (const a of arrs) {
+                    res.set(a, offset)
+                    offset += a.length
+                }
+                return res
+            }
+
+            // ESC/POS Command Codes
+            const INIT = new Uint8Array([0x1b, 0x40])
+            const ALIGN_CENTER = new Uint8Array([0x1b, 0x61, 0x01])
+            const ALIGN_LEFT = new Uint8Array([0x1b, 0x61, 0x00])
+            const BOLD_ON = new Uint8Array([0x1b, 0x45, 0x01])
+            const BOLD_OFF = new Uint8Array([0x1b, 0x45, 0x00])
+            const FEED_CUT = new Uint8Array([0x1b, 0x64, 0x03, 0x1d, 0x56, 0x42, 0x00])
+
+            const line = (t = '') => esc(t + '\n')
+            const divider = esc('--------------------------------\n')
+
+            const chunks = [
+                INIT,
+                ALIGN_CENTER,
+                BOLD_ON,
+                line('AYUMI BEAUTY HOUSE'),
+                BOLD_OFF,
+                line(transaction.branches?.name || 'Ayumi Clinic'),
+                line(transaction.branches?.phone || ''),
+                divider,
+                ALIGN_LEFT,
+                line(`No  : ${transaction.transaction_number}`),
+                line(`Tgl : ${new Date(transaction.created_at).toLocaleDateString('id-ID')} ${new Date(transaction.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`),
+                line(`Kasir: ${transaction.users?.full_name || '-'}`),
+                line(`Pasien: ${transaction.patients?.full_name || 'Walk-in Customer'}`),
+                divider,
+                BOLD_ON,
+                line('ITEM          QTY     SUBTOTAL'),
+                BOLD_OFF,
+                divider
+            ]
+
+            transaction.transaction_items?.forEach(item => {
+                const name = item.name.length > 32 ? item.name.slice(0, 32) : item.name
+                chunks.push(line(name))
+                const qtyStr = `${item.quantity}x @${Number(item.price).toLocaleString('id-ID')}`
+                const subStr = `Rp ${Number(item.subtotal).toLocaleString('id-ID')}`
+                const padSpaces = Math.max(1, 32 - qtyStr.length - subStr.length)
+                chunks.push(line(qtyStr + ' '.repeat(padSpaces) + subStr))
+            })
+
+            chunks.push(divider)
+            chunks.push(line(`Subtotal: Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}`))
+
+            if (Number(transaction.discount) > 0) {
+                chunks.push(line(`Diskon  : -Rp ${Number(transaction.discount).toLocaleString('id-ID')}`))
+            }
+
+            const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
+            const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
+            if (qrisFee > 0) {
+                chunks.push(line(`QRIS(0.3%): +Rp ${qrisFee.toLocaleString('id-ID')}`))
+            }
+
+            chunks.push(divider)
+            chunks.push(BOLD_ON)
+            chunks.push(line(`TOTAL   : Rp ${Number(transaction.total).toLocaleString('id-ID')}`))
+            chunks.push(line(`BAYAR   : ${transaction.payment_method?.toUpperCase()}`))
+            chunks.push(BOLD_OFF)
+            chunks.push(divider)
+
+            chunks.push(ALIGN_CENTER)
+            chunks.push(line('Terima Kasih Atas'))
+            chunks.push(line('Kunjungan Anda'))
+            chunks.push(line('IG: @ayumibeautyhouse'))
+            chunks.push(FEED_CUT)
+
+            const fullData = concatBytes(chunks)
+            const chunkSize = 100
+
+            for (let i = 0; i < fullData.length; i += chunkSize) {
+                const chunk = fullData.slice(i, i + chunkSize)
+                if (writeChar.properties.writeWithoutResponse) {
+                    await writeChar.writeValueWithoutResponse(chunk)
+                } else {
+                    await writeChar.writeValue(chunk)
+                }
+                await new Promise(r => setTimeout(r, 40))
+            }
+
+            setTimeout(() => {
+                if (server.connected) server.disconnect()
+            }, 1000)
+
+            alert('Struk berhasil dikirim ke Printer Bluetooth! 📱🖨️')
+        } catch (err) {
+            console.error(err)
+            alert('Gagal cetak via Bluetooth: ' + err.message)
+        } finally {
+            setIsBluetoothPrinting(false)
+        }
     }
 
     const handleSendWA = () => {
@@ -101,7 +251,6 @@ export default function ReceiptPage() {
                     Kembali ke POS
                 </Link>
                 <div className="flex flex-wrap gap-2 justify-center">
-                    {/* Show Buat Rekam Medis button if there's no treatment_record_id yet and there's a patient and the cart has treatments */}
                     {!transaction.treatment_record_id && transaction.patient_id && transaction.transaction_items?.some(i => i.item_type === 'treatment') && (
                         <Link href={`/treatment-records/new?transactionId=${transaction.id}`} className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-ayumi-primary rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -129,11 +278,21 @@ export default function ReceiptPage() {
                         Kirim Struk WA
                     </button>
                     <button 
+                        onClick={handlePrintBluetooth}
+                        disabled={isBluetoothPrinting}
+                        className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+                        title="Cetak Langsung via Bluetooth Thermal Printer (ESC/POS)"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        {isBluetoothPrinting ? 'Mencetak...' : 'Print Bluetooth (Direct)'}
+                    </button>
+                    <button 
                         onClick={handlePrint}
                         className="px-3 py-2 bg-ayumi-primary hover:bg-ayumi-secondary text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                        title="Cetak lewat Dialog Print Bawaan Browser"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        Print Struk
+                        Print Bawaan
                     </button>
                 </div>
             </div>
