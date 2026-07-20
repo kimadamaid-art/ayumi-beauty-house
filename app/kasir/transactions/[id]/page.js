@@ -46,7 +46,26 @@ export default function ReceiptPage() {
         if (id) fetchTransaction()
     }, [id])
 
+    useEffect(() => {
+        if (transaction?.transaction_number) {
+            const cleanPatient = transaction.patients?.full_name 
+                ? `_${transaction.patients.full_name.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+                : ''
+            const pdfName = `Struk_${transaction.transaction_number}${cleanPatient}`
+            document.title = pdfName
+        }
+        return () => {
+            document.title = 'Ayumi Beauty House'
+        }
+    }, [transaction])
+
     const handlePrint = () => {
+        if (transaction?.transaction_number) {
+            const cleanPatient = transaction.patients?.full_name 
+                ? `_${transaction.patients.full_name.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+                : ''
+            document.title = `Struk_${transaction.transaction_number}${cleanPatient}`
+        }
         window.print()
     }
 
