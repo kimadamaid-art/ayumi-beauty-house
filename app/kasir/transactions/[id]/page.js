@@ -244,8 +244,41 @@ export default function ReceiptPage() {
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8">
+            {/* Global Print Style Override to Hide Header, Navigation, Sidebars & Margins during Print/PDF Save */}
+            <style jsx global>{`
+                @media print {
+                    /* Hide navbar header, sidebar, page titles, action buttons */
+                    header, nav, aside, .print-hide, .no-print, [data-print-hide="true"] {
+                        display: none !important;
+                    }
+
+                    body, html, main {
+                        background: #ffffff !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        box-shadow: none !important;
+                    }
+
+                    /* Center & clean up receipt card for print / PDF */
+                    #receipt-area {
+                        max-width: 100% !important;
+                        width: 100% !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        padding: 0 !important;
+                        margin: 0 auto !important;
+                    }
+
+                    /* Remove browser default print header/footer margin */
+                    @page {
+                        size: auto;
+                        margin: 5mm;
+                    }
+                }
+            `}</style>
+
             {/* Header Actions - hidden on print */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 print:hidden bg-white p-4 rounded-2xl border border-pink-100/50 shadow-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 print-hide bg-white p-4 rounded-2xl border border-pink-100/50 shadow-sm">
                 <Link href="/kasir" className="text-gray-500 hover:text-ayumi-primary flex items-center gap-2 text-sm font-semibold transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                     Kembali ke POS
@@ -289,16 +322,16 @@ export default function ReceiptPage() {
                     <button 
                         onClick={handlePrint}
                         className="px-3 py-2 bg-ayumi-primary hover:bg-ayumi-secondary text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-                        title="Cetak lewat Dialog Print Bawaan Browser"
+                        title="Cetak/Simpan PDF lewat Dialog Browser"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        Print Bawaan
+                        Simpan PDF / Print Bawaan
                     </button>
                 </div>
             </div>
 
-            {/* Receipt Area */}
-            <div className="bg-white p-5 md:p-8 rounded-2xl shadow-xl print:shadow-none print:p-0 print:border-none mx-auto max-w-[400px]">
+            {/* Receipt Area (Only this block prints!) */}
+            <div id="receipt-area" className="bg-white p-5 md:p-8 rounded-2xl shadow-xl print:shadow-none print:p-0 print:border-none mx-auto max-w-[400px]">
                 <div className="text-center mb-6">
                     <img 
                         src="/logo-ab.png" 
