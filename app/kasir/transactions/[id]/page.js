@@ -244,32 +244,44 @@ export default function ReceiptPage() {
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8">
-            {/* Global Print Style Override to Hide Header, Navigation, Sidebars & Margins during Print/PDF Save */}
             <style jsx global>{`
                 @media print {
-                    /* Hide navbar header, sidebar, page titles, action buttons */
-                    header, nav, aside, .print-hide, .no-print, [data-print-hide="true"] {
+                    /* Hide EVERYTHING on the page by default */
+                    body * {
+                        visibility: hidden !important;
+                    }
+
+                    /* Explicitly hide layout elements & action buttons */
+                    header, nav, aside, footer, .print-hide, .no-print, [data-print-hide="true"] {
                         display: none !important;
+                        visibility: hidden !important;
+                    }
+
+                    /* Make ONLY #receipt-area and its children visible */
+                    #receipt-area, #receipt-area * {
+                        visibility: visible !important;
+                    }
+
+                    /* Position receipt card at the very top of the printed page / PDF */
+                    #receipt-area {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        background: #ffffff !important;
                     }
 
                     body, html, main {
                         background: #ffffff !important;
                         padding: 0 !important;
                         margin: 0 !important;
-                        box-shadow: none !important;
                     }
 
-                    /* Center & clean up receipt card for print / PDF */
-                    #receipt-area {
-                        max-width: 100% !important;
-                        width: 100% !important;
-                        box-shadow: none !important;
-                        border: none !important;
-                        padding: 0 !important;
-                        margin: 0 auto !important;
-                    }
-
-                    /* Remove browser default print header/footer margin */
                     @page {
                         size: auto;
                         margin: 5mm;

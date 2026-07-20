@@ -134,7 +134,7 @@ export default function ClientLayout({ children }) {
                 <main className="flex-1 overflow-y-auto relative bg-ayumi-bg">
                     <div className="px-4 md:px-8 py-4 md:py-8 space-y-6">
                         {pageMeta && (
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 print-hide no-print">
                                 {pageMeta.backPath && (
                                     <Link href={pageMeta.backPath}>
                                         <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-all border border-pink-100/50 flex items-center justify-center cursor-pointer">

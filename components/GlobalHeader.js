@@ -229,7 +229,7 @@ export default function GlobalHeader({ onMenuToggle }) {
     }
 
     return (
-        <header className="bg-white border-b border-gray-100 shadow-sm px-4 md:px-8 py-4 flex justify-between items-center z-30 sticky top-0">
+        <header className="bg-white border-b border-gray-100 shadow-sm px-4 md:px-8 py-4 flex justify-between items-center z-30 sticky top-0 print-hide no-print">
             <div className="flex items-center gap-3">
                 <button 
                     onClick={onMenuToggle}
