@@ -38,6 +38,13 @@ export default function TransactionsPage() {
     const [isMounted, setIsMounted] = useState(false)
     const [activeMainTab, setActiveMainTab] = useState('all') // 'all' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
     // Filters (Global for main view, tabs have specific sub-filters)
     const [filterPeriod, setFilterPeriod] = useState('custom')
     const [filterBranch, setFilterBranch] = useState('') // empty means 'all'
@@ -45,11 +52,10 @@ export default function TransactionsPage() {
     const [filterTxType, setFilterTxType] = useState('') // empty means 'all'
     const [customStartDate, setCustomStartDate] = useState(() => {
         const now = new Date()
-        return now.toISOString().split('T')[0]
+        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
     })
     const [customEndDate, setCustomEndDate] = useState(() => {
-        const now = new Date()
-        return now.toISOString().split('T')[0]
+        return getLocalYYYYMMDD(new Date())
     })
 
     // Data State
@@ -62,7 +68,7 @@ export default function TransactionsPage() {
     const [editTxData, setEditTxData] = useState({ payment_method: '', notes: '', created_at: '' })
 
     // Tab-Specific Sub-filters
-    const [dailyReportDate, setDailyReportDate] = useState(new Date().toISOString().split('T')[0])
+    const [dailyReportDate, setDailyReportDate] = useState(() => getLocalYYYYMMDD())
     
     // Weekly Report selector (picks a start date)
     const getStartOfWeek = (d) => {

@@ -40,6 +40,13 @@ export default function TreatmentDetailPage() {
     const [treatmentRecords, setTreatmentRecords] = useState([])
     const [allHistory, setAllHistory] = useState([])
 
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
     useEffect(() => {
         // Read initial filters from query string if available
         const qStart = searchParams.get('start')
@@ -47,8 +54,8 @@ export default function TreatmentDetailPage() {
         const qBranch = searchParams.get('branch')
         
         const now = new Date()
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-        const todayStr = now.toISOString().split('T')[0]
+        const firstDay = getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        const todayStr = getLocalYYYYMMDD(now)
 
         setStartDate(qStart || firstDay)
         setEndDate(qEnd || todayStr)

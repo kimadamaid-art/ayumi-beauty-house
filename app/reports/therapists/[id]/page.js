@@ -36,13 +36,20 @@ export default function TherapistDetailPage() {
     // Raw action data
     const [treatmentRecords, setTreatmentRecords] = useState([])
 
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
     useEffect(() => {
-        // Initialize default dates (first day to last day of current month)
+        // Initialize default dates (first day of current month to today)
         const now = new Date()
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+        const firstDay = getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        const todayStr = getLocalYYYYMMDD(now)
         setStartDate(firstDay)
-        setEndDate(lastDay)
+        setEndDate(todayStr)
     }, [])
 
     useEffect(() => {
