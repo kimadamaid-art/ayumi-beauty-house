@@ -386,14 +386,14 @@ export default function CouponsDashboardPage() {
                                             </button>
                                         </div>
                                         <h3 className="text-lg font-bold text-gray-800 mb-1">{pkg.name}</h3>
-                                        <p className="text-xl font-extrabold text-ayumi-primary font-mono mb-4">Rp {pkg.price.toLocaleString('id-ID')}</p>
+                                        <p className="text-xl font-extrabold text-ayumi-primary  mb-4">Rp {pkg.price.toLocaleString('id-ID')}</p>
                                         
                                         <div className="space-y-2 mt-4">
                                             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Isi Paket:</p>
                                             {pkg.coupon_package_items?.map(item => (
                                                 <div key={item.id} className="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded-lg">
                                                     <span className="text-gray-700 font-medium">{item.treatments?.name}</span>
-                                                    <span className="font-mono font-bold text-ayumi-secondary">{item.quantity}x</span>
+                                                    <span className=" font-bold text-ayumi-secondary">{item.quantity}x</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -501,7 +501,7 @@ export default function CouponsDashboardPage() {
                                                                                 <div key={item.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                                                                                     <div className="flex justify-between text-sm mb-1">
                                                                                         <span className="font-semibold text-gray-700">{item.treatments?.name}</span>
-                                                                                        <span className="font-mono text-xs font-bold text-ayumi-primary">{item.remaining_sessions} / {item.total_sessions} tersisa</span>
+                                                                                        <span className=" text-xs font-bold text-ayumi-primary">{item.remaining_sessions} / {item.total_sessions} tersisa</span>
                                                                                     </div>
                                                                                     <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
                                                                                         <div className="bg-gradient-to-r from-ayumi-primary to-ayumi-secondary h-2 rounded-full" style={{ width: `${percent}%` }}></div>
@@ -630,7 +630,7 @@ export default function CouponsDashboardPage() {
                                                                 >
                                                                     <div>
                                                                         <p className={`font-bold ${isSelected ? 'text-ayumi-primary' : 'text-gray-800'}`}>{item.treatments?.name}</p>
-                                                                        <p className="text-xs text-gray-500 mt-1">Sisa sesi: <span className="font-mono font-bold text-gray-800">{item.remaining_sessions}</span></p>
+                                                                        <p className="text-xs text-gray-500 mt-1">Sisa sesi: <span className=" font-bold text-gray-800">{item.remaining_sessions}</span></p>
                                                                     </div>
                                                                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-ayumi-primary bg-ayumi-primary text-white' : 'border-gray-300'}`}>
                                                                         {isSelected && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
@@ -743,7 +743,7 @@ export default function CouponsDashboardPage() {
                                     <tbody className="divide-y divide-gray-50 text-sm">
                                         {historyLogs.map((log) => (
                                             <tr key={log.id} className="hover:bg-ayumi-table-hover transition-colors">
-                                                <td className="p-4 text-gray-600 font-mono text-xs">{formatDateTime(log.used_at)}</td>
+                                                <td className="p-4 text-gray-600  text-xs">{formatDateTime(log.used_at)}</td>
                                                 <td className="p-4 font-bold text-gray-800">{log.patients?.name}</td>
                                                 <td className="p-4 font-semibold text-ayumi-primary">{log.patient_coupon_items?.treatments?.name}</td>
                                                 <td className="p-4 text-gray-600 text-xs">{log.patient_coupon_items?.patient_coupons?.coupon_packages?.name}</td>

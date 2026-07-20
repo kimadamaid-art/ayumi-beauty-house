@@ -664,7 +664,7 @@ export default function TreatmentInputPage({ params }) {
                                         <div>
                                             <div className="text-xs font-bold text-gray-500 mb-0.5">{couponItem.patient_coupons?.coupon_packages?.name}</div>
                                             <div className="font-bold text-ayumi-secondary">{couponItem.treatments?.name}</div>
-                                            <div className="text-xs font-mono font-bold text-ayumi-primary mt-1">Sisa Kuota: {couponItem.remaining_sessions}x</div>
+                                            <div className="text-xs  font-bold text-ayumi-primary mt-1">Sisa Kuota: {couponItem.remaining_sessions}x</div>
                                         </div>
                                         <button
                                             type="button"

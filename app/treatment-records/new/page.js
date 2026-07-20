@@ -778,7 +778,7 @@ function AddRecordForm() {
                                                             value={item.discount_percent === 0 ? '' : item.discount_percent}
                                                             placeholder="0"
                                                             onChange={(e) => handleTreatmentDiscountChange(item.treatment_id, e.target.value)}
-                                                            className="w-full pr-6 pl-2.5 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white font-mono font-bold"
+                                                            className="w-full pr-6 pl-2.5 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white  font-bold"
                                                         />
                                                         <span className="absolute right-2.5 top-1.5 text-gray-400 text-xs font-semibold">%</span>
                                                     </div>
@@ -794,7 +794,7 @@ function AddRecordForm() {
                                                             value={item.original_price - item.price_at_time === 0 ? '' : item.original_price - item.price_at_time}
                                                             placeholder="0"
                                                             onChange={(e) => handleTreatmentDiscountNominalChange(item.treatment_id, e.target.value)}
-                                                            className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white font-mono font-bold"
+                                                            className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white  font-bold"
                                                         />
                                                     </div>
                                                 </div>
@@ -808,7 +808,7 @@ function AddRecordForm() {
                                                             type="number" 
                                                             value={item.price_at_time}
                                                             onChange={(e) => handleTreatmentPriceChange(item.treatment_id, e.target.value)}
-                                                            className="w-full pl-7 pr-2.5 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white font-mono font-bold text-right"
+                                                            className="w-full pl-7 pr-2.5 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white  font-bold text-right"
                                                         />
                                                     </div>
                                                 </div>
@@ -903,7 +903,7 @@ function AddRecordForm() {
                                     <div>
                                         <div className="text-xs font-bold text-gray-500 mb-1">{couponItem.patient_coupons?.coupon_packages?.name}</div>
                                         <div className="font-bold text-ayumi-secondary">{couponItem.treatments?.name}</div>
-                                        <div className="text-xs font-mono font-bold text-ayumi-primary mt-1">Sisa Kuota: {couponItem.remaining_sessions}x</div>
+                                        <div className="text-xs  font-bold text-ayumi-primary mt-1">Sisa Kuota: {couponItem.remaining_sessions}x</div>
                                     </div>
                                     <button
                                         type="button"

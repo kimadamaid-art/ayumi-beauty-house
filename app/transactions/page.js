@@ -980,7 +980,7 @@ export default function TransactionsPage() {
                     </div>
                     <div>
                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total Pendapatan</h4>
-                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.totalRevenue)}</p>
+                        <p className="text-xl font-extrabold text-gray-800 tracking-tight mt-0.5">{formatCurrency(mainSummary.totalRevenue)}</p>
                     </div>
                 </div>
 
@@ -991,7 +991,7 @@ export default function TransactionsPage() {
                     </div>
                     <div>
                         <h4 className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Pendapatan Treatment</h4>
-                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.treatmentRevenue)}</p>
+                        <p className="text-xl font-black text-gray-800  mt-0.5">{formatCurrency(mainSummary.treatmentRevenue)}</p>
                     </div>
                 </div>
 
@@ -1002,7 +1002,7 @@ export default function TransactionsPage() {
                     </div>
                     <div>
                         <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Pendapatan Produk Skincare</h4>
-                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.productRevenue)}</p>
+                        <p className="text-xl font-black text-gray-800  mt-0.5">{formatCurrency(mainSummary.productRevenue)}</p>
                     </div>
                 </div>
 
@@ -1024,7 +1024,7 @@ export default function TransactionsPage() {
                     </div>
                     <div>
                         <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rata-rata Penjualan</h4>
-                        <p className="text-xl font-black text-gray-800 font-mono mt-0.5">{formatCurrency(mainSummary.avgRevenue)}</p>
+                        <p className="text-xl font-black text-gray-800  mt-0.5">{formatCurrency(mainSummary.avgRevenue)}</p>
                     </div>
                 </div>
 
@@ -1136,7 +1136,7 @@ export default function TransactionsPage() {
                                                     <td className="p-4 text-center">
                                                         <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${payBadgeClass}`}>{tx.payment_method}</span>
                                                     </td>
-                                                    <td className="p-4 text-right font-mono font-bold text-gray-800">{formatCurrency(tx.total)}</td>
+                                                    <td className="p-4 text-right  font-bold text-gray-800">{formatCurrency(tx.total)}</td>
                                                     <td className="p-4 text-center">
                                                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800`}>LUNAS</span>
                                                     </td>
@@ -1194,7 +1194,7 @@ export default function TransactionsPage() {
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
                                 <div>
                                     <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Pendapatan Hari Ini</h5>
-                                    <p className="text-2xl font-black text-gray-800 font-mono text-green-600">{formatCurrency(dailyData.revenue)}</p>
+                                    <p className="text-2xl font-black text-gray-800  text-green-600">{formatCurrency(dailyData.revenue)}</p>
                                 </div>
                                 <div className="text-green-600 bg-green-50 p-3 rounded-xl"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
                             </div>
@@ -1218,7 +1218,7 @@ export default function TransactionsPage() {
                                             <tr key={method} className="hover:bg-gray-50/50">
                                                 <td className="p-3 font-bold uppercase text-gray-700">{method}</td>
                                                 <td className="p-3 text-center font-bold text-gray-600">{data.count}</td>
-                                                <td className="p-3 text-right font-mono font-bold text-gray-800">{formatCurrency(data.total)}</td>
+                                                <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(data.total)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1243,7 +1243,7 @@ export default function TransactionsPage() {
                                                     {type === 'treatment' ? 'Layanan Treatment' : type === 'product' ? 'Produk Fisik' : 'Kupon Paket'}
                                                 </td>
                                                 <td className="p-3 text-center font-bold text-gray-600">{data.qty}</td>
-                                                <td className="p-3 text-right font-mono font-bold text-gray-800">{formatCurrency(data.total)}</td>
+                                                <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(data.total)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1299,7 +1299,7 @@ export default function TransactionsPage() {
                                                     </td>
                                                     <td className="p-3 font-bold text-gray-700">{tx.patients?.full_name || 'Walk-in'}</td>
                                                     <td className="p-3 uppercase font-bold text-gray-500 text-[10px]">{tx.payment_method}</td>
-                                                    <td className="p-3 text-right font-mono font-bold text-gray-800">{formatCurrency(tx.total)}</td>
+                                                    <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(tx.total)}</td>
                                                     <td className="p-3 text-center"><span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-bold">LUNAS</span></td>
                                                     <td className="p-3 text-center">
                                                         <button className="text-xs text-ayumi-primary font-semibold hover:underline">Lihat</button>
@@ -1346,7 +1346,7 @@ export default function TransactionsPage() {
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
-                                <p className="text-2xl font-black text-green-600 font-mono">{formatCurrency(weeklyData.revenue)}</p>
+                                <p className="text-2xl font-black text-green-600 ">{formatCurrency(weeklyData.revenue)}</p>
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Hari Tersibuk (Trx)</h5>
@@ -1363,7 +1363,7 @@ export default function TransactionsPage() {
                             <div>
                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Perbandingan dengan Minggu Lalu</h4>
                                 <div className="flex items-center gap-3">
-                                    <span className="text-sm font-semibold text-gray-600">Pendapatan Minggu Lalu: <strong className="font-mono text-gray-800">{formatCurrency(weeklyData.prevRevenue)}</strong></span>
+                                    <span className="text-sm font-semibold text-gray-600">Pendapatan Minggu Lalu: <strong className=" text-gray-800">{formatCurrency(weeklyData.prevRevenue)}</strong></span>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${weeklyData.growthPercent >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                         {weeklyData.growthPercent >= 0 ? `▲ +${weeklyData.growthPercent.toFixed(1)}%` : `▼ ${weeklyData.growthPercent.toFixed(1)}%`}
                                     </span>
@@ -1408,7 +1408,7 @@ export default function TransactionsPage() {
                                             <tr key={b.name} className="hover:bg-gray-50/50">
                                                 <td className="p-3 font-bold text-gray-700">{b.name}</td>
                                                 <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
-                                                <td className="p-3 text-right font-mono font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                                <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(b.total)}</td>
                                             </tr>
                                         ))}
                                         {weeklyData.branchBreakdown.length === 0 && (
@@ -1465,7 +1465,7 @@ export default function TransactionsPage() {
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
-                                <p className="text-2xl font-black text-green-600 font-mono">{formatCurrency(monthlyData.revenue)}</p>
+                                <p className="text-2xl font-black text-green-600 ">{formatCurrency(monthlyData.revenue)}</p>
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pertumbuhan vs Bulan Lalu</h5>
@@ -1475,7 +1475,7 @@ export default function TransactionsPage() {
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rata-rata Pendapatan / Hari</h5>
-                                <p className="text-lg font-black text-purple-700 font-mono">{formatCurrency(monthlyData.dailyAvg)}</p>
+                                <p className="text-lg font-black text-purple-700 ">{formatCurrency(monthlyData.dailyAvg)}</p>
                             </div>
                         </div>
 
@@ -1555,7 +1555,7 @@ export default function TransactionsPage() {
                                     {monthlyData.topTreatments.map((item, idx) => (
                                         <li key={item.name} className="flex justify-between items-center py-1">
                                             <span>{idx + 1}. {item.name}</span>
-                                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold font-mono">{item.qty}x</span>
+                                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold ">{item.qty}x</span>
                                         </li>
                                     ))}
                                     {monthlyData.topTreatments.length === 0 && <p className="text-gray-400 italic">Belum ada data.</p>}
@@ -1569,7 +1569,7 @@ export default function TransactionsPage() {
                                     {monthlyData.topProducts.map((item, idx) => (
                                         <li key={item.name} className="flex justify-between items-center py-1">
                                             <span>{idx + 1}. {item.name}</span>
-                                            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold font-mono">{item.qty}x</span>
+                                            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold ">{item.qty}x</span>
                                         </li>
                                     ))}
                                     {monthlyData.topProducts.length === 0 && <p className="text-gray-400 italic">Belum ada data.</p>}
@@ -1583,7 +1583,7 @@ export default function TransactionsPage() {
                                     {monthlyData.topCoupons.map((item, idx) => (
                                         <li key={item.name} className="flex justify-between items-center py-1">
                                             <span>{idx + 1}. {item.name}</span>
-                                            <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold font-mono">{item.qty}x</span>
+                                            <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold ">{item.qty}x</span>
                                         </li>
                                     ))}
                                     {monthlyData.topCoupons.length === 0 && <p className="text-gray-400 italic">Belum ada data.</p>}
@@ -1607,7 +1607,7 @@ export default function TransactionsPage() {
                                         <tr key={b.name} className="hover:bg-gray-50/50">
                                             <td className="p-3 font-bold text-gray-700">{b.name}</td>
                                             <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
-                                            <td className="p-3 text-right font-mono font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                            <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(b.total)}</td>
                                         </tr>
                                     ))}
                                     {monthlyData.branchBreakdown.length === 0 && (
@@ -1654,7 +1654,7 @@ export default function TransactionsPage() {
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan Setahun</h5>
-                                <p className="text-2xl font-black text-green-600 font-mono">{formatCurrency(yearlyData.revenue)}</p>
+                                <p className="text-2xl font-black text-green-600 ">{formatCurrency(yearlyData.revenue)}</p>
                             </div>
                             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                 <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Bulan Terbaik (Pendapatan)</h5>
@@ -1721,7 +1721,7 @@ export default function TransactionsPage() {
                                         <tr key={row.branchName} className="hover:bg-gray-50/50">
                                             <td className="p-2 font-bold text-gray-900">{row.branchName}</td>
                                             {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map(m => (
-                                                <td key={m} className="p-2 text-right font-mono text-[10px]">{row[m] > 0 ? formatCurrency(row[m]).substring(3) : '-'}</td>
+                                                <td key={m} className="p-2 text-right  text-[10px]">{row[m] > 0 ? formatCurrency(row[m]).substring(3) : '-'}</td>
                                             ))}
                                         </tr>
                                     ))}
@@ -1821,19 +1821,19 @@ export default function TransactionsPage() {
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
-                                        <p className="text-xl font-black text-green-600 font-mono">{formatCurrency(customReportResult.revenue)}</p>
+                                        <p className="text-xl font-black text-green-600 ">{formatCurrency(customReportResult.revenue)}</p>
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-1">Pendapatan Treatment</h5>
-                                        <p className="text-xl font-black text-purple-700 font-mono">{formatCurrency(customReportResult.treatmentRevenue)}</p>
+                                        <p className="text-xl font-black text-purple-700 ">{formatCurrency(customReportResult.treatmentRevenue)}</p>
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-orange-500 uppercase tracking-wider mb-1">Pendapatan Produk</h5>
-                                        <p className="text-xl font-black text-orange-700 font-mono">{formatCurrency(customReportResult.productRevenue)}</p>
+                                        <p className="text-xl font-black text-orange-700 ">{formatCurrency(customReportResult.productRevenue)}</p>
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rata-rata Penjualan</h5>
-                                        <p className="text-xl font-black text-purple-700 font-mono">{formatCurrency(customReportResult.avg)}</p>
+                                        <p className="text-xl font-black text-purple-700 ">{formatCurrency(customReportResult.avg)}</p>
                                     </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 font-semibold text-gray-400">Total Item Terjual</h5>
@@ -1872,7 +1872,7 @@ export default function TransactionsPage() {
                                                             <td className="p-3 text-gray-500 font-semibold">{tx.branches?.name || '-'}</td>
                                                             <td className="p-3 font-bold text-gray-700">{tx.patients?.full_name || 'Walk-in'}</td>
                                                             <td className="p-3 uppercase font-bold text-gray-500 text-[10px]">{tx.payment_method}</td>
-                                                            <td className="p-3 text-right font-mono font-bold text-gray-800">{formatCurrency(tx.total)}</td>
+                                                            <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(tx.total)}</td>
                                                             <td className="p-3 text-center">
                                                                 <button className="text-xs text-ayumi-primary font-semibold hover:underline">Lihat</button>
                                                             </td>
@@ -1903,7 +1903,7 @@ export default function TransactionsPage() {
                         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-pink-50/30">
                             <div>
                                 <h3 className="font-extrabold text-ayumi-secondary text-sm">Rincian Transaksi</h3>
-                                <p className="text-[10px] text-gray-400 font-bold tracking-wider uppercase font-mono">{selectedTx.transaction_number}</p>
+                                <p className="text-[10px] text-gray-400 font-bold tracking-wider uppercase ">{selectedTx.transaction_number}</p>
                             </div>
                             <button
                                 onClick={closeDetailModal}
@@ -1975,9 +1975,9 @@ export default function TransactionsPage() {
                                         <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-gray-50 last:border-0">
                                             <div className="flex-1">
                                                 <p className="font-bold text-gray-800 text-[11px] leading-tight pr-4">{item.name}</p>
-                                                <span className="text-[10px] text-gray-400 font-mono font-medium">Rp {Number(item.price).toLocaleString('id-ID')} x{item.quantity}</span>
+                                                <span className="text-[10px] text-gray-400  font-medium">Rp {Number(item.price).toLocaleString('id-ID')} x{item.quantity}</span>
                                             </div>
-                                            <span className="font-mono font-bold text-gray-800 text-[11px]">{formatCurrency(item.subtotal)}</span>
+                                            <span className=" font-bold text-gray-800 text-[11px]">{formatCurrency(item.subtotal)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -1987,17 +1987,17 @@ export default function TransactionsPage() {
                             <div className="border-t border-dashed border-gray-200 pt-3 space-y-1.5 font-bold">
                                 <div className="flex justify-between text-gray-500">
                                     <span>Subtotal</span>
-                                    <span className="font-mono">{formatCurrency(selectedTx.subtotal)}</span>
+                                    <span className="">{formatCurrency(selectedTx.subtotal)}</span>
                                 </div>
                                 {selectedTx.discount > 0 && (
                                     <div className="flex justify-between text-red-500">
                                         <span>Potongan Diskon</span>
-                                        <span className="font-mono">- {formatCurrency(selectedTx.discount)}</span>
+                                        <span className="">- {formatCurrency(selectedTx.discount)}</span>
                                     </div>
                                 )}
                                 <div className="flex justify-between text-sm border-t border-gray-100 pt-2 text-gray-900 font-black">
                                     <span>TOTAL BAYAR</span>
-                                    <span className="font-mono text-base text-ayumi-secondary">{formatCurrency(selectedTx.total)}</span>
+                                    <span className=" text-base text-ayumi-secondary">{formatCurrency(selectedTx.total)}</span>
                                 </div>
                             </div>
 

@@ -335,15 +335,15 @@ export default function TherapistDetailPage() {
                 <div className="flex gap-6 border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-8">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Treatment</p>
-                        <h4 className="text-2xl font-black text-ayumi-secondary mt-1 font-mono">{stats.totalTreatments} Sesi</h4>
+                        <h4 className="text-2xl font-black text-ayumi-secondary mt-1 ">{stats.totalTreatments} Sesi</h4>
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-sans">Total Pendapatan</p>
-                        <h4 className="text-2xl font-black text-ayumi-primary mt-1 font-mono">Rp {stats.totalIncome.toLocaleString('id-ID')}</h4>
+                        <h4 className="text-2xl font-black text-ayumi-primary mt-1 ">Rp {stats.totalIncome.toLocaleString('id-ID')}</h4>
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest font-sans">Total Komisi</p>
-                        <h4 className="text-2xl font-black text-emerald-600 mt-1 font-mono">Rp {stats.totalCommission.toLocaleString('id-ID')}</h4>
+                        <h4 className="text-2xl font-black text-emerald-600 mt-1 ">Rp {stats.totalCommission.toLocaleString('id-ID')}</h4>
                     </div>
                 </div>
             </div>
@@ -499,10 +499,10 @@ export default function TherapistDetailPage() {
                                                         {r.treatment_records?.branches?.name || 'Pusat'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-black text-gray-800 font-mono">
+                                                <td className="px-6 py-4 text-right font-black text-gray-800 ">
                                                     Rp {Number(r.price_at_time || 0).toLocaleString('id-ID')}
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-mono">
+                                                <td className="px-6 py-4 text-right ">
                                                     {(() => {
                                                         const price = Number(r.price_at_time || 0)
                                                         const commPercent = Number(r.commission_percent || 0)

@@ -111,7 +111,7 @@ export default function TransactionsHistoryPage() {
                     </div>
                     <div className="bg-gradient-to-r from-pink-50 to-purple-50 px-6 py-3 rounded-xl border border-pink-100/50">
                         <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Pendapatan</p>
-                        <p className="text-2xl font-extrabold text-ayumi-primary font-mono">Rp {totalIncome.toLocaleString('id-ID')}</p>
+                        <p className="text-2xl font-extrabold text-ayumi-primary ">Rp {totalIncome.toLocaleString('id-ID')}</p>
                     </div>
                 </div>
 
@@ -203,7 +203,7 @@ export default function TransactionsHistoryPage() {
                                         <td className="p-4 text-gray-600 uppercase text-xs font-bold tracking-wider">
                                             {trx.payment_method}
                                         </td>
-                                        <td className="p-4 text-right font-mono font-bold text-gray-800">
+                                        <td className="p-4 text-right  font-bold text-gray-800">
                                             {trx.total.toLocaleString('id-ID')}
                                         </td>
                                         <td className="p-4">

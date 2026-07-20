@@ -286,7 +286,7 @@ export default function TherapistsReportPage() {
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-ayumi-primary uppercase tracking-widest">Pendapatan Terapis</p>
-                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 font-mono">Rp {summaryStats.totalRevenue.toLocaleString('id-ID')}</h3>
+                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 ">Rp {summaryStats.totalRevenue.toLocaleString('id-ID')}</h3>
                             </div>
                         </div>
 
@@ -297,7 +297,7 @@ export default function TherapistsReportPage() {
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Total Komisi Terapis</p>
-                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 font-mono">Rp {summaryStats.totalCommission.toLocaleString('id-ID')}</h3>
+                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 ">Rp {summaryStats.totalCommission.toLocaleString('id-ID')}</h3>
                             </div>
                         </div>
 
@@ -319,7 +319,7 @@ export default function TherapistsReportPage() {
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Rata-rata Sesi / Terapis</p>
-                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 font-mono">{summaryStats.avgTreatments} Sesi</h3>
+                                <h3 className="text-2xl font-black text-ayumi-secondary mt-1 ">{summaryStats.avgTreatments} Sesi</h3>
                             </div>
                         </div>
                     </div>
@@ -385,17 +385,17 @@ export default function TherapistsReportPage() {
                                                     </td>
                                                     <td className="px-6 py-4 text-center font-bold text-gray-800">{t.uniquePatients} Pasien</td>
                                                     <td className="px-6 py-4 text-center font-bold text-gray-800">{t.treatmentCount}x Sesi</td>
-                                                    <td className="px-6 py-4 text-right font-black text-gray-800 font-mono">
+                                                    <td className="px-6 py-4 text-right font-black text-gray-800 ">
                                                         Rp {t.revenue.toLocaleString('id-ID')}
                                                     </td>
-                                                    <td className="px-6 py-4 text-right font-mono">
+                                                    <td className="px-6 py-4 text-right ">
                                                         {t.commission > 0 ? (
                                                             <span className="font-bold text-emerald-600">Rp {t.commission.toLocaleString('id-ID')}</span>
                                                         ) : (
                                                             <span className="text-gray-400">Rp 0</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4 text-right font-semibold text-gray-600 font-mono">
+                                                    <td className="px-6 py-4 text-right font-semibold text-gray-600 ">
                                                         Rp {t.avgPerTreatment.toLocaleString('id-ID')}
                                                     </td>
                                                 </tr>
@@ -481,8 +481,8 @@ export default function TherapistsReportPage() {
                                             return (
                                                 <tr key={t.id} className="hover:bg-gray-50/50">
                                                     <td className="p-3 font-bold text-gray-800">{t.name}</td>
-                                                    <td className="p-3 text-right font-semibold text-gray-800 font-mono">Rp {t.revenue.toLocaleString('id-ID')}</td>
-                                                    <td className="p-3 text-right font-semibold font-mono">
+                                                    <td className="p-3 text-right font-semibold text-gray-800 ">Rp {t.revenue.toLocaleString('id-ID')}</td>
+                                                    <td className="p-3 text-right font-semibold ">
                                                         {t.commission > 0 ? (
                                                             <span className="text-emerald-600">Rp {t.commission.toLocaleString('id-ID')}</span>
                                                         ) : (
@@ -496,7 +496,7 @@ export default function TherapistsReportPage() {
                                                     </td>
                                                     <td className="p-3 text-center font-medium">{t.treatmentCount}x Sesi</td>
                                                     <td className="p-3 text-center font-medium">{t.uniquePatients} Pasien</td>
-                                                    <td className="p-3 text-right font-semibold text-gray-500 font-mono">Rp {t.avgPerTreatment.toLocaleString('id-ID')}</td>
+                                                    <td className="p-3 text-right font-semibold text-gray-500 ">Rp {t.avgPerTreatment.toLocaleString('id-ID')}</td>
                                                 </tr>
                                             )
                                         })}

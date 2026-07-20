@@ -489,15 +489,15 @@ export default function TreatmentDetailPage() {
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 border-t lg:border-t-0 lg:border-l border-gray-100 pt-4 lg:pt-0 lg:pl-8 min-w-[250px]">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Sesi</p>
-                        <h4 className="text-xl font-black text-ayumi-secondary mt-0.5 font-mono">{stats.totalTreatments} Sesi</h4>
+                        <h4 className="text-xl font-black text-ayumi-secondary mt-0.5 ">{stats.totalTreatments} Sesi</h4>
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Pasien Unik</p>
-                        <h4 className="text-xl font-black text-ayumi-secondary mt-0.5 font-mono">{stats.totalUniquePatients} Orang</h4>
+                        <h4 className="text-xl font-black text-ayumi-secondary mt-0.5 ">{stats.totalUniquePatients} Orang</h4>
                     </div>
                     <div className="col-span-2 mt-1">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Pendapatan</p>
-                        <h4 className="text-2xl font-black text-ayumi-primary mt-0.5 font-mono">Rp {stats.totalIncome.toLocaleString('id-ID')}</h4>
+                        <h4 className="text-2xl font-black text-ayumi-primary mt-0.5 ">Rp {stats.totalIncome.toLocaleString('id-ID')}</h4>
                     </div>
                 </div>
             </div>
@@ -513,11 +513,11 @@ export default function TreatmentDetailPage() {
                     </div>
                     <div className="flex gap-4 mt-6">
                         <div className="flex-1 bg-blue-50 border border-blue-100 p-4 rounded-xl text-center">
-                            <h4 className="text-2xl font-black text-blue-700 font-mono">{stats.newPatientsCount}</h4>
+                            <h4 className="text-2xl font-black text-blue-700 ">{stats.newPatientsCount}</h4>
                             <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider block mt-1">Pasien Baru</span>
                         </div>
                         <div className="flex-1 bg-orange-50 border border-orange-100 p-4 rounded-xl text-center">
-                            <h4 className="text-2xl font-black text-orange-700 font-mono">{stats.repeatPatientsCount}</h4>
+                            <h4 className="text-2xl font-black text-orange-700 ">{stats.repeatPatientsCount}</h4>
                             <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wider block mt-1">Pasien Repeat</span>
                         </div>
                     </div>
@@ -542,7 +542,7 @@ export default function TreatmentDetailPage() {
                         </div>
 
                         <div className="flex gap-4 items-center">
-                            <div className="w-12 h-12 bg-amber-50 text-amber-700 rounded-xl flex items-center justify-center font-black text-sm font-mono">
+                            <div className="w-12 h-12 bg-amber-50 text-amber-700 rounded-xl flex items-center justify-center font-black text-sm ">
                                 {retentionAnalysis.avgInterval} Hari
                             </div>
                             <div>
@@ -737,7 +737,7 @@ export default function TreatmentDetailPage() {
                                                 <td className="px-6 py-4 font-bold text-gray-800">
                                                     {r.therapistName}
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-black text-gray-800 font-mono">
+                                                <td className="px-6 py-4 text-right font-black text-gray-800 ">
                                                     Rp {Number(r.price_at_time || 0).toLocaleString('id-ID')}
                                                 </td>
                                                 <td className="px-6 py-4 text-center">

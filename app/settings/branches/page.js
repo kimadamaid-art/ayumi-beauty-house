@@ -25,6 +25,7 @@ export default function BranchesPage() {
         address: '',
         phone: '',
         city: '',
+        monthly_target: 0,
         is_active: true
     })
 
@@ -59,7 +60,7 @@ export default function BranchesPage() {
     }
 
     const handleOpenAdd = () => {
-        setFormData({ name: '', address: '', phone: '', city: '', is_active: true })
+        setFormData({ name: '', address: '', phone: '', city: '', monthly_target: 0, is_active: true })
         setIsEditing(false)
         setCurrentBranch(null)
         setError('')
@@ -72,6 +73,7 @@ export default function BranchesPage() {
             address: branch.address || '',
             phone: branch.phone || '',
             city: branch.city || '',
+            monthly_target: branch.monthly_target || 0,
             is_active: branch.is_active
         })
         setIsEditing(true)
@@ -98,16 +100,20 @@ export default function BranchesPage() {
         setError('')
         
         try {
+            const payload = {
+                ...formData,
+                monthly_target: Number(formData.monthly_target || 0)
+            }
             if (isEditing) {
                 const { error: dbError } = await supabase
                     .from('branches')
-                    .update({ ...formData, updated_at: new Date().toISOString() })
+                    .update({ ...payload, updated_at: new Date().toISOString() })
                     .eq('id', currentBranch.id)
                 if (dbError) throw dbError
             } else {
                 const { error: dbError } = await supabase
                     .from('branches')
-                    .insert([formData])
+                    .insert([payload])
                 if (dbError) throw dbError
             }
             
@@ -148,13 +154,14 @@ export default function BranchesPage() {
                                     <th className="px-6 py-4">Nama Cabang</th>
                                     <th className="px-6 py-4">Kota</th>
                                     <th className="px-6 py-4">Telepon</th>
+                                    <th className="px-6 py-4">Target Bulanan</th>
                                     <th className="px-6 py-4 text-center">Status</th>
                                     <th className="px-6 py-4 text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {branches.length === 0 ? (
-                                    <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400">Belum ada data cabang.</td></tr>
+                                    <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400">Belum ada data cabang.</td></tr>
                                 ) : (
                                     branches.map(b => (
                                         <tr key={b.id} className="hover:bg-ayumi-table-hover transition-colors">
@@ -164,6 +171,9 @@ export default function BranchesPage() {
                                             </td>
                                             <td className="px-6 py-4 font-medium text-gray-700">{b.city || '-'}</td>
                                             <td className="px-6 py-4">{b.phone || '-'}</td>
+                                            <td className="px-6 py-4 font-extrabold text-emerald-700 ">
+                                                Rp {(Number(b.monthly_target) || 0).toLocaleString('id-ID')}
+                                            </td>
                                             <td className="px-6 py-4 text-center">
                                                 <button 
                                                     onClick={() => handleToggleActive(b)}
@@ -227,6 +237,15 @@ export default function BranchesPage() {
                                     type="text" 
                                     className="input-ayumi bg-white"
                                     value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Target Bulanan (Rp)</label>
+                                <input 
+                                    type="number" min="0" step="1000"
+                                    className="input-ayumi bg-white  font-bold"
+                                    value={formData.monthly_target} onChange={e => setFormData({...formData, monthly_target: e.target.value})}
                                 />
                             </div>
 

@@ -250,7 +250,7 @@ export default function TreatmentsPage() {
                                                             type="number"
                                                             value={inlineValue}
                                                             onChange={(e) => setInlineValue(e.target.value)}
-                                                            className="w-24 px-2 py-1 text-xs border border-ayumi-primary rounded text-right font-mono focus:outline-none focus:ring-1 focus:ring-ayumi-primary bg-white"
+                                                            className="w-24 px-2 py-1 text-xs border border-ayumi-primary rounded text-right  focus:outline-none focus:ring-1 focus:ring-ayumi-primary bg-white"
                                                             min="0"
                                                             autoFocus
                                                             onKeyDown={(e) => {
@@ -277,7 +277,7 @@ export default function TreatmentsPage() {
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <span className="font-bold text-gray-700 font-mono group-hover:text-ayumi-primary transition-colors border-b border-transparent group-hover:border-ayumi-primary">Rp {t.price?.toLocaleString('id-ID')}</span>
+                                                            <span className="font-bold text-gray-700  group-hover:text-ayumi-primary transition-colors border-b border-transparent group-hover:border-ayumi-primary">Rp {t.price?.toLocaleString('id-ID')}</span>
                                                         )}
                                                         <svg className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 absolute -left-4 top-1/2 -translate-y-1/2 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </div>
@@ -463,7 +463,7 @@ export default function TreatmentsPage() {
                             {formData.discount_percent > 0 && (
                                 <div className="bg-pink-50/50 border border-pink-100 p-3.5 rounded-xl flex justify-between items-center text-sm">
                                     <span className="font-semibold text-gray-500">Harga Setelah Diskon:</span>
-                                    <span className="font-extrabold text-ayumi-primary font-mono text-base">
+                                    <span className="font-extrabold text-ayumi-primary  text-base">
                                         Rp {(formData.price * (1 - formData.discount_percent / 100))?.toLocaleString('id-ID')}
                                     </span>
                                 </div>
@@ -512,7 +512,7 @@ export default function TreatmentsPage() {
                                 {formData.commission_percent > 0 && formData.price > 0 && (
                                     <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl flex justify-between items-center text-sm mt-2">
                                         <span className="font-semibold text-gray-500">Estimasi Komisi per Treatment:</span>
-                                        <span className="font-extrabold text-emerald-600 font-mono text-base">
+                                        <span className="font-extrabold text-emerald-600  text-base">
                                             Rp {Math.round(
                                                 (formData.discount_percent > 0
                                                     ? formData.price * (1 - formData.discount_percent / 100)

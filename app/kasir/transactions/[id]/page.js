@@ -408,8 +408,8 @@ export default function ReceiptPage() {
                                     <p className="font-bold text-gray-800 leading-tight pr-2">{item.name}</p>
                                     <p className="text-[10px] text-gray-400">Rp {item.price.toLocaleString('id-ID')}</p>
                                 </div>
-                                <div className="col-span-2 text-center text-gray-600 font-mono">x{item.quantity}</div>
-                                <div className="col-span-4 text-right font-mono font-bold text-gray-800">
+                                <div className="col-span-2 text-center text-gray-600 ">x{item.quantity}</div>
+                                <div className="col-span-4 text-right  font-bold text-gray-800">
                                     Rp {item.subtotal.toLocaleString('id-ID')}
                                 </div>
                             </div>
@@ -420,23 +420,23 @@ export default function ReceiptPage() {
                 <div className="space-y-1 mb-6">
                     <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Subtotal</span>
-                        <span className="font-mono text-gray-800">Rp {Number(transaction.subtotal).toLocaleString('id-ID')}</span>
+                        <span className=" text-gray-800">Rp {Number(transaction.subtotal).toLocaleString('id-ID')}</span>
                     </div>
                     {Number(transaction.discount) > 0 && (
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Diskon</span>
-                            <span className="font-mono text-gray-800">- Rp {Number(transaction.discount).toLocaleString('id-ID')}</span>
+                            <span className=" text-gray-800">- Rp {Number(transaction.discount).toLocaleString('id-ID')}</span>
                         </div>
                     )}
                     {qrisFee > 0 && (
                         <div className="flex justify-between text-sm text-blue-700 font-semibold">
                             <span>Biaya QRIS (0,3%)</span>
-                            <span className="font-mono">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
+                            <span className="">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
                         </div>
                     )}
                     <div className="flex justify-between items-center text-lg mt-3 pt-3 border-t border-gray-100">
                         <span className="font-bold text-gray-800 uppercase tracking-wider">TOTAL</span>
-                        <span className="font-extrabold text-xl text-ayumi-primary font-mono">Rp {Number(transaction.total).toLocaleString('id-ID')}</span>
+                        <span className="font-extrabold text-xl text-ayumi-primary ">Rp {Number(transaction.total).toLocaleString('id-ID')}</span>
                     </div>
                 </div>
 

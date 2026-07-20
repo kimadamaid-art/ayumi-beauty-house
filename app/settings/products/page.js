@@ -447,7 +447,7 @@ export default function ProductsPage() {
                                             </td>
 
                                             {/* Selling Price */}
-                                            <td className="p-4 text-right text-gray-700 font-mono font-bold">
+                                            <td className="p-4 text-right text-gray-700  font-bold">
                                                 Rp {p.price?.toLocaleString('id-ID')}
                                             </td>
 
@@ -478,7 +478,7 @@ export default function ProductsPage() {
                                                                     onFocus={(e) => e.target.select()}
                                                                     onChange={(e) => handleInlineInputChange(p.id, b.id, e.target.value)}
                                                                     onBlur={() => handleInlineStockSave(p.id, b.id, currentQty)}
-                                                                    className="w-16 h-7 text-center font-mono font-black text-sm border border-gray-200 rounded-md focus:border-orange-500 focus:ring-0 bg-transparent text-gray-900 focus:text-orange-950 outline-none"
+                                                                    className="w-16 h-7 text-center  font-black text-sm border border-gray-200 rounded-md focus:border-orange-500 focus:ring-0 bg-transparent text-gray-900 focus:text-orange-950 outline-none"
                                                                 />
                                                                 <button
                                                                     type="button"
@@ -508,7 +508,7 @@ export default function ProductsPage() {
                                                                     key={b.id} 
                                                                     className="inline-flex items-center gap-1.5 bg-white hover:bg-orange-50/50 focus-within:bg-orange-50 focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-200/60 border border-gray-200 px-2.5 py-1 rounded-xl transition-all shadow-2xs"
                                                                 >
-                                                                    <span className="text-xs font-bold text-gray-500 font-mono">{b.branch_code || b.name.slice(0,3).toUpperCase()}:</span>
+                                                                    <span className="text-xs font-bold text-gray-500 ">{b.branch_code || b.name.slice(0,3).toUpperCase()}:</span>
                                                                     <input
                                                                         type="number"
                                                                         min="0"
@@ -516,7 +516,7 @@ export default function ProductsPage() {
                                                                         onFocus={(e) => e.target.select()}
                                                                         onChange={(e) => handleInlineInputChange(p.id, b.id, e.target.value)}
                                                                         onBlur={() => handleInlineStockSave(p.id, b.id, currentQty)}
-                                                                        className="w-14 h-7 text-center font-mono font-black text-xs bg-transparent outline-none text-gray-800 focus:text-orange-950"
+                                                                        className="w-14 h-7 text-center  font-black text-xs bg-transparent outline-none text-gray-800 focus:text-orange-950"
                                                                     />
                                                                     {isSavingKey && <span className="text-[10px] font-bold text-emerald-600">✓</span>}
                                                                 </div>
@@ -528,7 +528,7 @@ export default function ProductsPage() {
 
                                             {/* Total Stock Badge */}
                                             <td className="p-4 text-center">
-                                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold font-mono ${
+                                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold  ${
                                                     totalStock === 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-800'
                                                 }`}>
                                                     {totalStock} pcs
@@ -626,7 +626,7 @@ export default function ProductsPage() {
                                         onChange={handleChange}
                                         required
                                         min="0"
-                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm font-mono font-bold"
+                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm  font-bold"
                                     />
                                 </div>
                             </div>
@@ -651,7 +651,7 @@ export default function ProductsPage() {
                                                 min="0"
                                                 value={formData.branchStocks[b.id] !== undefined ? formData.branchStocks[b.id] : 0}
                                                 onChange={(e) => handleBranchStockChange(b.id, e.target.value)}
-                                                className="input-ayumi bg-white text-sm font-mono font-bold w-full text-right focus:ring-orange-200 focus:border-orange-400"
+                                                className="input-ayumi bg-white text-sm  font-bold w-full text-right focus:ring-orange-200 focus:border-orange-400"
                                             />
                                         </div>
                                     ))}

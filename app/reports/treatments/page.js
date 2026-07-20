@@ -4,7 +4,19 @@ import { useState, useEffect, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts'
+import { 
+    BarChart, 
+    Bar, 
+    XAxis, 
+    YAxis, 
+    Tooltip as RechartsTooltip, 
+    ResponsiveContainer, 
+    CartesianGrid, 
+    PieChart, 
+    Pie, 
+    Cell, 
+    Legend 
+} from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
 
 export default function TreatmentsReportPage() {
@@ -16,8 +28,12 @@ export default function TreatmentsReportPage() {
 
     const [isLoading, setIsLoading] = useState(true)
     const [branches, setBranches] = useState([])
-    const [categories, setCategories] = useState([])
+    const [treatmentCategories, setTreatmentCategories] = useState([])
+    const [productCategories, setProductCategories] = useState([])
     
+    // Active Report Tab: 'treatments' | 'products'
+    const [activeTab, setActiveTab] = useState('treatments')
+
     // Access controls
     const [isOwner, setIsOwner] = useState(false)
     const [userBranchId, setUserBranchId] = useState(null)
@@ -31,7 +47,6 @@ export default function TreatmentsReportPage() {
     }
 
     // Filters
-    const [period, setPeriod] = useState('custom')
     const [customStart, setCustomStart] = useState(() => {
         const now = new Date()
         return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
@@ -39,19 +54,21 @@ export default function TreatmentsReportPage() {
     const [customEnd, setCustomEnd] = useState(() => {
         return getLocalYYYYMMDD(new Date())
     })
+
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [searchTerm, setSearchTerm] = useState('')
 
     // Database raw items
-    const [treatmentItems, setTreatmentItems] = useState([])
+    const [rawTransactionItems, setRawTransactionItems] = useState([])
+    const [rawTreatmentRecordItems, setRawTreatmentRecordItems] = useState([])
 
     // Table sorting state
-    const [sortField, setSortField] = useState('sessionCount') // 'name' | 'category' | 'sessionCount' | 'uniquePatients' | 'revenue' | 'avgPrice'
+    const [sortField, setSortField] = useState('count') // 'name' | 'category' | 'count' | 'uniquePatients' | 'revenue' | 'avgPrice'
     const [sortDirection, setSortDirection] = useState('desc') // 'asc' | 'desc'
 
     // Colors for Donut Chart
-    const COLORS = ['#D46221', '#4E2A12', '#DE915D', '#E8B895', '#B5531B', '#914214', '#6E310E', '#FAF1E8']
+    const COLORS = ['#B5588A', '#06B6D4', '#EAB308', '#10B981', '#6366F1', '#EC4899', '#8B5CF6', '#F97316']
 
     useEffect(() => {
         checkAccessAndFetchInitialData()
@@ -61,7 +78,7 @@ export default function TreatmentsReportPage() {
         if (userLoaded) {
             fetchReportData()
         }
-    }, [userLoaded, period, customStart, customEnd, selectedBranch])
+    }, [userLoaded, customStart, customEnd, selectedBranch])
 
     const checkAccessAndFetchInitialData = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -72,7 +89,7 @@ export default function TreatmentsReportPage() {
 
         const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
         if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
-            alert('Akses ditolak. Halaman ini khusus untuk Owner dan Admin.')
+            toast.error('Akses ditolak. Halaman ini khusus untuk Owner dan Admin.')
             router.push('/dashboard')
             return
         }
@@ -81,461 +98,585 @@ export default function TreatmentsReportPage() {
         setIsOwner(owner)
         setUserBranchId(userData.branch_id)
         
-        // Fetch Branches
+        // Fetch Active Branches
         const { data: branchData } = await supabase.from('branches').select('id, name').eq('is_active', true).order('name')
         if (branchData) setBranches(branchData)
 
-        // Fetch Categories
+        // Fetch Treatment Categories
         const { data: catData } = await supabase.from('treatment_categories').select('id, name').order('name')
-        if (catData) setCategories(catData)
+        if (catData) setTreatmentCategories(catData)
 
-        // For admin, restrict branch filter to their own branch
+        // Fetch Product Categories
+        const { data: pCatData } = await supabase.from('product_categories').select('id, name').order('name')
+        if (pCatData) setProductCategories(pCatData)
+
+        // Branch Access Enforcement:
+        // Non-owner (Admin) is STRICTLY LOCKED to their assigned branch!
         if (!owner && userData.branch_id) {
             setSelectedBranch(userData.branch_id)
+        } else if (owner) {
+            setSelectedBranch('all')
         }
 
-        // Initialize custom dates default
-        const now = new Date()
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-        const todayStr = now.toISOString().split('T')[0]
-        // Default dates are already initialized as first day and last day of month in useState
         setUserLoaded(true)
     }
 
-    // Helper to calculate date string ranges
-    const dateRange = useMemo(() => {
-        return {
-            startStr: customStart || new Date().toISOString().split('T')[0],
-            endStr: customEnd || new Date().toISOString().split('T')[0]
-        }
-    }, [customStart, customEnd])
-
     const fetchReportData = async () => {
         setIsLoading(true)
-        const { startStr, endStr } = dateRange
+        const sDate = customStart || getLocalYYYYMMDD()
+        const eDate = customEnd || getLocalYYYYMMDD()
 
-        let query = supabase
-            .from('treatment_record_items')
-            .select(`
-                id,
-                price_at_time,
-                treatment_id,
-                treatments(
-                    name,
-                    category_id,
-                    treatment_categories(id, name)
-                ),
-                treatment_records!inner(
+        try {
+            // 1. Fetch POS Transaction Items (Treatments & Products)
+            let trxQuery = supabase
+                .from('transaction_items')
+                .select(`
                     id,
-                    treatment_date,
-                    branch_id,
-                    patient_id
-                )
-            `)
-            .gte('treatment_records.treatment_date', startStr)
-            .lte('treatment_records.treatment_date', endStr)
+                    item_type,
+                    item_id,
+                    item_name,
+                    quantity,
+                    subtotal,
+                    transactions!inner(
+                        id,
+                        created_at,
+                        branch_id,
+                        patient_id
+                    )
+                `)
+                .gte('transactions.created_at', `${sDate}T00:00:00Z`)
+                .lte('transactions.created_at', `${eDate}T23:59:59Z`)
 
-        if (selectedBranch !== 'all') {
-            query = query.eq('treatment_records.branch_id', selectedBranch)
+            // Enforce Branch Filter (Strict for Admin)
+            const effectiveBranch = !isOwner ? (userBranchId || selectedBranch) : selectedBranch
+            if (effectiveBranch && effectiveBranch !== 'all') {
+                trxQuery = trxQuery.eq('transactions.branch_id', effectiveBranch)
+            }
+
+            // 2. Fetch Treatment Record Items
+            let recQuery = supabase
+                .from('treatment_record_items')
+                .select(`
+                    id,
+                    price_at_time,
+                    treatment_id,
+                    treatments(
+                        name,
+                        category_id,
+                        treatment_categories(id, name)
+                    ),
+                    treatment_records!inner(
+                        id,
+                        treatment_date,
+                        branch_id,
+                        patient_id
+                    )
+                `)
+                .gte('treatment_records.treatment_date', sDate)
+                .lte('treatment_records.treatment_date', eDate)
+
+            if (effectiveBranch && effectiveBranch !== 'all') {
+                recQuery = recQuery.eq('treatment_records.branch_id', effectiveBranch)
+            }
+
+            const [trxRes, recRes] = await Promise.all([trxQuery, recQuery])
+
+            setRawTransactionItems(trxRes.data || [])
+            setRawTreatmentRecordItems(recRes.data || [])
+        } catch (err) {
+            console.error('Error fetching combined report data:', err)
+        } finally {
+            setIsLoading(false)
         }
-
-        const { data, error } = await query
-
-        if (error) {
-            console.error('Error fetching treatment reports:', error)
-        } else {
-            setTreatmentItems(data || [])
-        }
-        setIsLoading(false)
     }
 
-    // Process statistics & list
-    const processedMetrics = useMemo(() => {
+    // Process Treatment Metrics
+    const processedTreatmentMetrics = useMemo(() => {
         const groups = {}
 
-        treatmentItems.forEach(item => {
-            const tId = item.treatment_id
-            const tName = item.treatments?.name || 'Unknown Treatment'
-            const catId = item.treatments?.category_id || null
-            const catName = item.treatments?.treatment_categories?.name || 'Uncategorized'
-            const price = Number(item.price_at_time || 0)
-            const patientId = item.treatment_records?.patient_id
+        // Combine from POS transaction items (treatment)
+        rawTransactionItems.forEach(item => {
+            if (item.item_type === 'treatment') {
+                const tName = item.item_name || 'Treatment'
+                const qty = Number(item.quantity || 1)
+                const amt = Number(item.subtotal || 0)
+                const pId = item.transactions?.patient_id
 
-            if (!groups[tId]) {
-                groups[tId] = {
-                    id: tId,
+                if (!groups[tName]) {
+                    groups[tName] = {
+                        id: item.item_id || tName,
+                        name: tName,
+                        categoryName: 'Perawatan Utama',
+                        count: 0,
+                        revenue: 0,
+                        patients: new Set()
+                    }
+                }
+
+                groups[tName].count += qty
+                groups[tName].revenue += amt
+                if (pId) groups[tName].patients.add(pId)
+            }
+        })
+
+        // Combine from Treatment Records if any
+        rawTreatmentRecordItems.forEach(item => {
+            const tName = item.treatments?.name || 'Treatment'
+            const catName = item.treatments?.treatment_categories?.name || 'Perawatan Utama'
+            const price = Number(item.price_at_time || 0)
+            const pId = item.treatment_records?.patient_id
+
+            if (!groups[tName]) {
+                groups[tName] = {
+                    id: item.treatment_id || tName,
                     name: tName,
-                    categoryId: catId,
                     categoryName: catName,
-                    sessionCount: 0,
+                    count: 0,
                     revenue: 0,
                     patients: new Set()
                 }
+            } else if (groups[tName].categoryName === 'Perawatan Utama') {
+                groups[tName].categoryName = catName
             }
 
-            groups[tId].sessionCount += 1
-            groups[tId].revenue += price
-            if (patientId) {
-                groups[tId].patients.add(patientId)
+            groups[tName].count += 1
+            groups[tName].revenue += price
+            if (pId) groups[tName].patients.add(pId)
+        })
+
+        let list = Object.values(groups).map(g => ({
+            id: g.id,
+            name: g.name,
+            categoryName: g.categoryName,
+            count: g.count,
+            uniquePatients: g.patients.size,
+            revenue: g.revenue,
+            avgPrice: g.count > 0 ? Math.round(g.revenue / g.count) : 0
+        }))
+
+        // Category Filter
+        if (selectedCategory !== 'all') {
+            list = list.filter(item => item.categoryName === selectedCategory)
+        }
+
+        // Search Filter
+        if (searchTerm.trim() !== '') {
+            list = list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        }
+
+        // Sorting
+        list.sort((a, b) => {
+            let valA = a[sortField] ?? a.count
+            let valB = b[sortField] ?? b.count
+
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase()
+                valB = valB.toLowerCase()
+            }
+
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1
+            return 0
+        })
+
+        return list
+    }, [rawTransactionItems, rawTreatmentRecordItems, selectedCategory, searchTerm, sortField, sortDirection])
+
+    // Process Product Metrics
+    const processedProductMetrics = useMemo(() => {
+        const groups = {}
+
+        rawTransactionItems.forEach(item => {
+            if (item.item_type === 'product') {
+                const pName = item.item_name || 'Skincare Product'
+                const qty = Number(item.quantity || 1)
+                const amt = Number(item.subtotal || 0)
+                const patientId = item.transactions?.patient_id
+
+                if (!groups[pName]) {
+                    groups[pName] = {
+                        id: item.item_id || pName,
+                        name: pName,
+                        categoryName: 'Produk Skincare',
+                        count: 0,
+                        revenue: 0,
+                        patients: new Set()
+                    }
+                }
+
+                groups[pName].count += qty
+                groups[pName].revenue += amt
+                if (patientId) groups[pName].patients.add(patientId)
             }
         })
 
         let list = Object.values(groups).map(g => ({
             id: g.id,
             name: g.name,
-            categoryId: g.categoryId,
             categoryName: g.categoryName,
-            sessionCount: g.sessionCount,
+            count: g.count,
             uniquePatients: g.patients.size,
             revenue: g.revenue,
-            avgPrice: g.sessionCount > 0 ? Math.round(g.revenue / g.sessionCount) : 0
+            avgPrice: g.count > 0 ? Math.round(g.revenue / g.count) : 0
         }))
 
-        // Client-side category filtering
+        // Category Filter
         if (selectedCategory !== 'all') {
-            list = list.filter(item => item.categoryId === selectedCategory)
+            list = list.filter(item => item.categoryName === selectedCategory)
         }
 
-        // Client-side search filtering
+        // Search Filter
         if (searchTerm.trim() !== '') {
             list = list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
         }
 
-        // Sort data based on sortField & sortDirection
+        // Sorting
         list.sort((a, b) => {
-            let fieldA = a[sortField]
-            let fieldB = b[sortField]
+            let valA = a[sortField] ?? a.count
+            let valB = b[sortField] ?? b.count
 
-            if (typeof fieldA === 'string') {
-                fieldA = fieldA.toLowerCase()
-                fieldB = fieldB.toLowerCase()
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase()
+                valB = valB.toLowerCase()
             }
 
-            if (fieldA < fieldB) return sortDirection === 'asc' ? -1 : 1
-            if (fieldA > fieldB) return sortDirection === 'asc' ? 1 : -1
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1
             return 0
         })
 
         return list
-    }, [treatmentItems, selectedCategory, searchTerm, sortField, sortDirection])
+    }, [rawTransactionItems, selectedCategory, searchTerm, sortField, sortDirection])
 
-    // Top widgets data
+    // Active Metrics Depending on Active Tab
+    const currentMetrics = activeTab === 'treatments' ? processedTreatmentMetrics : processedProductMetrics
+
+    // KPI Summary
     const summaryStats = useMemo(() => {
-        const totalSessions = processedMetrics.reduce((acc, curr) => acc + curr.sessionCount, 0)
-        const totalRevenue = processedMetrics.reduce((acc, curr) => acc + curr.revenue, 0)
+        const totalCount = currentMetrics.reduce((acc, curr) => acc + curr.count, 0)
+        const totalRevenue = currentMetrics.reduce((acc, curr) => acc + curr.revenue, 0)
 
-        // Best seller by revenue
-        const sortedByRevenue = [...processedMetrics].sort((a, b) => b.revenue - a.revenue)
-        const bestSeller = sortedByRevenue.length > 0 && sortedByRevenue[0].revenue > 0 ? sortedByRevenue[0].name : '-'
+        const sortedByRev = [...currentMetrics].sort((a, b) => b.revenue - a.revenue)
+        const bestSeller = sortedByRev.length > 0 && sortedByRev[0].revenue > 0 ? sortedByRev[0].name : '-'
 
-        // Most popular by sessions
-        const sortedBySessions = [...processedMetrics].sort((a, b) => b.sessionCount - a.sessionCount)
-        const mostPopular = sortedBySessions.length > 0 && sortedBySessions[0].sessionCount > 0 ? sortedBySessions[0].name : '-'
+        const sortedByCount = [...currentMetrics].sort((a, b) => b.count - a.count)
+        const mostPopular = sortedByCount.length > 0 && sortedByCount[0].count > 0 ? sortedByCount[0].name : '-'
 
         return {
-            totalSessions,
+            totalCount,
             totalRevenue,
             bestSeller,
             mostPopular
         }
-    }, [processedMetrics])
+    }, [currentMetrics])
 
-    // Top 10 treatments chart (by sessions count)
+    // Top 10 Chart Data
     const top10ChartData = useMemo(() => {
-        return [...processedMetrics]
-            .sort((a, b) => b.sessionCount - a.sessionCount)
+        return [...currentMetrics]
+            .sort((a, b) => b.count - a.count)
             .slice(0, 10)
-    }, [processedMetrics])
+    }, [currentMetrics])
 
-    // Donut chart data: distribution per category
-    const donutChartData = useMemo(() => {
+    // Donut Chart Category Distribution
+    const categoryChartData = useMemo(() => {
         const catMap = {}
-        processedMetrics.forEach(m => {
-            const name = m.categoryName
-            catMap[name] = (catMap[name] || 0) + m.revenue
+        currentMetrics.forEach(item => {
+            const catName = item.categoryName || 'Lainnya'
+            catMap[catName] = (catMap[catName] || 0) + item.revenue
         })
 
-        return Object.entries(catMap)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-    }, [processedMetrics])
+        return Object.entries(catMap).map(([name, value]) => ({
+            name,
+            value
+        }))
+    }, [currentMetrics])
 
-    // Handle sort click on table header
     const handleSort = (field) => {
         if (sortField === field) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
         } else {
             setSortField(field)
             setSortDirection('desc')
         }
     }
 
-    const renderSortArrow = (field) => {
-        if (sortField !== field) return null
-        return sortDirection === 'asc' ? ' ▲' : ' ▼'
-    }
-
-    if (!userLoaded) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="animate-spin w-10 h-10 border-4 border-ayumi-primary border-t-transparent rounded-full mb-4"></div>
-                <p className="text-ayumi-primary font-semibold">Memeriksa Hak Akses...</p>
-            </div>
-        )
-    }
+    const userBranchName = branches.find(b => b.id === (userBranchId || selectedBranch))?.name || 'Cabang Klinik'
 
     return (
-        <div className="space-y-6 pb-16">
-            
-            {/* Header Title */}
-            <div>
-                <h1 className="text-2xl font-extrabold text-ayumi-secondary">Laporan Analitik Treatment</h1>
-                <p className="text-sm text-ayumi-text-muted mt-1">Metrik, sebaran kategori, dan ranking performa treatment klinik.</p>
-            </div>
+        <div className="space-y-6 pb-12">
+            {/* HEADER UTAMA & FILTER BAR */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                        Laporan Analitik Perawatan & Penjualan Produk
+                    </h2>
+                    <p className="text-xs text-gray-600 font-semibold mt-1">
+                        Analisis lengkap omset, performa treatment, dan penjualan produk skincare per cabang klinik.
+                    </p>
+                </div>
 
-            {/* Filter Bar */}
-            <div className="flex flex-col gap-4 bg-white p-4 md:p-6 rounded-2xl border border-gray-100 shadow-sm">
-                
-                {/* Row 1: Periods & Branch */}
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    
-                    {/* Date Pickers for Custom Range */}
-                    <div className="w-[290px] relative z-20">
-                        <DateRangePicker 
+                {/* Filter Controls: Rentang Waktu & Cabang */}
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Rentang Waktu</span>
+                        <DateRangePicker
                             startDate={customStart}
                             endDate={customEnd}
-                            onChange={(range) => {
-                                setCustomStart(range.startDate);
-                                setCustomEnd(range.endDate);
+                            onChange={({ startDate: s, endDate: e }) => {
+                                setCustomStart(s)
+                                setCustomEnd(e)
                             }}
-                            inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
+                            align="right"
+                            inputClassName="bg-pink-50 hover:bg-pink-100/70 text-ayumi-secondary border border-pink-200 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-sm transition-colors cursor-pointer"
                         />
                     </div>
 
-                    {/* Branch Select */}
-                    <select
-                        value={selectedBranch}
-                        onChange={(e) => setSelectedBranch(e.target.value)}
-                        disabled={!isOwner}
-                        className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg max-w-[200px]"
-                    >
-                        {isOwner && <option value="all">Semua Cabang (Tindakan)</option>}
-                        {branches.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <hr className="border-gray-100" />
-
-                {/* Row 2: Search & Categories */}
-                <div className="flex flex-col sm:flex-row justify-between gap-4">
-                    {/* Category Select */}
-                    <select
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg max-w-[200px]"
-                    >
-                        <option value="all">Semua Kategori</option>
-                        {categories.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
-
-                    {/* Search Bar */}
-                    <div className="relative w-full sm:w-72 ml-auto">
-                        <svg className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <input
-                            type="text"
-                            placeholder="Cari treatment..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="input-ayumi pl-9 bg-gray-50 focus:bg-white text-xs py-2"
-                        />
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Filter Cabang</span>
+                        {isOwner ? (
+                            <div className="flex items-center gap-2 bg-pink-50 border border-pink-200 px-3.5 py-2 rounded-2xl shadow-sm">
+                                <svg className="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                <select 
+                                    value={selectedBranch}
+                                    onChange={(e) => setSelectedBranch(e.target.value)}
+                                    className="bg-transparent border-none text-ayumi-secondary text-xs focus:ring-0 cursor-pointer font-extrabold outline-none pr-4"
+                                >
+                                    <option value="all" className="text-gray-800">Semua Cabang (Global)</option>
+                                    {branches.map(b => (
+                                        <option key={b.id} value={b.id} className="text-gray-800">{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 px-3.5 py-2 rounded-2xl">
+                                <svg className="w-4 h-4 text-gray-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                <span className="text-gray-800 text-xs font-extrabold">{userBranchName}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-pink-100 shadow-sm">
-                    <div className="animate-spin w-10 h-10 border-4 border-ayumi-primary border-t-transparent rounded-full mb-4"></div>
-                    <p className="text-ayumi-primary font-semibold">Mengambil data analitik treatment...</p>
+            {/* TAB SWITCHER BERSIH & RAPI */}
+            <div className="flex items-center gap-2 p-1.5 bg-gray-100/80 rounded-2xl w-fit border border-gray-200">
+                <button
+                    onClick={() => {
+                        setActiveTab('treatments')
+                        setSelectedCategory('all')
+                    }}
+                    className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 ${
+                        activeTab === 'treatments'
+                            ? 'bg-white text-ayumi-primary shadow-sm border border-pink-200'
+                            : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                    <svg className="w-4 h-4 text-[#B5588A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                    <span>Laporan Treatment (Perawatan)</span>
+                </button>
+
+                <button
+                    onClick={() => {
+                        setActiveTab('products')
+                        setSelectedCategory('all')
+                    }}
+                    className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 ${
+                        activeTab === 'products'
+                            ? 'bg-white text-cyan-700 shadow-sm border border-cyan-200'
+                            : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                    <svg className="w-4 h-4 text-[#06B6D4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                    <span>Laporan Penjualan Produk Skincare</span>
+                </button>
+            </div>
+
+            {/* 4 CARDS RINGKASAN KPI */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Card 1: Total Volume */}
+                <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        {activeTab === 'treatments' ? 'Total Sesi Treatment' : 'Total Unit Terjual'}
+                    </span>
+                    <p className="text-2xl font-black text-gray-900 tracking-tight">
+                        {summaryStats.totalCount} <span className="text-sm font-semibold text-gray-500">{activeTab === 'treatments' ? 'Sesi' : 'Unit'}</span>
+                    </p>
                 </div>
-            ) : (
-                <>
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {/* Sesi */}
-                        <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border-indigo-100">
-                            <div className="w-12 h-12 bg-white text-indigo-700 rounded-xl flex items-center justify-center shadow-sm">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Total Sesi</p>
-                                <h4 className="text-xl font-black text-indigo-950 mt-0.5 font-mono">{summaryStats.totalSessions} Sesi</h4>
-                            </div>
-                        </div>
 
-                        {/* Pendapatan */}
-                        <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-green-50 to-green-100/50 border-green-100">
-                            <div className="w-12 h-12 bg-white text-green-700 rounded-xl flex items-center justify-center shadow-sm">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Pendapatan</p>
-                                <h4 className="text-lg font-black text-green-950 mt-0.5 font-mono">Rp {summaryStats.totalRevenue.toLocaleString('id-ID')}</h4>
-                            </div>
-                        </div>
+                {/* Card 2: Total Pendapatan */}
+                <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">
+                        {activeTab === 'treatments' ? 'Pendapatan Treatment' : 'Pendapatan Produk'}
+                    </span>
+                    <p className="text-2xl font-black text-emerald-800 tracking-tight">
+                        Rp {summaryStats.totalRevenue.toLocaleString('id-ID')}
+                    </p>
+                </div>
 
-                        {/* Terlaris (Revenue) */}
-                        <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-100">
-                            <div className="w-12 h-12 bg-white text-amber-700 rounded-xl flex items-center justify-center shadow-sm">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Terlaris (Rp)</p>
-                                <h4 className="text-xs font-black text-amber-950 mt-0.5 truncate" title={summaryStats.bestSeller}>{summaryStats.bestSeller}</h4>
-                            </div>
-                        </div>
+                {/* Card 3: Terlaris Nominal */}
+                <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                        Terlaris (Nominal Omset)
+                    </span>
+                    <p className="text-base font-extrabold text-amber-900 truncate">
+                        {summaryStats.bestSeller}
+                    </p>
+                </div>
 
-                        {/* Terpopuler (Sessions) */}
-                        <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-pink-50 to-pink-100/50 border-pink-100">
-                            <div className="w-12 h-12 bg-white text-ayumi-primary rounded-xl flex items-center justify-center shadow-sm">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[10px] font-bold text-ayumi-primary uppercase tracking-widest font-sans">Terpopuler (Sesi)</p>
-                                <h4 className="text-xs font-black text-ayumi-secondary mt-0.5 truncate" title={summaryStats.mostPopular}>{summaryStats.mostPopular}</h4>
-                            </div>
-                        </div>
+                {/* Card 4: Terfavorit Volume */}
+                <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-pink-700 uppercase tracking-widest">
+                        Terfavorit ({activeTab === 'treatments' ? 'Banyak Sesi' : 'Banyak Unit'})
+                    </span>
+                    <p className="text-base font-extrabold text-pink-900 truncate">
+                        {summaryStats.mostPopular}
+                    </p>
+                </div>
+            </div>
+
+            {/* VISUALISASI GRAFIK BAR CHART & DONUT CHART */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left: Top 10 Bar Chart */}
+                <div className="lg:col-span-2 p-6 bg-white rounded-3xl shadow-sm border border-gray-200 space-y-4">
+                    <h3 className="text-base font-extrabold text-gray-900">
+                        Top 10 {activeTab === 'treatments' ? 'Treatment Terfavorit (Jumlah Sesi)' : 'Produk Terlaris (Jumlah Unit)'}
+                    </h3>
+                    <div className="h-72 w-full pt-2">
+                        {isLoading ? (
+                            <div className="h-full flex items-center justify-center text-xs text-gray-400">Memuat grafik...</div>
+                        ) : top10ChartData.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-xs text-gray-400">Tidak ada data untuk grafik pada periode ini.</div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={top10ChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                                    <XAxis type="number" tick={{ fontSize: 11, fontWeight: 600 }} />
+                                    <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} />
+                                    <RechartsTooltip formatter={(val) => [val + (activeTab === 'treatments' ? ' Sesi' : ' Unit'), 'Jumlah']} />
+                                    <Bar dataKey="count" fill={activeTab === 'treatments' ? '#B5588A' : '#06B6D4'} radius={[0, 6, 6, 0]} maxBarSize={24} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right: Donut Chart Distribution */}
+                <div className="p-6 bg-white rounded-3xl shadow-sm border border-gray-200 space-y-4">
+                    <h3 className="text-base font-extrabold text-gray-900">
+                        Distribusi Omset Kategori
+                    </h3>
+                    <div className="h-72 w-full flex items-center justify-center">
+                        {isLoading ? (
+                            <div className="text-xs text-gray-400">Memuat distribusi...</div>
+                        ) : categoryChartData.length === 0 ? (
+                            <div className="text-xs text-gray-400 text-center">Tidak ada data distribusi kategori.</div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={categoryChartData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={50}
+                                        outerRadius={80}
+                                        paddingAngle={4}
+                                        dataKey="value"
+                                    >
+                                        {categoryChartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <RechartsTooltip formatter={(val) => ['Rp ' + Number(val).toLocaleString('id-ID'), 'Omset']} />
+                                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: '700' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* TABEL RANKING PERFORMANSI DETIL */}
+            <div className="p-6 bg-white rounded-3xl shadow-sm border border-gray-200 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-100">
+                    <div>
+                        <h3 className="text-lg font-extrabold text-gray-900">
+                            Ranking Performansi {activeTab === 'treatments' ? 'Treatment' : 'Penjualan Produk'}
+                        </h3>
+                        <p className="text-xs text-gray-500 font-semibold mt-0.5">
+                            Daftar diurutkan berdasarkan parameter performa. Klik header kolom untuk menyortir.
+                        </p>
                     </div>
 
-                    {/* Visual Charts */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Bar Chart Top 10 Treatments */}
-                        <div className="card-ayumi p-4 md:p-6 lg:col-span-2">
-                            <div className="border-b border-gray-100 pb-3 mb-6">
-                                <h3 className="text-sm font-bold text-ayumi-secondary uppercase tracking-wide">Top 10 Treatment Terlaris (Jumlah Sesi)</h3>
-                            </div>
-                            <div className="h-64 w-full">
-                                {top10ChartData.length === 0 ? (
-                                    <div className="h-full w-full flex items-center justify-center text-xs text-gray-400 italic">Tidak ada data.</div>
-                                ) : (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={top10ChartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                            <XAxis dataKey="name" stroke="#8c7d73" fontSize={8} tickFormatter={(t) => t.substring(0, 15) + (t.length > 15 ? '..' : '')} />
-                                            <YAxis stroke="#8c7d73" fontSize={10} />
-                                            <RechartsTooltip formatter={(v) => v + ' sesi'} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                            <Bar dataKey="sessionCount" fill="#D46221" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Donut Chart: Category Revenue Distribution */}
-                        <div className="card-ayumi p-4 md:p-6 flex flex-col justify-between">
-                            <div className="border-b border-gray-100 pb-3 mb-4">
-                                <h3 className="text-sm font-bold text-ayumi-secondary uppercase tracking-wide">Distribusi Pendapatan Kategori</h3>
-                            </div>
-                            <div className="h-52 w-full flex items-center justify-center relative">
-                                {donutChartData.length === 0 ? (
-                                    <div className="text-xs text-gray-400 italic">Tidak ada data.</div>
-                                ) : (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={donutChartData}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={3}
-                                                dataKey="value"
-                                            >
-                                                {donutChartData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <RechartsTooltip formatter={(v) => 'Rp ' + v.toLocaleString('id-ID')} contentStyle={{ fontSize: '10px' }} />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                )}
-                            </div>
-                            {/* Simple Legend List */}
-                            <div className="mt-2 space-y-1 text-xs max-h-24 overflow-y-auto pr-1">
-                                {donutChartData.map((item, index) => (
-                                    <div key={item.name} className="flex justify-between items-center">
-                                        <div className="flex items-center gap-2 truncate">
-                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                                            <span className="text-gray-600 truncate font-semibold">{item.name}</span>
-                                        </div>
-                                        <span className="font-bold text-gray-800 font-mono">Rp {item.value.toLocaleString('id-ID')}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                    {/* Search Field */}
+                    <div className="relative w-full sm:w-64">
+                        <svg className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <input
+                            type="text"
+                            placeholder={activeTab === 'treatments' ? "Cari treatment..." : "Cari produk..."}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="input-ayumi pl-9 text-xs py-2 border-gray-300 w-full"
+                        />
                     </div>
+                </div>
 
-                    {/* Ranking Table */}
-                    <div className="card-ayumi overflow-hidden">
-                        <div className="p-4 md:p-6 border-b border-gray-100 bg-white">
-                            <h2 className="text-lg font-bold text-ayumi-secondary">Ranking Performansi Treatment</h2>
-                            <p className="text-xs text-ayumi-text-muted mt-1">Daftar treatment klinik diurutkan berdasarkan parameter. Klik header kolom untuk menyortir.</p>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <table className="whitespace-nowrap w-full text-left text-sm">
-                                <thead className="bg-ayumi-table-header text-ayumi-secondary font-bold uppercase text-xs">
-                                    <tr className="cursor-pointer select-none">
-                                        <th onClick={() => handleSort('name')} className="px-6 py-4">Treatment {renderSortArrow('name')}</th>
-                                        <th onClick={() => handleSort('categoryName')} className="px-6 py-4 text-center">Kategori {renderSortArrow('categoryName')}</th>
-                                        <th onClick={() => handleSort('sessionCount')} className="px-6 py-4 text-center">Sesi Tindakan {renderSortArrow('sessionCount')}</th>
-                                        <th onClick={() => handleSort('uniquePatients')} className="px-6 py-4 text-center">Pasien Unik {renderSortArrow('uniquePatients')}</th>
-                                        <th onClick={() => handleSort('revenue')} className="px-6 py-4 text-right">Total Pendapatan {renderSortArrow('revenue')}</th>
-                                        <th onClick={() => handleSort('avgPrice')} className="px-6 py-4 text-right">Rata-rata Harga / Sesi {renderSortArrow('avgPrice')}</th>
+                {/* Table Data */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                        <thead>
+                            <tr className="bg-pink-50/60 text-ayumi-secondary uppercase font-extrabold border-b border-pink-100">
+                                <th onClick={() => handleSort('name')} className="p-3.5 rounded-l-2xl cursor-pointer hover:bg-pink-100/70">
+                                    {activeTab === 'treatments' ? 'Nama Treatment' : 'Nama Produk'} {sortField === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                                </th>
+                                <th onClick={() => handleSort('categoryName')} className="p-3.5 cursor-pointer hover:bg-pink-100/70">
+                                    Kategori {sortField === 'categoryName' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                                </th>
+                                <th onClick={() => handleSort('count')} className="p-3.5 text-right cursor-pointer hover:bg-pink-100/70">
+                                    {activeTab === 'treatments' ? 'Sesi Tindakan' : 'Unit Terjual'} {sortField === 'count' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                                </th>
+                                <th onClick={() => handleSort('uniquePatients')} className="p-3.5 text-right cursor-pointer hover:bg-pink-100/70">
+                                    Pasien Unik {sortField === 'uniquePatients' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                                </th>
+                                <th onClick={() => handleSort('revenue')} className="p-3.5 text-right cursor-pointer hover:bg-pink-100/70">
+                                    Total Omset {sortField === 'revenue' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                                </th>
+                                <th onClick={() => handleSort('avgPrice')} className="p-3.5 text-right rounded-r-2xl cursor-pointer hover:bg-pink-100/70">
+                                    Rata-Rata/Harga {sortField === 'avgPrice' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-medium">
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan="6" className="p-8 text-center text-gray-400">Mengambil data analitik...</td>
+                                </tr>
+                            ) : currentMetrics.length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" className="p-8 text-center text-gray-400">Belum ada data transaksi {activeTab === 'treatments' ? 'treatment' : 'produk'} pada periode ini.</td>
+                                </tr>
+                            ) : (
+                                currentMetrics.map((row, idx) => (
+                                    <tr key={row.id || idx} className="hover:bg-gray-50/80 transition-colors">
+                                        <td className="p-3.5 font-extrabold text-gray-900">{row.name}</td>
+                                        <td className="p-3.5">
+                                            <span className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded-xl text-[10px] font-bold">
+                                                {row.categoryName}
+                                            </span>
+                                        </td>
+                                        <td className="p-3.5 text-right font-extrabold text-gray-900">{row.count}</td>
+                                        <td className="p-3.5 text-right text-gray-600 font-bold">{row.uniquePatients} orang</td>
+                                        <td className="p-3.5 text-right font-extrabold text-emerald-700 tracking-tight">
+                                            Rp {row.revenue.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="p-3.5 text-right text-gray-600 font-bold tracking-tight">
+                                            Rp {row.avgPrice.toLocaleString('id-ID')}
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50 text-gray-700 bg-white">
-                                    {processedMetrics.length === 0 ? (
-                                        <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400 font-medium">Tidak ada data treatment dalam periode/kategori ini.</td></tr>
-                                    ) : (
-                                        processedMetrics.map(t => (
-                                            <tr
-                                                key={t.id}
-                                                onClick={() => router.push(`/reports/treatments/${t.id}?period=${period}&start=${dateRange.startStr}&end=${dateRange.endStr}`)}
-                                                className="hover:bg-ayumi-table-hover cursor-pointer transition-colors"
-                                            >
-                                                <td className="px-6 py-4 font-bold text-gray-800 hover:text-ayumi-primary transition-colors">
-                                                    {t.name}
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className="bg-pink-50 text-ayumi-primary px-2.5 py-1 rounded-md text-xs font-bold">
-                                                        {t.categoryName}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center font-bold text-gray-800">
-                                                    {t.sessionCount}x Sesi
-                                                </td>
-                                                <td className="px-6 py-4 text-center font-bold text-gray-800">
-                                                    {t.uniquePatients} Pasien
-                                                </td>
-                                                <td className="px-6 py-4 text-right font-black text-gray-800 font-mono">
-                                                    Rp {t.revenue.toLocaleString('id-ID')}
-                                                </td>
-                                                <td className="px-6 py-4 text-right font-semibold text-gray-600 font-mono">
-                                                    Rp {t.avgPrice.toLocaleString('id-ID')}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </>
-            )}
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     )
 }

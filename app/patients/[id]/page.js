@@ -569,18 +569,18 @@ export default function PatientDetailPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                                     <div className="card-ayumi p-5 bg-gradient-to-br from-pink-50/50 to-purple-50/50 border-pink-100">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Lifetime Value (LTV)</h5>
-                                        <p className="text-xl font-black text-ayumi-primary font-mono">Rp {ltv.toLocaleString('id-ID')}</p>
+                                        <p className="text-xl font-black text-ayumi-primary ">Rp {ltv.toLocaleString('id-ID')}</p>
                                     </div>
                                     <div className="card-ayumi p-5 bg-gradient-to-br from-pink-50/50 to-purple-50/50 border-pink-100">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 font-bold">Rata-rata per Kunjungan</h5>
-                                        <p className="text-xl font-black text-ayumi-secondary font-mono">Rp {avgVisit.toLocaleString('id-ID')}</p>
+                                        <p className="text-xl font-black text-ayumi-secondary ">Rp {avgVisit.toLocaleString('id-ID')}</p>
                                     </div>
                                     <div className="card-ayumi p-5 bg-gradient-to-br from-pink-50/50 to-purple-50/50 border-pink-100">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Transaksi Terakhir</h5>
                                         {lastTx ? (
                                             <div>
-                                                <p className="text-sm font-bold text-gray-800 font-mono">{lastTx.transaction_number}</p>
-                                                <p className="text-[10px] text-gray-500 font-semibold">{new Date(lastTx.created_at).toLocaleDateString('id-ID')} - <strong className="font-mono text-ayumi-primary">Rp {lastTx.total.toLocaleString('id-ID')}</strong></p>
+                                                <p className="text-sm font-bold text-gray-800 ">{lastTx.transaction_number}</p>
+                                                <p className="text-[10px] text-gray-500 font-semibold">{new Date(lastTx.created_at).toLocaleDateString('id-ID')} - <strong className=" text-ayumi-primary">Rp {lastTx.total.toLocaleString('id-ID')}</strong></p>
                                             </div>
                                         ) : (
                                             <p className="text-sm text-gray-400 font-bold italic">Belum ada transaksi</p>
@@ -625,7 +625,7 @@ export default function PatientDetailPage() {
 
                                             return (
                                                 <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="p-3 font-bold text-gray-800 font-mono">{tx.transaction_number}</td>
+                                                    <td className="p-3 font-bold text-gray-800 ">{tx.transaction_number}</td>
                                                     <td className="p-3 text-gray-500">
                                                         {new Date(tx.created_at).toLocaleDateString('id-ID', {
                                                             day: 'numeric',
@@ -640,7 +640,7 @@ export default function PatientDetailPage() {
                                                     <td className="p-3 text-center">
                                                         <span className="bg-pink-50 text-ayumi-primary border border-pink-100 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">{tx.payment_method}</span>
                                                     </td>
-                                                    <td className="p-3 text-right font-mono font-bold text-gray-800">Rp {tx.total.toLocaleString('id-ID')}</td>
+                                                    <td className="p-3 text-right  font-bold text-gray-800">Rp {tx.total.toLocaleString('id-ID')}</td>
                                                     <td className="p-3 text-center">
                                                         <Link href={`/kasir/transactions/${tx.id}`}>
                                                             <button className="text-ayumi-primary hover:text-ayumi-secondary bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors font-bold text-[10px] uppercase">
@@ -709,7 +709,7 @@ export default function PatientDetailPage() {
                                                         <div key={item.id} className="relative">
                                                             <div className="flex justify-between text-sm mb-1.5">
                                                                 <span className="font-semibold text-gray-700">{item.treatments?.name}</span>
-                                                                <span className="font-mono text-xs font-bold text-ayumi-primary">{item.remaining_sessions} / {item.total_sessions} tersisa</span>
+                                                                <span className=" text-xs font-bold text-ayumi-primary">{item.remaining_sessions} / {item.total_sessions} tersisa</span>
                                                             </div>
                                                             <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
                                                                 <div className="bg-gradient-to-r from-ayumi-primary to-ayumi-secondary h-full rounded-full transition-all duration-500" style={{ width: `${percent}%` }}></div>

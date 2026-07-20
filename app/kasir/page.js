@@ -727,7 +727,7 @@ function PosPageContent() {
 
                                             {/* Total + Action */}
                                             <div className="text-right flex-shrink-0">
-                                                <p className="font-mono font-black text-sm text-ayumi-secondary">
+                                                <p className=" font-black text-sm text-ayumi-secondary">
                                                     Rp {totalBill.toLocaleString('id-ID')}
                                                 </p>
                                                 {isLoaded ? (
@@ -820,8 +820,8 @@ function PosPageContent() {
                                                     </div>
                                                     <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed border-gray-100">
                                                         <div className="flex flex-col">
-                                                            {hasDiscount && <span className="text-[9px] line-through text-gray-400 font-mono">Rp {t.price.toLocaleString('id-ID')}</span>}
-                                                            <span className="font-mono font-black text-xs text-ayumi-primary">Rp {price.toLocaleString('id-ID')}</span>
+                                                            {hasDiscount && <span className="text-[9px] line-through text-gray-400 ">Rp {t.price.toLocaleString('id-ID')}</span>}
+                                                            <span className=" font-black text-xs text-ayumi-primary">Rp {price.toLocaleString('id-ID')}</span>
                                                         </div>
                                                         <button
                                                             type="button"
@@ -855,7 +855,7 @@ function PosPageContent() {
                                                     <p className="font-extrabold text-xs text-gray-800 line-clamp-2 leading-tight group-hover:text-orange-700 tracking-tight">{p.name}</p>
                                                 </div>
                                                 <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed border-gray-100">
-                                                    <span className="font-mono font-black text-xs text-orange-600">Rp {p.price.toLocaleString('id-ID')}</span>
+                                                    <span className=" font-black text-xs text-orange-600">Rp {p.price.toLocaleString('id-ID')}</span>
                                                     <button
                                                         type="button"
                                                         onClick={() => addToCart(p, 'product')}
@@ -884,7 +884,7 @@ function PosPageContent() {
                                                     <p className="font-extrabold text-xs text-gray-800 line-clamp-2 leading-tight group-hover:text-pink-700 tracking-tight">{c.name}</p>
                                                 </div>
                                                 <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed border-gray-100">
-                                                    <span className="font-mono font-black text-xs text-pink-600">Rp {c.price.toLocaleString('id-ID')}</span>
+                                                    <span className=" font-black text-xs text-pink-600">Rp {c.price.toLocaleString('id-ID')}</span>
                                                     <button
                                                         type="button"
                                                         onClick={() => addToCart(c, 'coupon')}
@@ -921,7 +921,7 @@ function PosPageContent() {
                                 </div>
                                 <div className="min-w-0">
                                     <p className="font-extrabold text-gray-900 leading-tight text-base truncate">{selectedPatient.full_name}</p>
-                                    <p className="text-xs text-gray-500 mt-1 font-mono tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
+                                    <p className="text-xs text-gray-500 mt-1  tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
                                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                         {/* CRM Badge */}
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-sm ${
@@ -1055,7 +1055,7 @@ function PosPageContent() {
                                                 >
                                                     <div className="min-w-0">
                                                         <p className="font-bold text-gray-800 text-sm truncate">{p.full_name}</p>
-                                                        <p className="text-xs text-gray-400 font-mono mt-0.5">{p.whatsapp || 'No HP tidak ada'}</p>
+                                                        <p className="text-xs text-gray-400  mt-0.5">{p.whatsapp || 'No HP tidak ada'}</p>
                                                     </div>
                                                     <span className="text-[10px] text-ayumi-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
                                                 </div>
@@ -1181,12 +1181,12 @@ function PosPageContent() {
                                             <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
                                                 <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Harga Awal</label>
                                                 <div className="relative flex items-center">
-                                                    <span className="text-[10px] text-gray-400 font-mono font-bold mr-1">Rp</span>
+                                                    <span className="text-[10px] text-gray-400  font-bold mr-1">Rp</span>
                                                     <input 
                                                         type="number" 
                                                         value={item.original_price || 0} 
                                                         onChange={(e) => handleCartItemOriginalPriceChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none font-mono text-gray-700 p-0 focus:ring-0 focus:outline-none"
+                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none  text-gray-700 p-0 focus:ring-0 focus:outline-none"
                                                     />
                                                 </div>
                                             </div>
@@ -1199,11 +1199,11 @@ function PosPageContent() {
                                                         type="number" 
                                                         value={item.discount_percent || 0} 
                                                         onChange={(e) => handleCartItemDiscountChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none font-mono text-gray-700 p-0 text-right pr-4 focus:ring-0 focus:outline-none"
+                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none  text-gray-700 p-0 text-right pr-4 focus:ring-0 focus:outline-none"
                                                         min="0"
                                                         max="100"
                                                     />
-                                                    <span className="absolute right-0 text-[10px] text-gray-400 font-mono font-bold">%</span>
+                                                    <span className="absolute right-0 text-[10px] text-gray-400  font-bold">%</span>
                                                 </div>
                                             </div>
 
@@ -1211,12 +1211,12 @@ function PosPageContent() {
                                             <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
                                                 <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Potongan (Rp)</label>
                                                 <div className="relative flex items-center">
-                                                    <span className="text-[10px] text-gray-400 font-mono font-bold mr-1">Rp</span>
+                                                    <span className="text-[10px] text-gray-400  font-bold mr-1">Rp</span>
                                                     <input 
                                                         type="number" 
                                                         value={Math.max(0, (item.original_price || 0) - (item.price || 0))} 
                                                         onChange={(e) => handleCartItemDiscountNominalChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none font-mono text-gray-700 p-0 text-right focus:ring-0 focus:outline-none"
+                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none  text-gray-700 p-0 text-right focus:ring-0 focus:outline-none"
                                                         min="0"
                                                     />
                                                 </div>
@@ -1226,12 +1226,12 @@ function PosPageContent() {
                                             <div className="bg-pink-50/30 p-2 rounded-xl border border-pink-100/50 focus-within:border-pink-300 focus-within:bg-white transition-all">
                                                 <label className="text-[9px] font-black uppercase text-pink-600/70 tracking-wider block mb-0.5">Harga Net</label>
                                                 <div className="relative flex items-center">
-                                                    <span className="text-[10px] text-ayumi-primary font-mono font-bold mr-1">Rp</span>
+                                                    <span className="text-[10px] text-ayumi-primary  font-bold mr-1">Rp</span>
                                                     <input 
                                                         type="number" 
                                                         value={item.price || 0} 
                                                         onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-black bg-transparent border-none outline-none font-mono text-ayumi-primary p-0 focus:ring-0 focus:outline-none"
+                                                        className="w-full text-xs font-black bg-transparent border-none outline-none  text-ayumi-primary p-0 focus:ring-0 focus:outline-none"
                                                     />
                                                 </div>
                                             </div>
@@ -1253,7 +1253,7 @@ function PosPageContent() {
                                         </div>
                                         <div className="text-right">
                                             <span className="text-[8px] font-black uppercase text-gray-400 tracking-wider block">Subtotal</span>
-                                            <span className="font-mono font-black text-sm text-ayumi-secondary">
+                                            <span className=" font-black text-sm text-ayumi-secondary">
                                                 Rp {((item.price || 0) * item.quantity).toLocaleString('id-ID')}
                                             </span>
                                         </div>
@@ -1269,7 +1269,7 @@ function PosPageContent() {
                     <div className="space-y-3 mb-5">
                         <div className="flex justify-between text-sm text-gray-600">
                             <span>Subtotal</span>
-                            <span className="font-mono font-bold">Rp {subtotal.toLocaleString('id-ID')}</span>
+                            <span className=" font-bold">Rp {subtotal.toLocaleString('id-ID')}</span>
                         </div>
                         
                         <div className="flex items-center justify-between gap-4">
@@ -1287,7 +1287,7 @@ function PosPageContent() {
                                     type="number"
                                     value={discountValue}
                                     onChange={(e) => setDiscountValue(e.target.value)}
-                                    className="input-ayumi py-1 px-3 text-right flex-1 bg-gray-50 font-mono"
+                                    className="input-ayumi py-1 px-3 text-right flex-1 bg-gray-50 "
                                     min="0"
                                 />
                             </div>
@@ -1296,7 +1296,7 @@ function PosPageContent() {
                         {discountAmount > 0 && (
                             <div className="flex justify-between text-sm text-red-500 font-semibold">
                                 <span>Potongan</span>
-                                <span className="font-mono">- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                                <span className="">- Rp {discountAmount.toLocaleString('id-ID')}</span>
                             </div>
                         )}
 
@@ -1305,13 +1305,13 @@ function PosPageContent() {
                                 <span className="flex items-center gap-1.5">
                                     <span>📱 Biaya Layanan QRIS (0,3%)</span>
                                 </span>
-                                <span className="font-mono font-bold">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
+                                <span className=" font-bold">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
                             </div>
                         )}
 
                         <div className="flex justify-between items-baseline border-t border-gray-100 pt-3">
                             <span className="font-black text-gray-800 text-sm">TOTAL BAYAR</span>
-                            <span className="font-extrabold text-2xl text-ayumi-secondary font-mono tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
+                            <span className="font-extrabold text-2xl text-ayumi-secondary  tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
                         </div>
                     </div>
 

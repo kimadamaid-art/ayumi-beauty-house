@@ -266,7 +266,7 @@ export default function EditCouponPackagePage() {
                                          setFormData(prev => ({ ...prev, price: rawValue }))
                                      }}
                                      required
-                                     className="input-ayumi bg-white w-full font-mono font-bold text-gray-800"
+                                     className="input-ayumi bg-white w-full  font-bold text-gray-800"
                                  />
                             </div>
 
@@ -389,12 +389,12 @@ export default function EditCouponPackagePage() {
                         <div className="p-4 md:p-6 space-y-4 border-b border-gray-100">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm text-gray-500 font-semibold">Total Sesi</span>
-                                <span className="text-xl font-black text-gray-800 font-mono">{totalSessions}</span>
+                                <span className="text-xl font-black text-gray-800 ">{totalSessions}</span>
                             </div>
                             
                             <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
                                 <span className="text-sm text-gray-500 font-semibold">Harga Jual</span>
-                                <span className="text-xl font-black text-ayumi-primary font-mono">Rp {(Number(formData.price) || 0).toLocaleString('id-ID')}</span>
+                                <span className="text-xl font-black text-ayumi-primary ">Rp {(Number(formData.price) || 0).toLocaleString('id-ID')}</span>
                             </div>
                         </div>
 
