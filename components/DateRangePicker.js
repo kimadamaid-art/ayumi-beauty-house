@@ -43,6 +43,13 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
     const handleQuickSelect = (type) => {
         const now = new Date()
         let start = new Date()
@@ -57,14 +64,14 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
             start.setDate(now.getDate() - 29)
         } else if (type === 'thisMonth') {
             start = new Date(now.getFullYear(), now.getMonth(), 1)
-            end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+            end = now
         } else if (type === 'lastMonth') {
             start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
             end = new Date(now.getFullYear(), now.getMonth(), 0)
         }
 
-        const startStr = start.toISOString().split('T')[0]
-        const endStr = end.toISOString().split('T')[0]
+        const startStr = getLocalYYYYMMDD(start)
+        const endStr = getLocalYYYYMMDD(end)
 
         setTempStart(startStr)
         setTempEnd(endStr)

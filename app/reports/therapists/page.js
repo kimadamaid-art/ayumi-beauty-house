@@ -23,14 +23,20 @@ export default function TherapistsReportPage() {
     const [userBranchId, setUserBranchId] = useState(null)
     const [userLoaded, setUserLoaded] = useState(false)
 
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
     // Filters
     const [startDate, setStartDate] = useState(() => {
         const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
     })
     const [endDate, setEndDate] = useState(() => {
-        const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+        return getLocalYYYYMMDD(new Date())
     })
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedTherapistFilter, setSelectedTherapistFilter] = useState('all')

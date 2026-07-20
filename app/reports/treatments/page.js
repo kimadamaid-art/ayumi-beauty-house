@@ -23,15 +23,21 @@ export default function TreatmentsReportPage() {
     const [userBranchId, setUserBranchId] = useState(null)
     const [userLoaded, setUserLoaded] = useState(false)
 
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
     // Filters
     const [period, setPeriod] = useState('custom')
     const [customStart, setCustomStart] = useState(() => {
         const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
     })
     const [customEnd, setCustomEnd] = useState(() => {
-        const now = new Date()
-        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+        return getLocalYYYYMMDD(new Date())
     })
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedCategory, setSelectedCategory] = useState('all')
