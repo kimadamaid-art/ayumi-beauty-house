@@ -941,25 +941,6 @@ export default function Dashboard() {
                                         inputClassName="w-full sm:w-auto bg-pink-50 hover:bg-pink-100/70 text-ayumi-secondary border border-pink-200 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-sm transition-colors cursor-pointer justify-between"
                                     />
                                 </div>
-
-                                <div className="flex flex-col gap-1 w-full sm:w-auto">
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Cabang Terpilih</span>
-                                    <div className="flex items-center justify-between gap-2 bg-pink-50 border border-pink-200 px-3.5 py-2 rounded-2xl shadow-sm transition-colors w-full sm:w-auto">
-                                        <div className="flex items-center gap-2">
-                                            <svg className="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
-                                            <select 
-                                                value={selectedBranch}
-                                                onChange={(e) => setSelectedBranch(e.target.value)}
-                                                className="bg-transparent border-none text-ayumi-secondary text-xs focus:ring-0 cursor-pointer font-extrabold outline-none pr-4 w-full"
-                                            >
-                                                <option value="" className="text-gray-800">Semua Cabang (Global)</option>
-                                                {branches.map(b => (
-                                                    <option key={b.id} value={b.id} className="text-gray-800">{b.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
 
