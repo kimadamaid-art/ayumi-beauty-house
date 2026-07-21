@@ -133,8 +133,9 @@ export default function TreatmentsReportPage() {
                 .select(`
                     id,
                     item_type,
-                    item_id,
-                    item_name,
+                    treatment_id,
+                    product_id,
+                    name,
                     quantity,
                     subtotal,
                     transactions!inner(
@@ -144,8 +145,8 @@ export default function TreatmentsReportPage() {
                         patient_id
                     )
                 `)
-                .gte('transactions.created_at', `${sDate}T00:00:00Z`)
-                .lte('transactions.created_at', `${eDate}T23:59:59Z`)
+                .gte('transactions.created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                .lte('transactions.created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
 
             // Enforce Branch Filter (Strict for Admin)
             const effectiveBranch = !isOwner ? (userBranchId || selectedBranch) : selectedBranch
@@ -197,14 +198,14 @@ export default function TreatmentsReportPage() {
         // Combine from POS transaction items (treatment)
         rawTransactionItems.forEach(item => {
             if (item.item_type === 'treatment') {
-                const tName = item.item_name || 'Treatment'
+                const tName = item.name || 'Treatment'
                 const qty = Number(item.quantity || 1)
                 const amt = Number(item.subtotal || 0)
                 const pId = item.transactions?.patient_id
 
                 if (!groups[tName]) {
                     groups[tName] = {
-                        id: item.item_id || tName,
+                        id: item.treatment_id || item.product_id || tName,
                         name: tName,
                         categoryName: 'Perawatan Utama',
                         count: 0,
@@ -288,14 +289,14 @@ export default function TreatmentsReportPage() {
 
         rawTransactionItems.forEach(item => {
             if (item.item_type === 'product') {
-                const pName = item.item_name || 'Skincare Product'
+                const pName = item.name || 'Skincare Product'
                 const qty = Number(item.quantity || 1)
                 const amt = Number(item.subtotal || 0)
                 const patientId = item.transactions?.patient_id
 
                 if (!groups[pName]) {
                     groups[pName] = {
-                        id: item.item_id || pName,
+                        id: item.product_id || item.treatment_id || pName,
                         name: pName,
                         categoryName: 'Produk Skincare',
                         count: 0,

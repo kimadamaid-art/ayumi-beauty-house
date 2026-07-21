@@ -124,13 +124,13 @@ export default function Dashboard() {
                     payment_method,
                     transaction_items (
                         item_type,
-                        item_name,
+                        name,
                         quantity,
                         subtotal
                     )
                 `)
-                .gte('created_at', `${sDate}T00:00:00Z`)
-                .lte('created_at', `${eDate}T23:59:59Z`)
+                .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
 
             const rangeMap = {}
             let grandTotalRange = 0
@@ -170,7 +170,7 @@ export default function Dashboard() {
                             tx.transaction_items.forEach(item => {
                                 const itemSub = Number(item.subtotal || 0)
                                 const itemQty = Number(item.quantity || 1)
-                                const itemName = item.item_name || 'Item Perawatan/Produk'
+                                const itemName = item.name || 'Item Perawatan/Produk'
 
                                 if (item.item_type === 'treatment') {
                                     txTreatment += itemSub
@@ -449,8 +449,8 @@ export default function Dashboard() {
 
             // Transactions Today
             let trxTodayQuery = supabase.from('transactions').select('total, payment_method')
-                .gte('created_at', `${todayDateStr}T00:00:00Z`)
-                .lte('created_at', `${todayDateStr}T23:59:59Z`)
+                .gte('created_at', new Date(`${todayDateStr}T00:00:00`).toISOString())
+                .lte('created_at', new Date(`${todayDateStr}T23:59:59.999`).toISOString())
             trxTodayQuery = applyBranchFilter(trxTodayQuery)
 
             // Sparkline 7 Days
@@ -964,7 +964,159 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* SECTION 2: TOP TREATMENT & TOP PRODUK TERLARIS PERUSAHAAN */}
+                    {/* SECTION 2: MONITORING TARGET BULANAN PER CABANG */}
+                    <div className="card-ayumi p-6 md:p-7 bg-white space-y-6 shadow-sm border border-gray-200 rounded-3xl">
+                        {/* Header Section */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-6 bg-ayumi-primary rounded-full"></div>
+                                    <h3 className="text-xl font-extrabold text-[#5c3316]">Monitoring Target Bulanan per Cabang</h3>
+                                </div>
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-4">
+                                    Pantau persentase pencapaian omset bulan ini dibanding target operasional tiap cabang.
+                                </p>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                                <span className="bg-pink-50 text-ayumi-primary border border-pink-200 text-xs font-bold px-3.5 py-1.5 rounded-xl">
+                                    Periode: {currentMonthLabel}
+                                </span>
+                                <button 
+                                    onClick={handleOpenTargetModal}
+                                    className="btn-primary text-xs px-4 py-2 flex items-center gap-2 font-extrabold shadow-sm hover:shadow transition-all"
+                                >
+                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    <span>Atur Target Bulanan</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Akumulasi Global Perusahaan */}
+                        {companyTotals.monthlyTarget > 0 && (
+                            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-amber-100/80 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Ringkasan Total Perusahaan</p>
+                                        <p className="text-sm font-extrabold text-gray-900 mt-0.5">
+                                            Total Omset: <span className="text-emerald-700 font-bold">Rp {companyTotals.rangeIncome?.toLocaleString('id-ID') || 0}</span> <span className="text-gray-500 font-normal text-xs">/ Rp {companyTotals.monthlyTarget.toLocaleString('id-ID')}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-amber-200/80 pt-3 md:pt-0 md:pl-5 shrink-0">
+                                    <div>
+                                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Pencapaian Global</p>
+                                        <p className="text-base font-extrabold text-amber-900">
+                                            {((companyTotals.rangeIncome / companyTotals.monthlyTarget) * 100).toFixed(1)}%
+                                        </p>
+                                    </div>
+                                    <div className="w-32 h-2.5 bg-amber-200/60 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-amber-600 rounded-full transition-all duration-500"
+                                            style={{ width: `${Math.min(100, Math.max(0, (companyTotals.rangeIncome / companyTotals.monthlyTarget) * 100))}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Grid Cards Target per Cabang */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            {branchMonthlyTargetData.map(item => {
+                                const rawPct = Number(item.rawPercent || 0)
+                                const isTargetSet = item.monthlyTarget > 0
+
+                                let barColor = 'bg-rose-500'
+                                let badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200'
+
+                                if (rawPct >= 100) {
+                                    barColor = 'bg-emerald-600'
+                                    badgeStyle = 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                } else if (rawPct >= 50) {
+                                    barColor = 'bg-amber-500'
+                                    badgeStyle = 'bg-amber-50 text-amber-800 border-amber-200'
+                                }
+
+                                if (!isTargetSet) {
+                                    return (
+                                        <div 
+                                            key={item.branchId} 
+                                            onClick={handleOpenTargetModal}
+                                            className="p-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 hover:bg-white hover:border-pink-300 transition-all cursor-pointer flex flex-col justify-between group space-y-3"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h4 className="font-extrabold text-base text-gray-900 group-hover:text-ayumi-primary transition-colors">{item.branchName}</h4>
+                                                    <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional Cabang</p>
+                                                </div>
+                                                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 border border-gray-200">
+                                                    Belum Diatur
+                                                </span>
+                                            </div>
+
+                                            <div className="py-2 flex items-center justify-between">
+                                                <span className="text-xs text-gray-500 font-medium">Omset Saat Ini: <strong className="text-gray-900 font-bold">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
+                                                <span className="text-xs font-bold text-ayumi-primary group-hover:underline flex items-center gap-1">
+                                                    + Set Target
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <div 
+                                        key={item.branchId} 
+                                        className="p-5 rounded-2xl border border-gray-200/90 bg-white hover:border-pink-300 transition-all shadow-sm space-y-3"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="font-extrabold text-base text-gray-900">{item.branchName}</h4>
+                                                <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional Cabang</p>
+                                            </div>
+                                            <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${badgeStyle}`}>
+                                                {rawPct >= 100 ? `${rawPct.toFixed(1)}% (Tercapai)` : `${rawPct.toFixed(1)}%`}
+                                            </span>
+                                        </div>
+
+                                        {/* Progress Bar & Values */}
+                                        <div className="space-y-1.5 pt-1">
+                                            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full ${barColor} rounded-full transition-all duration-500`}
+                                                    style={{ width: `${Math.min(100, Math.max(0, rawPct))}%` }}
+                                                ></div>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs pt-1">
+                                                <span className="text-gray-600 font-semibold">Pencapaian: <strong className="text-emerald-700 font-bold">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
+                                                <span className="text-gray-600 font-semibold">Target: <strong className="text-gray-900 font-bold">Rp {item.monthlyTarget.toLocaleString('id-ID')}</strong></span>
+                                            </div>
+                                        </div>
+
+                                        {/* Stat Footer */}
+                                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs font-medium">
+                                            {rawPct >= 100 ? (
+                                                <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                                                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                                    Target Tercapai (Surplus: <strong className="text-emerald-800 font-bold">Rp {item.surplusTarget.toLocaleString('id-ID')}</strong>)
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-600 font-semibold flex items-center justify-between w-full">
+                                                    <span>Sisa Kekurangan:</span>
+                                                    <strong className="text-rose-700 font-bold">Rp {item.remainingTarget.toLocaleString('id-ID')}</strong>
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* SECTION 3: TOP TREATMENT & TOP PRODUK TERLARIS PERUSAHAAN */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Top 5 Treatment Terfavorit */}
                         <div className="card-ayumi p-6 bg-white space-y-4 shadow-md border border-gray-200 rounded-3xl">
@@ -1034,100 +1186,6 @@ export default function Dashboard() {
                                     ))
                                 )}
                             </div>
-                        </div>
-                    </div>
-
-                    {/* SECTION 3: MONITORING TARGET BULANAN PER CABANG */}
-                    <div className="card-ayumi p-6 md:p-8 bg-white space-y-6 shadow-md border border-gray-200 rounded-3xl">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-6 bg-emerald-600 rounded-full"></div>
-                                    <h3 className="text-xl font-extrabold text-[#5c3316]">Monitoring Target Bulanan per Cabang</h3>
-                                </div>
-                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-4">
-                                    Pantau persentase pencapaian omset bulan ini dibanding target yang telah ditentukan (bisa lebih dari 100%).
-                                </p>
-                            </div>
-                            
-                            <div className="flex items-center gap-3">
-                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black uppercase tracking-wider px-4 py-2 rounded-2xl shadow-sm">
-                                    Periode: {currentMonthLabel}
-                                </span>
-                                <button 
-                                    onClick={handleOpenTargetModal}
-                                    className="btn-primary text-xs px-4 py-2.5 flex items-center gap-2 font-extrabold shadow-md"
-                                >
-                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                    <span>Atur Target Bulanan</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Grid Cards Target per Cabang */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {branchMonthlyTargetData.map(item => {
-                                const rawPct = Number(item.rawPercent || 0)
-                                const isTargetSet = item.monthlyTarget > 0
-
-                                let barGradient = 'from-rose-500 to-pink-600'
-                                let badgeBg = 'bg-rose-100 text-rose-800 border-rose-300'
-                                if (rawPct >= 100) {
-                                    barGradient = 'from-emerald-500 to-teal-600'
-                                    badgeBg = 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                                } else if (rawPct >= 50) {
-                                    barGradient = 'from-amber-400 to-orange-500'
-                                    badgeBg = 'bg-amber-100 text-amber-900 border-amber-300'
-                                }
-
-                                return (
-                                    <div key={item.branchId} className="p-6 rounded-3xl border border-gray-200 bg-white hover:border-pink-300 transition-all shadow-sm space-y-4 relative overflow-hidden group">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h4 className="font-extrabold text-lg text-gray-900">{item.branchName}</h4>
-                                                <p className="text-xs text-gray-600 font-semibold mt-0.5">Target Operasional Cabang</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-xs font-extrabold px-3.5 py-1 rounded-xl border shadow-sm ${badgeBg}`}>
-                                                    {isTargetSet 
-                                                        ? (rawPct >= 100 ? `${rawPct.toFixed(1)}% (Tercapai)` : `${rawPct.toFixed(1)}%`) 
-                                                        : 'Belum Set Target'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Progress Bar & Values */}
-                                        <div className="space-y-2">
-                                            <div className="w-full h-3.5 bg-gray-100 border border-gray-200/60 rounded-full overflow-hidden p-0.5 shadow-inner">
-                                                <div 
-                                                    className={`h-full bg-gradient-to-r ${barGradient} rounded-full transition-all duration-700 shadow-md`}
-                                                    style={{ width: `${Math.min(100, Math.max(0, rawPct))}%` }}
-                                                ></div>
-                                            </div>
-                                            <div className="flex justify-between items-center text-xs pt-1">
-                                                <span className="font-bold text-gray-600">Pencapaian: <strong className="text-emerald-700 font-black text-sm tracking-tight">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
-                                                <span className="font-bold text-gray-600">Target: <strong className="text-gray-900 font-bold text-sm tracking-tight">Rp {item.monthlyTarget.toLocaleString('id-ID')}</strong></span>
-                                            </div>
-                                        </div>
-
-                                        {/* Stat Footer */}
-                                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-medium">
-                                            {rawPct >= 100 ? (
-                                                <span className="text-emerald-700 font-extrabold flex items-center gap-1">
-                                                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                                                    Target Tercapai! (Surplus: <strong className="text-emerald-800 font-black tracking-tight">Rp {item.surplusTarget.toLocaleString('id-ID')}</strong>)
-                                                </span>
-                                            ) : isTargetSet ? (
-                                                <span className="text-[#5c3316] font-bold">
-                                                    Sisa Kekurangan: <strong className="text-rose-700 font-black tracking-tight">Rp {item.remainingTarget.toLocaleString('id-ID')}</strong>
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-500 font-semibold italic">Belum ditentukan target bulanan</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                            })}
                         </div>
                     </div>
                 </div>
