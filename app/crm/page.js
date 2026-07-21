@@ -616,48 +616,47 @@ export default function CRMPage() {
     return (
         <div className="space-y-6">
             {/* TOP BAR / ACTION ROW */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-ayumi-secondary">Customer Relationship Management</h1>
-                    <p className="text-sm text-gray-500">Kelola komunikasi dan retensi pasien secara personal</p>
+            <div className="flex justify-between items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Modul Retensi & Follow-up Pasien</span>
                 </div>
                 <button
                     onClick={() => setShowManualModal(true)}
-                    className="w-full sm:w-auto bg-ayumi-primary hover:bg-[#9a4b75] text-white px-5 py-3 rounded-2xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4.5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold shadow-md shadow-pink-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-                    Tambah Follow Up Manual
+                    <span>Tambah Follow Up Manual</span>
                 </button>
             </div>
 
-            {/* TABS */}
-            <div className="flex overflow-x-auto gap-2 p-1 bg-white rounded-2xl shadow-sm border border-gray-100">
+            {/* SEGMENT TABS */}
+            <div className="bg-gray-100/80 p-1.5 rounded-2xl border border-gray-200/60 shadow-inner flex flex-wrap gap-1">
                 <button 
                     onClick={() => setActiveTab('queue')}
-                    className={`flex-1 min-w-[120px] px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'queue' ? 'bg-ayumi-primary text-white shadow-md' : 'text-gray-500 hover:bg-pink-50 hover:text-ayumi-primary'}`}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'queue' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
                 >
-                    Follow Up Queue
-                    {filteredQueue.length > 0 && <span className="ml-2 bg-white text-ayumi-primary px-2 py-0.5 rounded-full text-xs">{filteredQueue.length}</span>}
+                    <span>📋 Antrean Follow Up</span>
+                    {filteredQueue.length > 0 && <span className="bg-pink-100 text-ayumi-primary px-2 py-0.5 rounded-full text-xs font-black">{filteredQueue.length}</span>}
                 </button>
                 <button 
                     onClick={() => setActiveTab('birthday')}
-                    className={`flex-1 min-w-[120px] px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'birthday' ? 'bg-ayumi-primary text-white shadow-md' : 'text-gray-500 hover:bg-pink-50 hover:text-ayumi-primary'}`}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'birthday' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
                 >
-                    Birthday
-                    {filteredBirthdays.length > 0 && <span className="ml-2 bg-pink-100 text-ayumi-primary px-2 py-0.5 rounded-full text-xs">{filteredBirthdays.length}</span>}
+                    <span>🎂 Ulang Tahun</span>
+                    {filteredBirthdays.length > 0 && <span className="bg-pink-100 text-ayumi-primary px-2 py-0.5 rounded-full text-xs font-black">{filteredBirthdays.length}</span>}
                 </button>
                 <button 
                     onClick={() => setActiveTab('dormant')}
-                    className={`flex-1 min-w-[120px] px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'dormant' ? 'bg-ayumi-primary text-white shadow-md' : 'text-gray-500 hover:bg-pink-50 hover:text-ayumi-primary'}`}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'dormant' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
                 >
-                    Dormant
-                    {filteredDormant.length > 0 && <span className="ml-2 bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs">{filteredDormant.length}</span>}
+                    <span>💤 Pasien Dormant</span>
+                    {filteredDormant.length > 0 && <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-black">{filteredDormant.length}</span>}
                 </button>
                 <button 
                     onClick={() => setActiveTab('analytics')}
-                    className={`flex-1 min-w-[120px] px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'analytics' ? 'bg-ayumi-primary text-white shadow-md' : 'text-gray-500 hover:bg-pink-50 hover:text-ayumi-primary'}`}
+                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'analytics' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
                 >
-                    Analytics
+                    <span>📊 Analitik CRM</span>
                 </button>
             </div>
 
@@ -714,7 +713,7 @@ export default function CRMPage() {
             )}
 
             {/* CONTENT */}
-            <div className="card-ayumi min-h-[500px]">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200/80 p-5 md:p-8 min-h-[500px]">
                 {loading ? (
                     <div className="text-center py-20">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary mx-auto mb-4"></div>
@@ -725,40 +724,40 @@ export default function CRMPage() {
                         {/* TAB: QUEUE */}
                         {activeTab === 'queue' && (
                             <div className="space-y-4">
-                                <h3 className="text-lg font-bold text-ayumi-secondary mb-4">Harus Dihubungi Hari Ini</h3>
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">Harus Dihubungi Hari Ini</h3>
                                 {filteredQueue.length === 0 ? (
-                                    <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                                        <p className="text-gray-500 font-medium">Tidak ada antrean follow-up untuk hari ini. Luar biasa! 🎉</p>
+                                    <div className="text-center py-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                                        <p className="text-gray-500 text-sm font-medium">Tidak ada antrean follow-up untuk hari ini. Luar biasa! 🎉</p>
                                     </div>
                                 ) : (
-                                    <div className="overflow-x-auto">
+                                    <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-sm">
                                         <table className="whitespace-nowrap w-full text-left border-collapse">
                                             <thead>
-                                                <tr className="bg-ayumi-table-header text-ayumi-secondary text-sm">
-                                                    <th className="p-4 font-bold rounded-tl-xl">Pasien</th>
-                                                    <th className="p-4 font-bold">Terakhir Treatment</th>
-                                                    <th className="p-4 font-bold">Jenis / Prioritas</th>
-                                                    <th className="p-4 font-bold text-center rounded-tr-xl">Aksi</th>
+                                                <tr className="bg-pink-50/60 text-ayumi-secondary text-xs uppercase font-extrabold tracking-wider">
+                                                    <th className="p-4">Pasien</th>
+                                                    <th className="p-4">Terakhir Treatment</th>
+                                                    <th className="p-4">Jenis / Prioritas</th>
+                                                    <th className="p-4 text-center">Aksi</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody className="divide-y divide-gray-100 text-sm bg-white">
                                                 {filteredQueue.map(q => (
-                                                    <tr key={q.id} className="border-b border-gray-50 hover:bg-ayumi-table-hover">
+                                                    <tr key={q.id} className="hover:bg-pink-50/20 transition-colors">
                                                         <td className="p-4">
-                                                            <div className="font-bold text-gray-800">{q.patients?.full_name}</div>
-                                                            <div className="text-sm text-gray-500">{q.patients?.whatsapp}</div>
+                                                            <div className="font-bold text-gray-900">{q.patients?.full_name}</div>
+                                                            <div className="text-xs text-gray-400 mt-0.5">{q.patients?.whatsapp || 'No WA -'}</div>
                                                         </td>
-                                                        <td className="p-4 text-sm text-gray-600">
+                                                        <td className="p-4 text-xs font-semibold text-gray-600">
                                                             {q.treatment_records?.treatment_date || '-'}
                                                         </td>
                                                         <td className="p-4">
-                                                            <div className="text-sm font-semibold uppercase">
+                                                            <div className="text-xs font-bold uppercase">
                                                                 {(() => {
                                                                     const typeLabels = {
                                                                         'followup_3minggu': { label: 'Cek Progres 3 Minggu', color: 'text-blue-700' },
                                                                         'followup_1bulan': { label: 'Cek Progres 1 Bulan', color: 'text-purple-700' },
                                                                         'reminder_besok': { label: 'Reminder Besok Treatment', color: 'text-red-700' },
-                                                                        'treatment_reminder': { label: 'Pengingat Perawatan', color: 'text-ayumi-secondary' },
+                                                                        'treatment_reminder': { label: 'Pengingat Perawatan', color: 'text-ayumi-primary' },
                                                                         'dormant_reminder': { label: 'Sapaan Dormant', color: 'text-orange-700' },
                                                                         'birthday': { label: 'Ulang Tahun', color: 'text-pink-700' }
                                                                     }
@@ -766,26 +765,36 @@ export default function CRMPage() {
                                                                     return <span className={info.color}>{info.label}</span>
                                                                 })()}
                                                             </div>
-                                                            <div className={`text-xs font-bold inline-block px-2 py-0.5 rounded-md mt-1 ${q.priority === 'high' ? 'bg-red-100 text-red-700' : (q.priority === 'normal' || q.priority === 'medium') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                                                            <div className={`text-[10px] font-extrabold inline-block px-2 py-0.5 rounded-md mt-1 uppercase ${q.priority === 'high' ? 'bg-red-100 text-red-700' : (q.priority === 'normal' || q.priority === 'medium') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
                                                                 {q.priority}
                                                             </div>
                                                         </td>
-                                                        <td className="p-4">
+                                                        <td className="p-4 text-center">
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <button
                                                                     onClick={() => handleOpenWaModal(q, q.followup_type || 'treatment_reminder')}
-                                                                    className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                                                                 >
-                                                                    Hubungi WA
+                                                                    💬 Hubungi WA
                                                                 </button>
-                                                                <button onClick={() => handleSelesaiClick(q)} className="bg-ayumi-primary hover:bg-[#9a4b75] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                                                <button 
+                                                                    onClick={() => handleSelesaiClick(q)} 
+                                                                    className="bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                                                >
                                                                     Selesai
                                                                 </button>
-                                                                <button onClick={() => handleTundaClick(q)} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                                                <button 
+                                                                    onClick={() => handleTundaClick(q)} 
+                                                                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                                                >
                                                                     Tunda
                                                                 </button>
-                                                                <button onClick={() => handleDeleteQueue(q.id, q.patients?.full_name)} className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                                                                    Hapus
+                                                                <button 
+                                                                    onClick={() => handleDeleteQueue(q.id, q.patients?.full_name)} 
+                                                                    className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-xl transition-all cursor-pointer"
+                                                                    title="Hapus"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                                 </button>
                                                             </div>
                                                         </td>
