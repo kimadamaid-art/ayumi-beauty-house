@@ -31,6 +31,7 @@ export default function CRMPage() {
     // Search & Filter states
     const [searchTerm, setSearchTerm] = useState('')
     const [priorityFilter, setPriorityFilter] = useState('All')
+    const [typeFilter, setTypeFilter] = useState('All')
     const [branchFilter, setBranchFilter] = useState('All')
 
     // Modal States
@@ -580,12 +581,13 @@ export default function CRMPage() {
                 q.patients?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 q.patients?.whatsapp?.includes(searchTerm);
             const matchPriority = priorityFilter === 'All' || q.priority === priorityFilter;
+            const matchType = typeFilter === 'All' || q.followup_type === typeFilter;
             const matchBranch = branchFilter === 'All' || 
                 q.branch_id === branchFilter || 
                 (q.treatment_records && q.treatment_records.branch_id === branchFilter);
-            return matchSearch && matchPriority && matchBranch;
+            return matchSearch && matchPriority && matchType && matchBranch;
         })
-    }, [queue, searchTerm, priorityFilter, branchFilter])
+    }, [queue, searchTerm, priorityFilter, typeFilter, branchFilter])
 
     const filteredBirthdays = useMemo(() => {
         return birthdays.filter(pt => {
@@ -679,19 +681,37 @@ export default function CRMPage() {
                     <div className="flex flex-wrap gap-4 w-full md:w-auto justify-end">
                         {/* Priority Filter (Only in Follow Up Queue tab) */}
                         {activeTab === 'queue' && (
-                            <div className="flex items-center gap-2 w-full sm:w-auto">
-                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Prioritas:</span>
-                                <select
-                                    value={priorityFilter}
-                                    onChange={(e) => setPriorityFilter(e.target.value)}
-                                    className="input-ayumi py-2 text-sm max-w-[150px] focus:bg-gray-50"
-                                >
-                                    <option value="All">Semua</option>
-                                    <option value="high">Tinggi</option>
-                                    <option value="normal">Normal</option>
-                                    <option value="low">Rendah</option>
-                                </select>
-                            </div>
+                            <>
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Tahap:</span>
+                                    <select
+                                        value={typeFilter}
+                                        onChange={(e) => setTypeFilter(e.target.value)}
+                                        className="input-ayumi py-2 text-sm max-w-[190px] focus:bg-gray-50 font-bold"
+                                    >
+                                        <option value="All">Semua Tahap</option>
+                                        <option value="followup_2minggu">📋 Cek 2 Minggu</option>
+                                        <option value="followup_3minggu">📋 Cek 3 Minggu</option>
+                                        <option value="followup_1bulan">📋 Cek 1 Bulan</option>
+                                        <option value="reminder_besok">⏰ Reminder Besok</option>
+                                        <option value="treatment_reminder">🔔 Pengingat Umum</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Prioritas:</span>
+                                    <select
+                                        value={priorityFilter}
+                                        onChange={(e) => setPriorityFilter(e.target.value)}
+                                        className="input-ayumi py-2 text-sm max-w-[150px] focus:bg-gray-50"
+                                    >
+                                        <option value="All">Semua</option>
+                                        <option value="high">Tinggi</option>
+                                        <option value="normal">Normal</option>
+                                        <option value="low">Rendah</option>
+                                    </select>
+                                </div>
+                            </>
                         )}
 
                         {/* Branch Filter (Only visible if Owner) */}
@@ -726,7 +746,35 @@ export default function CRMPage() {
                         {/* TAB: QUEUE */}
                         {activeTab === 'queue' && (
                             <div className="space-y-4">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4">Harus Dihubungi Hari Ini</h3>
+                                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                    <h3 className="text-lg font-bold text-gray-900">Harus Dihubungi Hari Ini</h3>
+                                    <div className="flex flex-wrap items-center gap-1.5 bg-gray-50 p-1.5 rounded-2xl border border-gray-200/60">
+                                        <button
+                                            onClick={() => setTypeFilter('All')}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'All' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                        >
+                                            Semua ({queue.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setTypeFilter('followup_2minggu')}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'followup_2minggu' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100'}`}
+                                        >
+                                            📋 2 Minggu ({queue.filter(q => q.followup_type === 'followup_2minggu').length})
+                                        </button>
+                                        <button
+                                            onClick={() => setTypeFilter('followup_3minggu')}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'followup_3minggu' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-700 bg-blue-50/70 hover:bg-blue-100'}`}
+                                        >
+                                            📋 3 Minggu ({queue.filter(q => q.followup_type === 'followup_3minggu').length})
+                                        </button>
+                                        <button
+                                            onClick={() => setTypeFilter('followup_1bulan')}
+                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'followup_1bulan' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-700 bg-purple-50/70 hover:bg-purple-100'}`}
+                                        >
+                                            📋 1 Bulan ({queue.filter(q => q.followup_type === 'followup_1bulan').length})
+                                        </button>
+                                    </div>
+                                </div>
                                 {filteredQueue.length === 0 ? (
                                     <div className="text-center py-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
                                         <p className="text-gray-500 text-sm font-medium">Tidak ada antrean follow-up untuk hari ini. Luar biasa! 🎉</p>
