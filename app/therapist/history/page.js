@@ -1,110 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-
-const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
-
-function MonthPicker({ value, onChange }) {
-    const [isOpen, setIsOpen] = useState(false)
-    const ref = useRef(null)
-    const now = new Date()
-
-    const [year, monthIdx] = value
-        ? [parseInt(value.split('-')[0]), parseInt(value.split('-')[1]) - 1]
-        : [now.getFullYear(), now.getMonth()]
-
-    const [pickerYear, setPickerYear] = useState(year)
-
-    useEffect(() => {
-        const handle = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
-        document.addEventListener('mousedown', handle)
-        return () => document.removeEventListener('mousedown', handle)
-    }, [])
-
-    const select = (m) => {
-        const val = `${pickerYear}-${String(m + 1).padStart(2, '0')}`
-        onChange(val)
-        setIsOpen(false)
-    }
-
-    const displayLabel = `${MONTH_NAMES[monthIdx]} ${year}`
-
-    return (
-        <div className="relative" ref={ref}>
-            <button
-                type="button"
-                onClick={() => { setPickerYear(year); setIsOpen(o => !o) }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-pink-200 hover:border-ayumi-primary text-sm font-bold text-gray-800 rounded-2xl shadow-sm transition-all cursor-pointer"
-            >
-                <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span>{displayLabel}</span>
-                <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-
-            {isOpen && (
-                <div className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-200 p-4 w-72">
-                    {/* Year nav */}
-                    <div className="flex items-center justify-between mb-3">
-                        <button
-                            type="button"
-                            onClick={() => setPickerYear(y => y - 1)}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-pink-50 text-gray-500 hover:text-ayumi-primary transition-all cursor-pointer"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
-                        </button>
-                        <span className="text-sm font-extrabold text-gray-900">{pickerYear}</span>
-                        <button
-                            type="button"
-                            onClick={() => setPickerYear(y => y + 1)}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-pink-50 text-gray-500 hover:text-ayumi-primary transition-all cursor-pointer"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
-                        </button>
-                    </div>
-                    {/* Month grid */}
-                    <div className="grid grid-cols-4 gap-1.5">
-                        {SHORT_MONTHS.map((m, i) => {
-                            const isActive = pickerYear === year && i === monthIdx
-                            return (
-                                <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => select(i)}
-                                    className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                        isActive
-                                            ? 'bg-ayumi-primary text-white shadow-sm'
-                                            : 'text-gray-600 hover:bg-pink-50 hover:text-ayumi-primary'
-                                    }`}
-                                >
-                                    {m}
-                                </button>
-                            )
-                        })}
-                    </div>
-                    {/* Quick: Bulan ini */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            const n = new Date()
-                            select(n.getMonth(), n.getFullYear())
-                            setPickerYear(n.getFullYear())
-                        }}
-                        className="mt-3 w-full py-1.5 text-xs font-bold text-ayumi-primary bg-pink-50 hover:bg-pink-100 rounded-xl transition-all cursor-pointer"
-                    >
-                        Bulan Ini
-                    </button>
-                </div>
-            )}
-        </div>
-    )
-}
+import DateRangePicker from '../../../components/DateRangePicker'
 
 export default function TherapistHistory() {
     const router = useRouter()
@@ -117,11 +16,22 @@ export default function TherapistHistory() {
     const [loading, setLoading] = useState(true)
     const [dbUser, setDbUser] = useState(null)
     const [branches, setBranches] = useState([])
-    
-    // Filters
-    const [filterMonth, setFilterMonth] = useState(() => {
+
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
+    // Default to current month start and end
+    const [startDate, setStartDate] = useState(() => {
         const now = new Date()
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+    })
+    const [endDate, setEndDate] = useState(() => {
+        const now = new Date()
+        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth() + 1, 0))
     })
     const [filterBranch, setFilterBranch] = useState('')
 
@@ -133,7 +43,7 @@ export default function TherapistHistory() {
         if (dbUser) {
             fetchHistory()
         }
-    }, [dbUser, filterMonth, filterBranch])
+    }, [dbUser, startDate, endDate, filterBranch])
 
     const fetchInitial = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -176,9 +86,7 @@ export default function TherapistHistory() {
             query = query.eq('branch_id', filterBranch)
         }
         
-        if (filterMonth) {
-            const startDate = `${filterMonth}-01`
-            const endDate = `${filterMonth}-31`
+        if (startDate && endDate) {
             query = query.gte('treatment_date', startDate).lte('treatment_date', endDate)
         }
 
@@ -190,10 +98,16 @@ export default function TherapistHistory() {
         setLoading(false)
     }
 
-    const getMonthLabel = () => {
-        if (!filterMonth) return 'Bulan Ini'
-        const [y, m] = filterMonth.split('-')
-        return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`
+    const formatPeriodLabel = () => {
+        if (!startDate || !endDate) return 'Semua Periode'
+        const s = new Date(startDate + 'T00:00:00')
+        const e = new Date(endDate + 'T00:00:00')
+        
+        if (startDate === endDate) {
+            return s.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+        }
+        
+        return `${s.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${e.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
     }
 
     return (
@@ -209,20 +123,31 @@ export default function TherapistHistory() {
                         📋
                     </div>
                     <div>
-                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{getMonthLabel()}</div>
+                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{formatPeriodLabel()}</div>
                         <div className="text-lg font-black text-ayumi-primary leading-none mt-0.5">{records.length} <span className="text-xs font-bold text-gray-500">pasien</span></div>
                     </div>
                 </div>
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200/80 p-5 md:p-6">
-                {/* Filter row */}
-                <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                    <MonthPicker value={filterMonth} onChange={setFilterMonth} />
+                {/* Filter Row using Standard DateRangePicker */}
+                <div className="flex flex-col sm:flex-row gap-3 mb-6 items-start sm:items-center">
+                    <div className="flex-1 sm:max-w-xs relative z-20">
+                        <DateRangePicker 
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={(range) => {
+                                setStartDate(range.startDate)
+                                setEndDate(range.endDate)
+                            }}
+                            inputClassName="w-full input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary focus:bg-white text-xs font-bold py-2.5 px-4 rounded-2xl cursor-pointer"
+                            align="left"
+                        />
+                    </div>
                     <select 
                         value={filterBranch}
                         onChange={(e) => setFilterBranch(e.target.value)}
-                        className="input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary focus:bg-white flex-1 sm:max-w-xs font-bold text-sm rounded-2xl cursor-pointer"
+                        className="input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary focus:bg-white flex-1 sm:max-w-xs font-bold text-sm rounded-2xl cursor-pointer py-2.5"
                     >
                         <option value="">Semua Cabang</option>
                         {branches.map(b => (
@@ -255,7 +180,7 @@ export default function TherapistHistory() {
                                                 🔍
                                             </div>
                                             <p className="text-gray-600 font-extrabold text-base mb-1">Belum Ada Riwayat Perawatan</p>
-                                            <p className="text-gray-400 text-xs">Belum ada catatan rekam medis yang tersimpan untuk filter ini.</p>
+                                            <p className="text-gray-400 text-xs">Belum ada catatan rekam medis yang tersimpan untuk rentang tanggal ini.</p>
                                         </td>
                                     </tr>
                                 ) : (
