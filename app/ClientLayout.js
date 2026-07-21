@@ -108,7 +108,7 @@ const getPageMeta = (pathname) => {
 
     // Main layouts
     if (pathname === '/dashboard') return { title: 'Dashboard Overview', subtitle: 'Pantau metrik utama klinik Anda secara real-time.' }
-    if (pathname === '/crm') return { title: 'Customer Relationship (CRM)', subtitle: 'Kelola follow-up, retensi pasien, dan lihat performa klinik.' }
+    if (pathname === '/crm') return { title: 'Customer Relationship (CRM)', subtitle: 'Kelola follow-up, retensi pasien, pengingat ulang tahun, dan pasien dormant.' }
     if (pathname === '/coupons') return { title: 'Dashboard Kupon Paket', subtitle: 'Kelola master paket, riwayat kupon pasien, dan klaim sesi perawatan.' }
     if (pathname === '/kasir') return { title: 'Kasir & Pembayaran', subtitle: 'Proses pembayaran treatment, pembelian produk, atau pembelian paket kupon.' }
 
