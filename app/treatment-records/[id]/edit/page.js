@@ -341,8 +341,9 @@ function EditRecordForm() {
 
             const queuesToInsert = []
             selectedTreatments.forEach(t => {
-                // Auto-schedule follow-up bertahap: 3 minggu & 1 bulan
+                // Auto-schedule follow-up bertahap: 2 minggu, 3 minggu & 1 bulan
                 const followupSteps = [
+                    { days: 14, type: 'followup_2minggu', priority: 'normal' },
                     { days: 21, type: 'followup_3minggu', priority: 'normal' },
                     { days: 30, type: 'followup_1bulan', priority: 'normal' }
                 ]

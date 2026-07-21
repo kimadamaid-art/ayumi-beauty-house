@@ -506,6 +506,7 @@ export default function PatientDetailPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {pendingFollowups.map((q) => {
                                         const typeLabels = {
+                                            'followup_2minggu': { label: '📋 Cek Progres 2 Minggu', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
                                             'followup_3minggu': { label: '📋 Cek Progres 3 Minggu', color: 'bg-blue-50 text-blue-700 border-blue-200' },
                                             'followup_1bulan': { label: '📋 Cek Progres 1 Bulan', color: 'bg-purple-50 text-purple-700 border-purple-200' },
                                             'reminder_besok': { label: '⏰ Reminder Besok Treatment', color: 'bg-red-50 text-red-700 border-red-200' },
@@ -549,6 +550,7 @@ export default function PatientDetailPage() {
                                 <div className="space-y-4">
                                     {crmHistory.map((crm) => {
                                         const typeLabels = {
+                                            'followup_2minggu': { label: '📋 Cek Progres 2 Minggu', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
                                             'followup_3minggu': { label: '📋 Cek Progres 3 Minggu', color: 'bg-blue-50 text-blue-700 border-blue-200' },
                                             'followup_1bulan': { label: '📋 Cek Progres 1 Bulan', color: 'bg-purple-50 text-purple-700 border-purple-200' },
                                             'reminder_besok': { label: '⏰ Reminder Besok Treatment', color: 'bg-red-50 text-red-700 border-red-200' },

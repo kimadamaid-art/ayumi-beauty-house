@@ -329,6 +329,8 @@ export default function CRMPage() {
     // --- WHATSAPP TEMPLATES & UTILITIES ---
     const generateWaMessage = (type, patientName) => {
         switch (type) {
+            case 'followup_2minggu':
+                return `Hallo kak *${patientName}*, apa kabar🤗\nUdah dua minggu nih dari treatment sebelumnya ya. Aku mau tanya, gimana kondisi kulitnya setelah 2 minggu, apakah sudah terasa makin sehat dan halus?😍`
             case 'followup_3minggu':
                 return `Hallo kak *${patientName}*, apa kabar🤗\nUdah genap tiga minggu dari treatment sebelumnya ya. Aku mau tanya, gimana progres hasilnya setelah treatment 3 minggu yang lalu, apakah sudah terlihat hasilnya?😍`
             case 'followup_1bulan':
@@ -754,6 +756,7 @@ export default function CRMPage() {
                                                             <div className="text-xs font-bold uppercase">
                                                                 {(() => {
                                                                     const typeLabels = {
+                                                                        'followup_2minggu': { label: 'Cek Progres 2 Minggu', color: 'text-indigo-700' },
                                                                         'followup_3minggu': { label: 'Cek Progres 3 Minggu', color: 'text-blue-700' },
                                                                         'followup_1bulan': { label: 'Cek Progres 1 Bulan', color: 'text-purple-700' },
                                                                         'reminder_besok': { label: 'Reminder Besok Treatment', color: 'text-red-700' },
@@ -1137,6 +1140,7 @@ export default function CRMPage() {
                                     className="input-ayumi focus:bg-gray-50"
                                 >
                                     <optgroup label="── Follow Up Berkala ──">
+                                        <option value="followup_2minggu">📋 Cek Progres 2 Minggu</option>
                                         <option value="followup_3minggu">📋 Cek Progres 3 Minggu</option>
                                         <option value="followup_1bulan">📋 Cek Progres 1 Bulan</option>
                                     </optgroup>
@@ -1243,6 +1247,7 @@ export default function CRMPage() {
                                     className="input-ayumi focus:bg-gray-50"
                                 >
                                     <optgroup label="── Follow Up Berkala ──">
+                                        <option value="followup_2minggu">📋 Cek Progres 2 Minggu</option>
                                         <option value="followup_3minggu">📋 Cek Progres 3 Minggu</option>
                                         <option value="followup_1bulan">📋 Cek Progres 1 Bulan</option>
                                     </optgroup>
@@ -1370,6 +1375,9 @@ export default function CRMPage() {
                                     onChange={e => setManualForm({...manualForm, followupType: e.target.value})}
                                     className="input-ayumi focus:bg-gray-50"
                                 >
+                                    <option value="followup_2minggu">Cek Progres 2 Minggu (14 Hari)</option>
+                                    <option value="followup_3minggu">Cek Progres 3 Minggu (21 Hari)</option>
+                                    <option value="followup_1bulan">Cek Progres 1 Bulan (30 Hari)</option>
                                     <option value="treatment_reminder">Pengingat Perawatan (Treatment Reminder)</option>
                                     <option value="dormant_reminder">Sapaan Pasien Dormant (Dormant Reminder)</option>
                                     <option value="custom_reminder">Follow Up Kustom (Custom Reminder)</option>
