@@ -64,7 +64,7 @@ const getPageMeta = (pathname) => {
 
     // Therapist Sub-Pages
     if (pathname === '/therapist/dashboard') return { title: 'Dashboard Terapis', subtitle: 'Pantau jadwal dan performa treatment Anda.' }
-    if (pathname === '/therapist/appointments') return { title: 'Jadwal Treatment Anda', subtitle: 'Daftar janji temu pasien yang ditugaskan kepada Anda hari ini.', backPath: '/therapist/dashboard' }
+    if (pathname === '/therapist/appointments') return { title: 'Jadwal & Riwayat Treatment', subtitle: 'Daftar janji temu dan catatan riwayat treatment pasien dalam satu tempat.', backPath: '/therapist/dashboard' }
     if (pathname === '/therapist/history') return { title: 'Riwayat Treatment', subtitle: 'Catatan seluruh treatment yang telah Anda selesaikan.', backPath: '/therapist/dashboard' }
     if (pathname.startsWith('/therapist/treatment-input/')) return { title: 'Input Treatment & SOAP', subtitle: 'Masukkan detail tindakan treatment dan catatan SOAP pasien.', backPath: '/therapist/dashboard' }
 
