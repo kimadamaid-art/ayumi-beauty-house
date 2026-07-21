@@ -34,6 +34,7 @@ function PosPageContent() {
     const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
     const [leftPanelTab, setLeftPanelTab] = useState('pending')
     const [expandedCartItem, setExpandedCartItem] = useState(null)
+    const [patientActiveCoupons, setPatientActiveCoupons] = useState([])
 
     // Quick Add Patient State
     const [quickAddForm, setQuickAddForm] = useState({ full_name: '', whatsapp: '' })
@@ -210,6 +211,54 @@ function PosPageContent() {
         }
 
         setSelectedPatientDetails({ crmStatus, transactionCount })
+
+        // Fetch active coupons for this patient
+        const { data: pcData } = await supabase
+            .from('patient_coupons')
+            .select('id')
+            .eq('patient_id', patient.id)
+            .eq('status', 'active')
+
+        const activeCouponIds = pcData?.map(pc => pc.id) || []
+        let activeCouponItems = []
+
+        if (activeCouponIds.length > 0) {
+            const { data: itemsData } = await supabase
+                .from('patient_coupon_items')
+                .select(`
+                    id, patient_coupon_id, treatment_id, total_sessions, used_sessions, remaining_sessions, status,
+                    treatments (name),
+                    patient_coupons (status, coupon_packages(name))
+                `)
+                .eq('status', 'active')
+                .in('patient_coupon_id', activeCouponIds)
+                .gt('remaining_sessions', 0)
+
+            if (itemsData) activeCouponItems = itemsData
+        }
+
+        setPatientActiveCoupons(activeCouponItems)
+
+        // Auto-apply coupon to existing treatment items in cart
+        if (activeCouponItems.length > 0) {
+            setCart(prev => prev.map(cartItem => {
+                if (cartItem.item_type === 'treatment') {
+                    const match = activeCouponItems.find(c => c.treatment_id === cartItem.id && c.remaining_sessions > 0)
+                    if (match) {
+                        return {
+                            ...cartItem,
+                            is_using_coupon: true,
+                            used_coupon_item_id: match.id,
+                            coupon_package_name: match.patient_coupons?.coupon_packages?.name || 'Paket Kupon',
+                            remaining_sessions: match.remaining_sessions,
+                            price: 0,
+                            discount_percent: 100
+                        }
+                    }
+                }
+                return cartItem
+            }))
+        }
     }
 
     async function handleQuickAddPatient(e) {
@@ -426,9 +475,25 @@ function PosPageContent() {
                         : i
                 )
             } else {
-                // Apply treatment discount if exists
+                // Check active coupon for treatment
+                let isUsingCoupon = false
+                let usedCouponItemId = null
+                let couponPackageName = ''
+                let remainingSessions = 0
+
                 let price = item.price
-                if (type === 'treatment' && item.discount_percent > 0) {
+                if (type === 'treatment' && patientActiveCoupons.length > 0) {
+                    const match = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+                    if (match) {
+                        isUsingCoupon = true
+                        usedCouponItemId = match.id
+                        couponPackageName = match.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
+                        remainingSessions = match.remaining_sessions
+                        price = 0
+                    }
+                }
+
+                if (!isUsingCoupon && type === 'treatment' && item.discount_percent > 0) {
                     price = item.price * (1 - item.discount_percent / 100)
                 }
 
@@ -438,13 +503,54 @@ function PosPageContent() {
                     name: item.name,
                     price: price,
                     original_price: item.price,
-                    discount_percent: type === 'treatment' ? (item.discount_percent || 0) : 0,
+                    discount_percent: isUsingCoupon ? 100 : (type === 'treatment' ? (item.discount_percent || 0) : 0),
                     quantity: 1,
                     maxQuantity: type === 'product' ? item.quantity : null,
-                    commission_percent: type === 'treatment' ? (item.commission_percent || 0) : 0
+                    commission_percent: type === 'treatment' ? (item.commission_percent || 0) : 0,
+                    is_using_coupon: isUsingCoupon,
+                    used_coupon_item_id: usedCouponItemId,
+                    coupon_package_name: couponPackageName,
+                    remaining_sessions: remainingSessions
                 }]
             }
         })
+    }
+
+    const toggleCartItemCoupon = (itemId) => {
+        setCart(prev => prev.map(cartItem => {
+            if (cartItem.id === itemId && cartItem.item_type === 'treatment') {
+                if (cartItem.is_using_coupon) {
+                    // Switch to normal price
+                    let orig = cartItem.original_price || 0
+                    let discPct = cartItem.discount_percent === 100 ? 0 : cartItem.discount_percent
+                    let normalPrice = orig * (1 - discPct / 100)
+                    return {
+                        ...cartItem,
+                        is_using_coupon: false,
+                        used_coupon_item_id: null,
+                        price: Math.round(normalPrice),
+                        discount_percent: discPct
+                    }
+                } else {
+                    // Switch to coupon
+                    const match = patientActiveCoupons.find(c => c.treatment_id === cartItem.id && c.remaining_sessions > 0)
+                    if (match) {
+                        return {
+                            ...cartItem,
+                            is_using_coupon: true,
+                            used_coupon_item_id: match.id,
+                            coupon_package_name: match.patient_coupons?.coupon_packages?.name || 'Paket Kupon',
+                            remaining_sessions: match.remaining_sessions,
+                            price: 0,
+                            discount_percent: 100
+                        }
+                    } else {
+                        alert('Pasien tidak memiliki kupon paket aktif yang tersisa untuk treatment ini.')
+                    }
+                }
+            }
+            return cartItem
+        }))
     }
 
     const updateCartQty = (id, type, change) => {
@@ -588,6 +694,59 @@ function PosPageContent() {
 
             if (!trxData || !trxData.id) {
                 throw new Error('Gagal mendapatkan data transaksi dari database.')
+            }
+
+            // Deduct sessions for items using coupon
+            for (const cartItem of cart) {
+                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && selectedPatient) {
+                    try {
+                        await supabase.from('patient_coupon_logs').insert([{
+                            patient_coupon_item_id: cartItem.used_coupon_item_id,
+                            patient_id: selectedPatient.id,
+                            branch_id: selectedBranch,
+                            used_by: dbUser?.id || null,
+                            notes: `Klaim Kasir (No. Tx: ${trxData.id?.substring(0, 8)})`
+                        }])
+
+                        const { data: currentCpItem } = await supabase
+                            .from('patient_coupon_items')
+                            .select('used_sessions, remaining_sessions, total_sessions, patient_coupon_id')
+                            .eq('id', cartItem.used_coupon_item_id)
+                            .single()
+
+                        if (currentCpItem) {
+                            const newUsed = (currentCpItem.used_sessions || 0) + cartItem.quantity
+                            const newRemaining = Math.max(0, (currentCpItem.remaining_sessions || 0) - cartItem.quantity)
+                            const newStatus = newRemaining === 0 ? 'completed' : 'active'
+
+                            await supabase
+                                .from('patient_coupon_items')
+                                .update({
+                                    used_sessions: newUsed,
+                                    remaining_sessions: newRemaining,
+                                    status: newStatus
+                                })
+                                .eq('id', cartItem.used_coupon_item_id)
+
+                            if (newRemaining === 0) {
+                                const { data: siblings } = await supabase
+                                    .from('patient_coupon_items')
+                                    .select('status')
+                                    .eq('patient_coupon_id', currentCpItem.patient_coupon_id)
+
+                                const allDone = siblings ? siblings.every(s => s.status === 'completed') : true
+                                if (allDone) {
+                                    await supabase
+                                        .from('patient_coupons')
+                                        .update({ status: 'completed' })
+                                        .eq('id', currentCpItem.patient_coupon_id)
+                                }
+                            }
+                        }
+                    } catch (cpErr) {
+                        console.error('Error updating coupon deduction:', cpErr)
+                    }
+                }
             }
 
             // Navigate to Receipt page
@@ -1211,6 +1370,48 @@ function PosPageContent() {
                                                 </span>
                                             </div>
                                             <p className="font-extrabold text-gray-800 text-sm leading-tight mt-0.5 tracking-tight break-words">{item.name}</p>
+
+                                            {/* Active Coupon Banner & Toggle in Cart Item */}
+                                            {item.item_type === 'treatment' && (
+                                                <div className="mt-1.5">
+                                                    {item.is_using_coupon ? (
+                                                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl text-xs flex items-center justify-between gap-2 shadow-sm">
+                                                            <div className="flex items-center gap-1.5 font-bold">
+                                                                <span>🎟️</span>
+                                                                <span className="text-[11px]">Kupon: <strong>{item.coupon_package_name}</strong> (Sisa {item.remaining_sessions} Sesi)</span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleCartItemCoupon(item.id)}
+                                                                className="text-[10px] font-extrabold bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-lg transition-colors shrink-0"
+                                                            >
+                                                                Bayar Normal
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        (() => {
+                                                            const availableCoupon = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+                                                            if (availableCoupon) {
+                                                                return (
+                                                                    <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2 rounded-xl text-xs flex items-center justify-between gap-2 shadow-sm">
+                                                                        <div className="font-semibold text-[11px]">
+                                                                            💡 Ada Kupon: <strong className="font-extrabold">{availableCoupon.patient_coupons?.coupon_packages?.name}</strong> (Sisa {availableCoupon.remaining_sessions} Sesi)
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleCartItemCoupon(item.id)}
+                                                                            className="text-[10px] font-extrabold bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-lg shadow-sm transition-all shrink-0"
+                                                                        >
+                                                                            Pakai Kupon (Rp 0)
+                                                                        </button>
+                                                                    </div>
+                                                                )
+                                                            }
+                                                            return null
+                                                        })()
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         <button 
                                             type="button"
