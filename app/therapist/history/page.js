@@ -57,10 +57,14 @@ export default function TherapistHistory() {
             .from('treatment_records')
             .select(`
                 *,
-                patients (full_name),
-                branches (name)
+                patients (id, full_name, whatsapp),
+                branches (name),
+                treatment_record_items (
+                    id, price_at_time, discount_percent, notes,
+                    treatments (name)
+                )
             `)
-            .eq('therapist_id', dbUser.id)
+            .eq('performed_by', dbUser.id)
             .order('treatment_date', { ascending: false })
 
         if (filterBranch) {
@@ -68,14 +72,13 @@ export default function TherapistHistory() {
         }
         
         if (filterMonth) {
-            const [year, month] = filterMonth.split('-')
-            const startDate = new Date(year, month - 1, 1).toISOString()
-            const endDate = new Date(year, month, 0, 23, 59, 59).toISOString()
-            
+            const startDate = `${filterMonth}-01`
+            const endDate = `${filterMonth}-31`
             query = query.gte('treatment_date', startDate).lte('treatment_date', endDate)
         }
 
-        const { data } = await query
+        const { data, error } = await query
+        if (error) console.error("Error fetching therapist history:", error)
         if (data) {
             setRecords(data)
         }
@@ -84,30 +87,34 @@ export default function TherapistHistory() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex justify-end">
-                <div className="bg-pink-50 border border-pink-100 px-6 py-3 rounded-2xl flex items-center gap-4">
-                    <div className="w-12 h-12 bg-ayumi-primary text-white rounded-full flex items-center justify-center">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <div className="flex justify-between items-center bg-white p-4 rounded-3xl border border-gray-150 shadow-sm">
+                <div>
+                    <h2 className="text-base font-extrabold text-gray-900 leading-tight">Riwayat Perawatan Terapis</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Daftar tindakan treatment dan rekam medis yang telah Anda selesaikan.</p>
+                </div>
+                <div className="bg-pink-50 border border-pink-100 px-5 py-2.5 rounded-2xl flex items-center gap-3 shrink-0">
+                    <div className="w-9 h-9 bg-ayumi-primary text-white rounded-xl flex items-center justify-center font-bold text-sm">
+                        📋
                     </div>
                     <div>
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Bulan Ini</div>
-                        <div className="text-2xl font-extrabold text-ayumi-text">{records.length} <span className="text-sm font-semibold text-gray-400">pasien</span></div>
+                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Bulan Ini</div>
+                        <div className="text-lg font-black text-ayumi-primary leading-none mt-0.5">{records.length} <span className="text-xs font-bold text-gray-500">pasien</span></div>
                     </div>
                 </div>
             </div>
 
-            <div className="card-ayumi p-4 md:p-6">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200/80 p-5 md:p-6">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
                     <input 
                         type="month" 
                         value={filterMonth}
                         onChange={(e) => setFilterMonth(e.target.value)}
-                        className="input-ayumi bg-gray-50 focus:bg-white flex-1 md:max-w-xs"
+                        className="input-ayumi bg-gray-50 focus:bg-white flex-1 md:max-w-xs font-bold text-sm"
                     />
                     <select 
                         value={filterBranch}
                         onChange={(e) => setFilterBranch(e.target.value)}
-                        className="input-ayumi bg-gray-50 focus:bg-white flex-1 md:max-w-xs"
+                        className="input-ayumi bg-gray-50 focus:bg-white flex-1 md:max-w-xs font-bold text-sm"
                     >
                         <option value="">Semua Cabang</option>
                         {branches.map(b => (
@@ -122,38 +129,60 @@ export default function TherapistHistory() {
                         <p className="text-gray-500 font-medium">Memuat riwayat...</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-sm">
                         <table className="whitespace-nowrap w-full text-left border-collapse">
-                            <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm font-bold">
-                                <tr>
-                                    <th className="p-4 rounded-tl-xl">Tanggal</th>
+                            <thead>
+                                <tr className="bg-pink-50/60 text-ayumi-secondary text-xs uppercase font-extrabold tracking-wider">
+                                    <th className="p-4">Tanggal & Waktu</th>
                                     <th className="p-4">Pasien</th>
                                     <th className="p-4">Cabang</th>
-                                    <th className="p-4">Hasil Treatment</th>
+                                    <th className="p-4">Treatment & Catatan SOAP</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-gray-100 text-sm bg-white">
                                 {records.length === 0 ? (
                                     <tr>
-                                        <td colSpan="4" className="px-6 py-12 text-center flex flex-col items-center border-none">
-                                            <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mb-4 mx-auto text-pink-300">
-                                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                        <td colSpan="4" className="px-6 py-12 text-center border-none">
+                                            <div className="w-14 h-14 bg-pink-50 rounded-full flex items-center justify-center mb-3 mx-auto text-ayumi-primary font-bold text-xl">
+                                                🔍
                                             </div>
-                                            <p className="text-gray-500 font-medium text-lg">Belum ada riwayat treatment.</p>
+                                            <p className="text-gray-600 font-extrabold text-base mb-1">Belum Ada Riwayat Perawatan</p>
+                                            <p className="text-gray-400 text-xs">Belum ada catatan rekam medis yang tersimpan untuk filter ini.</p>
                                         </td>
                                     </tr>
                                 ) : (
                                     records.map(r => (
-                                        <tr key={r.id} className="hover:bg-ayumi-table-hover transition-colors">
+                                        <tr key={r.id} className="hover:bg-pink-50/20 transition-colors">
                                             <td className="p-4">
-                                                <div className="font-bold text-gray-800">{new Date(r.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                                                <div className="font-bold text-gray-900">
+                                                    {new Date(r.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-0.5">{r.treatment_time || ''}</div>
                                             </td>
-                                            <td className="p-4 font-bold text-ayumi-text">
-                                                {r.patients?.full_name}
-                                            </td>
-                                            <td className="p-4 text-gray-600 font-medium">{r.branches?.name}</td>
                                             <td className="p-4">
-                                                <div className="text-sm text-gray-600 max-w-xs truncate">{r.treatment_result || '-'}</div>
+                                                <div className="font-bold text-gray-900">{r.patients?.full_name || '-'}</div>
+                                                <div className="text-xs text-gray-400 mt-0.5">{r.patients?.whatsapp || ''}</div>
+                                            </td>
+                                            <td className="p-4 text-xs font-semibold text-gray-600">
+                                                {r.branches?.name || '-'}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex flex-wrap gap-1.5 mb-1">
+                                                    {r.treatment_record_items && r.treatment_record_items.length > 0 ? (
+                                                        r.treatment_record_items.map(item => (
+                                                            <span key={item.id} className="px-2.5 py-0.5 bg-pink-100 text-ayumi-primary text-xs font-bold rounded-lg border border-pink-200">
+                                                                {item.treatments?.name || 'Treatment'}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400 font-medium">-</span>
+                                                    )}
+                                                </div>
+                                                {(r.result_notes || r.recommendation || r.complaints) && (
+                                                    <p className="text-xs text-gray-500 font-medium max-w-sm truncate mt-1">
+                                                        📝 {r.result_notes || r.recommendation || r.complaints}
+                                                    </p>
+                                                )}
                                             </td>
                                         </tr>
                                     ))
