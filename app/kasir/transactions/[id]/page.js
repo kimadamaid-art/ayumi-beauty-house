@@ -161,10 +161,16 @@ export default function ReceiptPage() {
             transaction.transaction_items?.forEach(item => {
                 const name = item.name.length > 32 ? item.name.slice(0, 32) : item.name
                 chunks.push(line(name))
-                const qtyStr = `${item.quantity}x @${Number(item.price).toLocaleString('id-ID')}`
+                const hasDisc = (item.discount_percent > 0) || (item.original_price && item.original_price > item.price)
+                const origP = item.original_price || (hasDisc && item.discount_percent < 100 ? item.price / (1 - item.discount_percent / 100) : item.price)
+                
+                let priceStr = `${item.quantity}x @${Number(item.price).toLocaleString('id-ID')}`
+                if (hasDisc && item.discount_percent > 0) {
+                    priceStr += ` (-${item.discount_percent}%)`
+                }
                 const subStr = `Rp ${Number(item.subtotal).toLocaleString('id-ID')}`
-                const padSpaces = Math.max(1, 32 - qtyStr.length - subStr.length)
-                chunks.push(line(qtyStr + ' '.repeat(padSpaces) + subStr))
+                const padSpaces = Math.max(1, 32 - priceStr.length - subStr.length)
+                chunks.push(line(priceStr + ' '.repeat(padSpaces) + subStr))
             })
 
             chunks.push(divider)
@@ -231,7 +237,13 @@ export default function ReceiptPage() {
         }
 
         const itemsText = transaction.transaction_items
-            ?.map(i => `- ${i.name} (${i.quantity}x) : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`)
+            ?.map(i => {
+                const hasDisc = (i.discount_percent > 0) || (i.original_price && i.original_price > i.price)
+                const origP = i.original_price || (hasDisc && i.discount_percent < 100 ? i.price / (1 - i.discount_percent / 100) : i.price)
+                const strikeStr = hasDisc && origP > i.price ? ` ~Rp ${Number(origP).toLocaleString('id-ID')}~` : ''
+                const discTag = i.discount_percent > 0 ? ` (-${i.discount_percent}%)` : ''
+                return `- ${i.name} (${i.quantity}x)${strikeStr}${discTag} : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`
+            })
             .join('%0A') || ''
 
         const discountText = discountRupiah > 0 ? `%0A*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
@@ -410,18 +422,39 @@ export default function ReceiptPage() {
                     </div>
                     
                     <div className="space-y-3">
-                        {transaction.transaction_items?.map((item) => (
-                            <div key={item.id} className="grid grid-cols-12 text-sm items-start">
-                                <div className="col-span-6">
-                                    <p className="font-bold text-gray-800 leading-tight pr-2">{item.name}</p>
-                                    <p className="text-[10px] text-gray-400">Rp {item.price.toLocaleString('id-ID')}</p>
+                        {transaction.transaction_items?.map((item) => {
+                            const hasDiscount = (item.discount_percent > 0) || (item.original_price && Number(item.original_price) > Number(item.price))
+                            const origPrice = Number(item.original_price) || (hasDiscount && item.discount_percent < 100 ? item.price / (1 - item.discount_percent / 100) : item.price)
+                            
+                            return (
+                                <div key={item.id} className="grid grid-cols-12 text-sm items-start">
+                                    <div className="col-span-6">
+                                        <p className="font-bold text-gray-800 leading-tight pr-2">{item.name}</p>
+                                        {hasDiscount && origPrice > item.price ? (
+                                            <div className="flex items-center gap-1.5 flex-wrap text-[10px] mt-0.5">
+                                                <span className="line-through text-gray-400 font-medium">
+                                                    Rp {Number(origPrice).toLocaleString('id-ID')}
+                                                </span>
+                                                <span className="text-ayumi-primary font-extrabold">
+                                                    Rp {Number(item.price).toLocaleString('id-ID')}
+                                                </span>
+                                                {item.discount_percent > 0 && (
+                                                    <span className="bg-rose-50 text-rose-600 font-extrabold px-1 rounded text-[9px] border border-rose-100">
+                                                        -{item.discount_percent}%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[10px] text-gray-400">Rp {Number(item.price).toLocaleString('id-ID')}</p>
+                                        )}
+                                    </div>
+                                    <div className="col-span-2 text-center text-gray-600">x{item.quantity}</div>
+                                    <div className="col-span-4 text-right font-bold text-gray-800">
+                                        Rp {Number(item.subtotal).toLocaleString('id-ID')}
+                                    </div>
                                 </div>
-                                <div className="col-span-2 text-center text-gray-600 ">x{item.quantity}</div>
-                                <div className="col-span-4 text-right  font-bold text-gray-800">
-                                    Rp {item.subtotal.toLocaleString('id-ID')}
-                                </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
 
