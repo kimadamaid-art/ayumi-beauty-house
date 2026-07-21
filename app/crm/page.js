@@ -691,17 +691,10 @@ export default function CRMPage() {
                         </span>
                     )}
                 </button>
-                <button 
-                    onClick={() => setActiveTab('analytics')}
-                    className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'analytics' ? 'bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white shadow-md font-extrabold' : 'text-gray-600 hover:bg-pink-50/50 hover:text-ayumi-primary'}`}
-                >
-                    <span>📊 Analitik CRM</span>
-                </button>
             </div>
 
             {/* SEARCH & FILTER CONTROLS */}
-            {activeTab !== 'analytics' && (
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
                     <div className="relative w-full md:w-80">
                         <input
                             type="text"
@@ -767,7 +760,6 @@ export default function CRMPage() {
                         )}
                     </div>
                 </div>
-            )}
 
             {/* CONTENT */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200/80 p-5 md:p-8 min-h-[500px]">
@@ -1086,47 +1078,6 @@ export default function CRMPage() {
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                        )}
-
-                        {/* TAB: ANALYTICS */}
-                        {activeTab === 'analytics' && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-bold text-ayumi-secondary mb-4">Performa Follow Up (Bulan Ini)</h3>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                                        <div className="text-4xl font-extrabold text-ayumi-primary mb-2">{totalLogs}</div>
-                                        <div className="text-sm font-semibold text-gray-500">Total Follow Up Selesai</div>
-                                    </div>
-                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                                        <div className="text-4xl font-extrabold text-blue-500 mb-2">{responseRate}%</div>
-                                        <div className="text-sm font-semibold text-gray-500">Response Rate (Pasien Merespons)</div>
-                                    </div>
-                                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-                                        <div className="text-4xl font-extrabold text-green-500 mb-2">{conversionRate}%</div>
-                                        <div className="text-sm font-semibold text-gray-500">Conversion Rate (Booking Baru)</div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-gray-50 rounded-2xl p-4 md:p-6 border border-gray-100">
-                                    <h4 className="font-bold text-gray-700 mb-4">Grafik Outcome Bulan Ini</h4>
-                                    <div className="flex flex-wrap gap-4">
-                                        {['responded', 'no_response', 'booked', 'not_interested', 'wrong_number'].map(out => {
-                                            const count = logs.filter(l => l.outcome === out).length
-                                            const pct = totalLogs > 0 ? (count / totalLogs) * 100 : 0
-                                            return (
-                                                <div key={out} className="w-full flex items-center gap-4">
-                                                    <div className="w-32 text-sm font-semibold text-gray-600 capitalize">{out.replace('_', ' ')}</div>
-                                                    <div className="flex-1 bg-gray-200 h-6 rounded-full overflow-hidden">
-                                                        <div className="bg-ayumi-primary h-full" style={{ width: `${pct}%` }}></div>
-                                                    </div>
-                                                    <div className="w-10 text-right text-sm font-bold text-gray-700">{count}</div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
                             </div>
                         )}
                     </>
