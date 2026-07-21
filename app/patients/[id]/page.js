@@ -27,6 +27,7 @@ export default function PatientDetailPage() {
     const [hasExpiringCoupons, setHasExpiringCoupons] = useState(false)
     
     const [editExpiryModal, setEditExpiryModal] = useState({ isOpen: false, coupon: null, newDate: '' })
+    const [editSessionModal, setEditSessionModal] = useState({ isOpen: false, item: null, coupon: null, usedSessions: 0, totalSessions: 0 })
     const [isUpdating, setIsUpdating] = useState(false)
 
     const supabase = createBrowserClient(
@@ -51,6 +52,51 @@ export default function PatientDetailPage() {
             setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })
             window.location.reload()
         }
+    }
+
+    const handleUpdateSessions = async () => {
+        if (!editSessionModal.item) return
+        
+        setIsUpdating(true)
+        const used = Math.min(editSessionModal.totalSessions, Math.max(0, Number(editSessionModal.usedSessions) || 0))
+        const remaining = Math.max(0, editSessionModal.totalSessions - used)
+        const itemStatus = remaining === 0 ? 'completed' : 'active'
+
+        const { error: itemErr } = await supabase
+            .from('patient_coupon_items')
+            .update({
+                used_sessions: used,
+                remaining_sessions: remaining,
+                status: itemStatus
+            })
+            .eq('id', editSessionModal.item.id)
+
+        if (itemErr) {
+            alert('Gagal memperbarui sesi kupon: ' + itemErr.message)
+            setIsUpdating(false)
+            return
+        }
+
+        // Check parent coupon status
+        if (editSessionModal.coupon?.id) {
+            const { data: siblings } = await supabase
+                .from('patient_coupon_items')
+                .select('status, remaining_sessions')
+                .eq('patient_coupon_id', editSessionModal.coupon.id)
+
+            const allDone = siblings ? siblings.every(s => s.remaining_sessions === 0 || s.status === 'completed' || s.status === 'fully_used') : true
+            if (allDone) {
+                await supabase
+                    .from('patient_coupons')
+                    .update({ status: 'completed' })
+                    .eq('id', editSessionModal.coupon.id)
+            }
+        }
+
+        alert('Sesi kupon berhasil diperbarui!')
+        setIsUpdating(false)
+        setEditSessionModal({ isOpen: false, item: null, coupon: null, usedSessions: 0, totalSessions: 0 })
+        window.location.reload()
     }
 
     useEffect(() => {
@@ -707,15 +753,35 @@ export default function PatientDetailPage() {
                                                 {coupon.patient_coupon_items?.map(item => {
                                                     const percent = (item.used_sessions / item.total_sessions) * 100
                                                     return (
-                                                        <div key={item.id} className="relative">
-                                                            <div className="flex justify-between text-sm mb-1.5">
-                                                                <span className="font-semibold text-gray-700">{item.treatments?.name}</span>
-                                                                <span className=" text-xs font-bold text-ayumi-primary">{item.remaining_sessions} / {item.total_sessions} tersisa</span>
+                                                        <div key={item.id} className="relative bg-gray-50/70 p-3 rounded-2xl border border-gray-150">
+                                                            <div className="flex flex-wrap justify-between items-center text-sm mb-1.5 gap-2">
+                                                                <span className="font-bold text-gray-800">{item.treatments?.name}</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-md ${item.remaining_sessions === 0 ? 'bg-gray-100 text-gray-500 line-through' : 'text-ayumi-primary bg-pink-50'}`}>
+                                                                        {item.remaining_sessions} / {item.total_sessions} tersisa
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => setEditSessionModal({
+                                                                            isOpen: true,
+                                                                            item: item,
+                                                                            coupon: coupon,
+                                                                            usedSessions: item.used_sessions,
+                                                                            totalSessions: item.total_sessions
+                                                                        })}
+                                                                        className="text-[10px] font-bold bg-white text-ayumi-primary hover:bg-ayumi-primary hover:text-white border border-pink-200 px-2 py-1 rounded-lg transition-all shadow-sm"
+                                                                        title="Sesuaikan Sesi Terpakai"
+                                                                    >
+                                                                        ✏️ Edit Sesi
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
+                                                            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
                                                                 <div className="bg-gradient-to-r from-ayumi-primary to-ayumi-secondary h-full rounded-full transition-all duration-500" style={{ width: `${percent}%` }}></div>
                                                             </div>
-                                                            <div className="text-[10px] text-gray-400 text-right mt-1">Terpakai: {item.used_sessions} sesi</div>
+                                                            <div className="flex justify-between items-center text-[10px] text-gray-400 mt-1.5">
+                                                                <span>Terpakai: <strong>{item.used_sessions}</strong> sesi</span>
+                                                                {item.remaining_sessions === 0 && <span className="text-gray-500 font-extrabold uppercase tracking-wider">🎉 Selesai / Habis</span>}
+                                                            </div>
                                                         </div>
                                                     )
                                                 })}
@@ -757,6 +823,64 @@ export default function PatientDetailPage() {
                                 className="btn-ayumi px-4 py-2 text-sm"
                             >
                                 {isUpdating ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Edit Sesi Kupon */}
+            {editSessionModal.isOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl p-5 md:p-6 w-full max-w-sm shadow-2xl space-y-4">
+                        <div className="border-b border-gray-100 pb-3">
+                            <h3 className="text-lg font-extrabold text-gray-900">Sesuaikan Sesi Kupon</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">{editSessionModal.item?.treatments?.name}</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Jumlah Sesi Terpakai</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max={editSessionModal.totalSessions}
+                                        className="input-ayumi w-full font-bold text-center text-lg"
+                                        value={editSessionModal.usedSessions}
+                                        onChange={(e) => setEditSessionModal({ ...editSessionModal, usedSessions: Number(e.target.value) })}
+                                    />
+                                    <span className="text-sm font-bold text-gray-400">/ {editSessionModal.totalSessions} Total</span>
+                                </div>
+                            </div>
+
+                            <div className="bg-pink-50 p-3 rounded-2xl border border-pink-100 text-xs text-ayumi-primary font-bold flex justify-between items-center">
+                                <span>Sisa Sesi Hasil Edit:</span>
+                                <span className="text-sm font-black">{Math.max(0, editSessionModal.totalSessions - (Number(editSessionModal.usedSessions) || 0))} Sesi</span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setEditSessionModal({ ...editSessionModal, usedSessions: editSessionModal.totalSessions })}
+                                className="w-full text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 py-2.5 rounded-xl transition-all"
+                            >
+                                ⚡ Tandai Semua Sesi Habis ({editSessionModal.totalSessions}/{editSessionModal.totalSessions})
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
+                            <button
+                                onClick={() => setEditSessionModal({ isOpen: false, item: null, coupon: null, usedSessions: 0, totalSessions: 0 })}
+                                className="px-4 py-2 text-xs font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleUpdateSessions}
+                                disabled={isUpdating}
+                                className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2 text-xs font-extrabold rounded-xl shadow-md transition-all"
+                            >
+                                {isUpdating ? 'Menyimpan...' : 'Simpan Sesi'}
                             </button>
                         </div>
                     </div>
