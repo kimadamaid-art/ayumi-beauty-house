@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
@@ -52,6 +52,31 @@ export default function Dashboard() {
         const now = new Date()
         return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth() + 1, 0))
     })
+
+    // Selected Target Month State
+    const [targetMonth, setTargetMonth] = useState(() => {
+        const now = new Date()
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    })
+
+    const monthNamesIndo = useMemo(() => [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ], [])
+
+    const targetMonthOptions = useMemo(() => {
+        const options = []
+        const now = new Date()
+        const currentYear = now.getFullYear()
+        for (let y = currentYear - 1; y <= currentYear + 1; y++) {
+            for (let m = 0; m < 12; m++) {
+                const val = `${y}-${String(m + 1).padStart(2, '0')}`
+                const label = `${monthNamesIndo[m]} ${y}`
+                options.push({ value: val, label })
+            }
+        }
+        return options
+    }, [monthNamesIndo])
 
     // Widget States (Non-owner)
     const [statAppointments, setStatAppointments] = useState(0)
@@ -106,13 +131,14 @@ export default function Dashboard() {
         })
     }
 
-    const fetchOwnerBranchMetrics = useCallback(async (branchList, startStr, endStr) => {
+    const fetchOwnerBranchMetrics = useCallback(async (branchList, startStr, endStr, targetMonthVal) => {
         if (!branchList || branchList.length === 0) return
 
         try {
             const activeBranches = sortBranchesWithPangandaranLast(branchList.filter(b => b.is_active !== false))
             const sDate = startStr || startDate
             const eDate = endStr || endDate
+            const tMonth = targetMonthVal || targetMonth
             
             // 1. Fetch transactions for selected date range with transaction items
             const { data: rangeTrx } = await supabase
@@ -241,10 +267,13 @@ export default function Dashboard() {
             })).sort((a, b) => b.amount - a.amount)
             setPaymentBreakdown(formattedMethods)
 
-            // 2. Fetch current month transactions for monthly target calculation
-            const now = new Date()
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+            // 2. Fetch selected month transactions for monthly target calculation
+            const [tYearStr, tMonthStr] = (tMonth || '').split('-')
+            const tYear = parseInt(tYearStr, 10) || new Date().getFullYear()
+            const tMonthIdx = (parseInt(tMonthStr, 10) || (new Date().getMonth() + 1)) - 1
+
+            const startOfMonth = new Date(tYear, tMonthIdx, 1, 0, 0, 0).toISOString()
+            const endOfMonth = new Date(tYear, tMonthIdx + 1, 0, 23, 59, 59, 999).toISOString()
 
             const { data: monthlyTrx } = await supabase
                 .from('transactions')
@@ -314,9 +343,9 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (dbUser?.role === 'owner' && branches.length > 0) {
-            fetchOwnerBranchMetrics(branches, startDate, endDate)
+            fetchOwnerBranchMetrics(branches, startDate, endDate, targetMonth)
         }
-    }, [startDate, endDate, branches, dbUser, fetchOwnerBranchMetrics])
+    }, [startDate, endDate, targetMonth, branches, dbUser, fetchOwnerBranchMetrics])
 
     const fetchInitialData = async () => {
         setLoading(true)
@@ -989,9 +1018,23 @@ export default function Dashboard() {
                             </div>
                             
                             <div className="flex items-center gap-3">
-                                <span className="bg-pink-50 text-ayumi-primary border border-pink-200 text-xs font-bold px-3.5 py-1.5 rounded-xl">
-                                    Periode: {currentMonthLabel}
-                                </span>
+                                <div className="flex items-center gap-2 bg-pink-50 text-ayumi-primary border border-pink-200 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
+                                    <svg className="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-gray-600 font-bold">Periode:</span>
+                                    <select
+                                        value={targetMonth}
+                                        onChange={(e) => setTargetMonth(e.target.value)}
+                                        className="bg-transparent border-none text-ayumi-primary font-extrabold focus:ring-0 cursor-pointer outline-none text-xs pr-1"
+                                    >
+                                        {targetMonthOptions.map(opt => (
+                                            <option key={opt.value} value={opt.value} className="text-gray-800 font-semibold">
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
