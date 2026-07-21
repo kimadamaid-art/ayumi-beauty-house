@@ -141,7 +141,7 @@ export default function Dashboard() {
             const tMonth = targetMonthVal || targetMonth
             
             // 1. Fetch transactions for selected date range with transaction items
-            const { data: rangeTrx } = await supabase
+            let { data: rangeTrx, error: trxError } = await supabase
                 .from('transactions')
                 .select(`
                     id, 
@@ -159,6 +159,28 @@ export default function Dashboard() {
                 `)
                 .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
                 .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+
+            // If original_price/discount_percent columns don't exist, fall back to basic query
+            if (trxError) {
+                console.warn('Full transaction fetch failed, trying basic query:', trxError.message)
+                const fallback = await supabase
+                    .from('transactions')
+                    .select(`
+                        id, 
+                        branch_id, 
+                        total,
+                        payment_method,
+                        transaction_items (
+                            item_type,
+                            name,
+                            quantity,
+                            subtotal
+                        )
+                    `)
+                    .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                    .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                rangeTrx = fallback.data
+            }
 
             const rangeMap = {}
             let grandTotalRange = 0
