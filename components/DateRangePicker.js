@@ -210,10 +210,10 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
             </button>
 
             {isOpen && (
-                <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-2 bg-white rounded-2xl border border-gray-150 shadow-2xl p-4 flex flex-col md:flex-row gap-4 z-50 min-w-[320px] md:min-w-[520px]`}>
+                <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-3.5 sm:p-4 flex flex-col md:flex-row gap-3 sm:gap-4 z-50 w-[calc(100vw-2.5rem)] sm:w-auto max-w-[350px] sm:max-w-none sm:min-w-[500px]`}>
                     
                     {/* Predefined Ranges Panel */}
-                    <div className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-visible shrink-0 pb-2 md:pb-0 md:border-r border-gray-100 pr-0 md:pr-4">
+                    <div className="flex flex-row md:flex-col gap-1.5 overflow-x-auto max-w-full shrink-0 pb-2 md:pb-0 md:border-r border-gray-100 pr-0 md:pr-4 custom-scrollbar">
                         <div className="hidden md:block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Rentang Cepat</div>
                         <button
                             type="button"

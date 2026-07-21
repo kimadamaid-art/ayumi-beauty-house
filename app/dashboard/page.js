@@ -644,13 +644,13 @@ export default function Dashboard() {
             {/* HERO BANNER OWNER / NON-OWNER */}
             {dbUser?.role === 'owner' ? (
                 /* HERO BANNER EKSKLUSIF OWNER - BISA PILIH SEMUA CABANG */
-                <div className="bg-gradient-to-r from-ayumi-secondary via-[#5c3316] to-[#6d3e1d] rounded-3xl p-6 md:p-8 text-white shadow-xl relative border border-white/10">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/15">
+                <div className="bg-gradient-to-r from-ayumi-secondary via-[#5c3316] to-[#6d3e1d] rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 text-white shadow-xl relative border border-white/10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 pb-5 sm:pb-6 border-b border-white/15">
                         <div className="space-y-1">
                             <span className="bg-white/15 text-pink-100 text-[10px] uppercase font-extrabold tracking-[0.2em] px-3.5 py-1 rounded-full border border-white/15 shadow-sm">
                                 EXECUTIVE BUSINESS SUMMARY
                             </span>
-                            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white mt-1.5">
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight text-white mt-1.5">
                                 Rekap Omset Perusahaan
                             </h2>
                             <p className="text-xs text-pink-100/80 font-medium">
@@ -662,7 +662,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2">
                             <button 
                                 onClick={handlePrintSummary}
-                                className="bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-white/20 shadow-sm transition-all flex items-center gap-2"
+                                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-white/20 shadow-sm transition-all flex items-center justify-center gap-2"
                             >
                                 <svg className="w-4 h-4 text-ayumi-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                 <span>Cetak Laporan</span>
@@ -671,22 +671,22 @@ export default function Dashboard() {
                     </div>
 
                     {/* 3 KPI Cards: Total Omset Perusahaan, Total Transaksi, Top Branch */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-5 pt-6">
-                        <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1.5 shadow-inner">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 pt-5 sm:pt-6">
+                        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1 shadow-inner">
                             <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Total Omset Perusahaan</span>
-                            <p className="text-2xl font-extrabold tracking-tight text-emerald-300">Rp {companyTotals.rangeIncome.toLocaleString('id-ID')}</p>
+                            <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-emerald-300">Rp {companyTotals.rangeIncome.toLocaleString('id-ID')}</p>
                             <p className="text-[11px] text-emerald-100/80 font-semibold">Periode Terpilih ({branches.length} Cabang)</p>
                         </div>
 
-                        <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1.5 shadow-inner">
+                        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1 shadow-inner">
                             <span className="text-[10px] font-bold text-pink-200 uppercase tracking-widest">Total Transaksi Perusahaan</span>
-                            <p className="text-2xl font-extrabold tracking-tight text-white">{companyTotals.rangeTxCount} <span className="text-sm font-sans font-bold">Transaksi</span></p>
+                            <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">{companyTotals.rangeTxCount} <span className="text-xs font-sans font-bold">Transaksi</span></p>
                             <p className="text-[11px] text-pink-100/70 font-semibold">Akumulasi Seluruh Cabang</p>
                         </div>
 
-                        <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1.5 shadow-inner">
+                        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1 shadow-inner">
                             <span className="text-[10px] font-bold text-ayumi-accent uppercase tracking-widest">Top Performing Branch</span>
-                            <p className="text-xl font-black text-ayumi-accent truncate">{companyTotals.topBranchName}</p>
+                            <p className="text-lg sm:text-xl font-black text-ayumi-accent truncate">{companyTotals.topBranchName}</p>
                             <p className="text-[11px] text-pink-100/70 font-semibold">Omset Tertinggi Periode Terpilih</p>
                         </div>
                     </div>
@@ -753,7 +753,7 @@ export default function Dashboard() {
 
             {/* WIDGET KEUANGAN UTAMA (NON-OWNER / ADMIN ONLY) - TERHUBUNG INTERAKTIF */}
             {dbUser?.role !== 'owner' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
                     {/* Card 1: Pendapatan Hari Ini */}
                     <div 
                         onClick={() => router.push('/transactions')}
@@ -834,12 +834,12 @@ export default function Dashboard() {
             {dbUser?.role === 'owner' ? (
                 <div className="space-y-6">
                     {/* SECTION 1: PERBANDINGAN OMSET (TREATMENT vs PRODUK) ANTA CABANG */}
-                    <div className="card-ayumi p-6 md:p-7 bg-white space-y-5 shadow-md border border-gray-200 rounded-3xl">
+                    <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
                             <div>
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-6 bg-ayumi-primary rounded-full"></div>
-                                    <h3 className="text-xl font-extrabold text-[#5c3316]">Perbandingan Omset (Treatment & Produk) per Cabang</h3>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316]">Perbandingan Omset (Treatment & Produk) per Cabang</h3>
                                 </div>
                                 <p className="text-xs text-gray-600 font-semibold mt-1 pl-4">
                                     Visualisasi perbandingan omset treatment dan produk antar cabang untuk rentang periode terpilih.
@@ -847,8 +847,8 @@ export default function Dashboard() {
                             </div>
 
                             {/* Toolbar Kontrol: Rentang Waktu (DateRangePicker) & Cabang Selector */}
-                            <div className="flex flex-wrap items-center gap-3 shrink-0">
-                                <div className="flex flex-col gap-1">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+                                <div className="flex flex-col gap-1 w-full sm:w-auto">
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Rentang Waktu</span>
                                     <DateRangePicker
                                         startDate={startDate}
@@ -858,38 +858,40 @@ export default function Dashboard() {
                                             setEndDate(e)
                                         }}
                                         align="right"
-                                        inputClassName="bg-pink-50 hover:bg-pink-100/70 text-ayumi-secondary border border-pink-200 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-sm transition-colors cursor-pointer"
+                                        inputClassName="w-full sm:w-auto bg-pink-50 hover:bg-pink-100/70 text-ayumi-secondary border border-pink-200 font-extrabold text-xs px-3.5 py-2 rounded-2xl shadow-sm transition-colors cursor-pointer justify-between"
                                     />
                                 </div>
 
-                                <div className="flex flex-col gap-1">
+                                <div className="flex flex-col gap-1 w-full sm:w-auto">
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Cabang Terpilih</span>
-                                    <div className="flex items-center gap-2 bg-pink-50 border border-pink-200 px-3.5 py-2 rounded-2xl shadow-sm transition-colors">
-                                        <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
-                                        <select 
-                                            value={selectedBranch}
-                                            onChange={(e) => setSelectedBranch(e.target.value)}
-                                            className="bg-transparent border-none text-ayumi-secondary text-xs focus:ring-0 cursor-pointer font-extrabold outline-none pr-4"
-                                        >
-                                            <option value="" className="text-gray-800">Semua Cabang (Global)</option>
-                                            {branches.map(b => (
-                                                <option key={b.id} value={b.id} className="text-gray-800">{b.name}</option>
-                                            ))}
-                                        </select>
+                                    <div className="flex items-center justify-between gap-2 bg-pink-50 border border-pink-200 px-3.5 py-2 rounded-2xl shadow-sm transition-colors w-full sm:w-auto">
+                                        <div className="flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                            <select 
+                                                value={selectedBranch}
+                                                onChange={(e) => setSelectedBranch(e.target.value)}
+                                                className="bg-transparent border-none text-ayumi-secondary text-xs focus:ring-0 cursor-pointer font-extrabold outline-none pr-4 w-full"
+                                            >
+                                                <option value="" className="text-gray-800">Semua Cabang (Global)</option>
+                                                {branches.map(b => (
+                                                    <option key={b.id} value={b.id} className="text-gray-800">{b.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Recharts Bar Chart Grouped */}
-                        <div className="h-72 w-full pt-2">
+                        <div className="h-64 sm:h-72 w-full pt-2">
                             {isMounted && branchDailyComparison.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart 
                                         data={branchDailyComparison} 
                                         barGap={6} 
                                         barCategoryGap="28%"
-                                        margin={{ top: 25, right: 20, left: 15, bottom: 20 }}
+                                        margin={{ top: 20, right: 10, left: -10, bottom: 20 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis 
@@ -927,7 +929,7 @@ export default function Dashboard() {
                         </div>
 
                         {/* Cards Breakdown Omset per Cabang */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
                             {branchDailyComparison.map(b => (
                                 <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-2.5 shadow-sm hover:shadow-md transition-all group">
                                     <div className="pb-1.5 border-b border-gray-100">
@@ -965,13 +967,13 @@ export default function Dashboard() {
                     </div>
 
                     {/* SECTION 2: MONITORING TARGET BULANAN PER CABANG */}
-                    <div className="card-ayumi p-6 md:p-7 bg-white space-y-6 shadow-sm border border-gray-200 rounded-3xl">
+                    <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-6 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
                         {/* Header Section */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-gray-200">
                             <div>
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-6 bg-ayumi-primary rounded-full"></div>
-                                    <h3 className="text-xl font-extrabold text-[#5c3316]">Monitoring Target Bulanan per Cabang</h3>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316]">Monitoring Target Bulanan per Cabang</h3>
                                 </div>
                                 <p className="text-xs text-gray-600 font-semibold mt-1 pl-4">
                                     Pantau persentase pencapaian omset bulan ini dibanding target operasional tiap cabang.
@@ -1017,7 +1019,7 @@ export default function Dashboard() {
                         )}
 
                         {/* Grid Cards Target per Cabang */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5">
                             {branchMonthlyTargetData.map(item => {
                                 const rawPct = Number(item.rawPercent || 0)
                                 const isTargetSet = item.monthlyTarget > 0
