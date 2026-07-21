@@ -1037,11 +1037,12 @@ export default function Dashboard() {
                                     return (
                                         <div 
                                             key={item.branchId} 
-                                            className="p-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 flex flex-col justify-between space-y-3"
+                                            onClick={handleOpenTargetModal}
+                                            className="p-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 hover:bg-white hover:border-pink-300 transition-all cursor-pointer flex flex-col justify-between group space-y-3"
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <h4 className="font-extrabold text-base text-gray-900">{item.branchName}</h4>
+                                                    <h4 className="font-extrabold text-base text-gray-900 group-hover:text-ayumi-primary transition-colors">{item.branchName}</h4>
                                                     <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional Cabang</p>
                                                 </div>
                                                 <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 border border-gray-200">
@@ -1051,8 +1052,8 @@ export default function Dashboard() {
 
                                             <div className="py-2 flex items-center justify-between">
                                                 <span className="text-xs text-gray-500 font-medium">Omset Saat Ini: <strong className="text-gray-900 font-bold">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
-                                                <span className="text-xs text-gray-400 font-medium italic">
-                                                    Target belum ditentukan
+                                                <span className="text-xs font-bold text-ayumi-primary group-hover:underline flex items-center gap-1">
+                                                    + Set Target
                                                 </span>
                                             </div>
                                         </div>
