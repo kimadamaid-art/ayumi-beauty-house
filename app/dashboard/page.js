@@ -58,25 +58,25 @@ export default function Dashboard() {
         const now = new Date()
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     })
+    const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false)
+    const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
 
     const monthNamesIndo = useMemo(() => [
         'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ], [])
 
-    const targetMonthOptions = useMemo(() => {
-        const options = []
-        const now = new Date()
-        const currentYear = now.getFullYear()
-        for (let y = currentYear - 1; y <= currentYear + 1; y++) {
-            for (let m = 0; m < 12; m++) {
-                const val = `${y}-${String(m + 1).padStart(2, '0')}`
-                const label = `${monthNamesIndo[m]} ${y}`
-                options.push({ value: val, label })
-            }
-        }
-        return options
-    }, [monthNamesIndo])
+    const shortMonthNames = useMemo(() => [
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+        'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ], [])
+
+    const currentMonthLabel = useMemo(() => {
+        if (!targetMonth) return ''
+        const [yStr, mStr] = targetMonth.split('-')
+        const mIdx = (parseInt(mStr, 10) || 1) - 1
+        return `${monthNamesIndo[mIdx]} ${yStr}`
+    }, [targetMonth, monthNamesIndo])
 
     // Widget States (Non-owner)
     const [statAppointments, setStatAppointments] = useState(0)
@@ -651,7 +651,6 @@ export default function Dashboard() {
         window.print()
     }
 
-    const currentMonthLabel = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
     const userBranchName = branches.find(b => b.id === (dbUser?.branch_id || selectedBranch))?.name || 'Cabang Klinik'
 
     if (loading && !dbUser) {
@@ -1018,22 +1017,70 @@ export default function Dashboard() {
                             </div>
                             
                             <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-pink-50 text-ayumi-primary border border-pink-200 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
-                                    <svg className="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span className="text-gray-600 font-bold">Periode:</span>
-                                    <select
-                                        value={targetMonth}
-                                        onChange={(e) => setTargetMonth(e.target.value)}
-                                        className="bg-transparent border-none text-ayumi-primary font-extrabold focus:ring-0 cursor-pointer outline-none text-xs pr-1"
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                                        className="flex items-center gap-2 bg-pink-50 hover:bg-pink-100/80 text-ayumi-primary border border-pink-200 text-xs font-extrabold px-3.5 py-2 rounded-2xl shadow-sm transition-all cursor-pointer"
                                     >
-                                        {targetMonthOptions.map(opt => (
-                                            <option key={opt.value} value={opt.value} className="text-gray-800 font-semibold">
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        <svg className="w-4 h-4 text-ayumi-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>Periode: {currentMonthLabel}</span>
+                                        <svg className={`w-3.5 h-3.5 text-ayumi-primary transition-transform ${isMonthPickerOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+
+                                    {isMonthPickerOpen && (
+                                        <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-pink-150 shadow-2xl p-4 z-50 space-y-3">
+                                            {/* Header Year Switcher */}
+                                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPickerYear(prev => prev - 1)}
+                                                    className="p-1.5 hover:bg-pink-50 text-ayumi-primary rounded-xl transition-colors font-bold flex items-center justify-center cursor-pointer"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+                                                </button>
+                                                <span className="font-black text-gray-800 text-sm tracking-tight">{pickerYear}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPickerYear(prev => prev + 1)}
+                                                    className="p-1.5 hover:bg-pink-50 text-ayumi-primary rounded-xl transition-colors font-bold flex items-center justify-center cursor-pointer"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                                </button>
+                                            </div>
+
+                                            {/* 12 Months Grid */}
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {shortMonthNames.map((mName, idx) => {
+                                                    const monthVal = `${pickerYear}-${String(idx + 1).padStart(2, '0')}`
+                                                    const isSelected = targetMonth === monthVal
+
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setTargetMonth(monthVal)
+                                                                setIsMonthPickerOpen(false)
+                                                            }}
+                                                            className={`
+                                                                py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center
+                                                                ${isSelected 
+                                                                    ? 'bg-ayumi-primary text-white shadow-md shadow-pink-500/20 font-black' 
+                                                                    : 'bg-gray-50 hover:bg-pink-50 text-gray-700 hover:text-ayumi-primary'}
+                                                            `}
+                                                        >
+                                                            {mName}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
