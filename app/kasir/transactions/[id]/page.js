@@ -27,7 +27,11 @@ export default function ReceiptPage() {
                 branches (name, address, phone),
                 patients (full_name, whatsapp),
                 users:users!transactions_cashier_id_fkey(full_name),
-                transaction_items (*)
+                transaction_items (
+                    *,
+                    treatments (price),
+                    products (price)
+                )
             `)
             .eq('id', id)
             .single()
@@ -161,12 +165,20 @@ export default function ReceiptPage() {
             transaction.transaction_items?.forEach(item => {
                 const name = item.name.length > 32 ? item.name.slice(0, 32) : item.name
                 chunks.push(line(name))
-                const hasDisc = (item.discount_percent > 0) || (item.original_price && item.original_price > item.price)
-                const origP = item.original_price || (hasDisc && item.discount_percent < 100 ? item.price / (1 - item.discount_percent / 100) : item.price)
+                
+                const catalogPrice = item.item_type === 'treatment' 
+                    ? Number(item.treatments?.price || 0)
+                    : item.item_type === 'product' 
+                        ? Number(item.products?.price || 0)
+                        : 0
+
+                const origPrice = Number(item.original_price) || catalogPrice || (item.discount_percent && item.discount_percent < 100 ? Math.round(item.price / (1 - item.discount_percent / 100)) : item.price)
+                const hasDisc = origPrice > (Number(item.price) + 1)
+                const discPct = item.discount_percent || (hasDisc ? Math.round(((origPrice - item.price) / origPrice) * 100) : 0)
                 
                 let priceStr = `${item.quantity}x @${Number(item.price).toLocaleString('id-ID')}`
-                if (hasDisc && item.discount_percent > 0) {
-                    priceStr += ` (-${item.discount_percent}%)`
+                if (hasDisc && discPct > 0) {
+                    priceStr += ` (-${discPct}%)`
                 }
                 const subStr = `Rp ${Number(item.subtotal).toLocaleString('id-ID')}`
                 const padSpaces = Math.max(1, 32 - priceStr.length - subStr.length)
@@ -238,10 +250,18 @@ export default function ReceiptPage() {
 
         const itemsText = transaction.transaction_items
             ?.map(i => {
-                const hasDisc = (i.discount_percent > 0) || (i.original_price && i.original_price > i.price)
-                const origP = i.original_price || (hasDisc && i.discount_percent < 100 ? i.price / (1 - i.discount_percent / 100) : i.price)
-                const strikeStr = hasDisc && origP > i.price ? ` ~Rp ${Number(origP).toLocaleString('id-ID')}~` : ''
-                const discTag = i.discount_percent > 0 ? ` (-${i.discount_percent}%)` : ''
+                const catalogPrice = i.item_type === 'treatment' 
+                    ? Number(i.treatments?.price || 0)
+                    : i.item_type === 'product' 
+                        ? Number(i.products?.price || 0)
+                        : 0
+
+                const origPrice = Number(i.original_price) || catalogPrice || (i.discount_percent && i.discount_percent < 100 ? Math.round(i.price / (1 - i.discount_percent / 100)) : i.price)
+                const hasDisc = origPrice > (Number(i.price) + 1)
+                const discPct = i.discount_percent || (hasDisc ? Math.round(((origPrice - i.price) / origPrice) * 100) : 0)
+
+                const strikeStr = hasDisc ? ` ~Rp ${Number(origPrice).toLocaleString('id-ID')}~` : ''
+                const discTag = discPct > 0 ? ` (-${discPct}%)` : ''
                 return `- ${i.name} (${i.quantity}x)${strikeStr}${discTag} : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`
             })
             .join('%0A') || ''
@@ -423,14 +443,21 @@ export default function ReceiptPage() {
                     
                     <div className="space-y-3">
                         {transaction.transaction_items?.map((item) => {
-                            const hasDiscount = (item.discount_percent > 0) || (item.original_price && Number(item.original_price) > Number(item.price))
-                            const origPrice = Number(item.original_price) || (hasDiscount && item.discount_percent < 100 ? item.price / (1 - item.discount_percent / 100) : item.price)
+                            const catalogPrice = item.item_type === 'treatment' 
+                                ? Number(item.treatments?.price || 0)
+                                : item.item_type === 'product' 
+                                    ? Number(item.products?.price || 0)
+                                    : 0
+
+                            const origPrice = Number(item.original_price) || catalogPrice || (item.discount_percent && item.discount_percent < 100 ? Math.round(item.price / (1 - item.discount_percent / 100)) : item.price)
+                            const hasDiscount = origPrice > (Number(item.price) + 1)
+                            const discPct = item.discount_percent || (hasDiscount ? Math.round(((origPrice - item.price) / origPrice) * 100) : 0)
                             
                             return (
                                 <div key={item.id} className="grid grid-cols-12 text-sm items-start">
                                     <div className="col-span-6">
                                         <p className="font-bold text-gray-800 leading-tight pr-2">{item.name}</p>
-                                        {hasDiscount && origPrice > item.price ? (
+                                        {hasDiscount ? (
                                             <div className="flex items-center gap-1.5 flex-wrap text-[10px] mt-0.5">
                                                 <span className="line-through text-gray-400 font-medium">
                                                     Rp {Number(origPrice).toLocaleString('id-ID')}
@@ -438,9 +465,9 @@ export default function ReceiptPage() {
                                                 <span className="text-ayumi-primary font-extrabold">
                                                     Rp {Number(item.price).toLocaleString('id-ID')}
                                                 </span>
-                                                {item.discount_percent > 0 && (
+                                                {discPct > 0 && (
                                                     <span className="bg-rose-50 text-rose-600 font-extrabold px-1 rounded text-[9px] border border-rose-100">
-                                                        -{item.discount_percent}%
+                                                        -{discPct}%
                                                     </span>
                                                 )}
                                             </div>
