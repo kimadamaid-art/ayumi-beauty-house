@@ -982,13 +982,6 @@ export default function Dashboard() {
                                 <span className="bg-pink-50 text-ayumi-primary border border-pink-200 text-xs font-bold px-3.5 py-1.5 rounded-xl">
                                     Periode: {currentMonthLabel}
                                 </span>
-                                <button 
-                                    onClick={handleOpenTargetModal}
-                                    className="btn-primary text-xs px-4 py-2 flex items-center gap-2 font-extrabold shadow-sm hover:shadow transition-all"
-                                >
-                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                    <span>Atur Target Bulanan</span>
-                                </button>
                             </div>
                         </div>
 
@@ -1044,12 +1037,11 @@ export default function Dashboard() {
                                     return (
                                         <div 
                                             key={item.branchId} 
-                                            onClick={handleOpenTargetModal}
-                                            className="p-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 hover:bg-white hover:border-pink-300 transition-all cursor-pointer flex flex-col justify-between group space-y-3"
+                                            className="p-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 flex flex-col justify-between space-y-3"
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <h4 className="font-extrabold text-base text-gray-900 group-hover:text-ayumi-primary transition-colors">{item.branchName}</h4>
+                                                    <h4 className="font-extrabold text-base text-gray-900">{item.branchName}</h4>
                                                     <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional Cabang</p>
                                                 </div>
                                                 <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 border border-gray-200">
@@ -1059,8 +1051,8 @@ export default function Dashboard() {
 
                                             <div className="py-2 flex items-center justify-between">
                                                 <span className="text-xs text-gray-500 font-medium">Omset Saat Ini: <strong className="text-gray-900 font-bold">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
-                                                <span className="text-xs font-bold text-ayumi-primary group-hover:underline flex items-center gap-1">
-                                                    + Set Target
+                                                <span className="text-xs text-gray-400 font-medium italic">
+                                                    Target belum ditentukan
                                                 </span>
                                             </div>
                                         </div>
