@@ -316,13 +316,14 @@ export default function TreatmentInputPage({ params }) {
                 }
 
                 // Auto-schedule follow-up bertahap: 2 minggu, 3 minggu & 1 bulan
+                const baseDateStr = appointment.appointment_date || new Date().toISOString().split('T')[0]
                 const followupSteps = [
                     { days: 14, type: 'followup_2minggu', priority: 'normal' },
                     { days: 21, type: 'followup_3minggu', priority: 'normal' },
                     { days: 30, type: 'followup_1bulan', priority: 'normal' }
                 ]
                 followupSteps.forEach(step => {
-                    const scheduledDate = new Date()
+                    const scheduledDate = new Date(baseDateStr + 'T00:00:00')
                     scheduledDate.setDate(scheduledDate.getDate() + step.days)
                     queuesToInsert.push({
                         patient_id: appointment.patient_id,
@@ -341,7 +342,10 @@ export default function TreatmentInputPage({ params }) {
             if (itemsErr) throw itemsErr
 
             if (queuesToInsert.length > 0) {
-                await supabase.from('followup_queue').insert(queuesToInsert)
+                const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
+                if (queueErr) {
+                    console.error('Error inserting followup queue:', queueErr)
+                }
             }
 
             if (couponLogsToInsert.length > 0) {

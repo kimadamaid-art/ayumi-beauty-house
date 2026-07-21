@@ -184,7 +184,8 @@ export default function Dashboard() {
 
             const rangeMap = {}
             let grandTotalRange = 0
-            let grandCouponRange = 0
+            let grandCouponSalesRange = 0
+            let grandCouponUsedRange = 0
             let totalTxCountRange = 0
             const methodMap = {}
             const treatmentMap = {}
@@ -196,8 +197,10 @@ export default function Dashboard() {
                     branchName: b.name,
                     treatmentIncome: 0,
                     productIncome: 0,
-                    couponIncome: 0,
+                    couponSalesIncome: 0,
+                    couponUsedValue: 0,
                     otherIncome: 0,
+                    cashIncome: 0,
                     totalIncome: 0,
                     transactionCount: 0
                 }
@@ -216,7 +219,8 @@ export default function Dashboard() {
                         
                         let txTreatment = 0
                         let txProduct = 0
-                        let txCoupon = 0
+                        let txCouponSales = 0
+                        let txCouponUsed = 0
                         let txOther = 0
 
                         if (tx.transaction_items && tx.transaction_items.length > 0) {
@@ -231,8 +235,11 @@ export default function Dashboard() {
                                 const couponValue = isCouponUsed ? origPrice * itemQty : 0
 
                                 if (item.item_type === 'treatment') {
-                                    txTreatment += itemSub
-                                    txCoupon += couponValue
+                                    if (isCouponUsed) {
+                                        txCouponUsed += couponValue
+                                    } else {
+                                        txTreatment += itemSub
+                                    }
                                     const effectiveRevenue = itemSub + couponValue
                                     if (!treatmentMap[itemName]) {
                                         treatmentMap[itemName] = { name: itemName, count: 0, revenue: 0 }
@@ -246,6 +253,8 @@ export default function Dashboard() {
                                     }
                                     productMap[itemName].count += itemQty
                                     productMap[itemName].revenue += itemSub
+                                } else if (item.item_type === 'coupon') {
+                                    txCouponSales += itemSub
                                 } else {
                                     txOther += itemSub
                                 }
@@ -256,14 +265,18 @@ export default function Dashboard() {
 
                         branchObj.treatmentIncome += txTreatment
                         branchObj.productIncome += txProduct
-                        branchObj.couponIncome += txCoupon
+                        branchObj.couponSalesIncome += txCouponSales
+                        branchObj.couponUsedValue += txCouponUsed
                         branchObj.otherIncome += txOther
                         
-                        // Total income = cash paid + coupon value used
-                        const totalTxAmt = (txTreatment + txProduct + txCoupon + txOther) || Number(tx.total || 0)
-                        branchObj.totalIncome += totalTxAmt
-                        grandTotalRange += totalTxAmt
-                        grandCouponRange += txCoupon
+                        const realCash = txTreatment + txProduct + txCouponSales + txOther
+                        const totalValuation = realCash + txCouponUsed
+
+                        branchObj.cashIncome += realCash
+                        branchObj.totalIncome += totalValuation
+                        grandTotalRange += realCash
+                        grandCouponSalesRange += txCouponSales
+                        grandCouponUsedRange += txCouponUsed
                     }
                 })
             }
@@ -359,7 +372,8 @@ export default function Dashboard() {
             setCompanyTotals({
                 monthlyTarget: totalCompanyTarget,
                 rangeIncome: grandTotalRange,
-                rangeCouponIncome: grandCouponRange,
+                rangeCouponSalesIncome: grandCouponSalesRange,
+                rangeCouponUsedValue: grandCouponUsedRange,
                 rangeTxCount: totalTxCountRange,
                 topBranchName: topBranch !== '-' ? topBranch : (formattedRangeComp[0]?.branchName || '-')
             })
@@ -991,8 +1005,10 @@ export default function Dashboard() {
                                             align="center"
                                             wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '12px', color: '#0f172a' }} 
                                         />
-                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#B5588A" radius={[5, 5, 0, 0]} maxBarSize={28} />
-                                        <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={28} />
+                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#B5588A" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <Bar dataKey="couponUsedValue" name="Pemakaian Kupon" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -1005,48 +1021,55 @@ export default function Dashboard() {
                         {/* Cards Breakdown Omset per Cabang */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
                             {branchDailyComparison.map(b => (
-                                <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-2.5 shadow-sm hover:shadow-md transition-all group">
-                                    <div className="pb-1.5 border-b border-gray-100">
-                                        <h4 className="font-extrabold text-base text-gray-900">
-                                            {b.branchName}
-                                        </h4>
-                                    </div>
+                                <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-2.5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                                    <div>
+                                        <div className="pb-2 mb-2 border-b border-gray-100">
+                                            <h4 className="font-extrabold text-base text-gray-900">
+                                                {b.branchName}
+                                            </h4>
+                                        </div>
 
-                                    <div className="space-y-1.5 pt-0.5">
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                <span className="w-2.5 h-2.5 rounded-full bg-[#B5588A] shrink-0"></span>
-                                                Treatment:
-                                            </span>
-                                            <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.treatmentIncome.toLocaleString('id-ID')}</strong>
-                                        </div>
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                <span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4] shrink-0"></span>
-                                                Produk:
-                                            </span>
-                                            <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.productIncome.toLocaleString('id-ID')}</strong>
-                                        </div>
-                                        {b.couponIncome > 0 && (
+                                        <div className="space-y-1.5 pt-0.5">
                                             <div className="flex justify-between items-center text-xs">
-                                                <span className="text-orange-600 font-bold flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0"></span>
-                                                    🎟️ Kupon Paket:
+                                                <span className="text-gray-700 font-bold flex items-center gap-1.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#B5588A] shrink-0"></span>
+                                                    Treatment:
                                                 </span>
-                                                <strong className="text-orange-600 font-extrabold tracking-tight">Rp {b.couponIncome.toLocaleString('id-ID')}</strong>
+                                                <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.treatmentIncome.toLocaleString('id-ID')}</strong>
                                             </div>
-                                        )}
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-700 font-bold flex items-center gap-1.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4] shrink-0"></span>
+                                                    Produk:
+                                                </span>
+                                                <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.productIncome.toLocaleString('id-ID')}</strong>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                    Penjualan Kupon:
+                                                </span>
+                                                <strong className="text-emerald-700 font-extrabold tracking-tight">Rp {b.couponSalesIncome.toLocaleString('id-ID')}</strong>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs pt-1 border-t border-dashed border-gray-200">
+                                                <span className="text-amber-700 font-bold flex items-center gap-1.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                    Pemakaian Kupon:
+                                                </span>
+                                                <strong className="text-amber-700 font-extrabold tracking-tight">Rp {b.couponUsedValue.toLocaleString('id-ID')}</strong>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="pt-2 border-t border-gray-100 flex justify-between items-baseline">
+                                    <div className="pt-2 border-t border-gray-100 flex justify-between items-end">
                                         <div>
-                                            <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Omset</p>
-                                            <p className="text-lg font-black text-[#5c3316] tracking-tight">Rp {b.totalIncome.toLocaleString('id-ID')}</p>
+                                            <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Omset Tunai</p>
+                                            <p className="text-base font-black text-[#5c3316] tracking-tight">Rp {b.cashIncome.toLocaleString('id-ID')}</p>
                                         </div>
-                                        {b.couponIncome > 0 && (
+                                        {b.couponUsedValue > 0 && (
                                             <div className="text-right">
-                                                <p className="text-[9px] text-orange-500 font-bold uppercase">Termasuk Kupon</p>
-                                                <p className="text-xs font-extrabold text-orange-500">Rp {b.couponIncome.toLocaleString('id-ID')}</p>
+                                                <p className="text-[9px] text-amber-600 font-bold uppercase">+ Klaim Kupon</p>
+                                                <p className="text-xs font-extrabold text-amber-600">Rp {b.couponUsedValue.toLocaleString('id-ID')}</p>
                                             </div>
                                         )}
                                     </div>
@@ -1148,13 +1171,20 @@ export default function Dashboard() {
                                     <div>
                                         <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Ringkasan Total Perusahaan</p>
                                         <p className="text-sm font-extrabold text-gray-900 mt-0.5">
-                                            Total Omset: <span className="text-emerald-700 font-bold">Rp {companyTotals.rangeIncome?.toLocaleString('id-ID') || 0}</span> <span className="text-gray-500 font-normal text-xs">/ Rp {companyTotals.monthlyTarget.toLocaleString('id-ID')}</span>
+                                            Total Omset Tunai: <span className="text-emerald-700 font-bold">Rp {companyTotals.rangeIncome?.toLocaleString('id-ID') || 0}</span> <span className="text-gray-500 font-normal text-xs">/ Rp {companyTotals.monthlyTarget.toLocaleString('id-ID')}</span>
                                         </p>
-                                        {(companyTotals.rangeCouponIncome || 0) > 0 && (
-                                            <p className="text-xs font-bold text-orange-600 mt-0.5">
-                                                🎟️ Termasuk nilai kupon: Rp {(companyTotals.rangeCouponIncome || 0).toLocaleString('id-ID')}
-                                            </p>
-                                        )}
+                                        <div className="flex flex-wrap gap-x-4 text-xs font-bold mt-1">
+                                            {(companyTotals.rangeCouponSalesIncome || 0) > 0 && (
+                                                <span className="text-emerald-700">
+                                                    🎟️ Penjualan Kupon: Rp {(companyTotals.rangeCouponSalesIncome || 0).toLocaleString('id-ID')}
+                                                </span>
+                                            )}
+                                            {(companyTotals.rangeCouponUsedValue || 0) > 0 && (
+                                                <span className="text-amber-700">
+                                                    🎟️ Pemakaian Kupon (Klaim): Rp {(companyTotals.rangeCouponUsedValue || 0).toLocaleString('id-ID')}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-amber-200/80 pt-3 md:pt-0 md:pl-5 shrink-0">

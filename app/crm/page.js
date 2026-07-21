@@ -574,6 +574,22 @@ export default function CRMPage() {
         ).slice(0, 10)
     }, [allPatients, patientSearch])
 
+    // Helper to determine effective followup type (supports fallback treatment_reminder)
+    const getEffectiveFollowupType = (q) => {
+        if (q.followup_type && q.followup_type !== 'treatment_reminder') {
+            return q.followup_type
+        }
+        if (q.treatment_records?.treatment_date && q.scheduled_date) {
+            const tDate = new Date(q.treatment_records.treatment_date + 'T00:00:00')
+            const sDate = new Date(q.scheduled_date + 'T00:00:00')
+            const diffDays = Math.round((sDate - tDate) / (1000 * 60 * 60 * 24))
+            if (diffDays >= 25) return 'followup_1bulan'
+            if (diffDays >= 18) return 'followup_3minggu'
+            if (diffDays >= 10) return 'followup_2minggu'
+        }
+        return q.followup_type || 'followup_2minggu'
+    }
+
     // --- FILTERED DATA LISTS ---
     const filteredQueue = useMemo(() => {
         return queue.filter(q => {
@@ -581,7 +597,8 @@ export default function CRMPage() {
                 q.patients?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 q.patients?.whatsapp?.includes(searchTerm);
             const matchPriority = priorityFilter === 'All' || q.priority === priorityFilter;
-            const matchType = typeFilter === 'All' || q.followup_type === typeFilter;
+            const effectiveType = getEffectiveFollowupType(q);
+            const matchType = typeFilter === 'All' || effectiveType === typeFilter || q.followup_type === typeFilter;
             const matchBranch = branchFilter === 'All' || 
                 q.branch_id === branchFilter || 
                 (q.treatment_records && q.treatment_records.branch_id === branchFilter);
@@ -777,19 +794,19 @@ export default function CRMPage() {
                                             onClick={() => setTypeFilter('followup_2minggu')}
                                             className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'followup_2minggu' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
-                                            📋 2 Minggu ({queue.filter(q => q.followup_type === 'followup_2minggu').length})
+                                            📋 2 Minggu ({queue.filter(q => getEffectiveFollowupType(q) === 'followup_2minggu').length})
                                         </button>
                                         <button
                                             onClick={() => setTypeFilter('followup_3minggu')}
                                             className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'followup_3minggu' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
-                                            📋 3 Minggu ({queue.filter(q => q.followup_type === 'followup_3minggu').length})
+                                            📋 3 Minggu ({queue.filter(q => getEffectiveFollowupType(q) === 'followup_3minggu').length})
                                         </button>
                                         <button
                                             onClick={() => setTypeFilter('followup_1bulan')}
                                             className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'followup_1bulan' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
-                                            📋 1 Bulan ({queue.filter(q => q.followup_type === 'followup_1bulan').length})
+                                            📋 1 Bulan ({queue.filter(q => getEffectiveFollowupType(q) === 'followup_1bulan').length})
                                         </button>
                                     </div>
                                 </div>
@@ -821,6 +838,7 @@ export default function CRMPage() {
                                                         <td className="p-4">
                                                             <div className="text-xs font-bold uppercase">
                                                                 {(() => {
+                                                                    const effType = getEffectiveFollowupType(q)
                                                                     const typeLabels = {
                                                                         'followup_2minggu': { label: 'Cek Progres 2 Minggu', color: 'text-indigo-700' },
                                                                         'followup_3minggu': { label: 'Cek Progres 3 Minggu', color: 'text-blue-700' },
@@ -830,7 +848,7 @@ export default function CRMPage() {
                                                                         'dormant_reminder': { label: 'Sapaan Dormant', color: 'text-orange-700' },
                                                                         'birthday': { label: 'Ulang Tahun', color: 'text-pink-700' }
                                                                     }
-                                                                    const info = typeLabels[q.followup_type] || { label: q.followup_type?.replace(/_/g, ' ') || '-', color: 'text-gray-600' }
+                                                                    const info = typeLabels[effType] || { label: effType?.replace(/_/g, ' ') || '-', color: 'text-gray-600' }
                                                                     return <span className={info.color}>{info.label}</span>
                                                                 })()}
                                                             </div>
