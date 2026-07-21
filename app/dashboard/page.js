@@ -889,38 +889,44 @@ export default function Dashboard() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart 
                                         data={branchDailyComparison} 
-                                        barGap={6} 
-                                        barCategoryGap="28%"
-                                        margin={{ top: 20, right: 10, left: -10, bottom: 20 }}
+                                        barGap={4} 
+                                        barCategoryGap="18%"
+                                        margin={{ top: 15, right: 10, left: 0, bottom: 20 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis 
                                             dataKey="branchName" 
                                             interval={0}
                                             tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
-                                            tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} 
+                                            tick={{ fontSize: 10, fontWeight: 700, fill: '#1e293b' }} 
                                             axisLine={{ stroke: '#cbd5e1' }}
                                             tickLine={false} 
                                         />
                                         <YAxis 
-                                            tickFormatter={(val) => val >= 1000000 ? (val/1000000).toFixed(1) + ' Jt' : val.toLocaleString('id-ID')}
-                                            tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }}
+                                            width={42}
+                                            tickFormatter={(val) => {
+                                                if (val === 0) return '0'
+                                                if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.0', '') + ' Jt'
+                                                if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
+                                                return val
+                                            }}
+                                            tick={{ fontSize: 10, fontWeight: 600, fill: '#475569' }}
                                             axisLine={false}
                                             tickLine={false}
                                         />
                                         <RechartsTooltip 
                                             formatter={(value, name) => ['Rp ' + Number(value).toLocaleString('id-ID'), name]}
                                             itemSorter={(item) => (item.name.includes('Treatment') ? -1 : 1)}
-                                            labelStyle={{ fontWeight: 'bold', color: '#5c3316', fontSize: '14px' }}
-                                            contentStyle={{ borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', border: '1px solid #f472b6', padding: '12px 16px' }}
+                                            labelStyle={{ fontWeight: 'bold', color: '#5c3316', fontSize: '13px' }}
+                                            contentStyle={{ borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', border: '1px solid #f472b6', padding: '10px 14px' }}
                                         />
                                         <Legend 
                                             verticalAlign="top" 
                                             align="center"
-                                            wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '13px', color: '#0f172a' }} 
+                                            wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '12px', color: '#0f172a' }} 
                                         />
-                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#B5588A" radius={[6, 6, 0, 0]} maxBarSize={38} />
-                                        <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[6, 6, 0, 0]} maxBarSize={38} />
+                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#B5588A" radius={[5, 5, 0, 0]} maxBarSize={28} />
+                                        <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={28} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             ) : (
