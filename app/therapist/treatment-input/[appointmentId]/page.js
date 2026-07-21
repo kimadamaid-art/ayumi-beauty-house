@@ -19,6 +19,7 @@ export default function TreatmentInputPage({ params }) {
     const [saving, setSaving] = useState(false)
     const [appointment, setAppointment] = useState(null)
     const [dbUser, setDbUser] = useState(null)
+    const [existingRecordId, setExistingRecordId] = useState(null)
 
     // Master data
     const [treatmentsMaster, setTreatmentsMaster] = useState([])
@@ -106,26 +107,48 @@ export default function TreatmentInputPage({ params }) {
                 return
             }
 
-            // Check if treatment_record already exists
+            setAppointment(aptData)
+
+            // Check if treatment_record already exists for this appointment
             const { data: existingRecord } = await supabase
                 .from('treatment_records')
-                .select('id')
+                .select(`
+                    *,
+                    treatment_record_items (
+                        id, treatment_id, price_at_time, original_price, discount_percent, notes, treatments (name, followup_days, commission_percent)
+                    )
+                `)
                 .eq('appointment_id', aptData.id)
                 .maybeSingle()
 
             if (existingRecord) {
-                toast('Treatment sudah diinput sebelumnya.')
-                router.push(`/treatment-records/${existingRecord.id}`)
-                return
-            }
+                setExistingRecordId(existingRecord.id)
+                setFormData({
+                    complaints: existingRecord.complaints || aptData.notes || '',
+                    skin_condition: existingRecord.skin_condition || '',
+                    result_notes: existingRecord.result_notes || '',
+                    recommendation: existingRecord.recommendation || ''
+                })
 
-            setAppointment(aptData)
-            
-            // Pre-fill complaints from appointment notes
-            setFormData(prev => ({
-                ...prev,
-                complaints: aptData.notes || ''
-            }))
+                if (existingRecord.treatment_record_items?.length > 0) {
+                    setSelectedTreatments(existingRecord.treatment_record_items.map(item => ({
+                        treatment_id: item.treatment_id,
+                        name: item.treatments?.name || 'Treatment',
+                        price_at_time: item.price_at_time || 0,
+                        original_price: item.original_price || item.price_at_time || 0,
+                        discount_percent: item.discount_percent || 0,
+                        followup_days: item.treatments?.followup_days || 0,
+                        notes: item.notes || '',
+                        commission_percent: item.commission_percent || 0
+                    })))
+                }
+            } else {
+                // Pre-fill complaints from appointment notes
+                setFormData(prev => ({
+                    ...prev,
+                    complaints: aptData.notes || ''
+                }))
+            }
         } else {
             toast.error('Jadwal tidak ditemukan')
             router.push('/therapist/dashboard')
@@ -220,27 +243,47 @@ export default function TreatmentInputPage({ params }) {
         setSaving(true)
 
         try {
-            // 1. Insert Treatment Record
-            const { data: recordData, error: recordError } = await supabase
-                .from('treatment_records')
-                .insert([{
-                    patient_id: appointment.patient_id,
-                    appointment_id: appointment.id,
-                    branch_id: appointment.branch_id,
-                    performed_by: dbUser.id,
-                    treatment_date: new Date().toISOString().split('T')[0],
-                    treatment_time: new Date().toTimeString().substring(0, 5),
-                    skin_condition: formData.skin_condition,
-                    complaints: formData.complaints,
-                    result_notes: formData.result_notes,
-                    recommendation: formData.recommendation,
-                    created_by: dbUser.id
-                }])
-                .select('id')
-                .single()
+            let recordId = existingRecordId
 
-            if (recordError) throw recordError
-            const recordId = recordData.id
+            if (existingRecordId) {
+                // Update existing record
+                const { error: updateError } = await supabase
+                    .from('treatment_records')
+                    .update({
+                        skin_condition: formData.skin_condition,
+                        complaints: formData.complaints,
+                        result_notes: formData.result_notes,
+                        recommendation: formData.recommendation
+                    })
+                    .eq('id', existingRecordId)
+
+                if (updateError) throw updateError
+
+                // Clear old items to re-insert fresh list
+                await supabase.from('treatment_record_items').delete().eq('treatment_record_id', existingRecordId)
+            } else {
+                // Insert new Treatment Record
+                const { data: recordData, error: recordError } = await supabase
+                    .from('treatment_records')
+                    .insert([{
+                        patient_id: appointment.patient_id,
+                        appointment_id: appointment.id,
+                        branch_id: appointment.branch_id,
+                        performed_by: dbUser.id,
+                        treatment_date: new Date().toISOString().split('T')[0],
+                        treatment_time: new Date().toTimeString().substring(0, 5),
+                        skin_condition: formData.skin_condition,
+                        complaints: formData.complaints,
+                        result_notes: formData.result_notes,
+                        recommendation: formData.recommendation,
+                        created_by: dbUser.id
+                    }])
+                    .select('id')
+                    .single()
+
+                if (recordError) throw recordError
+                recordId = recordData.id
+            }
 
             // 2. Insert Treatment Record Items + Followup Queue + Coupon Logs
             const itemsToInsert = []

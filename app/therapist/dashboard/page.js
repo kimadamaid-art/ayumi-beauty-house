@@ -459,27 +459,27 @@ export default function TherapistDashboard() {
                                                     </button>
                                                 )}
 
-                                                {isClaimedByMe && apt.arrival_status === 'arrived' && !isCompleted && (
-                                                    <button
-                                                        onClick={() => handleTherapistReady(apt)}
-                                                        className="text-[11px] font-bold text-white bg-yellow-500 hover:bg-yellow-600 px-3 py-1.5 rounded-lg transition-colors shadow-sm cursor-pointer"
-                                                    >
-                                                        Siap Menerima Pasien
-                                                    </button>
-                                                )}
+                                                {isClaimedByMe && apt.status !== 'cancelled' && (
+                                                    <div className="flex flex-col gap-1.5 items-end">
+                                                        {apt.arrival_status === 'arrived' && !isCompleted && (
+                                                            <button
+                                                                onClick={() => handleTherapistReady(apt)}
+                                                                className="text-[11px] font-bold text-white bg-yellow-500 hover:bg-yellow-600 px-3 py-1 rounded-lg transition-colors shadow-sm cursor-pointer"
+                                                            >
+                                                                Siap Menerima Pasien
+                                                            </button>
+                                                        )}
 
-                                                {isClaimedByMe && (apt.arrival_status === 'therapist_ready' || apt.arrival_status === 'in_treatment' || apt.arrival_status === 'not_arrived' || !apt.arrival_status) && !isCompleted && apt.status !== 'cancelled' && (
-                                                    <Link href={`/therapist/treatment-input/${apt.id}`}>
-                                                        <button className="text-[11px] font-bold text-white bg-pink-500 hover:bg-pink-600 px-3 py-1.5 rounded-lg transition-colors shadow-sm cursor-pointer">
-                                                            Mulai Treatment
-                                                        </button>
-                                                    </Link>
-                                                )}
-
-                                                {isClaimedByMe && isCompleted && (
-                                                    <span className="text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg">
-                                                        Selesai (SOAP)
-                                                    </span>
+                                                        <Link href={`/therapist/treatment-input/${apt.id}`}>
+                                                            <button className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-sm cursor-pointer ${
+                                                                isCompleted 
+                                                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                                                                    : 'bg-ayumi-primary hover:bg-ayumi-primary-hover text-white'
+                                                            }`}>
+                                                                {isCompleted ? '📝 Input / Edit SOAP' : '💆‍♀️ Treatment & SOAP'}
+                                                            </button>
+                                                        </Link>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
