@@ -110,8 +110,7 @@ export default function TreatmentRecordsPage() {
                 branch_id,
                 branches(name),
                 patients!inner(full_name, whatsapp),
-                users!treatment_records_performed_by_fkey(full_name),
-                therapist:users!treatment_records_therapist_id_fkey(full_name)
+                users:users!treatment_records_performed_by_fkey(full_name)
             `)
             .order('treatment_date', { ascending: false })
             .order('treatment_time', { ascending: false })
@@ -130,7 +129,7 @@ export default function TreatmentRecordsPage() {
         }
 
         if (selectedTherapistFilter) {
-            query = query.eq('therapist_id', selectedTherapistFilter)
+            query = query.eq('performed_by', selectedTherapistFilter)
         }
 
         if (searchQuery.trim() !== '') {

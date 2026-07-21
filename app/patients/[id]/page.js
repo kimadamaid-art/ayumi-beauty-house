@@ -125,8 +125,7 @@ export default function PatientDetailPage() {
                 .select(`
                     *,
                     branches(name),
-                    users!treatment_records_performed_by_fkey(full_name),
-                    therapist:users!treatment_records_therapist_id_fkey(full_name),
+                    users:users!treatment_records_performed_by_fkey(full_name),
                     treatment_record_items(
                         id,
                         treatment_id,
