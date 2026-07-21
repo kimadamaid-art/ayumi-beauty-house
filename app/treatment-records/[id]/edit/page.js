@@ -366,7 +366,7 @@ function EditRecordForm() {
 
             if (queuesToInsert.length > 0) {
                 const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
-                if (queueErr) throw queueErr
+                if (queueErr) console.warn('Followup queue note:', queueErr.message || queueErr)
             }
 
             // 4. Upload Photos if updated

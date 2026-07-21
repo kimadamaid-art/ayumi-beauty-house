@@ -328,7 +328,7 @@ export default function TreatmentInputPage({ params }) {
                     queuesToInsert.push({
                         patient_id: appointment.patient_id,
                         treatment_record_id: recordId,
-                        branch_id: appointment.branch_id,
+                        branch_id: appointment.branch_id || dbUser?.branch_id || null,
                         assigned_to: dbUser.id,
                         followup_type: step.type,
                         scheduled_date: scheduledDate.toISOString().split('T')[0],
@@ -344,7 +344,7 @@ export default function TreatmentInputPage({ params }) {
             if (queuesToInsert.length > 0) {
                 const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
                 if (queueErr) {
-                    console.error('Error inserting followup queue:', queueErr)
+                    console.warn('Followup queue note:', queueErr.message || queueErr)
                 }
             }
 
