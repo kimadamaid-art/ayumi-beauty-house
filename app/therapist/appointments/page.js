@@ -32,25 +32,21 @@ function TherapistAppointmentsContent() {
         return `${year}-${month}-${day}`
     }
 
-    // Filters for Tab 1 (Jadwal) - default to current month
+    // Filters for Tab 1 (Jadwal) - default to Today
     const [aptStartDate, setAptStartDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        return getLocalYYYYMMDD()
     })
     const [aptEndDate, setAptEndDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+        return getLocalYYYYMMDD()
     })
     const [aptFilterStatus, setAptFilterStatus] = useState('')
 
-    // Filters for Tab 2 (Riwayat) - default to current month
+    // Filters for Tab 2 (Riwayat) - default to Today
     const [recStartDate, setRecStartDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        return getLocalYYYYMMDD()
     })
     const [recEndDate, setRecEndDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+        return getLocalYYYYMMDD()
     })
     const [recFilterBranch, setRecFilterBranch] = useState('')
 

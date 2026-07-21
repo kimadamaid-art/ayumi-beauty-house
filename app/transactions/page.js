@@ -51,11 +51,10 @@ export default function TransactionsPage() {
     const [filterPaymentMethod, setFilterPaymentMethod] = useState('') // empty means 'all'
     const [filterTxType, setFilterTxType] = useState('') // empty means 'all'
     const [customStartDate, setCustomStartDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        return getLocalYYYYMMDD()
     })
     const [customEndDate, setCustomEndDate] = useState(() => {
-        return getLocalYYYYMMDD(new Date())
+        return getLocalYYYYMMDD()
     })
 
     // Data State

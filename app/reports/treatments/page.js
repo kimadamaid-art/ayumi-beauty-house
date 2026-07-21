@@ -48,11 +48,10 @@ export default function TreatmentsReportPage() {
 
     // Filters
     const [customStart, setCustomStart] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        return getLocalYYYYMMDD()
     })
     const [customEnd, setCustomEnd] = useState(() => {
-        return getLocalYYYYMMDD(new Date())
+        return getLocalYYYYMMDD()
     })
 
     const [selectedBranch, setSelectedBranch] = useState('all')

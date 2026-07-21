@@ -57,7 +57,7 @@ export default function TreatmentDetailPage() {
         const firstDay = getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
         const todayStr = getLocalYYYYMMDD(now)
 
-        setStartDate(qStart || firstDay)
+        setStartDate(qStart || todayStr)
         setEndDate(qEnd || todayStr)
         if (qBranch) setSelectedBranch(qBranch)
     }, [searchParams])

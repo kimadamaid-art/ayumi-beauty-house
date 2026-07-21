@@ -45,12 +45,10 @@ export default function Dashboard() {
     }
 
     const [startDate, setStartDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        return getLocalYYYYMMDD()
     })
     const [endDate, setEndDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+        return getLocalYYYYMMDD()
     })
 
     // Selected Target Month State

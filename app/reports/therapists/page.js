@@ -32,11 +32,10 @@ export default function TherapistsReportPage() {
 
     // Filters
     const [startDate, setStartDate] = useState(() => {
-        const now = new Date()
-        return getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
+        return getLocalYYYYMMDD()
     })
     const [endDate, setEndDate] = useState(() => {
-        return getLocalYYYYMMDD(new Date())
+        return getLocalYYYYMMDD()
     })
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedTherapistFilter, setSelectedTherapistFilter] = useState('all')

@@ -44,11 +44,10 @@ export default function TherapistDetailPage() {
     }
 
     useEffect(() => {
-        // Initialize default dates (first day of current month to today)
+        // Initialize default dates (today to today)
         const now = new Date()
-        const firstDay = getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
         const todayStr = getLocalYYYYMMDD(now)
-        setStartDate(firstDay)
+        setStartDate(todayStr)
         setEndDate(todayStr)
     }, [])
 
