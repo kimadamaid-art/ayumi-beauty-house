@@ -267,10 +267,9 @@ export default function TreatmentRecordsPage() {
                                                 <div className="font-bold text-gray-800">{r.patients?.full_name}</div>
                                                 <div className="text-xs text-gray-500">{r.patients?.whatsapp}</div>
                                             </td>
-                                            <td className="px-6 py-4 font-semibold text-gray-700">
-                                                <div className="text-sm text-gray-800">Terapis: {r.therapist?.full_name || '-'}</div>
-                                                <div className="text-xs text-gray-500 mt-1">Admin: {r.users?.full_name || '-'}</div>
-                                            </td>
+                                             <td className="px-6 py-4 font-extrabold text-gray-800 text-sm">
+                                                 {r.therapist?.full_name || r.users?.full_name || '-'}
+                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-center gap-2">
                                                     <Link href={`/treatment-records/${r.id}`}>

@@ -442,9 +442,8 @@ export default function PatientDetailPage() {
                                                 <td className="p-4 font-bold text-gray-900">
                                                     {tr.treatment_record_items?.map(item => item.treatments?.name).filter(Boolean).join(', ') || 'Unknown'}
                                                 </td>
-                                                <td className="p-4 text-gray-600 text-xs">
-                                                    <div>{tr.users?.full_name ? `Dr: ${tr.users.full_name}` : '-'}</div>
-                                                    {tr.therapist?.full_name && <div className="text-gray-500 mt-0.5 font-medium">Terapis: {tr.therapist.full_name}</div>}
+                                                <td className="p-4 text-gray-800 font-extrabold text-xs">
+                                                    {tr.therapist?.full_name || tr.users?.full_name || '-'}
                                                 </td>
                                                 <td className="p-4 text-gray-500 italic text-xs max-w-xs truncate">{tr.result_notes || '-'}</td>
                                                 <td className="p-4 text-center">
