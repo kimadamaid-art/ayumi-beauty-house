@@ -1208,69 +1208,82 @@ function PosPageContent() {
                                         </button>
                                     </div>
 
-                                    {/* 2x2 Interactive Price Grid (Collapsible) */}
-                                    {expandedCartItem === `${item.id}-${item.item_type}` && (
-                                        <div className="grid grid-cols-2 gap-2 mt-1 mb-2 pt-2 border-t border-dashed border-gray-150 animate-fadeIn duration-200">
-                                            {/* Harga Awal */}
-                                            <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
-                                                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Harga Awal</label>
-                                                <div className="relative flex items-center">
-                                                    <span className="text-[10px] text-gray-400  font-bold mr-1">Rp</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={item.original_price || 0} 
-                                                        onChange={(e) => handleCartItemOriginalPriceChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none  text-gray-700 p-0 focus:ring-0 focus:outline-none"
-                                                    />
-                                                </div>
-                                            </div>
+                                            {/* 2x2 Interactive Price Grid (Collapsible) */}
+                                            {expandedCartItem === `${item.id}-${item.item_type}` && (
+                                                <div className="grid grid-cols-2 gap-2 mt-1 mb-2 pt-2 border-t border-dashed border-gray-150 animate-fadeIn duration-200">
+                                                    {/* Harga Awal */}
+                                                    <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
+                                                        <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Harga Awal</label>
+                                                        <div className="relative flex items-center">
+                                                            <span className="text-[10px] text-gray-400 font-bold mr-1">Rp</span>
+                                                            <input 
+                                                                type="number" 
+                                                                value={!item.original_price ? '' : item.original_price} 
+                                                                onFocus={(e) => e.target.select()}
+                                                                placeholder="0"
+                                                                onChange={(e) => handleCartItemOriginalPriceChange(item.id, item.item_type, e.target.value)}
+                                                                className="w-full text-xs font-bold bg-transparent border-none outline-none text-gray-700 p-0 focus:ring-0 focus:outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
 
-                                            {/* Diskon (%) */}
-                                            <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
-                                                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Diskon (%)</label>
-                                                <div className="relative flex items-center justify-between">
-                                                    <input 
-                                                        type="number" 
-                                                        value={item.discount_percent || 0} 
-                                                        onChange={(e) => handleCartItemDiscountChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none  text-gray-700 p-0 text-right pr-4 focus:ring-0 focus:outline-none"
-                                                        min="0"
-                                                        max="100"
-                                                    />
-                                                    <span className="absolute right-0 text-[10px] text-gray-400  font-bold">%</span>
-                                                </div>
-                                            </div>
+                                                    {/* Diskon (%) */}
+                                                    <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
+                                                        <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Diskon (%)</label>
+                                                        <div className="relative flex items-center justify-between">
+                                                            <input 
+                                                                type="number" 
+                                                                value={!item.discount_percent ? '' : item.discount_percent} 
+                                                                onFocus={(e) => e.target.select()}
+                                                                placeholder="0"
+                                                                onChange={(e) => handleCartItemDiscountChange(item.id, item.item_type, e.target.value)}
+                                                                className="w-full text-xs font-bold bg-transparent border-none outline-none text-gray-700 p-0 text-right pr-4 focus:ring-0 focus:outline-none"
+                                                                min="0"
+                                                                max="100"
+                                                            />
+                                                            <span className="absolute right-0 text-[10px] text-gray-400 font-bold">%</span>
+                                                        </div>
+                                                    </div>
 
-                                            {/* Potongan (Rp) */}
-                                            <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
-                                                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Potongan (Rp)</label>
-                                                <div className="relative flex items-center">
-                                                    <span className="text-[10px] text-gray-400  font-bold mr-1">Rp</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={Math.max(0, (item.original_price || 0) - (item.price || 0))} 
-                                                        onChange={(e) => handleCartItemDiscountNominalChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none  text-gray-700 p-0 text-right focus:ring-0 focus:outline-none"
-                                                        min="0"
-                                                    />
-                                                </div>
-                                            </div>
+                                                    {/* Potongan (Rp) */}
+                                                    <div className="bg-gray-50/50 p-2 rounded-xl border border-gray-100 focus-within:border-pink-200 focus-within:bg-white transition-all">
+                                                        <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider block mb-0.5">Potongan (Rp)</label>
+                                                        <div className="relative flex items-center">
+                                                            <span className="text-[10px] text-gray-400 font-bold mr-1">Rp</span>
+                                                            {(() => {
+                                                                const potNom = Math.max(0, (item.original_price || 0) - (item.price || 0))
+                                                                return (
+                                                                    <input 
+                                                                        type="number" 
+                                                                        value={!potNom ? '' : potNom} 
+                                                                        onFocus={(e) => e.target.select()}
+                                                                        placeholder="0"
+                                                                        onChange={(e) => handleCartItemDiscountNominalChange(item.id, item.item_type, e.target.value)}
+                                                                        className="w-full text-xs font-bold bg-transparent border-none outline-none text-gray-700 p-0 text-right focus:ring-0 focus:outline-none"
+                                                                        min="0"
+                                                                    />
+                                                                )
+                                                            })()}
+                                                        </div>
+                                                    </div>
 
-                                            {/* Harga Net */}
-                                            <div className="bg-pink-50/30 p-2 rounded-xl border border-pink-100/50 focus-within:border-pink-300 focus-within:bg-white transition-all">
-                                                <label className="text-[9px] font-black uppercase text-pink-600/70 tracking-wider block mb-0.5">Harga Net</label>
-                                                <div className="relative flex items-center">
-                                                    <span className="text-[10px] text-ayumi-primary  font-bold mr-1">Rp</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={item.price || 0} 
-                                                        onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
-                                                        className="w-full text-xs font-black bg-transparent border-none outline-none  text-ayumi-primary p-0 focus:ring-0 focus:outline-none"
-                                                    />
+                                                    {/* Harga Net */}
+                                                    <div className="bg-pink-50/30 p-2 rounded-xl border border-pink-100/50 focus-within:border-pink-300 focus-within:bg-white transition-all">
+                                                        <label className="text-[9px] font-black uppercase text-pink-600/70 tracking-wider block mb-0.5">Harga Net</label>
+                                                        <div className="relative flex items-center">
+                                                            <span className="text-[10px] text-ayumi-primary font-bold mr-1">Rp</span>
+                                                            <input 
+                                                                type="number" 
+                                                                value={!item.price ? '' : item.price} 
+                                                                onFocus={(e) => e.target.select()}
+                                                                placeholder="0"
+                                                                onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
+                                                                className="w-full text-xs font-black bg-transparent border-none outline-none text-ayumi-primary p-0 focus:ring-0 focus:outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    )}
+                                            )}
 
                                     {/* Bottom row: quantity controls & item subtotal */}
                                     <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
@@ -1319,7 +1332,9 @@ function PosPageContent() {
                                 </select>
                                 <input 
                                     type="number"
-                                    value={discountValue}
+                                    value={(!discountValue || discountValue === 0 || discountValue === '0') ? '' : discountValue}
+                                    onFocus={(e) => e.target.select()}
+                                    placeholder="0"
                                     onChange={(e) => setDiscountValue(e.target.value)}
                                     className="input-ayumi py-1 px-3 text-right flex-1 bg-gray-50 "
                                     min="0"
