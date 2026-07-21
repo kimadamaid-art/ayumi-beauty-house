@@ -23,6 +23,7 @@ export default function PatientDetailPage() {
     const [crmHistory, setCrmHistory] = useState([])
     const [pendingFollowups, setPendingFollowups] = useState([])
     const [patientCoupons, setPatientCoupons] = useState([])
+    const [couponLogs, setCouponLogs] = useState([])
     const [patientTransactions, setPatientTransactions] = useState([])
     const [hasExpiringCoupons, setHasExpiringCoupons] = useState(false)
     
@@ -212,6 +213,25 @@ export default function PatientDetailPage() {
                 })
                 setHasExpiringCoupons(hasExpiring)
             }
+
+            // Fetch Coupon Usage History for this Patient
+            const { data: cpLogData } = await supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    *,
+                    branches (name),
+                    users (full_name),
+                    patient_coupon_items (
+                        treatments (name),
+                        patient_coupons (
+                            coupon_packages (name)
+                        )
+                    )
+                `)
+                .eq('patient_id', id)
+                .order('used_at', { ascending: false })
+
+            if (cpLogData) setCouponLogs(cpLogData)
 
             // 6. Fetch Patient Transactions
             const { data: txData } = await supabase
@@ -791,6 +811,51 @@ export default function PatientDetailPage() {
                                 })}
                             </div>
                         )}
+
+                        {/* Riwayat Penggunaan Kupon Pasien Ini */}
+                        <div className="mt-8 pt-6 border-t border-gray-100">
+                            <h4 className="text-base font-bold text-ayumi-secondary mb-4 flex items-center gap-2">
+                                <span>📜 Riwayat Penggunaan / Klaim Sesi Kupon Pasien Ini</span>
+                            </h4>
+                            {couponLogs.length === 0 ? (
+                                <div className="text-center p-6 bg-gray-50 rounded-2xl text-xs text-gray-500 font-semibold">
+                                    Belum ada riwayat sesi kupon yang digunakan oleh pasien ini.
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+                                    <table className="whitespace-nowrap w-full text-left text-xs">
+                                        <thead className="bg-pink-50/60 text-ayumi-secondary uppercase font-extrabold">
+                                            <tr>
+                                                <th className="p-3">Waktu Klaim</th>
+                                                <th className="p-3">Treatment (Klaim)</th>
+                                                <th className="p-3">Paket Asal</th>
+                                                <th className="p-3">Cabang</th>
+                                                <th className="p-3">Diproses Oleh</th>
+                                                <th className="p-3">Catatan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 bg-white font-medium text-gray-700">
+                                            {couponLogs.map(log => (
+                                                <tr key={log.id} className="hover:bg-pink-50/20">
+                                                    <td className="p-3 font-semibold text-gray-600">
+                                                        {new Date(log.used_at || log.created_at).toLocaleString('id-ID')}
+                                                    </td>
+                                                    <td className="p-3 font-extrabold text-ayumi-primary">
+                                                        {log.patient_coupon_items?.treatments?.name || '-'}
+                                                    </td>
+                                                    <td className="p-3 text-gray-600 font-semibold">
+                                                        {log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || '-'}
+                                                    </td>
+                                                    <td className="p-3 text-gray-600 font-semibold">{log.branches?.name || '-'}</td>
+                                                    <td className="p-3 text-gray-600 font-semibold">{log.users?.full_name || 'Kasir'}</td>
+                                                    <td className="p-3 text-gray-500 italic">{log.notes || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

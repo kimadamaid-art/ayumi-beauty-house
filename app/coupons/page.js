@@ -110,9 +110,8 @@ export default function CouponsDashboardPage() {
             .from('patient_coupons')
             .select(`
                 *,
-                patients (name, phone),
+                patients (full_name, whatsapp),
                 coupon_packages (name),
-                transactions!inner (branch_id),
                 patient_coupon_items (
                     id, total_sessions, used_sessions, remaining_sessions, status,
                     treatments (name)
@@ -120,17 +119,13 @@ export default function CouponsDashboardPage() {
             `)
             .order('purchased_at', { ascending: false })
 
-        if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
-            query = query.eq('transactions.branch_id', dbUser.branch_id)
-        }
-
         const { data } = await query
         if (data) setPatientCoupons(data)
         setIsLoading(false)
     }
 
     const filteredPatientCoupons = patientCoupons.filter(pc => {
-        const matchSearch = !pcSearchQuery || pc.patients?.name.toLowerCase().includes(pcSearchQuery.toLowerCase())
+        const matchSearch = !pcSearchQuery || pc.patients?.full_name?.toLowerCase().includes(pcSearchQuery.toLowerCase()) || pc.patients?.whatsapp?.includes(pcSearchQuery)
         const matchStatus = !pcStatusFilter || pc.status === pcStatusFilter
         return matchSearch && matchStatus
     })
@@ -141,8 +136,8 @@ export default function CouponsDashboardPage() {
             const searchPts = async () => {
                 let pQuery = supabase
                     .from('patients')
-                    .select('id, name, phone, patient_number')
-                    .or(`name.ilike.%${usageSearchPatient}%,phone.ilike.%${usageSearchPatient}%`)
+                    .select('id, full_name, whatsapp')
+                    .or(`full_name.ilike.%${usageSearchPatient}%,whatsapp.ilike.%${usageSearchPatient}%`)
                     
                 if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
                     pQuery = pQuery.eq('branch_id', dbUser.branch_id)
@@ -267,7 +262,7 @@ export default function CouponsDashboardPage() {
             .from('coupon_usage_logs')
             .select(`
                 *,
-                patients (name),
+                patients (full_name, whatsapp),
                 patient_coupon_items (
                     treatments (name),
                     patient_coupons (
@@ -288,7 +283,8 @@ export default function CouponsDashboardPage() {
             query = query.eq('branch_id', histBranchFilter)
         }
 
-        const { data } = await query
+        const { data, error } = await query
+        if (error) console.error('Error fetching history logs:', error)
         if (data) setHistoryLogs(data)
         setIsLoading(false)
     }
@@ -467,8 +463,8 @@ export default function CouponsDashboardPage() {
                                                         className={`hover:bg-ayumi-table-hover transition-colors cursor-pointer ${isExpanded ? 'bg-pink-50/30' : ''}`}
                                                     >
                                                         <td className="p-4">
-                                                            <div className="font-bold text-gray-800">{pc.patients?.name}</div>
-                                                            <div className="text-xs text-gray-500">{pc.patients?.phone}</div>
+                                                            <div className="font-bold text-gray-800">{pc.patients?.full_name}</div>
+                                                            <div className="text-xs text-gray-500">{pc.patients?.whatsapp}</div>
                                                         </td>
                                                         <td className="p-4 font-semibold text-ayumi-primary">{pc.coupon_packages?.name}</td>
                                                         <td className="p-4 text-gray-600">{formatDate(pc.purchased_at)}</td>
@@ -553,8 +549,8 @@ export default function CouponsDashboardPage() {
                                                     onClick={() => selectPatientForUsage(p)}
                                                     className="px-4 py-3 hover:bg-pink-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors"
                                                 >
-                                                    <p className="font-bold text-gray-800">{p.name}</p>
-                                                    <p className="text-xs text-gray-500">{p.phone}</p>
+                                                    <p className="font-bold text-gray-800">{p.full_name}</p>
+                                                    <p className="text-xs text-gray-500">{p.whatsapp}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -563,8 +559,8 @@ export default function CouponsDashboardPage() {
                             ) : (
                                 <div className="bg-pink-50/50 border border-pink-100 p-4 rounded-xl flex justify-between items-center">
                                     <div>
-                                        <p className="font-bold text-ayumi-primary">{usageSelectedPatient.name}</p>
-                                        <p className="text-xs text-gray-500">{usageSelectedPatient.phone}</p>
+                                        <p className="font-bold text-ayumi-primary">{usageSelectedPatient.full_name}</p>
+                                        <p className="text-xs text-gray-500">{usageSelectedPatient.whatsapp}</p>
                                     </div>
                                     <button 
                                         onClick={() => { setUsageSelectedPatient(null); setUsageActiveCoupons([]); setUsageSelectedCouponItem(null); }}
@@ -592,7 +588,7 @@ export default function CouponsDashboardPage() {
                         ) : (
                             <div className="space-y-4">
                                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                                    Kupon Aktif Milik <span className="text-ayumi-primary">{usageSelectedPatient.name}</span>
+                                    Kupon Aktif Milik <span className="text-ayumi-primary">{usageSelectedPatient.full_name}</span>
                                 </h3>
                                 
                                 {usageActiveCoupons.length === 0 ? (
@@ -743,8 +739,8 @@ export default function CouponsDashboardPage() {
                                     <tbody className="divide-y divide-gray-50 text-sm">
                                         {historyLogs.map((log) => (
                                             <tr key={log.id} className="hover:bg-ayumi-table-hover transition-colors">
-                                                <td className="p-4 text-gray-600  text-xs">{formatDateTime(log.used_at)}</td>
-                                                <td className="p-4 font-bold text-gray-800">{log.patients?.name}</td>
+                                                <td className="p-4 text-gray-600  text-xs">{formatDateTime(log.used_at || log.created_at)}</td>
+                                                <td className="p-4 font-bold text-gray-800">{log.patients?.full_name}</td>
                                                 <td className="p-4 font-semibold text-ayumi-primary">{log.patient_coupon_items?.treatments?.name}</td>
                                                 <td className="p-4 text-gray-600 text-xs">{log.patient_coupon_items?.patient_coupons?.coupon_packages?.name}</td>
                                                 <td className="p-4 text-gray-600">{log.branches?.name || '-'}</td>

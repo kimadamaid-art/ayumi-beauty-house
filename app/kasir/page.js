@@ -716,7 +716,7 @@ function PosPageContent() {
             for (const cartItem of cart) {
                 if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && selectedPatient) {
                     try {
-                        await supabase.from('patient_coupon_logs').insert([{
+                        await supabase.from('coupon_usage_logs').insert([{
                             patient_coupon_item_id: cartItem.used_coupon_item_id,
                             patient_id: selectedPatient.id,
                             branch_id: selectedBranch,
