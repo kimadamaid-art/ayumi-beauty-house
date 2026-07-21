@@ -105,7 +105,7 @@ export default function TherapistsReportPage() {
                     treatment_date,
                     branch_id,
                     patient_id,
-                    therapist_id
+                    performed_by
                 )
             `)
             .gte('treatment_records.treatment_date', startDate)
@@ -129,11 +129,11 @@ export default function TherapistsReportPage() {
 
     // Processed Therapist Metrics
     const therapistMetrics = useMemo(() => {
-        // Group items by therapist_id
+        // Group items by performed_by
         const therapistGroups = {}
 
         treatmentItems.forEach(item => {
-            const therapistId = item.treatment_records?.therapist_id
+            const therapistId = item.treatment_records?.performed_by
             if (!therapistId) return
 
             if (!therapistGroups[therapistId]) {

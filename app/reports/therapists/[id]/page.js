@@ -131,7 +131,7 @@ export default function TherapistDetailPage() {
                 ),
                 treatments(id, name)
             `)
-            .eq('treatment_records.therapist_id', therapistId)
+            .eq('treatment_records.performed_by', therapistId)
             .gte('treatment_records.treatment_date', startDate)
             .lte('treatment_records.treatment_date', endDate)
 
