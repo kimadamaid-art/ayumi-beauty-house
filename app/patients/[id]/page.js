@@ -209,49 +209,51 @@ export default function PatientDetailPage() {
     if (!patient) return null
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center gap-4 mb-2">
-                <Link href="/patients">
-                    <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                    </button>
+        <div className="max-w-6xl mx-auto space-y-6 pt-4 sm:pt-6">
+            <div className="flex items-center gap-3">
+                <Link href="/patients" className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-600 hover:text-ayumi-primary bg-white px-3.5 py-2 rounded-xl border border-gray-200/80 shadow-sm transition-all">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    <span>Kembali ke Daftar Pasien</span>
                 </Link>
-                <span className="text-sm text-ayumi-text-muted font-medium">Kembali ke Daftar Pasien</span>
             </div>
 
             {/* Header Profile */}
-            <div className="card-ayumi p-5 md:p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+            <div className="card-ayumi p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden bg-white border border-gray-150 shadow-sm rounded-3xl">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-pink-50 rounded-full mix-blend-multiply filter blur-3xl opacity-70 translate-x-1/2 -translate-y-1/2"></div>
                 
-                <div className="w-28 h-28 bg-gradient-to-br from-ayumi-primary to-ayumi-secondary rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl flex-shrink-0 z-10">
-                    {patient.full_name.substring(0, 2).toUpperCase()}
-                </div>
-                
-                <div className="flex-1 text-center md:text-left z-10">
-                    <h1 className="text-3xl font-extrabold text-ayumi-secondary mb-2">{patient.full_name}</h1>
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-ayumi-text-muted font-medium text-sm">
-                        <div className="flex items-center gap-1.5">
-                            <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                            {patient.whatsapp}
-                        </div>
-                        <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
-                            <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            {patient.birth_date ? new Date(patient.birth_date).toLocaleDateString('id-ID') : 'Belum diisi'}
-                        </div>
-                        {patient.instagram && (
-                            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
-                                <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                {patient.instagram}
+                <div className="flex flex-col md:flex-row items-center gap-6 z-10 w-full md:w-auto">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 bg-gradient-to-br from-ayumi-primary to-ayumi-secondary rounded-full flex items-center justify-center text-white text-3xl sm:text-4xl font-black shadow-lg flex-shrink-0">
+                        {patient.full_name.substring(0, 2).toUpperCase()}
+                    </div>
+                    
+                    <div className="text-center md:text-left space-y-2">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">{patient.full_name}</h1>
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-gray-500 font-semibold text-xs sm:text-sm">
+                            <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
+                                <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                {patient.whatsapp || 'No WA belum diisi'}
                             </div>
-                        )}
+                            <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
+                                <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                {patient.birth_date ? new Date(patient.birth_date).toLocaleDateString('id-ID') : 'Tgl Lahir -'}
+                            </div>
+                            {patient.instagram && (
+                                <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
+                                    <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                    {patient.instagram}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center md:items-end z-10 gap-2">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CRM Status</span>
-                    {getCRMStatusBadge(crmStatus)}
+                <div className="flex flex-row md:flex-col items-center md:items-end z-10 gap-3 w-full md:w-auto justify-between md:justify-center border-t md:border-t-0 pt-4 md:pt-0 border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">CRM STATUS</span>
+                        {getCRMStatusBadge(crmStatus)}
+                    </div>
                     <Link href={`/patients/${patient.id}/edit`}>
-                        <button className="text-xs mt-2 bg-pink-50 text-ayumi-primary border border-transparent hover:border-ayumi-primary hover:bg-pink-100 px-4 py-2 rounded-lg font-bold transition-colors shadow-sm">
+                        <button className="text-xs bg-pink-50 text-ayumi-primary border border-pink-200/60 hover:bg-ayumi-primary hover:text-white px-4 py-2 rounded-xl font-bold transition-all shadow-sm">
                             Edit Profil
                         </button>
                     </Link>
@@ -268,8 +270,8 @@ export default function PatientDetailPage() {
                 </div>
             )}
 
-            {/* Tabs Navigation */}
-            <div className="flex flex-wrap gap-2 border-b border-gray-200">
+            {/* Modern Segment Tabs Navigation */}
+            <div className="bg-gray-100/80 p-1.5 rounded-2xl border border-gray-200/60 shadow-inner flex flex-wrap gap-1">
                 {[
                     { id: 'profile', label: 'Profil Medis' },
                     { id: 'treatment_history', label: 'Riwayat Treatment' },
@@ -281,20 +283,19 @@ export default function PatientDetailPage() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`px-6 py-3 text-sm font-bold transition-all rounded-t-xl ${
+                        className={`px-4 py-2 text-xs sm:text-sm font-bold transition-all rounded-xl ${
                             activeTab === tab.id 
-                            ? 'bg-white text-ayumi-primary border-t-2 border-x border-[#fce7f3] border-b-0' 
-                            : 'text-gray-500 hover:text-ayumi-primary hover:bg-white/50 border border-transparent'
+                            ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' 
+                            : 'text-gray-500 hover:text-gray-900'
                         }`}
-                        style={{ marginBottom: activeTab === tab.id ? '-1px' : '0' }}
                     >
                         {tab.label}
                     </button>
                 ))}
             </div>
 
-            {/* Tab Content */}
-            <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-sm border border-gray-100 p-5 md:p-8 min-h-[400px]">
+            {/* Tab Content Container */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200/80 p-5 md:p-8 min-h-[400px]">
                 
                 {/* PROFILE TAB */}
                 {activeTab === 'profile' && (
@@ -343,14 +344,14 @@ export default function PatientDetailPage() {
                 {/* TREATMENT HISTORY TAB */}
                 {activeTab === 'treatment_history' && (
                     <div>
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                            <h3 className="text-lg font-bold text-ayumi-secondary">Riwayat Kunjungan & Treatment</h3>
-                            <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                            <h3 className="text-lg font-bold text-gray-900">Riwayat Kunjungan & Treatment</h3>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
                                 {branches.length > 0 && (
                                     <select 
                                         value={filterTreatmentBranch}
                                         onChange={e => setFilterTreatmentBranch(e.target.value)}
-                                        className="input-ayumi py-2 text-sm bg-white"
+                                        className="input-ayumi py-2 text-xs bg-white rounded-xl border-gray-200"
                                     >
                                         <option value="All">Semua Cabang</option>
                                         {branches.map(b => (
@@ -358,51 +359,51 @@ export default function PatientDetailPage() {
                                         ))}
                                     </select>
                                 )}
-                                <Link href={`/treatment-records/new?patientId=${patient.id}`}>
-                                    <button className="btn-primary py-2 text-sm flex items-center gap-2">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                        Tambah Rekam Medis
+                                <Link href={`/treatment-records/new?patientId=${patient.id}`} className="shrink-0">
+                                    <button className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold whitespace-nowrap transition-all shadow-md shadow-pink-500/20 flex items-center gap-1.5">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                        <span>Tambah Rekam Medis</span>
                                     </button>
                                 </Link>
                             </div>
                         </div>
                         {treatmentHistory.length === 0 ? (
-                            <div className="text-center p-10 bg-gray-50 rounded-2xl">
-                                <p className="text-gray-500">Pasien ini belum memiliki riwayat treatment.</p>
+                            <div className="text-center p-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                                <p className="text-gray-500 text-sm font-medium">Pasien ini belum memiliki riwayat treatment.</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-sm">
                                 <table className="whitespace-nowrap w-full text-left border-collapse">
-                                    <thead className="bg-ayumi-table-header text-ayumi-secondary text-sm tracking-wide font-bold">
+                                    <thead className="bg-pink-50/60 text-ayumi-secondary text-xs uppercase font-extrabold tracking-wider">
                                         <tr>
-                                            <th className="p-4 rounded-l-xl">Tanggal</th>
+                                            <th className="p-4">Tanggal</th>
                                             <th className="p-4">Cabang</th>
                                             <th className="p-4">Treatment</th>
                                             <th className="p-4">Dokter/Terapis</th>
                                             <th className="p-4">Catatan</th>
-                                            <th className="p-4 rounded-r-xl text-center">Aksi</th>
+                                            <th className="p-4 text-center">Aksi</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-50 text-sm">
+                                    <tbody className="divide-y divide-gray-100 text-sm bg-white">
                                         {treatmentHistory.filter(tr => filterTreatmentBranch === 'All' || tr.branch_id === filterTreatmentBranch).map((tr) => (
-                                            <tr key={tr.id} className="hover:bg-pink-50/20">
-                                                <td className="p-4 text-gray-600 font-medium">{new Date(tr.treatment_date).toLocaleDateString('id-ID')}</td>
-                                                <td className="p-4 text-gray-500 font-medium text-xs">
-                                                    <span className="bg-purple-50 text-[#6B3A5A] px-2 py-1 rounded">
+                                            <tr key={tr.id} className="hover:bg-pink-50/20 transition-colors">
+                                                <td className="p-4 text-gray-700 font-semibold">{new Date(tr.treatment_date).toLocaleDateString('id-ID')}</td>
+                                                <td className="p-4">
+                                                    <span className="bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-lg text-xs font-bold">
                                                         {tr.branches?.name || 'Pusat'}
                                                     </span>
                                                 </td>
-                                                <td className="p-4 font-bold text-gray-800">
+                                                <td className="p-4 font-bold text-gray-900">
                                                     {tr.treatment_record_items?.map(item => item.treatments?.name).filter(Boolean).join(', ') || 'Unknown'}
                                                 </td>
-                                                <td className="p-4 text-gray-600">
+                                                <td className="p-4 text-gray-600 text-xs">
                                                     <div>{tr.users?.full_name ? `Dr: ${tr.users.full_name}` : '-'}</div>
-                                                    {tr.therapist?.full_name && <div className="text-xs text-gray-500 mt-0.5 font-medium">Terapis: {tr.therapist.full_name}</div>}
+                                                    {tr.therapist?.full_name && <div className="text-gray-500 mt-0.5 font-medium">Terapis: {tr.therapist.full_name}</div>}
                                                 </td>
-                                                <td className="p-4 text-gray-500 italic max-w-xs truncate">{tr.result_notes || '-'}</td>
+                                                <td className="p-4 text-gray-500 italic text-xs max-w-xs truncate">{tr.result_notes || '-'}</td>
                                                 <td className="p-4 text-center">
                                                     <Link href={`/treatment-records/${tr.id}`}>
-                                                        <button className="text-ayumi-primary hover:text-ayumi-primary-hover bg-pink-50 hover:bg-pink-100 px-3 py-1.5 rounded-lg transition-colors font-bold text-xs uppercase tracking-wider">
+                                                        <button className="bg-pink-50 text-ayumi-primary hover:bg-ayumi-primary hover:text-white px-3 py-1.5 rounded-xl transition-all font-bold text-xs shadow-sm">
                                                             Detail
                                                         </button>
                                                     </Link>
