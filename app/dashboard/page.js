@@ -152,7 +152,9 @@ export default function Dashboard() {
                         item_type,
                         name,
                         quantity,
-                        subtotal
+                        subtotal,
+                        original_price,
+                        discount_percent
                     )
                 `)
                 .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
@@ -160,6 +162,7 @@ export default function Dashboard() {
 
             const rangeMap = {}
             let grandTotalRange = 0
+            let grandCouponRange = 0
             let totalTxCountRange = 0
             const methodMap = {}
             const treatmentMap = {}
@@ -171,6 +174,7 @@ export default function Dashboard() {
                     branchName: b.name,
                     treatmentIncome: 0,
                     productIncome: 0,
+                    couponIncome: 0,
                     otherIncome: 0,
                     totalIncome: 0,
                     transactionCount: 0
@@ -184,12 +188,13 @@ export default function Dashboard() {
                         branchObj.transactionCount += 1
                         totalTxCountRange += 1
 
-                        // Payment method count
+                        // Payment method count (based on actual paid amount)
                         const pMethod = (tx.payment_method || 'CASH').toUpperCase()
                         methodMap[pMethod] = (methodMap[pMethod] || 0) + Number(tx.total || 0)
                         
                         let txTreatment = 0
                         let txProduct = 0
+                        let txCoupon = 0
                         let txOther = 0
 
                         if (tx.transaction_items && tx.transaction_items.length > 0) {
@@ -197,14 +202,21 @@ export default function Dashboard() {
                                 const itemSub = Number(item.subtotal || 0)
                                 const itemQty = Number(item.quantity || 1)
                                 const itemName = item.name || 'Item Perawatan/Produk'
+                                const discPct = Number(item.discount_percent || 0)
+                                const origPrice = Number(item.original_price || 0)
+                                // Coupon-used items have discount_percent=100 and subtotal=0
+                                const isCouponUsed = discPct >= 100 && origPrice > 0
+                                const couponValue = isCouponUsed ? origPrice * itemQty : 0
 
                                 if (item.item_type === 'treatment') {
                                     txTreatment += itemSub
+                                    txCoupon += couponValue
+                                    const effectiveRevenue = itemSub + couponValue
                                     if (!treatmentMap[itemName]) {
                                         treatmentMap[itemName] = { name: itemName, count: 0, revenue: 0 }
                                     }
                                     treatmentMap[itemName].count += itemQty
-                                    treatmentMap[itemName].revenue += itemSub
+                                    treatmentMap[itemName].revenue += effectiveRevenue
                                 } else if (item.item_type === 'product') {
                                     txProduct += itemSub
                                     if (!productMap[itemName]) {
@@ -222,11 +234,14 @@ export default function Dashboard() {
 
                         branchObj.treatmentIncome += txTreatment
                         branchObj.productIncome += txProduct
+                        branchObj.couponIncome += txCoupon
                         branchObj.otherIncome += txOther
                         
-                        const totalTxAmt = (txTreatment + txProduct + txOther) || Number(tx.total || 0)
+                        // Total income = cash paid + coupon value used
+                        const totalTxAmt = (txTreatment + txProduct + txCoupon + txOther) || Number(tx.total || 0)
                         branchObj.totalIncome += totalTxAmt
                         grandTotalRange += totalTxAmt
+                        grandCouponRange += txCoupon
                     }
                 })
             }
@@ -322,6 +337,7 @@ export default function Dashboard() {
             setCompanyTotals({
                 monthlyTarget: totalCompanyTarget,
                 rangeIncome: grandTotalRange,
+                rangeCouponIncome: grandCouponRange,
                 rangeTxCount: totalTxCountRange,
                 topBranchName: topBranch !== '-' ? topBranch : (formattedRangeComp[0]?.branchName || '-')
             })
@@ -989,6 +1005,15 @@ export default function Dashboard() {
                                             </span>
                                             <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.productIncome.toLocaleString('id-ID')}</strong>
                                         </div>
+                                        {b.couponIncome > 0 && (
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-orange-600 font-bold flex items-center gap-1.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0"></span>
+                                                    🎟️ Kupon Paket:
+                                                </span>
+                                                <strong className="text-orange-600 font-extrabold tracking-tight">Rp {b.couponIncome.toLocaleString('id-ID')}</strong>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="pt-2 border-t border-gray-100 flex justify-between items-baseline">
@@ -996,6 +1021,12 @@ export default function Dashboard() {
                                             <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Omset</p>
                                             <p className="text-lg font-black text-[#5c3316] tracking-tight">Rp {b.totalIncome.toLocaleString('id-ID')}</p>
                                         </div>
+                                        {b.couponIncome > 0 && (
+                                            <div className="text-right">
+                                                <p className="text-[9px] text-orange-500 font-bold uppercase">Termasuk Kupon</p>
+                                                <p className="text-xs font-extrabold text-orange-500">Rp {b.couponIncome.toLocaleString('id-ID')}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -1097,6 +1128,11 @@ export default function Dashboard() {
                                         <p className="text-sm font-extrabold text-gray-900 mt-0.5">
                                             Total Omset: <span className="text-emerald-700 font-bold">Rp {companyTotals.rangeIncome?.toLocaleString('id-ID') || 0}</span> <span className="text-gray-500 font-normal text-xs">/ Rp {companyTotals.monthlyTarget.toLocaleString('id-ID')}</span>
                                         </p>
+                                        {(companyTotals.rangeCouponIncome || 0) > 0 && (
+                                            <p className="text-xs font-bold text-orange-600 mt-0.5">
+                                                🎟️ Termasuk nilai kupon: Rp {(companyTotals.rangeCouponIncome || 0).toLocaleString('id-ID')}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-amber-200/80 pt-3 md:pt-0 md:pl-5 shrink-0">
