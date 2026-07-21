@@ -80,8 +80,8 @@ function PosPageContent() {
         const { data: cpData } = await supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true })
         if (cpData) setCoupons(cpData)
 
-        // Fetch Patients (for search autocomplete)
-        const { data: patData } = await supabase.from('patients').select('id, full_name, whatsapp').order('full_name', { ascending: true })
+        // Fetch Patients (ordered by most recent first)
+        const { data: patData } = await supabase.from('patients').select('id, full_name, whatsapp').order('created_at', { ascending: false }).limit(2000)
         if (patData) setPatients(patData)
 
         setIsLoading(false)
@@ -91,6 +91,36 @@ function PosPageContent() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchInitialData()
     }, [supabase])
+
+    // Live Server-side Search for Patient Autocomplete
+    useEffect(() => {
+        if (!searchPatientQuery || searchPatientQuery.trim().length < 2) return
+
+        const timer = setTimeout(async () => {
+            const query = searchPatientQuery.trim()
+            const { data: searchResults } = await supabase
+                .from('patients')
+                .select('id, full_name, whatsapp')
+                .or(`full_name.ilike.%${query}%,whatsapp.ilike.%${query}%`)
+                .order('full_name', { ascending: true })
+                .limit(20)
+
+            if (searchResults && searchResults.length > 0) {
+                setPatients(prev => {
+                    const existingIds = new Set(prev.map(p => p.id))
+                    const newPatients = [...prev]
+                    searchResults.forEach(sp => {
+                        if (!existingIds.has(sp.id)) {
+                            newPatients.push(sp)
+                        }
+                    })
+                    return newPatients
+                })
+            }
+        }, 200)
+
+        return () => clearTimeout(timer)
+    }, [searchPatientQuery, supabase])
 
     useEffect(() => {
         const loadAutoBill = async () => {
@@ -570,10 +600,15 @@ function PosPageContent() {
         }
     }
 
-    const filteredPatients = patients.filter(p => 
-        (p.full_name && p.full_name.toLowerCase().includes(searchPatientQuery.toLowerCase())) || 
-        (p.whatsapp && p.whatsapp.includes(searchPatientQuery))
-    ).slice(0, 5)
+    const filteredPatients = patients.filter(p => {
+        if (!searchPatientQuery.trim()) return true
+        const qLower = searchPatientQuery.trim().toLowerCase()
+        const tokens = qLower.split(/\s+/).filter(Boolean)
+        const nameLower = (p.full_name || '').toLowerCase()
+        const waStr = p.whatsapp || ''
+        
+        return tokens.every(token => nameLower.includes(token) || waStr.includes(token))
+    }).slice(0, 10)
 
     // Additional UI state for collapsible add-item panel
     const [showAddItemPanel, setShowAddItemPanel] = useState(false)
