@@ -259,6 +259,8 @@ function PosPageContent() {
                 return cartItem
             }))
         }
+
+        return activeCouponItems
     }
 
     async function handleQuickAddPatient(e) {
@@ -425,26 +427,36 @@ function PosPageContent() {
         setIsPendingModalOpen(true)
     }
 
-    const loadPendingBillToCart = (bill) => {
-        // Select patient
+    const loadPendingBillToCart = async (bill) => {
+        let activeCoupons = []
+
+        // Select patient and fetch active coupons
         if (bill.patients) {
-            handleSelectPatient(bill.patients)
+            activeCoupons = await handleSelectPatient(bill.patients)
         }
         
         // Populate cart
         const newCart = bill.treatment_record_items.map(item => {
             const originalPrice = item.treatments?.price || item.price_at_time
+            const match = activeCoupons.find(c => c.treatment_id === item.treatment_id && c.remaining_sessions > 0)
+            const isUsingCoupon = Boolean(match)
+            const price = isUsingCoupon ? 0 : item.price_at_time
+
             return {
                 id: item.treatment_id, // For treatment
                 item_type: 'treatment',
                 name: item.treatments?.name || 'Treatment',
-                price: item.price_at_time,
+                price: price,
                 original_price: originalPrice,
-                discount_percent: item.discount_percent || 0,
+                discount_percent: isUsingCoupon ? 100 : (item.discount_percent || 0),
                 quantity: 1, // Usually 1 per item in treatment_records
-                subtotal: item.price_at_time,
+                subtotal: price,
                 treatment_record_id: bill.id, // Temporary flag to attach to transaction later
-                commission_percent: item.commission_percent || item.treatments?.commission_percent || 0
+                commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
+                is_using_coupon: isUsingCoupon,
+                used_coupon_item_id: match ? match.id : null,
+                coupon_package_name: match ? (match.patient_coupons?.coupon_packages?.name || 'Paket Kupon') : '',
+                remaining_sessions: match ? match.remaining_sessions : 0
             }
         })
 
