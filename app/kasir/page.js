@@ -60,6 +60,10 @@ function PosPageContent() {
         if (user) {
             const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
             if (uData) {
+                if (uData.role === 'therapist') {
+                    router.push('/therapist/dashboard')
+                    return
+                }
                 setDbUser(uData)
                 if (uData.role !== 'owner') {
                     setSelectedBranch(uData.branch_id || '')
