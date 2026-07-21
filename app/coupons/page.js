@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, Fragment } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
@@ -295,13 +295,19 @@ export default function CouponsDashboardPage() {
     }, [histStartDate, histEndDate, histBranchFilter, userLoaded, dbUser])
 
     const formatDate = (isoString) => {
-        return new Date(isoString).toLocaleDateString('id-ID', {
+        if (!isoString) return '-'
+        const d = new Date(isoString)
+        if (isNaN(d.getTime())) return '-'
+        return d.toLocaleDateString('id-ID', {
             day: 'numeric', month: 'short', year: 'numeric'
         })
     }
 
     const formatDateTime = (isoString) => {
-        return new Date(isoString).toLocaleDateString('id-ID', {
+        if (!isoString) return '-'
+        const d = new Date(isoString)
+        if (isNaN(d.getTime())) return '-'
+        return d.toLocaleDateString('id-ID', {
             day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
         })
     }
