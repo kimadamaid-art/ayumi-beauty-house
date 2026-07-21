@@ -620,13 +620,19 @@ export default function CRMPage() {
     return (
         <div className="space-y-6">
             {/* TOP BAR / ACTION ROW */}
-            <div className="flex justify-between items-center gap-4">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Modul Retensi & Follow-up Pasien</span>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-gray-150 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-pink-100 text-ayumi-primary rounded-2xl flex items-center justify-center font-bold text-lg shadow-sm">
+                        💬
+                    </div>
+                    <div>
+                        <h2 className="text-base font-extrabold text-gray-900 leading-tight">Customer Relationship & Retensi Pasien</h2>
+                        <p className="text-xs text-gray-500 mt-0.5">Kelola antrean follow-up, pengingat perawatan berkala, ucapan ulang tahun, dan pasien dormant.</p>
+                    </div>
                 </div>
                 <button
                     onClick={() => setShowManualModal(true)}
-                    className="w-full sm:w-auto bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4.5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold shadow-md shadow-pink-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full sm:w-auto bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold shadow-md shadow-pink-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
                     <span>Tambah Follow Up Manual</span>
@@ -634,31 +640,43 @@ export default function CRMPage() {
             </div>
 
             {/* SEGMENT TABS */}
-            <div className="bg-gray-100/80 p-1.5 rounded-2xl border border-gray-200/60 shadow-inner flex flex-wrap gap-1">
+            <div className="bg-white p-2 rounded-3xl border border-gray-150 shadow-sm flex flex-wrap md:flex-nowrap gap-2">
                 <button 
                     onClick={() => setActiveTab('queue')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'queue' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
+                    className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'queue' ? 'bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white shadow-md font-extrabold' : 'text-gray-600 hover:bg-pink-50/50 hover:text-ayumi-primary'}`}
                 >
                     <span>📋 Antrean Follow Up</span>
-                    {filteredQueue.length > 0 && <span className="bg-pink-100 text-ayumi-primary px-2 py-0.5 rounded-full text-xs font-black">{filteredQueue.length}</span>}
+                    {filteredQueue.length > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === 'queue' ? 'bg-white/20 text-white' : 'bg-pink-100 text-ayumi-primary'}`}>
+                            {filteredQueue.length}
+                        </span>
+                    )}
                 </button>
                 <button 
                     onClick={() => setActiveTab('birthday')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'birthday' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
+                    className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'birthday' ? 'bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white shadow-md font-extrabold' : 'text-gray-600 hover:bg-pink-50/50 hover:text-ayumi-primary'}`}
                 >
                     <span>🎂 Ulang Tahun</span>
-                    {filteredBirthdays.length > 0 && <span className="bg-pink-100 text-ayumi-primary px-2 py-0.5 rounded-full text-xs font-black">{filteredBirthdays.length}</span>}
+                    {filteredBirthdays.length > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === 'birthday' ? 'bg-white/20 text-white' : 'bg-pink-100 text-ayumi-primary'}`}>
+                            {filteredBirthdays.length}
+                        </span>
+                    )}
                 </button>
                 <button 
                     onClick={() => setActiveTab('dormant')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'dormant' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
+                    className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'dormant' ? 'bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white shadow-md font-extrabold' : 'text-gray-600 hover:bg-pink-50/50 hover:text-ayumi-primary'}`}
                 >
                     <span>💤 Pasien Dormant</span>
-                    {filteredDormant.length > 0 && <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-black">{filteredDormant.length}</span>}
+                    {filteredDormant.length > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === 'dormant' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'}`}>
+                            {filteredDormant.length}
+                        </span>
+                    )}
                 </button>
                 <button 
                     onClick={() => setActiveTab('analytics')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'analytics' ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' : 'text-gray-500 hover:text-gray-900'}`}
+                    className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'analytics' ? 'bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white shadow-md font-extrabold' : 'text-gray-600 hover:bg-pink-50/50 hover:text-ayumi-primary'}`}
                 >
                     <span>📊 Analitik CRM</span>
                 </button>
@@ -747,29 +765,29 @@ export default function CRMPage() {
                         {activeTab === 'queue' && (
                             <div className="space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                    <h3 className="text-lg font-bold text-gray-900">Harus Dihubungi Hari Ini</h3>
-                                    <div className="flex flex-wrap items-center gap-1.5 bg-gray-50 p-1.5 rounded-2xl border border-gray-200/60">
+                                    <h3 className="text-base font-extrabold text-gray-900">Harus Dihubungi Hari Ini</h3>
+                                    <div className="flex flex-wrap items-center gap-1.5 bg-gray-100/70 p-1.5 rounded-2xl border border-gray-200/70">
                                         <button
                                             onClick={() => setTypeFilter('All')}
-                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'All' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'All' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
                                             Semua ({queue.length})
                                         </button>
                                         <button
                                             onClick={() => setTypeFilter('followup_2minggu')}
-                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'followup_2minggu' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100'}`}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'followup_2minggu' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
                                             📋 2 Minggu ({queue.filter(q => q.followup_type === 'followup_2minggu').length})
                                         </button>
                                         <button
                                             onClick={() => setTypeFilter('followup_3minggu')}
-                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'followup_3minggu' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-700 bg-blue-50/70 hover:bg-blue-100'}`}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'followup_3minggu' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
                                             📋 3 Minggu ({queue.filter(q => q.followup_type === 'followup_3minggu').length})
                                         </button>
                                         <button
                                             onClick={() => setTypeFilter('followup_1bulan')}
-                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${typeFilter === 'followup_1bulan' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-700 bg-purple-50/70 hover:bg-purple-100'}`}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${typeFilter === 'followup_1bulan' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary hover:bg-white'}`}
                                         >
                                             📋 1 Bulan ({queue.filter(q => q.followup_type === 'followup_1bulan').length})
                                         </button>
@@ -824,28 +842,28 @@ export default function CRMPage() {
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <button
                                                                     onClick={() => handleOpenWaModal(q, q.followup_type || 'treatment_reminder')}
-                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                                                    className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                                                                 >
                                                                     💬 Hubungi WA
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleSelesaiClick(q)} 
-                                                                    className="bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                                                                    className="h-8 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
                                                                 >
                                                                     Selesai
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleTundaClick(q)} 
-                                                                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                                                    className="h-8 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
                                                                 >
                                                                     Tunda
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleDeleteQueue(q.id, q.patients?.full_name)} 
-                                                                    className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-xl transition-all cursor-pointer"
+                                                                    className="h-8 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
                                                                     title="Hapus"
                                                                 >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                                 </button>
                                                             </div>
                                                         </td>
