@@ -896,7 +896,9 @@ export default function Dashboard() {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis 
                                             dataKey="branchName" 
-                                            tick={{ fontSize: 13, fontWeight: 700, fill: '#1e293b' }} 
+                                            interval={0}
+                                            tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
+                                            tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} 
                                             axisLine={{ stroke: '#cbd5e1' }}
                                             tickLine={false} 
                                         />
