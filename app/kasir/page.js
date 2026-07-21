@@ -806,32 +806,27 @@ function PosPageContent() {
                                                 <div
                                                     key={t.id}
                                                     onClick={() => addToCart(t, 'treatment')}
-                                                    className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
+                                                    className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group relative"
                                                 >
-                                                    <div className="space-y-2 mb-3">
-                                                        <div className="flex items-center justify-between min-h-[20px]">
-                                                            {hasDiscount ? (
-                                                                <span className="bg-rose-50 text-rose-700 border border-rose-200/80 text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
-                                                                    Diskon {t.discount_percent}%
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                                                    Treatment
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
+                                                    <div className="space-y-1.5 mb-3">
+                                                        {hasDiscount && (
+                                                            <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-block">
+                                                                Diskon {t.discount_percent}%
+                                                            </span>
+                                                        )}
+                                                        <h4 className="font-bold text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
                                                             {t.name}
                                                         </h4>
                                                     </div>
-                                                    <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto">
-                                                        <div className="flex flex-col">
+
+                                                    <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto gap-2">
+                                                        <div className="flex flex-col min-w-0">
                                                             {hasDiscount && (
-                                                                <span className="text-[10px] line-through text-gray-400 font-semibold">
+                                                                <span className="text-[10px] line-through text-gray-400 font-semibold whitespace-nowrap">
                                                                     Rp {t.price.toLocaleString('id-ID')}
                                                                 </span>
                                                             )}
-                                                            <span className="font-black text-xs sm:text-sm text-ayumi-secondary">
+                                                            <span className="font-extrabold text-sm sm:text-base text-[#5c3316] whitespace-nowrap">
                                                                 Rp {price.toLocaleString('id-ID')}
                                                             </span>
                                                         </div>
@@ -841,10 +836,10 @@ function PosPageContent() {
                                                                 e.stopPropagation()
                                                                 addToCart(t, 'treatment')
                                                             }}
-                                                            className="bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1"
+                                                            className="w-8 h-8 rounded-xl bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-sm border border-pink-200/80 transition-all shrink-0 shadow-sm"
+                                                            title="Tambah ke keranjang"
                                                         >
-                                                            <span>+</span>
-                                                            <span className="hidden sm:inline">Tambah</span>
+                                                            +
                                                         </button>
                                                     </div>
                                                 </div>
@@ -858,26 +853,25 @@ function PosPageContent() {
                                             <div
                                                 key={p.id}
                                                 onClick={() => addToCart(p, 'product')}
-                                                className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm flex flex-col justify-between hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
+                                                className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group relative"
                                             >
-                                                <div className="space-y-2 mb-3">
-                                                    <div className="flex items-center justify-between min-h-[20px]">
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
-                                                            p.quantity > 5 
-                                                                ? 'bg-amber-50 text-amber-800 border-amber-200/80' 
-                                                                : p.quantity > 0 
-                                                                    ? 'bg-rose-50 text-rose-700 border-rose-200/80' 
-                                                                    : 'bg-gray-100 text-gray-500 border-gray-200'
-                                                        }`}>
-                                                            Stok: {p.quantity}
-                                                        </span>
-                                                    </div>
-                                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-amber-900 transition-colors">
+                                                <div className="space-y-1.5 mb-3">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border inline-block ${
+                                                        p.quantity > 5 
+                                                            ? 'bg-amber-50 text-amber-800 border-amber-200' 
+                                                            : p.quantity > 0 
+                                                                ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                                                                : 'bg-gray-100 text-gray-500 border-gray-200'
+                                                    }`}>
+                                                        Stok: {p.quantity}
+                                                    </span>
+                                                    <h4 className="font-bold text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-amber-900 transition-colors">
                                                         {p.name}
                                                     </h4>
                                                 </div>
-                                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto">
-                                                    <span className="font-black text-xs sm:text-sm text-amber-900">
+
+                                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto gap-2">
+                                                    <span className="font-extrabold text-sm sm:text-base text-amber-900 whitespace-nowrap">
                                                         Rp {p.price.toLocaleString('id-ID')}
                                                     </span>
                                                     <button
@@ -886,10 +880,10 @@ function PosPageContent() {
                                                             e.stopPropagation()
                                                             addToCart(p, 'product')
                                                         }}
-                                                        className="bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1"
+                                                        className="w-8 h-8 rounded-xl bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white flex items-center justify-center font-black text-sm border border-amber-200/80 transition-all shrink-0 shadow-sm"
+                                                        title="Tambah ke keranjang"
                                                     >
-                                                        <span>+</span>
-                                                        <span className="hidden sm:inline">Tambah</span>
+                                                        +
                                                     </button>
                                                 </div>
                                             </div>
@@ -902,20 +896,19 @@ function PosPageContent() {
                                             <div
                                                 key={c.id}
                                                 onClick={() => addToCart(c, 'coupon')}
-                                                className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
+                                                className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group relative"
                                             >
-                                                <div className="space-y-2 mb-3">
-                                                    <div className="flex items-center justify-between min-h-[20px]">
-                                                        <span className="bg-pink-50 text-pink-700 border border-pink-200/80 text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
-                                                            Paket Kupon
-                                                        </span>
-                                                    </div>
-                                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
+                                                <div className="space-y-1.5 mb-3">
+                                                    <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-block">
+                                                        Paket Kupon
+                                                    </span>
+                                                    <h4 className="font-bold text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
                                                         {c.name}
                                                     </h4>
                                                 </div>
-                                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto">
-                                                    <span className="font-black text-xs sm:text-sm text-ayumi-primary">
+
+                                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto gap-2">
+                                                    <span className="font-extrabold text-sm sm:text-base text-ayumi-primary whitespace-nowrap">
                                                         Rp {c.price.toLocaleString('id-ID')}
                                                     </span>
                                                     <button
@@ -924,10 +917,10 @@ function PosPageContent() {
                                                             e.stopPropagation()
                                                             addToCart(c, 'coupon')
                                                         }}
-                                                        className="bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1"
+                                                        className="w-8 h-8 rounded-xl bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-sm border border-pink-200/80 transition-all shrink-0 shadow-sm"
+                                                        title="Tambah ke keranjang"
                                                     >
-                                                        <span>+</span>
-                                                        <span className="hidden sm:inline">Tambah</span>
+                                                        +
                                                     </button>
                                                 </div>
                                             </div>
