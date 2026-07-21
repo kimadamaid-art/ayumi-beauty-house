@@ -267,7 +267,7 @@ export default function Dashboard() {
                         branchObj.couponUsedValue += txCouponUsed
                         branchObj.otherIncome += txOther
                         
-                        const realCash = txTreatment + txProduct + txCouponSales + txOther
+                        const realCash = Number(tx.total || 0)
                         const totalValuation = realCash + txCouponUsed
 
                         branchObj.cashIncome += realCash
