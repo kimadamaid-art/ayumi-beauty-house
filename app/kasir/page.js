@@ -532,6 +532,10 @@ function PosPageContent() {
                 commission_percent: item.commission_percent || 0
             }))
 
+            const actualDiscountAmount = discountType === 'percent'
+                ? Math.round(subtotal * (Number(discountValue) / 100))
+                : Number(discountValue) || 0
+
             // Call the atomic database RPC
             const { data: trxData, error: rpcError } = await supabase
                 .rpc('process_checkout', {
@@ -540,7 +544,7 @@ function PosPageContent() {
                     p_treatment_record_id: treatmentRecordId,
                     p_cashier_id: dbUser?.id,
                     p_subtotal: subtotal,
-                    p_discount: Number(discountValue) || 0,
+                    p_discount: actualDiscountAmount,
                     p_discount_type: discountType,
                     p_total: total,
                     p_payment_method: paymentMethod,

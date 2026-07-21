@@ -170,8 +170,8 @@ export default function ReceiptPage() {
             chunks.push(divider)
             chunks.push(line(`Subtotal: Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}`))
 
-            if (Number(transaction.discount) > 0) {
-                chunks.push(line(`Diskon  : -Rp ${Number(transaction.discount).toLocaleString('id-ID')}`))
+            if (discountRupiah > 0) {
+                chunks.push(line(`Diskon${percentLabel} : -Rp ${discountRupiah.toLocaleString('id-ID')}`))
             }
 
             const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
@@ -234,11 +234,9 @@ export default function ReceiptPage() {
             ?.map(i => `- ${i.name} (${i.quantity}x) : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`)
             .join('%0A') || ''
 
-        const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
-        const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
-        const qrisText = qrisFee > 0 ? `%0A*Biaya QRIS (0,3%):* Rp ${qrisFee.toLocaleString('id-ID')}` : ''
+        const discountText = discountRupiah > 0 ? `%0A*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
 
-        const text = `Halo *${transaction.patients?.full_name}*,%0A%0ATerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.%0ABerikut adalah rincian transaksi Anda:%0A%0ANo. Transaksi: *${transaction.transaction_number}*%0ATanggal: ${formatDate(transaction.created_at)}%0ACabang: ${transaction.branches?.name || 'Ayumi Clinic'}%0A%0A*Item:*%0A${itemsText}%0A%0A*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}%0A*Diskon:* Rp ${Number(transaction.discount).toLocaleString('id-ID')}${qrisText}%0A*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*%0A*Metode Pembayaran:* ${transaction.payment_method.toUpperCase()}%0AStatus: LUNAS%0A%0AHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
+        const text = `Halo *${transaction.patients?.full_name}*,%0A%0ATerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.%0ABerikut adalah rincian transaksi Anda:%0A%0ANo. Transaksi: *${transaction.transaction_number}*%0ATanggal: ${formatDate(transaction.created_at)}%0ACabang: ${transaction.branches?.name || 'Ayumi Clinic'}%0A%0A*Item:*%0A${itemsText}%0A%0A*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}%0A*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*%0A*Metode Pembayaran:* ${transaction.payment_method.toUpperCase()}%0AStatus: LUNAS%0A%0AHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
 
         window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank')
     }
@@ -258,7 +256,17 @@ export default function ReceiptPage() {
         })
     }
 
-    const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
+    const subtotalVal = Number(transaction.subtotal || 0)
+    const totalVal = Number(transaction.total || 0)
+    const discountVal = Number(transaction.discount || 0)
+    
+    // Check if discount was saved as percent (e.g. 6) or if subtotal - total > discount
+    const implicitDiff = Math.max(0, subtotalVal - totalVal)
+    const isPercentDiscount = (transaction.discount_type === 'percent') || (discountVal > 0 && discountVal <= 100 && implicitDiff > discountVal)
+    const discountRupiah = isPercentDiscount ? implicitDiff : discountVal
+    const percentLabel = isPercentDiscount ? ` (${discountVal}%)` : ''
+
+    const netTotal = Math.max(0, subtotalVal - discountRupiah)
     const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
 
     return (
@@ -422,10 +430,10 @@ export default function ReceiptPage() {
                         <span className="text-gray-500">Subtotal</span>
                         <span className=" text-gray-800">Rp {Number(transaction.subtotal).toLocaleString('id-ID')}</span>
                     </div>
-                    {Number(transaction.discount) > 0 && (
+                    {discountRupiah > 0 && (
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Diskon</span>
-                            <span className=" text-gray-800">- Rp {Number(transaction.discount).toLocaleString('id-ID')}</span>
+                            <span className="text-gray-500 font-medium">Diskon{percentLabel}</span>
+                            <span className="text-rose-600 font-bold">- Rp {discountRupiah.toLocaleString('id-ID')}</span>
                         </div>
                     )}
                     {qrisFee > 0 && (
