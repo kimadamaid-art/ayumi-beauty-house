@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import DateRangePicker from '../../components/DateRangePicker'
 
 export default function AppointmentsPage() {
     const supabase = createBrowserClient(
@@ -17,9 +18,16 @@ export default function AppointmentsPage() {
     
     // Filters & States
     const [viewMode, setViewMode] = useState('calendar') // default to calendar
+    const getLocalYYYYMMDD = (d = new Date()) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
     const [filterBranch, setFilterBranch] = useState('')
     const [filterStatus, setFilterStatus] = useState('')
-    const [filterDate, setFilterDate] = useState('')
+    const [startDate, setStartDate] = useState(getLocalYYYYMMDD())
+    const [endDate, setEndDate] = useState(getLocalYYYYMMDD())
     const [searchQuery, setSearchQuery] = useState('')
     const [isOwner, setIsOwner] = useState(false)
 
@@ -309,7 +317,7 @@ export default function AppointmentsPage() {
         let matches = true
         if (filterBranch && apt.branch_id !== filterBranch) matches = false
         if (filterStatus && apt.status !== filterStatus) matches = false
-        if (filterDate && apt.appointment_date !== filterDate) matches = false
+        if (startDate && endDate && (apt.appointment_date < startDate || apt.appointment_date > endDate)) matches = false
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
             const name = apt.patients?.full_name?.toLowerCase() || ''
@@ -416,11 +424,14 @@ export default function AppointmentsPage() {
                             className="input-ayumi pl-11 py-2.5 bg-gray-50/50 focus:bg-white"
                         />
                     </div>
-                    <input 
-                        type="date" 
-                        value={filterDate}
-                        onChange={(e) => setFilterDate(e.target.value)}
-                        className="input-ayumi bg-gray-50/50 focus:bg-white w-full md:w-auto text-xs"
+                    <DateRangePicker 
+                        startDate={startDate}
+                        endDate={endDate}
+                        onChange={(range) => {
+                            setStartDate(range.startDate);
+                            setEndDate(range.endDate);
+                        }}
+                        inputClassName="text-xs font-semibold"
                     />
                     {isOwner && (
                         <select 
