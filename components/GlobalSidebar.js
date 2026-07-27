@@ -207,17 +207,19 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                                                     Master Treatment
                                                 </div>
                                             </Link>
-                                            <Link href="/settings/backup" onClick={onClose}>
-                                                <div className={`text-xs py-1 transition-colors cursor-pointer ${pathname === '/settings/backup' ? 'text-white font-extrabold' : 'text-white/70 hover:text-white font-medium'}`}>
-                                                    Backup & Restore Data
-                                                </div>
-                                            </Link>
                                         </>
                                     )}
                                     {dbUser && (dbUser.role === 'owner' || dbUser.role === 'admin') && (
                                         <Link href="/settings/products" onClick={onClose}>
                                             <div className={`text-xs py-1 transition-colors cursor-pointer ${pathname === '/settings/products' ? 'text-white font-extrabold' : 'text-white/70 hover:text-white font-medium'}`}>
                                                 Master & Stok Produk
+                                            </div>
+                                        </Link>
+                                    )}
+                                    {dbUser && dbUser.role === 'owner' && (
+                                        <Link href="/settings/backup" onClick={onClose}>
+                                            <div className={`text-xs py-1 transition-colors cursor-pointer ${pathname === '/settings/backup' ? 'text-white font-extrabold' : 'text-white/70 hover:text-white font-medium'}`}>
+                                                Backup & Restore Data
                                             </div>
                                         </Link>
                                     )}

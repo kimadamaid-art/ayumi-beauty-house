@@ -76,20 +76,9 @@ export default function SettingsDashboard() {
                             </div>
                         </Link>
 
-                        {/* Menu: Backup & Restore */}
-                        <Link href="/settings/backup">
-                            <div className="p-4 md:p-6 border-2 border-gray-100 rounded-2xl hover:border-amber-300 hover:bg-amber-50 transition-all cursor-pointer group h-full bg-white">
-                                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-amber-600 transition-colors">Backup & Pemulihan Data</h3>
-                                <p className="text-sm text-gray-500">Ekspor seluruh data transaksi, pasien, dan rekam treatment klinik ke file cadangan JSON, atau impor file backup.</p>
-                            </div>
-                        </Link>
-
                     </>
                 )}
-
+ 
                 {/* Menu: Products & Stock */}
                 {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
                     <Link href="/settings/products">
@@ -99,6 +88,19 @@ export default function SettingsDashboard() {
                             </div>
                             <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-orange-600 transition-colors">Master & Stok Produk</h3>
                             <p className="text-sm text-gray-500">Kelola katalog produk skincare, harga jual, dan jumlah stok di seluruh cabang klinik.</p>
+                        </div>
+                    </Link>
+                )}
+
+                {/* Menu: Backup & Restore */}
+                {dbUser?.role === 'owner' && (
+                    <Link href="/settings/backup">
+                        <div className="p-4 md:p-6 border-2 border-gray-100 rounded-2xl hover:border-amber-300 hover:bg-amber-50 transition-all cursor-pointer group h-full bg-white">
+                            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-800 mb-1 group-hover:text-amber-600 transition-colors">Backup & Pemulihan Data</h3>
+                            <p className="text-sm text-gray-500">Ekspor seluruh data transaksi, pasien, dan rekam treatment klinik ke file cadangan JSON, atau impor file backup.</p>
                         </div>
                     </Link>
                 )}
