@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import DateRangePicker from "../../components/DateRangePicker"
+import toast from 'react-hot-toast'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -130,6 +131,11 @@ export default function TransactionsPage() {
                 branches (name),
                 patients (full_name, whatsapp),
                 users:users!transactions_cashier_id_fkey(full_name),
+                treatment_records (
+                    id,
+                    performed_by,
+                    therapist:users!treatment_records_performed_by_fkey (full_name)
+                ),
                 transaction_items (*)
             `)
             .order('created_at', { ascending: false })
@@ -411,34 +417,758 @@ export default function TransactionsPage() {
             "Status": (tx.payment_status || 'paid').toUpperCase(),
             "Kasir": tx.users?.full_name || "-"
         }))
+
+        // Hitung total untuk Detail Transaksi
+        const sumSubtotal = detailRows.reduce((a, b) => a + b["Subtotal"], 0)
+        const sumDiscount = detailRows.reduce((a, b) => a + b["Diskon"], 0)
+        const sumTotal = detailRows.reduce((a, b) => a + b["Total"], 0)
+
+        // Append Total Row to Detail Transaksi
+        detailRows.push({
+            "No.": "TOTAL",
+            "No. Transaksi": "",
+            "Tanggal": "",
+            "Cabang": "",
+            "Pasien": "",
+            "WhatsApp": "",
+            "Item Ringkasan": "",
+            "Metode Bayar": "",
+            "Subtotal": sumSubtotal,
+            "Diskon": sumDiscount,
+            "Total": sumTotal,
+            "Status": "",
+            "Kasir": ""
+        })
         const wsDetail = XLSX.utils.json_to_sheet(detailRows)
 
-        // Sheet 3: Breakdown per Kategori
-        const breakdownItems = []
+        // Pemisahan Kategori (Treatment, Produk, Kupon)
+        const treatmentRows = []
+        const productRows = []
+        const couponRows = []
+
         dataset.forEach(tx => {
+            const therapistName = tx.treatment_records?.therapist?.full_name || "-"
+            const cashierName = tx.users?.full_name || "-"
             tx.transaction_items?.forEach(item => {
-                breakdownItems.push({
+                const row = {
                     "No. Transaksi": tx.transaction_number,
                     "Tanggal": new Date(tx.created_at).toLocaleDateString('id-ID'),
                     "Cabang": tx.branches?.name || "-",
-                    "Kategori": item.item_type === 'treatment' ? 'Treatment' : item.item_type === 'product' ? 'Produk' : 'Kupon Paket',
                     "Nama Item": item.name,
+                    "Terapis / Kasir": item.item_type === 'treatment' ? therapistName : cashierName,
                     "Harga Satuan": Number(item.price),
                     "Kuantitas": item.quantity,
                     "Subtotal": Number(item.subtotal),
                     "Pasien": tx.patients?.full_name || "Walk-in Customer"
-                })
+                }
+
+                if (item.item_type === 'treatment') {
+                    treatmentRows.push(row)
+                } else if (item.item_type === 'product') {
+                    productRows.push(row)
+                } else if (item.item_type === 'coupon') {
+                    couponRows.push(row)
+                }
             })
         })
-        const wsBreakdown = XLSX.utils.json_to_sheet(breakdownItems)
+
+        // Hitung total untuk masing-masing kategori
+        const totalTQty = treatmentRows.reduce((a, b) => a + b["Kuantitas"], 0)
+        const totalTSubtotal = treatmentRows.reduce((a, b) => a + b["Subtotal"], 0)
+        if (treatmentRows.length > 0) {
+            treatmentRows.push({
+                "No. Transaksi": "TOTAL",
+                "Tanggal": "",
+                "Cabang": "",
+                "Nama Item": "",
+                "Terapis / Kasir": "",
+                "Harga Satuan": 0,
+                "Kuantitas": totalTQty,
+                "Subtotal": totalTSubtotal,
+                "Pasien": ""
+            })
+        }
+
+        const totalPQty = productRows.reduce((a, b) => a + b["Kuantitas"], 0)
+        const totalPSubtotal = productRows.reduce((a, b) => a + b["Subtotal"], 0)
+        if (productRows.length > 0) {
+            productRows.push({
+                "No. Transaksi": "TOTAL",
+                "Tanggal": "",
+                "Cabang": "",
+                "Nama Item": "",
+                "Terapis / Kasir": "",
+                "Harga Satuan": 0,
+                "Kuantitas": totalPQty,
+                "Subtotal": totalPSubtotal,
+                "Pasien": ""
+            })
+        }
+
+        const totalCQty = couponRows.reduce((a, b) => a + b["Kuantitas"], 0)
+        const totalCSubtotal = couponRows.reduce((a, b) => a + b["Subtotal"], 0)
+        if (couponRows.length > 0) {
+            couponRows.push({
+                "No. Transaksi": "TOTAL",
+                "Tanggal": "",
+                "Cabang": "",
+                "Nama Item": "",
+                "Terapis / Kasir": "",
+                "Harga Satuan": 0,
+                "Kuantitas": totalCQty,
+                "Subtotal": totalCSubtotal,
+                "Pasien": ""
+            })
+        }
+
+        const wsTreatment = XLSX.utils.json_to_sheet(treatmentRows)
+        const wsProduct = XLSX.utils.json_to_sheet(productRows)
+        const wsCoupon = XLSX.utils.json_to_sheet(couponRows)
 
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, wsSummary, "Summary")
         XLSX.utils.book_append_sheet(wb, wsDetail, "Detail Transaksi")
-        XLSX.utils.book_append_sheet(wb, wsBreakdown, "Breakdown per Kategori")
+        XLSX.utils.book_append_sheet(wb, wsTreatment, "Detail Treatment")
+        XLSX.utils.book_append_sheet(wb, wsProduct, "Detail Produk Skincare")
+        XLSX.utils.book_append_sheet(wb, wsCoupon, "Detail Kupon Paket")
 
         const fileName = `Laporan_${reportType}_${branchName.replace(/\s+/g, '_')}_${todayStr}.xlsx`
         XLSX.writeFile(wb, fileName)
+    }
+
+    const handlePDFExport = async (reportType, title, dataset) => {
+        if (!dataset || dataset.length === 0) {
+            alert('Tidak ada data untuk diexport.')
+            return
+        }
+
+        const toastId = toast.loading('Menyiapkan dokumen PDF...')
+        try {
+            const { jsPDF } = await import('jspdf')
+            
+            // Inisialisasi dokumen PDF (A4 Portrait)
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            })
+
+            // Definisi warna sesuai tema Ayumi (Premium Orange-Brown)
+            const primaryColor = [212, 98, 33]    // #D46221 (Oranye Ayumi)
+            const secondaryColor = [78, 42, 18]   // #4E2A12 (Cokelat Tua)
+            const accentColor = [242, 216, 195]    // #F2D8C3 (Krem Aksen)
+            const bgMuted = [250, 246, 240]        // #FAF6F0 (Warm Off-White)
+            const darkText = [44, 30, 22]          // #2C1E16 (Kehitaman)
+            const mutedText = [140, 125, 115]      // #8C7D73 (Cokelat Abu-abu)
+
+            let y = 15
+            const pageHeight = 297
+            const margin = 15
+            const contentWidth = 180
+            let pageNum = 1
+
+            // Helper untuk memotong teks secara presisi berdasarkan lebar kolom (mm)
+            const fitText = (str, widthLimit) => {
+                if (!str) return '-';
+                let tempStr = str;
+                // Hitung lebar string dalam satuan mm pada ukuran font 7
+                const getWidthMm = (s) => (doc.getStringUnitWidth(s) * 7 * 25.4) / 72;
+                if (getWidthMm(tempStr) <= widthLimit) return tempStr;
+                
+                while (tempStr.length > 0 && getWidthMm(tempStr + '..') > widthLimit) {
+                    tempStr = tempStr.substring(0, tempStr.length - 1);
+                }
+                return tempStr + '..';
+            }
+
+            // Helper untuk menggambar Header dan Footer di setiap halaman
+            const addHeaderFooter = (d, isFirstPage = false) => {
+                if (!isFirstPage) {
+                    d.setFont('helvetica', 'bold')
+                    d.setFontSize(8)
+                    d.setTextColor(...mutedText)
+                    d.text('LAPORAN OMSET & TRANSAKSI DETAIL - AYUMI BEAUTY HOUSE', margin, 10)
+                    d.setDrawColor(245, 238, 230)
+                    d.setLineWidth(0.3)
+                    d.line(margin, 12, margin + contentWidth, 12)
+                }
+
+                // Footer di bagian bawah kertas
+                d.setFont('helvetica', 'normal')
+                d.setFontSize(7.5)
+                d.setTextColor(...mutedText)
+                d.text(`Ayumi Beauty House  |  Dicetak pada: ${new Date().toLocaleString('id-ID')}`, margin, pageHeight - 10)
+                d.text(`Halaman ${pageNum}`, margin + contentWidth - 15, pageHeight - 10)
+            }
+
+            // --- 1. KOP SURAT / HEADER LAPORAN ---
+            // Aksen bar atas oranye
+            doc.setFillColor(...primaryColor)
+            doc.rect(margin, y, contentWidth, 3, 'F')
+            y += 9
+
+            // Nama Klinik
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(18)
+            doc.setTextColor(...secondaryColor)
+            doc.text('AYUMI BEAUTY HOUSE', margin, y)
+            
+            // Subtitle Laporan
+            doc.setFontSize(10.5)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...primaryColor)
+            doc.text(`LAPORAN OMSET & KINERJA KEUANGAN (${reportType.toUpperCase()})`, margin, y + 5.5)
+
+            // Metadata Cetak di sisi kanan
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...darkText)
+            
+            const activeBranchName = branches.find(b => b.id === filterBranch)?.name || 'Semua Cabang (Global)'
+            const printDateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            const printedBy = dbUser?.full_name || 'Owner/Admin'
+
+            const metaX = margin + 110
+            doc.text(`Periode: ${title.replace(/_/g, ' ')}`, metaX, y)
+            doc.text(`Cabang: ${activeBranchName}`, metaX, y + 4)
+            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 8)
+            doc.text(`Pencetak: ${printedBy}`, metaX, y + 12)
+
+            y += 18
+
+            // Garis pembatas elegan
+            doc.setDrawColor(...accentColor)
+            doc.setLineWidth(0.4)
+            doc.line(margin, y, margin + contentWidth, y)
+            y += 8
+
+            // --- 2. PERHITUNGAN RINGKASAN METRIK ---
+            let totalRevenue = 0
+            let totalTxCount = dataset.length
+            let treatmentQty = 0
+            let productQty = 0
+            let couponQty = 0
+            const paymentBreakdown = { cash: 0, transfer: 0, qris: 0, debit: 0, credit: 0 }
+
+            dataset.forEach(tx => {
+                totalRevenue += Number(tx.total || 0)
+                const method = tx.payment_method?.toLowerCase()
+                if (paymentBreakdown[method] !== undefined) {
+                    paymentBreakdown[method] += Number(tx.total || 0)
+                }
+                tx.transaction_items?.forEach(i => {
+                    if (i.item_type === 'treatment') treatmentQty += i.quantity
+                    if (i.item_type === 'product') productQty += i.quantity
+                    if (i.item_type === 'coupon') couponQty += i.quantity
+                })
+            })
+
+            // --- 3. KARTU METRIK UTAMA (KPI Premium Layout) ---
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('RINGKASAN KINERJA KEUANGAN', margin, y)
+            y += 4.5
+
+            const cardW = 86
+            const cardH = 15
+            const gap = 8
+
+            // Helper untuk menggambar kartu metrik premium dengan aksen garis vertikal di kiri
+            const drawPremiumCard = (xVal, yVal, label, value, isGreen = false) => {
+                doc.setFillColor(254, 252, 250) // background krem ultra-soft
+                doc.setDrawColor(242, 230, 218) // border krem lembut
+                doc.setLineWidth(0.3)
+                doc.roundedRect(xVal, yVal, cardW, cardH, 1, 1, 'FD')
+                
+                // Garis aksen vertikal oranye di sisi kiri
+                doc.setFillColor(...primaryColor)
+                doc.rect(xVal, yVal, 2.5, cardH, 'F')
+                
+                doc.setFontSize(7)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...mutedText)
+                doc.text(label, xVal + 5, yVal + 4.5)
+                
+                doc.setFontSize(10.5)
+                if (isGreen) {
+                    doc.setTextColor(22, 101, 52) // warna hijau sukses
+                } else {
+                    doc.setTextColor(...darkText)
+                }
+                doc.text(value, xVal + 5, yVal + 11.2)
+            }
+
+            // Card 1: Total Omset
+            drawPremiumCard(margin, y, 'TOTAL OMSET (REVENUE)', formatCurrency(totalRevenue), true)
+
+            // Card 2: Total Transaksi
+            drawPremiumCard(margin + cardW + gap, y, 'TOTAL TRANSAKSI SUKSES', `${totalTxCount} Transaksi`, false)
+
+            y += cardH + gap - 4.5
+
+            // Card 3: Treatment Qty
+            drawPremiumCard(margin, y, 'TINDAKAN TREATMENT DIKERJAKAN', `${treatmentQty} Sesi Treatment`, false)
+
+            // Card 4: Product Qty
+            drawPremiumCard(margin + cardW + gap, y, 'PRODUK SKINCARE TERJUAL', `${productQty} Unit Produk`, false)
+
+            y += cardH + gap
+
+            // Ringkasan Metode Bayar
+            doc.setFontSize(9)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...secondaryColor)
+            doc.text('Rincian Metode Pembayaran:', margin, y)
+            y += 4.5
+
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...darkText)
+            const payMethodsStr = Object.entries(paymentBreakdown)
+                .map(([m, amt]) => `${m.toUpperCase()}: ${formatCurrency(amt)}`)
+                .join('   |   ')
+            doc.text(payMethodsStr, margin, y)
+            y += 9
+
+            // Ekstrak rincian item berdasarkan kategori
+            const treatmentItemsList = []
+            const productItemsList = []
+            const couponItemsList = []
+
+            dataset.forEach(tx => {
+                const txDateStr = new Date(tx.created_at).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                })
+                const patientName = tx.patients?.full_name || 'Walk-in Customer'
+                const cashierName = tx.users?.full_name || '-'
+                const therapistName = tx.treatment_records?.therapist?.full_name || '-'
+
+                tx.transaction_items?.forEach(item => {
+                    const rowData = {
+                        date: txDateStr,
+                        txNumber: tx.transaction_number,
+                        name: item.name,
+                        patient: patientName,
+                        qty: item.quantity,
+                        subtotal: Number(item.subtotal || 0)
+                    }
+
+                    if (item.item_type === 'treatment') {
+                        treatmentItemsList.push({
+                            ...rowData,
+                            therapist: therapistName
+                        })
+                    } else if (item.item_type === 'product') {
+                        productItemsList.push({
+                            ...rowData,
+                            seller: cashierName
+                        })
+                    } else if (item.item_type === 'coupon') {
+                        couponItemsList.push({
+                            ...rowData
+                        })
+                    }
+                })
+            })
+
+            // Helper untuk menggambar table header dengan garis batas tebal
+            const drawTableHeader = (headers, colWidths, startX, startY) => {
+                doc.setDrawColor(220, 200, 180) // border header
+                doc.setLineWidth(0.3)
+                doc.line(startX, startY, startX + contentWidth, startY)
+                
+                doc.setFillColor(248, 240, 232) // background krem hangat
+                doc.rect(startX, startY, contentWidth, 6.5, 'F')
+                
+                doc.line(startX, startY + 6.5, startX + contentWidth, startY + 6.5)
+                
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7.5)
+                doc.setTextColor(...secondaryColor)
+                
+                let currX = startX
+                headers.forEach((h, idx) => {
+                    const width = colWidths[idx]
+                    if (h === 'Subtotal' || h === 'Total' || h === 'Omset') {
+                        doc.text(h, currX + width - 2, startY + 4.5, { align: 'right' })
+                    } else if (h === 'No' || h === 'Qty') {
+                        doc.text(h, currX + width / 2, startY + 4.5, { align: 'center' })
+                    } else {
+                        doc.text(h, currX + 2, startY + 4.5)
+                    }
+                    currX += width
+                })
+            }
+
+            // Inisialisasi footer halaman pertama
+            addHeaderFooter(doc, true)
+
+            // --- 4. TABEL TINDAKAN TREATMENT ---
+            y += 2
+            if (y + 22 > pageHeight - margin) {
+                doc.addPage()
+                pageNum++
+                y = 15
+                addHeaderFooter(doc)
+            }
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('A. RINCIAN TINDAKAN TREATMENT (PERAWATAN)', margin, y)
+            y += 4.5
+
+            // Lebar kolom terdistribusi rata (total 180)
+            const tHeaders = ['No', 'Tanggal', 'No. Transaksi', 'Nama Treatment', 'Terapis', 'Pasien', 'Qty', 'Subtotal']
+            const tColWidths = [7, 18, 32, 40, 28, 30, 8, 17]
+
+            drawTableHeader(tHeaders, tColWidths, margin, y)
+            y += 6.5
+
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(...darkText)
+
+            if (treatmentItemsList.length === 0) {
+                doc.setFillColor(255, 255, 255)
+                doc.rect(margin, y, contentWidth, 6, 'F')
+                doc.text('Tidak ada tindakan treatment pada periode ini.', margin + 5, y + 4.5)
+                y += 6
+            } else {
+                treatmentItemsList.forEach((item, idx) => {
+                    if (y + 7.5 > pageHeight - margin) {
+                        doc.addPage()
+                        pageNum++
+                        y = 15
+                        addHeaderFooter(doc)
+                        drawTableHeader(tHeaders, tColWidths, margin, y)
+                        y += 6.5
+                        doc.setFont('helvetica', 'normal')
+                        doc.setFontSize(7)
+                        doc.setTextColor(...darkText)
+                    }
+
+                    if (idx % 2 === 1) {
+                        doc.setFillColor(253, 251, 248)
+                        doc.rect(margin, y, contentWidth, 5.5, 'F')
+                    }
+
+                    let currX = margin
+                    
+                    doc.text(`${idx + 1}`, currX + tColWidths[0] / 2, y + 3.8, { align: 'center' })
+                    currX += tColWidths[0]
+
+                    doc.text(item.date, currX + 2, y + 3.8)
+                    currX += tColWidths[1]
+
+                    doc.text(item.txNumber, currX + 2, y + 3.8)
+                    currX += tColWidths[2]
+
+                    // Potong teks secara dinamis agar tidak menabrak batas kolom
+                    const tName = fitText(item.name, tColWidths[3] - 4)
+                    doc.text(tName, currX + 2, y + 3.8)
+                    currX += tColWidths[3]
+
+                    const thName = fitText(item.therapist, tColWidths[4] - 4)
+                    doc.text(thName, currX + 2, y + 3.8)
+                    currX += tColWidths[4]
+
+                    const pName = fitText(item.patient, tColWidths[5] - 4)
+                    doc.text(pName, currX + 2, y + 3.8)
+                    currX += tColWidths[5]
+
+                    doc.text(`${item.qty}`, currX + tColWidths[6] / 2, y + 3.8, { align: 'center' })
+                    currX += tColWidths[6]
+
+                    const subStr = item.subtotal.toLocaleString('id-ID')
+                    doc.text(subStr, currX + tColWidths[7] - 2, y + 3.8, { align: 'right' })
+
+                    // Garis pembatas baris ultra-tipis
+                    doc.setDrawColor(245, 238, 230)
+                    doc.setLineWidth(0.2)
+                    doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                    y += 5.5
+                })
+
+                // --- TOTAL TINDAKAN TREATMENT ---
+                const totalTQty = treatmentItemsList.reduce((sum, item) => sum + item.qty, 0)
+                const totalTSubtotal = treatmentItemsList.reduce((sum, item) => sum + item.subtotal, 0)
+
+                if (y + 6 > pageHeight - margin) {
+                    doc.addPage()
+                    pageNum++
+                    y = 15
+                    addHeaderFooter(doc)
+                    drawTableHeader(tHeaders, tColWidths, margin, y)
+                    y += 6.5
+                }
+
+                doc.setFillColor(254, 248, 242) // warna total krem oranye
+                doc.rect(margin, y, contentWidth, 5.5, 'F')
+                doc.setDrawColor(220, 200, 180)
+                doc.setLineWidth(0.3)
+                doc.line(margin, y, margin + contentWidth, y)
+                doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7.5)
+                doc.setTextColor(...secondaryColor)
+                doc.text('TOTAL TINDAKAN TREATMENT', margin + 2, y + 3.8)
+
+                let qtyX = margin + tColWidths.slice(0, 6).reduce((a, b) => a + b, 0)
+                doc.text(`${totalTQty}`, qtyX + tColWidths[6] / 2, y + 3.8, { align: 'center' })
+
+                let subX = qtyX + tColWidths[6]
+                doc.text(totalTSubtotal.toLocaleString('id-ID'), subX + tColWidths[7] - 2, y + 3.8, { align: 'right' })
+                y += 8
+            }
+
+            // --- 5. TABEL PENJUALAN PRODUK SKINCARE ---
+            y += 4
+            if (y + 22 > pageHeight - margin) {
+                doc.addPage()
+                pageNum++
+                y = 15
+                addHeaderFooter(doc)
+            }
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('B. RINCIAN PENJUALAN PRODUK SKINCARE', margin, y)
+            y += 4.5
+
+            const pHeaders = ['No', 'Tanggal', 'No. Transaksi', 'Nama Produk Skincare', 'Kasir/Staf', 'Pasien', 'Qty', 'Subtotal']
+            const pColWidths = [7, 18, 32, 40, 28, 30, 8, 17]
+
+            drawTableHeader(pHeaders, pColWidths, margin, y)
+            y += 6.5
+
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(...darkText)
+
+            if (productItemsList.length === 0) {
+                doc.setFillColor(255, 255, 255)
+                doc.rect(margin, y, contentWidth, 6, 'F')
+                doc.text('Tidak ada penjualan produk skincare pada periode ini.', margin + 5, y + 4.5)
+                y += 6
+            } else {
+                productItemsList.forEach((item, idx) => {
+                    if (y + 7.5 > pageHeight - margin) {
+                        doc.addPage()
+                        pageNum++
+                        y = 15
+                        addHeaderFooter(doc)
+                        drawTableHeader(pHeaders, pColWidths, margin, y)
+                        y += 6.5
+                        doc.setFont('helvetica', 'normal')
+                        doc.setFontSize(7)
+                        doc.setTextColor(...darkText)
+                    }
+
+                    if (idx % 2 === 1) {
+                        doc.setFillColor(253, 251, 248)
+                        doc.rect(margin, y, contentWidth, 5.5, 'F')
+                    }
+
+                    let currX = margin
+                    
+                    doc.text(`${idx + 1}`, currX + pColWidths[0] / 2, y + 3.8, { align: 'center' })
+                    currX += pColWidths[0]
+
+                    doc.text(item.date, currX + 2, y + 3.8)
+                    currX += pColWidths[1]
+
+                    doc.text(item.txNumber, currX + 2, y + 3.8)
+                    currX += pColWidths[2]
+
+                    const prodName = fitText(item.name, pColWidths[3] - 4)
+                    doc.text(prodName, currX + 2, y + 3.8)
+                    currX += pColWidths[3]
+
+                    const sName = fitText(item.seller, pColWidths[4] - 4)
+                    doc.text(sName, currX + 2, y + 3.8)
+                    currX += pColWidths[4]
+
+                    const pName = fitText(item.patient, pColWidths[5] - 4)
+                    doc.text(pName, currX + 2, y + 3.8)
+                    currX += pColWidths[5]
+
+                    doc.text(`${item.qty}`, currX + pColWidths[6] / 2, y + 3.8, { align: 'center' })
+                    currX += pColWidths[6]
+
+                    const subStr = item.subtotal.toLocaleString('id-ID')
+                    doc.text(subStr, currX + pColWidths[7] - 2, y + 3.8, { align: 'right' })
+
+                    doc.setDrawColor(245, 238, 230)
+                    doc.setLineWidth(0.2)
+                    doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                    y += 5.5
+                })
+
+                // --- TOTAL PENJUALAN PRODUK ---
+                const totalPQty = productItemsList.reduce((sum, item) => sum + item.qty, 0)
+                const totalPSubtotal = productItemsList.reduce((sum, item) => sum + item.subtotal, 0)
+
+                if (y + 6 > pageHeight - margin) {
+                    doc.addPage()
+                    pageNum++
+                    y = 15
+                    addHeaderFooter(doc)
+                    drawTableHeader(pHeaders, pColWidths, margin, y)
+                    y += 6.5
+                }
+
+                doc.setFillColor(254, 248, 242)
+                doc.rect(margin, y, contentWidth, 5.5, 'F')
+                doc.setDrawColor(220, 200, 180)
+                doc.setLineWidth(0.3)
+                doc.line(margin, y, margin + contentWidth, y)
+                doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7.5)
+                doc.setTextColor(...secondaryColor)
+                doc.text('TOTAL PENJUALAN PRODUK', margin + 2, y + 3.8)
+
+                let qtyX = margin + pColWidths.slice(0, 6).reduce((a, b) => a + b, 0)
+                doc.text(`${totalPQty}`, qtyX + pColWidths[6] / 2, y + 3.8, { align: 'center' })
+
+                let subX = qtyX + pColWidths[6]
+                doc.text(totalPSubtotal.toLocaleString('id-ID'), subX + pColWidths[7] - 2, y + 3.8, { align: 'right' })
+                y += 8
+            }
+
+            // --- 6. TABEL PENJUALAN KUPON PAKET ---
+            y += 4
+            if (y + 22 > pageHeight - margin) {
+                doc.addPage()
+                pageNum++
+                y = 15
+                addHeaderFooter(doc)
+            }
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('C. RINCIAN PENJUALAN KUPON PAKET', margin, y)
+            y += 4.5
+
+            const cHeaders = ['No', 'Tanggal', 'No. Transaksi', 'Nama Paket Kupon', 'Pasien', 'Qty', 'Subtotal']
+            const cColWidths = [8, 22, 35, 57, 35, 8, 15]
+
+            drawTableHeader(cHeaders, cColWidths, margin, y)
+            y += 6.5
+
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(...darkText)
+
+            if (couponItemsList.length === 0) {
+                doc.setFillColor(255, 255, 255)
+                doc.rect(margin, y, contentWidth, 6, 'F')
+                doc.text('Tidak ada penjualan kupon paket pada periode ini.', margin + 5, y + 4.5)
+                y += 6
+            } else {
+                couponItemsList.forEach((item, idx) => {
+                    if (y + 7.5 > pageHeight - margin) {
+                        doc.addPage()
+                        pageNum++
+                        y = 15
+                        addHeaderFooter(doc)
+                        drawTableHeader(cHeaders, cColWidths, margin, y)
+                        y += 6.5
+                        doc.setFont('helvetica', 'normal')
+                        doc.setFontSize(7)
+                        doc.setTextColor(...darkText)
+                    }
+
+                    if (idx % 2 === 1) {
+                        doc.setFillColor(253, 251, 248)
+                        doc.rect(margin, y, contentWidth, 5.5, 'F')
+                    }
+
+                    let currX = margin
+                    
+                    doc.text(`${idx + 1}`, currX + cColWidths[0] / 2, y + 3.8, { align: 'center' })
+                    currX += cColWidths[0]
+
+                    doc.text(item.date, currX + 2, y + 3.8)
+                    currX += cColWidths[1]
+
+                    doc.text(item.txNumber, currX + 2, y + 3.8)
+                    currX += cColWidths[2]
+
+                    const cName = fitText(item.name, cColWidths[3] - 4)
+                    doc.text(cName, currX + 2, y + 3.8)
+                    currX += cColWidths[3]
+
+                    const pName = fitText(item.patient, cColWidths[4] - 4)
+                    doc.text(pName, currX + 2, y + 3.8)
+                    currX += cColWidths[4]
+
+                    doc.text(`${item.qty}`, currX + cColWidths[5] / 2, y + 3.8, { align: 'center' })
+                    currX += cColWidths[5]
+
+                    const subStr = item.subtotal.toLocaleString('id-ID')
+                    doc.text(subStr, currX + cColWidths[6] - 2, y + 3.8, { align: 'right' })
+
+                    doc.setDrawColor(245, 238, 230)
+                    doc.setLineWidth(0.2)
+                    doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                    y += 5.5
+                })
+
+                // --- TOTAL PENJUALAN KUPON ---
+                const totalCQty = couponItemsList.reduce((sum, item) => sum + item.qty, 0)
+                const totalCSubtotal = couponItemsList.reduce((sum, item) => sum + item.subtotal, 0)
+
+                if (y + 6 > pageHeight - margin) {
+                    doc.addPage()
+                    pageNum++
+                    y = 15
+                    addHeaderFooter(doc)
+                    drawTableHeader(cHeaders, cColWidths, margin, y)
+                    y += 6.5
+                }
+
+                doc.setFillColor(254, 248, 242)
+                doc.rect(margin, y, contentWidth, 5.5, 'F')
+                doc.setDrawColor(220, 200, 180)
+                doc.setLineWidth(0.3)
+                doc.line(margin, y, margin + contentWidth, y)
+                doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7.5)
+                doc.setTextColor(...secondaryColor)
+                doc.text('TOTAL PENJUALAN KUPON PAKET', margin + 2, y + 3.8)
+
+                let qtyX = margin + cColWidths.slice(0, 5).reduce((a, b) => a + b, 0)
+                doc.text(`${totalCQty}`, qtyX + cColWidths[5] / 2, y + 3.8, { align: 'center' })
+
+                let subX = qtyX + cColWidths[5]
+                doc.text(totalCSubtotal.toLocaleString('id-ID'), subX + cColWidths[6] - 2, y + 3.8, { align: 'right' })
+                y += 8
+            }
+
+            // Menyimpan file PDF dengan penamaan rapi
+            const sanitizedBranch = activeBranchName.replace(/[^a-zA-Z0-9]/g, '_')
+            const pdfName = `Laporan_Keuangan_${reportType}_${sanitizedBranch}_${title.replace(/\s+/g, '_')}.pdf`
+            doc.save(pdfName)
+
+            toast.success('Laporan PDF berhasil diunduh.', { id: toastId })
+        } catch (err) {
+            console.error('Error generating PDF:', err)
+            toast.error('Gagal membuat PDF: ' + err.message, { id: toastId })
+        }
     }
 
 
@@ -891,8 +1621,8 @@ export default function TransactionsPage() {
             
             {/* TAMPILAN UTAMA: GLOBAL FILTER BAR */}
             <div className="card-ayumi p-4 md:p-6 flex flex-col gap-4 bg-white relative">
-                <div className="flex justify-end items-center">
-                    {/* Excel Export Button in Top Right */}
+                <div className="flex justify-end items-center gap-2">
+                    {/* Excel & PDF Export Buttons in Top Right */}
                     <button
                         onClick={() => handleExcelExport('Main', 'Semua_Transaksi', filteredTransactions)}
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-green-600/20 flex items-center gap-2 transition-all cursor-pointer"
@@ -901,6 +1631,15 @@ export default function TransactionsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         Export Excel
+                    </button>
+                    <button
+                        onClick={() => handlePDFExport('Main', 'Semua_Transaksi', filteredTransactions)}
+                        className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-orange-600/20 flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Cetak Laporan PDF
                     </button>
                 </div>
 
@@ -1173,12 +1912,21 @@ export default function TransactionsPage() {
                                     className="input-ayumi py-1.5 px-3 text-sm bg-white w-48 shadow-sm"
                                 />
                             </div>
-                            <button
-                                onClick={() => handleExcelExport('Harian', `Harian_${dailyReportDate}`, dailyData.txList)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md"
-                            >
-                                Export Laporan Harian (Excel)
-                            </button>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={() => handleExcelExport('Harian', `Harian_${dailyReportDate}`, dailyData.txList)}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial"
+                                >
+                                    Export Excel
+                                </button>
+                                <button
+                                    onClick={() => handlePDFExport('Harian', `Harian_${dailyReportDate}`, dailyData.txList)}
+                                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    Cetak PDF
+                                </button>
+                            </div>
                         </div>
 
                         {/* Summary metrics for daily */}
@@ -1329,12 +2077,21 @@ export default function TransactionsPage() {
                                     className="input-ayumi py-1.5 px-3 text-sm bg-white w-48 shadow-sm"
                                 />
                             </div>
-                            <button
-                                onClick={() => handleExcelExport('Mingguan', `Mingguan_Mulai_${weeklyReportStart}`, weeklyData.txList)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md"
-                            >
-                                Export Laporan Mingguan (Excel)
-                            </button>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={() => handleExcelExport('Mingguan', `Mingguan_Mulai_${weeklyReportStart}`, weeklyData.txList)}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial"
+                                >
+                                    Export Excel
+                                </button>
+                                <button
+                                    onClick={() => handlePDFExport('Mingguan', `Mingguan_Mulai_${weeklyReportStart}`, weeklyData.txList)}
+                                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    Cetak PDF
+                                </button>
+                            </div>
                         </div>
 
                         {/* Weekly summaries */}
@@ -1448,12 +2205,21 @@ export default function TransactionsPage() {
                                     ))}
                                 </select>
                             </div>
-                            <button
-                                onClick={() => handleExcelExport('Bulanan', `Bulanan_${monthlyReportMonth + 1}_${monthlyReportYear}`, monthlyData.txList)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md"
-                            >
-                                Export Laporan Bulanan (Excel)
-                            </button>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={() => handleExcelExport('Bulanan', `Bulanan_${monthlyReportMonth + 1}_${monthlyReportYear}`, monthlyData.txList)}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial"
+                                >
+                                    Export Excel
+                                </button>
+                                <button
+                                    onClick={() => handlePDFExport('Bulanan', `Bulanan_${monthlyReportMonth + 1}_${monthlyReportYear}`, monthlyData.txList)}
+                                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    Cetak PDF
+                                </button>
+                            </div>
                         </div>
 
                         {/* Monthly summaries */}
@@ -1637,12 +2403,21 @@ export default function TransactionsPage() {
                                     ))}
                                 </select>
                             </div>
-                            <button
-                                onClick={() => handleExcelExport('Tahunan', `Tahunan_${yearlyReportYear}`, yearlyData.txList)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md"
-                            >
-                                Export Laporan Tahunan (Excel)
-                            </button>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={() => handleExcelExport('Tahunan', `Tahunan_${yearlyReportYear}`, yearlyData.txList)}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial"
+                                >
+                                    Export Excel
+                                </button>
+                                <button
+                                    onClick={() => handlePDFExport('Tahunan', `Tahunan_${yearlyReportYear}`, yearlyData.txList)}
+                                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    Cetak PDF
+                                </button>
+                            </div>
                         </div>
 
                         {/* Yearly summaries */}
@@ -1799,12 +2574,21 @@ export default function TransactionsPage() {
                                     Generate Laporan
                                 </button>
                                 {customReportResult && (
-                                    <button
-                                        onClick={() => handleExcelExport('Custom', `Custom_${customTabStart}_s.d_${customTabEnd}`, customReportResult.txList)}
-                                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all"
-                                    >
-                                        Export Excel Laporan
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleExcelExport('Custom', `Custom_${customTabStart}_s.d_${customTabEnd}`, customReportResult.txList)}
+                                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer"
+                                        >
+                                            Export Excel
+                                        </button>
+                                        <button
+                                            onClick={() => handlePDFExport('Custom', `Custom_${customTabStart}_s.d_${customTabEnd}`, customReportResult.txList)}
+                                            className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                            Cetak PDF
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>

@@ -25,6 +25,8 @@ function PosPageContent() {
     const [coupons, setCoupons] = useState([])
     const [patients, setPatients] = useState([])
     const [pendingBills, setPendingBills] = useState([])
+    const [therapists, setTherapists] = useState([])
+    const [selectedTherapistId, setSelectedTherapistId] = useState('')
     
     // UI State
     const [activeTab, setActiveTab] = useState('treatment') // 'treatment' | 'product' | 'coupon'
@@ -88,6 +90,10 @@ function PosPageContent() {
         // Fetch Patients (ordered by most recent first)
         const { data: patData } = await supabase.from('patients').select('id, full_name, whatsapp').order('created_at', { ascending: false }).limit(2000)
         if (patData) setPatients(patData)
+
+        // Fetch active therapists
+        const { data: thData } = await supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name')
+        if (thData) setTherapists(thData)
 
         setIsLoading(false)
     }
@@ -399,7 +405,7 @@ function PosPageContent() {
         let query = supabase
             .from('treatment_records')
             .select(`
-                id, treatment_time, treatment_date, branch_id,
+                id, treatment_time, treatment_date, branch_id, performed_by,
                 branches(name),
                 patients(id, full_name, whatsapp),
                 treatment_record_items(treatment_id, price_at_time, discount_percent, treatments(name, price))
@@ -666,11 +672,35 @@ function PosPageContent() {
             return
         }
 
+        const hasDirectTreatment = cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id)
+        if (hasDirectTreatment && !selectedTherapistId) {
+            alert('Silakan pilih terapis yang melakukan tindakan treatment!')
+            return
+        }
+
         setIsProcessing(true)
 
         try {
             // Extract treatment_record_id if we loaded from pending bills
-            const treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
+            let treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
+
+            // If it is a direct treatment checkout, create a parent treatment record first
+            if (hasDirectTreatment) {
+                const { data: newTr, error: trErr } = await supabase
+                    .from('treatment_records')
+                    .insert([{
+                        patient_id: selectedPatient?.id || null,
+                        branch_id: selectedBranch,
+                        performed_by: selectedTherapistId,
+                        treatment_date: new Date().toISOString().split('T')[0],
+                        treatment_time: new Date().toLocaleTimeString('en-US', { hour12: false })
+                    }])
+                    .select()
+                    .single()
+
+                if (trErr) throw trErr
+                treatmentRecordId = newTr.id
+            }
 
             // Prepare items payload for RPC
             const itemsPayload = cart.map(item => ({
@@ -766,6 +796,7 @@ function PosPageContent() {
             }
 
             // Navigate to Receipt page
+            setSelectedTherapistId('')
             router.push(`/kasir/transactions/${trxData.id}`)
             
         } catch (error) {
@@ -1617,6 +1648,24 @@ function PosPageContent() {
                     </div>
 
                     <div className="space-y-4">
+                        {cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id) && (
+                            <div>
+                                <label className="block text-[10px] font-extrabold text-ayumi-primary uppercase tracking-wider mb-2 flex items-center gap-1">
+                                    <span>👩‍⚕️</span> Terapis Tindakan <span className="text-red-500 font-black">*</span>
+                                </label>
+                                <select
+                                    value={selectedTherapistId}
+                                    onChange={(e) => setSelectedTherapistId(e.target.value)}
+                                    className="w-full input-ayumi text-xs font-bold bg-white focus:border-ayumi-primary"
+                                >
+                                    <option value="">-- Pilih Terapis Tindakan --</option>
+                                    {therapists.map(t => (
+                                        <option key={t.id} value={t.id}>{t.full_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
                         <div>
                             <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">Metode Pembayaran</label>
                             <div className="grid grid-cols-5 gap-1.5">

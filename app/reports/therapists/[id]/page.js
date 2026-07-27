@@ -168,8 +168,9 @@ export default function TherapistDetailPage() {
         const totalIncome = treatmentRecords.reduce((acc, curr) => acc + Number(curr.price_at_time || 0), 0)
         const totalCommission = treatmentRecords.reduce((acc, curr) => {
             const price = Number(curr.price_at_time || 0)
+            const basePrice = (price === 0 && Number(curr.original_price || 0) > 0) ? Number(curr.original_price) : price
             const commPercent = Number(curr.commission_percent || 0)
-            return acc + Math.round(price * (commPercent / 100))
+            return acc + Math.round(basePrice * (commPercent / 100))
         }, 0)
         const totalTreatments = treatmentRecords.length
         return {
@@ -244,8 +245,9 @@ export default function TherapistDetailPage() {
         // Map data to custom format for Excel rows
         const rows = filteredRecords.map((r, idx) => {
             const price = Number(r.price_at_time || 0)
+            const basePrice = (price === 0 && Number(r.original_price || 0) > 0) ? Number(r.original_price) : price
             const commPercent = Number(r.commission_percent || 0)
-            const commAmount = Math.round(price * (commPercent / 100))
+            const commAmount = Math.round(basePrice * (commPercent / 100))
             return {
                 'No': idx + 1,
                 'Tanggal': r.treatment_records?.treatment_date || '',
@@ -504,8 +506,9 @@ export default function TherapistDetailPage() {
                                                 <td className="px-6 py-4 text-right ">
                                                     {(() => {
                                                         const price = Number(r.price_at_time || 0)
+                                                        const basePrice = (price === 0 && Number(r.original_price || 0) > 0) ? Number(r.original_price) : price
                                                         const commPercent = Number(r.commission_percent || 0)
-                                                        const commAmount = Math.round(price * (commPercent / 100))
+                                                        const commAmount = Math.round(basePrice * (commPercent / 100))
                                                         return commAmount > 0 ? (
                                                             <div className="flex flex-col items-end">
                                                                 <span className="font-bold text-emerald-600">Rp {commAmount.toLocaleString('id-ID')}</span>

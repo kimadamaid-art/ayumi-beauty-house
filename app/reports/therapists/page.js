@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
+import * as XLSX from 'xlsx'
+import { toast } from 'react-hot-toast'
 
 export default function TherapistsReportPage() {
     const router = useRouter()
@@ -98,6 +100,7 @@ export default function TherapistsReportPage() {
             .select(`
                 id,
                 price_at_time,
+                original_price,
                 commission_percent,
                 treatment_records!inner(
                     id,
@@ -146,8 +149,9 @@ export default function TherapistsReportPage() {
             }
 
             const priceAtTime = Number(item.price_at_time || 0)
+            const commissionBasePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0) ? Number(item.original_price) : priceAtTime
             const commissionPercent = Number(item.commission_percent || 0)
-            const commissionAmount = Math.round(priceAtTime * (commissionPercent / 100))
+            const commissionAmount = Math.round(commissionBasePrice * (commissionPercent / 100))
 
             therapistGroups[therapistId].revenue += priceAtTime
             therapistGroups[therapistId].commission += commissionAmount
@@ -210,6 +214,319 @@ export default function TherapistsReportPage() {
         }
     }
 
+    const fileInputRef = useRef(null)
+
+    const handleExcelExport = () => {
+        if (therapistMetrics.length === 0) {
+            alert('Tidak ada data untuk diexpor.')
+            return
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0]
+        
+        const rows = therapistMetrics.map((t, idx) => ({
+            "Rank": idx + 1,
+            "Nama Terapis": t.name,
+            "Cabang Penempatan": t.branchName,
+            "Pasien Unik": t.uniquePatients,
+            "Total Sesi Treatment": t.treatmentCount,
+            "Total Pendapatan (Rp)": t.revenue,
+            "Total Komisi (Rp)": t.commission,
+            "Rata-rata Pendapatan / Sesi": t.avgPerTreatment
+        }))
+
+        // Hitung total kolom
+        const sumRevenue = rows.reduce((a, b) => a + b["Total Pendapatan (Rp)"], 0)
+        const sumCommission = rows.reduce((a, b) => a + b["Total Komisi (Rp)"], 0)
+        const sumSessions = rows.reduce((a, b) => a + b["Total Sesi Treatment"], 0)
+
+        rows.push({
+            "Rank": "TOTAL",
+            "Nama Terapis": "",
+            "Cabang Penempatan": "",
+            "Pasien Unik": "",
+            "Total Sesi Treatment": sumSessions,
+            "Total Pendapatan (Rp)": sumRevenue,
+            "Total Komisi (Rp)": sumCommission,
+            "Rata-rata Pendapatan / Sesi": ""
+        })
+
+        const ws = XLSX.utils.json_to_sheet(rows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Laporan Komisi Terapis")
+        XLSX.writeFile(wb, `Laporan_Komisi_Terapis_${startDate}_sd_${endDate}.xlsx`)
+    }
+
+    const handlePDFExport = async () => {
+        if (therapistMetrics.length === 0) {
+            alert('Tidak ada data untuk dicetak.')
+            return
+        }
+
+        const toastId = toast.loading('Menyiapkan dokumen PDF...')
+        try {
+            const { jsPDF } = await import('jspdf')
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            })
+
+            const formatCurrency = (val) => "Rp " + Number(val).toLocaleString('id-ID')
+            const primaryColor = [212, 98, 33]
+            const secondaryColor = [78, 42, 18]
+            const accentColor = [242, 216, 195]
+            const bgMuted = [250, 246, 240]
+            const darkText = [44, 30, 22]
+            const mutedText = [140, 125, 115]
+
+            let y = 15
+            const pageHeight = 297
+            const margin = 15
+            const contentWidth = 180
+            let pageNum = 1
+
+            const addHeaderFooter = (d, isFirstPage = false) => {
+                if (!isFirstPage) {
+                    d.setFont('helvetica', 'bold')
+                    d.setFontSize(8)
+                    d.setTextColor(...mutedText)
+                    d.text('LAPORAN KOMISI & PERFORMA TERAPIS - AYUMI BEAUTY HOUSE', margin, 10)
+                    d.setDrawColor(245, 238, 230)
+                    d.setLineWidth(0.3)
+                    d.line(margin, 12, margin + contentWidth, 12)
+                }
+                d.setFont('helvetica', 'normal')
+                d.setFontSize(7.5)
+                d.setTextColor(...mutedText)
+                d.text(`Ayumi Beauty House  |  Dicetak pada: ${new Date().toLocaleString('id-ID')}`, margin, pageHeight - 10)
+                d.text(`Halaman ${pageNum}`, margin + contentWidth - 15, pageHeight - 10)
+            }
+
+            // KOP SURAT
+            doc.setFillColor(...primaryColor)
+            doc.rect(margin, y, contentWidth, 3, 'F')
+            y += 9
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(18)
+            doc.setTextColor(...secondaryColor)
+            doc.text('AYUMI BEAUTY HOUSE', margin, y)
+
+            doc.setFontSize(10.5)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...primaryColor)
+            doc.text('LAPORAN KOMISI & KINERJA KOMPARASI TERAPIS', margin, y + 5.5)
+
+            // Metadata
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...darkText)
+            const activeBranchName = branches.find(b => b.id === selectedBranch)?.name || 'Semua Cabang (Global)'
+            const printDateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            const printedBy = dbUser?.full_name || 'Owner/Admin'
+
+            const metaX = margin + 110
+            doc.text(`Periode: ${startDate} s.d ${endDate}`, metaX, y)
+            doc.text(`Cabang: ${activeBranchName}`, metaX, y + 4)
+            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 8)
+            doc.text(`Pencetak: ${printedBy}`, metaX, y + 12)
+
+            y += 18
+            doc.setDrawColor(...accentColor)
+            doc.setLineWidth(0.4)
+            doc.line(margin, y, margin + contentWidth, y)
+            y += 8
+
+            // KPI CARDS
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('RINGKASAN PERFORMA TERAPIS', margin, y)
+            y += 4.5
+
+            const cardW = 86
+            const cardH = 15
+            const gap = 8
+
+            const drawPremiumCard = (xVal, yVal, label, value, isGreen = false) => {
+                doc.setFillColor(254, 252, 250)
+                doc.setDrawColor(242, 230, 218)
+                doc.setLineWidth(0.3)
+                doc.roundedRect(xVal, yVal, cardW, cardH, 1, 1, 'FD')
+                
+                doc.setFillColor(...primaryColor)
+                doc.rect(xVal, yVal, 2.5, cardH, 'F')
+                
+                doc.setFontSize(7)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...mutedText)
+                doc.text(label, xVal + 5, yVal + 4.5)
+                
+                doc.setFontSize(10.5)
+                if (isGreen) doc.setTextColor(22, 101, 52)
+                else doc.setTextColor(...darkText)
+                doc.text(value, xVal + 5, yVal + 11.2)
+            }
+
+            drawPremiumCard(margin, y, 'TOTAL REVENUE (PENDAPATAN)', formatCurrency(summaryStats.totalRevenue), false)
+            drawPremiumCard(margin + cardW + gap, y, 'TOTAL KOMISI TERAPIS', formatCurrency(summaryStats.totalCommission), true)
+            y += cardH + gap - 4.5
+            drawPremiumCard(margin, y, 'TERAPIS TERBAIK', summaryStats.bestTherapist, false)
+            drawPremiumCard(margin + cardW + gap, y, 'RATA-RATA SESI / TERAPIS', `${summaryStats.avgTreatments} Sesi`, false)
+            y += cardH + gap + 4
+
+            // RANKINGS TABLE
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('RANKING PERFORMA & KOMISI TERAPIS', margin, y)
+            y += 4.5
+
+            const rHeaders = ['No', 'Nama Terapis', 'Penempatan', 'Pasien', 'Sesi', 'Revenue', 'Komisi']
+            const rColWidths = [10, 45, 30, 22, 18, 28, 27] // Total 180
+
+            doc.setDrawColor(220, 200, 180)
+            doc.setLineWidth(0.3)
+            doc.line(margin, y, margin + contentWidth, y)
+            doc.setFillColor(248, 240, 232)
+            doc.rect(margin, y, contentWidth, 6.5, 'F')
+            doc.line(margin, y + 6.5, margin + contentWidth, y + 6.5)
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7.5)
+            doc.setTextColor(...secondaryColor)
+
+            let currX = margin
+            rHeaders.forEach((h, idx) => {
+                const w = rColWidths[idx]
+                if (h === 'Revenue' || h === 'Komisi') {
+                    doc.text(h, currX + w - 2, y + 4.5, { align: 'right' })
+                } else if (h === 'No' || h === 'Sesi' || h === 'Pasien') {
+                    doc.text(h, currX + w / 2, y + 4.5, { align: 'center' })
+                } else {
+                    doc.text(h, currX + 2, y + 4.5)
+                }
+                currX += w
+            })
+            y += 6.5
+
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(...darkText)
+
+            therapistMetrics.forEach((t, idx) => {
+                if (y + 7.5 > pageHeight - margin) {
+                    doc.addPage()
+                    pageNum++
+                    y = 15
+                    addHeaderFooter(doc)
+                    // Draw header again
+                    doc.setDrawColor(220, 200, 180)
+                    doc.setLineWidth(0.3)
+                    doc.line(margin, y, margin + contentWidth, y)
+                    doc.setFillColor(248, 240, 232)
+                    doc.rect(margin, y, contentWidth, 6.5, 'F')
+                    doc.line(margin, y + 6.5, margin + contentWidth, y + 6.5)
+                    doc.setFont('helvetica', 'bold')
+                    doc.setFontSize(7.5)
+                    doc.setTextColor(...secondaryColor)
+                    let subX = margin
+                    rHeaders.forEach((h, i) => {
+                        const w = rColWidths[i]
+                        if (h === 'Revenue' || h === 'Komisi') {
+                            doc.text(h, subX + w - 2, y + 4.5, { align: 'right' })
+                        } else if (h === 'No' || h === 'Sesi' || h === 'Pasien') {
+                            doc.text(h, subX + w / 2, y + 4.5, { align: 'center' })
+                        } else {
+                            doc.text(h, subX + 2, y + 4.5)
+                        }
+                        subX += w
+                    })
+                    y += 6.5
+                    doc.setFont('helvetica', 'normal')
+                    doc.setFontSize(7)
+                    doc.setTextColor(...darkText)
+                }
+
+                if (idx % 2 === 1) {
+                    doc.setFillColor(253, 251, 248)
+                    doc.rect(margin, y, contentWidth, 5.5, 'F')
+                }
+
+                let rowX = margin
+                
+                doc.text(`${idx + 1}`, rowX + rColWidths[0] / 2, y + 3.8, { align: 'center' })
+                rowX += rColWidths[0]
+
+                doc.text(t.name, rowX + 2, y + 3.8)
+                rowX += rColWidths[1]
+
+                doc.text(t.branchName, rowX + 2, y + 3.8)
+                rowX += rColWidths[2]
+
+                doc.text(`${t.uniquePatients}`, rowX + rColWidths[3] / 2, y + 3.8, { align: 'center' })
+                rowX += rColWidths[3]
+
+                doc.text(`${t.treatmentCount}`, rowX + rColWidths[4] / 2, y + 3.8, { align: 'center' })
+                rowX += rColWidths[4]
+
+                doc.text(t.revenue.toLocaleString('id-ID'), rowX + rColWidths[5] - 2, y + 3.8, { align: 'right' })
+                rowX += rColWidths[5]
+
+                doc.text(t.commission.toLocaleString('id-ID'), rowX + rColWidths[6] - 2, y + 3.8, { align: 'right' })
+
+                doc.setDrawColor(245, 238, 230)
+                doc.setLineWidth(0.2)
+                doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+                y += 5.5
+            })
+
+            // Draw Total Row
+            const totalRev = therapistMetrics.reduce((a, b) => a + b.revenue, 0)
+            const totalComm = therapistMetrics.reduce((a, b) => a + b.commission, 0)
+            const totalSess = therapistMetrics.reduce((a, b) => a + b.treatmentCount, 0)
+
+            if (y + 6 > pageHeight - margin) {
+                doc.addPage()
+                pageNum++
+                y = 15
+                addHeaderFooter(doc)
+            }
+
+            doc.setFillColor(254, 248, 242)
+            doc.rect(margin, y, contentWidth, 5.5, 'F')
+            doc.setDrawColor(220, 200, 180)
+            doc.setLineWidth(0.3)
+            doc.line(margin, y, margin + contentWidth, y)
+            doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('TOTAL SELURUH TERAPIS', margin + 2, y + 3.8)
+
+            let lastX = margin + rColWidths.slice(0, 4).reduce((a, b) => a + b, 0)
+            doc.text(`${totalSess}`, lastX + rColWidths[4] / 2, y + 3.8, { align: 'center' })
+            lastX += rColWidths[4]
+
+            doc.text(totalRev.toLocaleString('id-ID'), lastX + rColWidths[5] - 2, y + 3.8, { align: 'right' })
+            lastX += rColWidths[5]
+
+            doc.text(totalComm.toLocaleString('id-ID'), lastX + rColWidths[6] - 2, y + 3.8, { align: 'right' })
+
+            // Footer
+            addHeaderFooter(doc, true)
+
+            doc.save(`Laporan_Ranking_Komisi_Terapis_${startDate}_sd_${endDate}.pdf`)
+            toast.success('Laporan PDF berhasil diunduh.', { id: toastId })
+        } catch (err) {
+            console.error('Error generating PDF:', err)
+            toast.error('Gagal membuat PDF: ' + err.message, { id: toastId })
+        }
+    }
+
     if (!userLoaded) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -267,6 +584,25 @@ export default function TherapistsReportPage() {
                         <option key={t.id} value={t.id}>{t.full_name}</option>
                     ))}
                 </select>
+            </div>
+
+            {/* Action Buttons for Export & PDF */}
+            <div className="flex flex-wrap items-center gap-2 bg-pink-50/20 p-4 rounded-2xl border border-pink-100/40">
+                <button
+                    onClick={handleExcelExport}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Ekspor Excel Laporan
+                </button>
+                
+                <button
+                    onClick={handlePDFExport}
+                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    Cetak Laporan PDF
+                </button>
             </div>
 
             {isLoading ? (
