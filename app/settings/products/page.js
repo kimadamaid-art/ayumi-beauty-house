@@ -497,7 +497,7 @@ export default function ProductsPage() {
                                                     })()
                                                 ) : (
                                                     // Multi-Branch View (e.g. Owner) -> Clean grid of direct stock inputs with active theme colors
-                                                    <div className="flex flex-wrap gap-2 items-center justify-center">
+                                                    <div className="grid grid-cols-2 gap-1.5 max-w-[280px] mx-auto">
                                                         {allowedBranches.map(b => {
                                                             const key = `${p.id}_${b.id}`
                                                             const currentQty = inlineStockValues[key] !== undefined ? inlineStockValues[key] : getStockForProductBranch(p.id, b.id)
