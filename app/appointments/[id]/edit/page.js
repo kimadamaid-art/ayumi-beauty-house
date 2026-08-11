@@ -151,6 +151,12 @@ function EditAppointmentForm() {
             return
         }
 
+        if (!formData.branch_id) {
+            toast.error('Silakan pilih cabang klinik terlebih dahulu.')
+            setError('Silakan pilih cabang klinik terlebih dahulu.')
+            return
+        }
+
         setIsSaving(true)
 
         try {
@@ -163,7 +169,7 @@ function EditAppointmentForm() {
                     start_time: formData.start_time,
                     end_time: formData.end_time,
                     therapist_id: formData.therapist_id || null,
-                    notes: formData.notes
+                    notes: formData.notes || null
                 })
                 .eq('id', id)
 
@@ -174,7 +180,7 @@ function EditAppointmentForm() {
             router.refresh()
 
         } catch (err) {
-            console.error('Save error:', err)
+            console.warn('Save error:', err)
             const friendlyMsg = getFriendlyErrorMessage(err)
             setError(friendlyMsg)
             toast.error(friendlyMsg)

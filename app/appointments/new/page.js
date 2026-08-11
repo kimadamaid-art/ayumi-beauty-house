@@ -124,6 +124,12 @@ function NewAppointmentForm() {
             return
         }
 
+        if (!formData.branch_id) {
+            toast.error('Silakan pilih cabang klinik terlebih dahulu.')
+            setError('Silakan pilih cabang klinik terlebih dahulu.')
+            return
+        }
+
         setIsSaving(true)
 
         try {
@@ -138,7 +144,7 @@ function NewAppointmentForm() {
                     end_time: formData.end_time,
                     therapist_id: formData.therapist_id || null,
                     status: 'scheduled',
-                    notes: formData.notes
+                    notes: formData.notes || null
                 }])
 
             if (aptErr) throw aptErr
@@ -148,7 +154,7 @@ function NewAppointmentForm() {
             router.refresh()
 
         } catch (err) {
-            console.error('Save error:', err)
+            console.warn('Save error:', err)
             const friendlyMsg = getFriendlyErrorMessage(err)
             setError(friendlyMsg)
             toast.error(friendlyMsg)

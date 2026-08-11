@@ -94,6 +94,11 @@ export default function Dashboard() {
     const [recentAppointments, setRecentAppointments] = useState([])
     const [recentFollowups, setRecentFollowups] = useState([])
 
+    // Admin/Branch Specific Performance States
+    const [adminBranchTarget, setAdminBranchTarget] = useState(null)
+    const [adminTopTreatments, setAdminTopTreatments] = useState([])
+    const [adminTopProducts, setAdminTopProducts] = useState([])
+
     // Owner Specific States
     const [branchDailyComparison, setBranchDailyComparison] = useState([])
     const [branchMonthlyTargetData, setBranchMonthlyTargetData] = useState([])
@@ -643,6 +648,112 @@ export default function Dashboard() {
                 .sort((a, b) => new Date(a.date) - new Date(b.date))
                 
             setSparklineData(formattedSpark)
+
+            // --- BRANCH-SPECIFIC PERFORMANCE FOR ADMIN/NON-OWNER ---
+            const activeBranchId = dbUser?.branch_id || selectedBranch
+            if (activeBranchId) {
+                // 1. Fetch branch monthly target
+                const { data: branchInfo } = await supabase
+                    .from('branches')
+                    .select('monthly_target, name')
+                    .eq('id', activeBranchId)
+                    .maybeSingle()
+
+                // Fetch monthly income
+                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString()
+                const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
+
+                const { data: monthlyTrx } = await supabase
+                    .from('transactions')
+                    .select('total')
+                    .eq('branch_id', activeBranchId)
+                    .gte('created_at', startOfCurrentMonth)
+                    .lte('created_at', endOfCurrentMonth)
+
+                let adminMonthlyIncome = 0
+                if (monthlyTrx) {
+                    monthlyTrx.forEach(tx => {
+                        adminMonthlyIncome += Number(tx.total || 0)
+                    })
+                }
+
+                if (branchInfo) {
+                    const targetVal = Number(branchInfo.monthly_target || 0)
+                    const percent = targetVal > 0 ? (adminMonthlyIncome / targetVal) * 100 : 0
+                    const remaining = targetVal - adminMonthlyIncome
+                    setAdminBranchTarget({
+                        branchName: branchInfo.name,
+                        monthlyTarget: targetVal,
+                        monthlyIncome: adminMonthlyIncome,
+                        rawPercent: percent.toFixed(1),
+                        remainingTarget: remaining > 0 ? remaining : 0,
+                        surplusTarget: remaining < 0 ? Math.abs(remaining) : 0
+                    })
+                } else {
+                    setAdminBranchTarget(null)
+                }
+
+                // 2. Fetch top treatments and products for this branch
+                const { data: rangeTrx } = await supabase
+                    .from('transactions')
+                    .select(`
+                        id,
+                        transaction_items (
+                            item_type,
+                            name,
+                            quantity,
+                            subtotal
+                        )
+                    `)
+                    .eq('branch_id', activeBranchId)
+                    .gte('created_at', startOfCurrentMonth)
+                    .lte('created_at', endOfCurrentMonth)
+
+                const treatmentMap = {}
+                const productMap = {}
+
+                if (rangeTrx) {
+                    rangeTrx.forEach(tx => {
+                        if (tx.transaction_items) {
+                            tx.transaction_items.forEach(item => {
+                                const itemSub = Number(item.subtotal || 0)
+                                const itemQty = Number(item.quantity || 1)
+                                const itemName = item.name || 'Item'
+
+                                if (item.item_type === 'treatment') {
+                                    if (!treatmentMap[itemName]) {
+                                        treatmentMap[itemName] = { name: itemName, count: 0, revenue: 0 }
+                                    }
+                                    treatmentMap[itemName].count += itemQty
+                                    treatmentMap[itemName].revenue += itemSub
+                                } else if (item.item_type === 'product') {
+                                    if (!productMap[itemName]) {
+                                        productMap[itemName] = { name: itemName, count: 0, revenue: 0 }
+                                    }
+                                    productMap[itemName].count += itemQty
+                                    productMap[itemName].revenue += itemSub
+                                }
+                            })
+                        }
+                    })
+                }
+
+                const adminTopTreats = Object.values(treatmentMap)
+                    .sort((a, b) => b.revenue - a.revenue)
+                    .slice(0, 5)
+
+                const adminTopProds = Object.values(productMap)
+                    .sort((a, b) => b.revenue - a.revenue)
+                    .slice(0, 5)
+
+                setAdminTopTreatments(adminTopTreats)
+                setAdminTopProducts(adminTopProds)
+            } else {
+                setAdminBranchTarget(null)
+                setAdminTopTreatments([])
+                setAdminTopProducts([])
+            }
+
         } catch (error) {
             console.error("Dashboard statistics fetching crashed:", error)
         } finally {
@@ -1510,6 +1621,166 @@ export default function Dashboard() {
                             </div>
                         </div>
                     </div>
+
+                    {/* SECTION: TARGET BULANAN CABANG */}
+                    {adminBranchTarget && (
+                        <div className="card-ayumi p-5 sm:p-6 bg-white space-y-4 shadow-md border border-gray-200 rounded-3xl">
+                            <div className="flex items-center gap-2 pb-3 border-b border-gray-200">
+                                <div className="w-2 h-6 bg-ayumi-primary rounded-full"></div>
+                                <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316]">Target Bulanan Cabang Anda ({currentMonthLabel})</h3>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                {/* Target Detail Card */}
+                                <div className="p-5 rounded-2xl border border-gray-200/90 bg-gray-50/30 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-extrabold text-base text-gray-900">{adminBranchTarget.branchName}</h4>
+                                            <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional Cabang</p>
+                                        </div>
+                                        <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${
+                                            Number(adminBranchTarget.rawPercent) >= 100 
+                                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                                                : Number(adminBranchTarget.rawPercent) >= 50
+                                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                        }`}>
+                                            {Number(adminBranchTarget.rawPercent) >= 100 ? `${Number(adminBranchTarget.rawPercent).toFixed(1)}% (Tercapai)` : `${Number(adminBranchTarget.rawPercent).toFixed(1)}%`}
+                                        </span>
+                                    </div>
+
+                                    {/* Progress Bar & Values */}
+                                    <div className="space-y-1.5 pt-1">
+                                        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full ${
+                                                    Number(adminBranchTarget.rawPercent) >= 100 
+                                                        ? 'bg-emerald-600' 
+                                                        : Number(adminBranchTarget.rawPercent) >= 50 
+                                                            ? 'bg-amber-500' 
+                                                            : 'bg-rose-500'
+                                                } rounded-full transition-all duration-500`}
+                                                style={{ width: `${Math.min(100, Math.max(0, Number(adminBranchTarget.rawPercent)))}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs pt-1">
+                                            <span className="text-gray-600 font-semibold">Pencapaian: <strong className="text-emerald-700 font-bold">Rp {adminBranchTarget.monthlyIncome.toLocaleString('id-ID')}</strong></span>
+                                            <span className="text-gray-600 font-semibold">Target: <strong className="text-gray-900 font-bold">Rp {adminBranchTarget.monthlyTarget.toLocaleString('id-ID')}</strong></span>
+                                        </div>
+                                    </div>
+
+                                    {/* Stat Footer */}
+                                    <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs font-medium">
+                                        {Number(adminBranchTarget.rawPercent) >= 100 ? (
+                                            <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                                                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                                Target Tercapai (Surplus: <strong className="text-emerald-800 font-bold">Rp {adminBranchTarget.surplusTarget.toLocaleString('id-ID')}</strong>)
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-600 font-semibold flex items-center justify-between w-full">
+                                                <span>Sisa Kekurangan:</span>
+                                                <strong className="text-rose-700 font-bold">Rp {adminBranchTarget.remainingTarget.toLocaleString('id-ID')}</strong>
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Circular/Visual Indicator helper */}
+                                <div className="space-y-4 p-4 text-center sm:text-left bg-gradient-to-br from-pink-50/30 to-purple-50/20 rounded-2xl border border-gray-100">
+                                    <h4 className="text-sm font-extrabold text-gray-800">Catatan Kinerja Cabang</h4>
+                                    <p className="text-xs text-gray-600 leading-relaxed font-semibold">
+                                        {Number(adminBranchTarget.rawPercent) >= 100 
+                                            ? `Selamat! Cabang ${adminBranchTarget.branchName} telah melampaui target bulanan. Pertahankan kinerja luar biasa ini!`
+                                            : `Cabang ${adminBranchTarget.branchName} memerlukan Rp ${adminBranchTarget.remainingTarget.toLocaleString('id-ID')} lagi untuk mencapai target Rp ${adminBranchTarget.monthlyTarget.toLocaleString('id-ID')} bulan ini. Semangat!`
+                                        }
+                                    </p>
+                                    <div className="pt-2">
+                                        <button 
+                                            onClick={() => router.push('/kasir')}
+                                            className="px-4 py-2 bg-ayumi-primary hover:bg-pink-600 text-white rounded-xl text-xs font-extrabold shadow-sm transition-colors cursor-pointer"
+                                        >
+                                            + Transaksi POS Baru
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* SECTION: TOP TREATMENT & TOP PRODUK CABANG */}
+                    {(adminTopTreatments.length > 0 || adminTopProducts.length > 0) && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Top 5 Treatment Cabang */}
+                            <div className="card-ayumi p-6 bg-white space-y-4 shadow-md border border-gray-200 rounded-3xl">
+                                <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
+                                    <div className="w-9 h-9 rounded-2xl bg-pink-100/80 text-[#B5588A] flex items-center justify-center shrink-0 shadow-inner">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-extrabold text-gray-900">Top Perawatan (Treatment) Cabang Anda</h3>
+                                        <p className="text-xs text-gray-500 font-semibold mt-0.5">Layanan paling favorit bulan ini di {userBranchName}.</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    {adminTopTreatments.length === 0 ? (
+                                        <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada transaksi treatment pada cabang Anda bulan ini.</p>
+                                    ) : (
+                                        adminTopTreatments.map((t, idx) => (
+                                            <div key={t.name} className="flex items-center justify-between p-3 rounded-2xl bg-pink-50/40 border border-pink-100/60 hover:bg-pink-50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-7 h-7 rounded-xl bg-pink-100 text-[#B5588A] font-black text-xs flex items-center justify-center shrink-0">
+                                                        #{idx + 1}
+                                                    </span>
+                                                    <div>
+                                                        <p className="font-extrabold text-xs text-gray-900">{t.name}</p>
+                                                        <p className="text-[11px] font-semibold text-gray-500 mt-0.5">{t.count} Sesi Terjual</p>
+                                                    </div>
+                                                </div>
+                                                <span className="font-extrabold text-xs text-[#B5588A] tracking-tight">
+                                                    Rp {t.revenue.toLocaleString('id-ID')}
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Top 5 Produk Cabang */}
+                            <div className="card-ayumi p-6 bg-white space-y-4 shadow-md border border-gray-200 rounded-3xl">
+                                <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
+                                    <div className="w-9 h-9 rounded-2xl bg-cyan-100/80 text-[#06B6D4] flex items-center justify-center shrink-0 shadow-inner">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-extrabold text-gray-900">Top Produk Terlaris Cabang Anda</h3>
+                                        <p className="text-xs text-gray-500 font-semibold mt-0.5">Produk skincare paling laris bulan ini di {userBranchName}.</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    {adminTopProducts.length === 0 ? (
+                                        <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada penjualan produk pada cabang Anda bulan ini.</p>
+                                    ) : (
+                                        adminTopProducts.map((p, idx) => (
+                                            <div key={p.name} className="flex items-center justify-between p-3 rounded-2xl bg-cyan-50/40 border border-cyan-100/60 hover:bg-cyan-50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-7 h-7 rounded-xl bg-cyan-100 text-[#06B6D4] font-black text-xs flex items-center justify-center shrink-0">
+                                                        #{idx + 1}
+                                                    </span>
+                                                    <div>
+                                                        <p className="font-extrabold text-xs text-gray-900">{p.name}</p>
+                                                        <p className="text-[11px] font-semibold text-gray-500 mt-0.5">{p.count} Unit Terjual</p>
+                                                    </div>
+                                                </div>
+                                                <span className="font-extrabold text-xs text-[#06B6D4] tracking-tight">
+                                                    Rp {p.revenue.toLocaleString('id-ID')}
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* TABEL JANJI TEMU & CRM */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
