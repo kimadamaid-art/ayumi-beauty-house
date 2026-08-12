@@ -161,10 +161,16 @@ export default function GlobalHeader({ onMenuToggle }) {
             fetchUnreadCount(user.id)
             setIsDropdownOpen(false)
             if (appointmentId) {
-                if (type === 'treatment_completed') {
+                if (dbUser?.role === 'therapist') {
+                    if (type === 'patient_arrived') {
+                        router.push(`/therapist/treatment-input/${appointmentId}`)
+                    } else {
+                        router.push('/therapist/dashboard')
+                    }
+                } else if (type === 'treatment_completed') {
                     router.push(`/kasir?appointmentId=${appointmentId}`)
                 } else {
-                    router.push(`/appointments/${appointmentId}`)
+                    router.push('/appointments')
                 }
             }
         }

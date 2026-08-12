@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import DateRangePicker from '@/components/DateRangePicker'
 
 export default function TherapistDashboard() {
     const router = useRouter()
@@ -32,6 +33,15 @@ export default function TherapistDashboard() {
         const day = String(date.getDate()).padStart(2, '0')
         return `${year}-${month}-${day}`
     }
+
+    // Commission Widget States
+    const todayStr = getLocalDateString(new Date())
+    const [commPeriodPreset, setCommPeriodPreset] = useState('today') // 'today' | 'week' | 'month' | 'custom'
+    const [commStartDate, setCommStartDate] = useState(todayStr)
+    const [commEndDate, setCommEndDate] = useState(todayStr)
+    const [commItems, setCommItems] = useState([])
+    const [commLoading, setCommLoading] = useState(false)
+    const [isCommDetailOpen, setIsCommDetailOpen] = useState(true)
 
     useEffect(() => {
         setSelectedDate(getLocalDateString(new Date()))
@@ -99,6 +109,103 @@ export default function TherapistDashboard() {
         setLoading(false)
     }
 
+    const fetchTherapistCommissions = async (userId = dbUser?.id, start = commStartDate, end = commEndDate) => {
+        if (!userId || !start || !end) return
+        setCommLoading(true)
+
+        const { data, error } = await supabase
+            .from('treatment_record_items')
+            .select(`
+                id,
+                price_at_time,
+                original_price,
+                discount_percent,
+                commission_percent,
+                notes,
+                treatment_records!inner(
+                    id,
+                    treatment_date,
+                    treatment_time,
+                    branch_id,
+                    branches(name),
+                    patient_id,
+                    patients(full_name, whatsapp),
+                    performed_by
+                ),
+                treatments(id, name)
+            `)
+            .eq('treatment_records.performed_by', userId)
+            .gte('treatment_records.treatment_date', start)
+            .lte('treatment_records.treatment_date', end)
+
+        if (!error && data) {
+            const sorted = data.sort((a, b) => {
+                const dateA = new Date(`${a.treatment_records?.treatment_date}T${a.treatment_records?.treatment_time || '00:00:00'}`)
+                const dateB = new Date(`${b.treatment_records?.treatment_date}T${b.treatment_records?.treatment_time || '00:00:00'}`)
+                return dateB - dateA
+            })
+            setCommItems(sorted)
+        } else {
+            setCommItems([])
+        }
+        setCommLoading(false)
+    }
+
+    const handleCommPresetChange = (preset) => {
+        setCommPeriodPreset(preset)
+        const now = new Date()
+        if (preset === 'today') {
+            const dateStr = getLocalDateString(now)
+            setCommStartDate(dateStr)
+            setCommEndDate(dateStr)
+        } else if (preset === 'week') {
+            const d = new Date()
+            const dayOfWeek = d.getDay()
+            const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+            const monday = new Date(d.setDate(diffToMon))
+            const sunday = new Date(monday)
+            sunday.setDate(monday.getDate() + 6)
+            setCommStartDate(getLocalDateString(monday))
+            setCommEndDate(getLocalDateString(sunday))
+        } else if (preset === 'month') {
+            const y = now.getFullYear()
+            const m = now.getMonth()
+            const first = new Date(y, m, 1)
+            const last = new Date(y, m + 1, 0)
+            setCommStartDate(getLocalDateString(first))
+            setCommEndDate(getLocalDateString(last))
+        }
+    }
+
+    useEffect(() => {
+        if (dbUser?.id && commStartDate && commEndDate) {
+            fetchTherapistCommissions(dbUser.id, commStartDate, commEndDate)
+        }
+    }, [dbUser, commStartDate, commEndDate])
+
+    const commSummary = useMemo(() => {
+        let totalRevenue = 0
+        let totalCommission = 0
+
+        commItems.forEach(item => {
+            const priceAtTime = Number(item.price_at_time || 0)
+            const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
+                ? Number(item.original_price)
+                : priceAtTime
+            const commPercent = Number(item.commission_percent || 0)
+            const commAmount = Math.round(basePrice * (commPercent / 100))
+
+            totalRevenue += priceAtTime
+            totalCommission += commAmount
+        })
+
+        return {
+            totalRevenue,
+            totalCommission,
+            treatmentCount: commItems.length
+        }
+    }, [commItems])
+
     useEffect(() => {
         if (dbUser && selectedBranch) {
             fetchAppointments()
@@ -132,6 +239,12 @@ export default function TherapistDashboard() {
         setClaimingAptId(aptId)
         toast.loading('Menugaskan Anda ke janji temu...', { id: 'claim' })
 
+        const { data: aptData } = await supabase
+            .from('appointments')
+            .select('*, patients(full_name)')
+            .eq('id', aptId)
+            .maybeSingle()
+
         const { error } = await supabase
             .from('appointments')
             .update({
@@ -142,6 +255,19 @@ export default function TherapistDashboard() {
 
         if (!error) {
             toast.success('Pasien berhasil ditugaskan ke Anda!', { id: 'claim' })
+
+            // Notification if patient already arrived
+            if (aptData?.arrival_status === 'arrived') {
+                await supabase.from('notifications').insert([{
+                    recipient_id: dbUser.id,
+                    sender_id: dbUser.id,
+                    appointment_id: aptId,
+                    type: 'patient_arrived',
+                    title: 'Pasien Sudah Datang 🙋‍♀️',
+                    message: `Pasien ${aptData?.patients?.full_name || ''} sudah tiba di klinik dan siap Anda tangani!`
+                }])
+            }
+
             fetchAppointments()
         } else {
             toast.error('Gagal memilih pasien: ' + getFriendlyErrorMessage(error), { id: 'claim' })
@@ -170,14 +296,14 @@ export default function TherapistDashboard() {
             return
         }
 
-        // 2. Notify all admins of this branch and owners
+        // 2. Notify all active admins & owners
         const { data: allActiveUsers } = await supabase
             .from('users')
             .select('id, role, branch_id')
             .eq('is_active', true)
 
         const recipients = allActiveUsers?.filter(u => 
-            u.role === 'admin' && u.branch_id === selectedBranch
+            u.id !== dbUser.id && (u.role === 'owner' || (u.role === 'admin' && (!u.branch_id || u.branch_id === selectedBranch)))
         ) || []
 
         if (recipients.length > 0) {
@@ -194,8 +320,8 @@ export default function TherapistDashboard() {
                 sender_id: dbUser.id,
                 appointment_id: apt.id,
                 type: 'therapist_ready',
-                title: 'Terapis Siap',
-                message: `${dbUser.full_name} sudah siap menerima ${apt.patients?.full_name} untuk ${treatmentNames}.`
+                title: 'Terapis Siap 💆‍♀️',
+                message: `Terapis ${dbUser.full_name} sudah siap di ruangan menerima ${apt.patients?.full_name} (${treatmentNames}).`
             }))
 
             const { error: notifErr } = await supabase
@@ -263,26 +389,205 @@ export default function TherapistDashboard() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
-            {/* Branch Selector Card */}
-            <div className="card-ayumi p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-2 border-pink-100/50 bg-white">
-                <div>
-                    <p className="text-sm font-semibold text-gray-600">
-                        Cabang Penempatan: <span className="text-ayumi-primary font-bold">{dbUser?.branches?.name || 'Tidak ada penempatan'}</span>
+        <div className="w-full space-y-6">
+            {/* Header & Branch Selector Banner */}
+            <div className="bg-white rounded-3xl p-6 border border-pink-100 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <h2 className="text-lg font-black text-gray-900">Dashboard Terapis</h2>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium">
+                        Penempatan Cabang Aktif: <span className="text-ayumi-primary font-bold">{dbUser?.branches?.name || 'Tidak ada penempatan'}</span>
                     </p>
                 </div>
 
-                <div className="flex flex-col gap-1 w-full md:w-auto">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Pilih Cabang Lihat Jadwal</label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full md:w-auto">
+                    <label className="text-xs font-bold text-gray-400 uppercase shrink-0">Lihat Jadwal Cabang:</label>
                     <select
                         value={selectedBranch}
                         onChange={(e) => setSelectedBranch(e.target.value)}
-                        className="input-ayumi bg-pink-50 border-pink-200 text-ayumi-primary font-bold py-2 cursor-pointer"
+                        className="input-ayumi bg-pink-50/70 border-pink-200 text-ayumi-primary font-bold py-2 px-4 rounded-xl cursor-pointer text-xs w-full sm:w-auto"
                     >
                         {branches.map(b => (
                             <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                     </select>
+                </div>
+            </div>
+
+            {/* RINGKASAN & RINCIAN KOMISI TERAPIS WIDGET */}
+            <div className="bg-white rounded-3xl border-2 border-pink-100 p-5 md:p-6 shadow-sm space-y-5">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="px-3 py-1 bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white text-[11px] font-black rounded-full uppercase tracking-wider shadow-sm">
+                                💰 Komisi Saya
+                            </span>
+                            <span className="text-xs text-gray-400 font-medium">
+                                ({commStartDate === commEndDate ? new Date(commStartDate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : `${new Date(commStartDate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${new Date(commEndDate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`})
+                            </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 font-medium">
+                            Pantau perolehan komisi Anda dari setiap tindakan treatment yang Anda selesaikan.
+                        </p>
+                    </div>
+
+                    {/* Filter Preset Buttons */}
+                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                        <div className="bg-pink-50/80 p-1 rounded-2xl border border-pink-100 flex flex-wrap gap-1">
+                            <button
+                                onClick={() => handleCommPresetChange('today')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${commPeriodPreset === 'today' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                            >
+                                Hari Ini
+                            </button>
+                            <button
+                                onClick={() => handleCommPresetChange('week')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${commPeriodPreset === 'week' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                            >
+                                Minggu Ini
+                            </button>
+                            <button
+                                onClick={() => handleCommPresetChange('month')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${commPeriodPreset === 'month' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                            >
+                                Bulan Ini
+                            </button>
+                            <button
+                                onClick={() => setCommPeriodPreset('custom')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${commPeriodPreset === 'custom' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                            >
+                                Custom
+                            </button>
+                        </div>
+
+                        {commPeriodPreset === 'custom' && (
+                            <div className="w-full sm:w-auto z-30">
+                                <DateRangePicker
+                                    startDate={commStartDate}
+                                    endDate={commEndDate}
+                                    onChange={(range) => {
+                                        setCommStartDate(range.startDate)
+                                        setCommEndDate(range.endDate)
+                                    }}
+                                    inputClassName="input-ayumi bg-white border border-pink-200 text-xs font-bold py-1.5 px-3 rounded-xl cursor-pointer"
+                                    align="right"
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Stat Cards Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Card 1: Total Komisi */}
+                    <div className="bg-gradient-to-br from-ayumi-secondary via-ayumi-primary to-pink-600 rounded-2xl p-5 text-white shadow-md flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute -right-4 -bottom-4 opacity-15 text-6xl">💰</div>
+                        <div className="text-xs font-bold text-pink-200 uppercase tracking-wider">Total Komisi Diterima</div>
+                        <div className="text-2xl lg:text-3xl font-black mt-2 leading-none">
+                            Rp {commSummary.totalCommission.toLocaleString('id-ID')}
+                        </div>
+                        <div className="text-[11px] text-pink-100 font-medium mt-3 flex items-center gap-1">
+                            <span>✨ Akumulasi periode terpilih</span>
+                        </div>
+                    </div>
+
+                    {/* Card 2: Jumlah Perawatan */}
+                    <div className="bg-pink-50/60 border border-pink-200/70 rounded-2xl p-5 flex flex-col justify-between">
+                        <div className="text-xs font-bold text-ayumi-secondary uppercase tracking-wider">Tindakan Treatment</div>
+                        <div className="text-2xl lg:text-3xl font-black text-gray-900 mt-2 leading-none">
+                            {commSummary.treatmentCount} <span className="text-sm font-bold text-gray-500">Tindakan</span>
+                        </div>
+                        <div className="text-[11px] text-gray-500 font-medium mt-3">
+                            Selesai dikerjakan oleh Anda
+                        </div>
+                    </div>
+                </div>
+
+                {/* Rincian Komisi Per Treatment Table Header Toggle */}
+                <div className="pt-2 border-t border-gray-100">
+                    <button
+                        onClick={() => setIsCommDetailOpen(!isCommDetailOpen)}
+                        className="flex items-center justify-between w-full text-left py-2 px-1 hover:bg-pink-50/50 rounded-xl transition-colors cursor-pointer"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-gray-800">📋 Rincian Komisi per Treatment</span>
+                            <span className="px-2 py-0.5 bg-pink-100 text-ayumi-primary font-bold text-[10px] rounded-full">
+                                {commItems.length} item
+                            </span>
+                        </div>
+                        <span className="text-xs text-ayumi-primary font-bold flex items-center gap-1">
+                            {isCommDetailOpen ? 'Sembunyikan' : 'Tampilkan Detail'}
+                            <svg className={`w-4 h-4 transition-transform ${isCommDetailOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                        </span>
+                    </button>
+
+                    {isCommDetailOpen && (
+                        <div className="mt-3 overflow-x-auto rounded-2xl border border-gray-200/80 shadow-xs">
+                            {commLoading ? (
+                                <div className="text-center py-10">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ayumi-primary mx-auto mb-2"></div>
+                                    <p className="text-xs text-gray-500 font-medium">Memuat data komisi...</p>
+                                </div>
+                            ) : commItems.length === 0 ? (
+                                <div className="text-center py-10 bg-gray-50/50">
+                                    <p className="text-gray-500 font-semibold text-xs">Belum ada komisi treatment pada periode ini.</p>
+                                </div>
+                            ) : (
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="bg-pink-50/70 text-ayumi-secondary font-extrabold uppercase tracking-wider text-[11px]">
+                                            <th className="p-3">Tanggal & Waktu</th>
+                                            <th className="p-3">Pasien</th>
+                                            <th className="p-3">Treatment</th>
+                                            <th className="p-3 text-center">% Komisi</th>
+                                            <th className="p-3 text-right">Komisi Diterima</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 bg-white font-medium">
+                                        {commItems.map(item => {
+                                            const priceAtTime = Number(item.price_at_time || 0)
+                                            const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
+                                                ? Number(item.original_price)
+                                                : priceAtTime
+                                            const commPercent = Number(item.commission_percent || 0)
+                                            const commAmount = Math.round(basePrice * (commPercent / 100))
+                                            const recordDate = item.treatment_records?.treatment_date
+                                            const recordTime = item.treatment_records?.treatment_time
+
+                                            return (
+                                                <tr key={item.id} className="hover:bg-pink-50/20 transition-colors">
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-gray-900">
+                                                            {recordDate ? new Date(recordDate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-400 mt-0.5">{recordTime || '-'}</div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-gray-800">{item.treatment_records?.patients?.full_name || '-'}</div>
+                                                        <div className="text-[10px] text-gray-400">{item.treatment_records?.patients?.whatsapp || ''}</div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-ayumi-primary">{item.treatments?.name || 'Treatment'}</div>
+                                                        {item.notes && <div className="text-[10px] text-gray-400 italic">{item.notes}</div>}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <span className="px-2 py-0.5 bg-pink-100 text-ayumi-primary font-extrabold rounded-md text-[10px]">
+                                                            {commPercent}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-right font-black text-emerald-600 text-sm">
+                                                        +Rp {commAmount.toLocaleString('id-ID')}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

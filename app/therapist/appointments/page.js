@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -41,7 +41,8 @@ function TherapistAppointmentsContent() {
     })
     const [aptFilterStatus, setAptFilterStatus] = useState('')
 
-    // Filters for Tab 2 (Riwayat) - default to Today
+    // Filters for Tab 2 (Riwayat & Komisi) - default to Today
+    const [recPreset, setRecPreset] = useState('today') // 'today' | 'week' | 'month' | 'custom'
     const [recStartDate, setRecStartDate] = useState(() => {
         return getLocalYYYYMMDD()
     })
@@ -124,7 +125,7 @@ function TherapistAppointmentsContent() {
                 patients (id, full_name, whatsapp),
                 branches (name),
                 treatment_record_items (
-                    id, price_at_time, discount_percent, notes,
+                    id, price_at_time, original_price, discount_percent, commission_percent, notes,
                     treatments (name)
                 )
             `)
@@ -140,6 +141,62 @@ function TherapistAppointmentsContent() {
         if (data) setRecords(data)
         setLoading(false)
     }
+
+    const handleRecPresetChange = (preset) => {
+        setRecPreset(preset)
+        const now = new Date()
+        if (preset === 'today') {
+            const dateStr = getLocalYYYYMMDD(now)
+            setRecStartDate(dateStr)
+            setRecEndDate(dateStr)
+        } else if (preset === 'week') {
+            const d = new Date()
+            const dayOfWeek = d.getDay()
+            const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+            const monday = new Date(d.setDate(diffToMon))
+            const sunday = new Date(monday)
+            sunday.setDate(monday.getDate() + 6)
+            setRecStartDate(getLocalYYYYMMDD(monday))
+            setRecEndDate(getLocalYYYYMMDD(sunday))
+        } else if (preset === 'month') {
+            const y = now.getFullYear()
+            const m = now.getMonth()
+            const first = new Date(y, m, 1)
+            const last = new Date(y, m + 1, 0)
+            setRecStartDate(getLocalYYYYMMDD(first))
+            setRecEndDate(getLocalYYYYMMDD(last))
+        }
+    }
+
+    const historyCommissionSummary = useMemo(() => {
+        let totalRevenue = 0
+        let totalCommission = 0
+        let totalTreatmentItems = 0
+
+        records.forEach(r => {
+            if (r.treatment_record_items) {
+                r.treatment_record_items.forEach(item => {
+                    const priceAtTime = Number(item.price_at_time || 0)
+                    const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
+                        ? Number(item.original_price)
+                        : priceAtTime
+                    const commPercent = Number(item.commission_percent || 0)
+                    const commAmount = Math.round(basePrice * (commPercent / 100))
+
+                    totalRevenue += priceAtTime
+                    totalCommission += commAmount
+                    totalTreatmentItems += 1
+                })
+            }
+        })
+
+        return {
+            totalRevenue,
+            totalCommission,
+            totalTreatmentItems,
+            recordCount: records.length
+        }
+    }, [records])
 
     const getStatusBadge = (status) => {
         const badges = {
@@ -174,7 +231,7 @@ function TherapistAppointmentsContent() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
             {/* Header Summary Card */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-gray-150 shadow-sm">
                 <div>
@@ -331,27 +388,77 @@ function TherapistAppointmentsContent() {
                     </div>
                 )}
 
-                {/* ─── TAB 2: RIWAYAT TREATMENT SELESAI ─────────────────────────────── */}
+                {/* ─── TAB 2: RIWAYAT TREATMENT & KOMISI SELESAI ─────────────────────────────── */}
                 {activeTab === 'history' && (
                     <div className="space-y-6">
-                        {/* Filter row using DateRangePicker */}
-                        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                            <div className="flex-1 sm:max-w-xs relative z-20">
-                                <DateRangePicker
-                                    startDate={recStartDate}
-                                    endDate={recEndDate}
-                                    onChange={(range) => {
-                                        setRecStartDate(range.startDate)
-                                        setRecEndDate(range.endDate)
-                                    }}
-                                    inputClassName="w-full input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary focus:bg-white text-xs font-bold py-2.5 px-4 rounded-2xl cursor-pointer"
-                                    align="left"
-                                />
+                        {/* Summary Cards Header */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gradient-to-br from-ayumi-secondary to-ayumi-primary rounded-2xl p-4 text-white shadow-sm flex flex-col justify-between">
+                                <div className="text-[11px] font-bold text-pink-200 uppercase tracking-wider">Total Komisi Periode Ini</div>
+                                <div className="text-2xl font-black mt-1">
+                                    Rp {historyCommissionSummary.totalCommission.toLocaleString('id-ID')}
+                                </div>
+                                <div className="text-[10px] text-pink-100 mt-2 font-medium">Akumulasi komisi seluruh tindakan</div>
                             </div>
+                            <div className="bg-pink-50/70 border border-pink-200 rounded-2xl p-4 flex flex-col justify-between">
+                                <div className="text-[11px] font-bold text-ayumi-secondary uppercase tracking-wider">Jumlah Treatment Selesai</div>
+                                <div className="text-2xl font-black text-gray-900 mt-1">
+                                    {historyCommissionSummary.totalTreatmentItems} <span className="text-xs font-bold text-gray-500">Tindakan</span>
+                                </div>
+                                <div className="text-[10px] text-gray-500 mt-2 font-medium">Dari {historyCommissionSummary.recordCount} kunjungan pasien</div>
+                            </div>
+                        </div>
+
+                        {/* Filter row with presets, DateRangePicker, and Branch selector */}
+                        <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between border-t border-gray-100 pt-4">
+                            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                                <div className="bg-pink-50 p-1 rounded-2xl border border-pink-100 flex flex-wrap gap-1">
+                                    <button
+                                        onClick={() => handleRecPresetChange('today')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${recPreset === 'today' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                                    >
+                                        Hari Ini
+                                    </button>
+                                    <button
+                                        onClick={() => handleRecPresetChange('week')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${recPreset === 'week' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                                    >
+                                        Minggu Ini
+                                    </button>
+                                    <button
+                                        onClick={() => handleRecPresetChange('month')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${recPreset === 'month' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                                    >
+                                        Bulan Ini
+                                    </button>
+                                    <button
+                                        onClick={() => setRecPreset('custom')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${recPreset === 'custom' ? 'bg-ayumi-primary text-white shadow-sm' : 'text-gray-600 hover:text-ayumi-primary'}`}
+                                    >
+                                        Custom
+                                    </button>
+                                </div>
+
+                                {recPreset === 'custom' && (
+                                    <div className="w-full sm:w-auto z-20">
+                                        <DateRangePicker
+                                            startDate={recStartDate}
+                                            endDate={recEndDate}
+                                            onChange={(range) => {
+                                                setRecStartDate(range.startDate)
+                                                setRecEndDate(range.endDate)
+                                            }}
+                                            inputClassName="w-full input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary text-xs font-bold py-2 px-3 rounded-2xl cursor-pointer"
+                                            align="left"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
                             <select
                                 value={recFilterBranch}
                                 onChange={(e) => setRecFilterBranch(e.target.value)}
-                                className="input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary focus:bg-white flex-1 sm:max-w-xs font-bold text-sm rounded-2xl cursor-pointer py-2.5"
+                                className="input-ayumi bg-white border-2 border-pink-200 hover:border-ayumi-primary focus:bg-white w-full lg:w-48 font-bold text-xs rounded-2xl cursor-pointer py-2"
                             >
                                 <option value="">Semua Cabang</option>
                                 {branches.map(b => (
@@ -363,7 +470,7 @@ function TherapistAppointmentsContent() {
                         {loading ? (
                             <div className="text-center py-20">
                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary mx-auto mb-4"></div>
-                                <p className="text-gray-500 font-medium">Memuat riwayat treatment...</p>
+                                <p className="text-gray-500 font-medium">Memuat riwayat treatment & komisi...</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-sm">
@@ -373,56 +480,96 @@ function TherapistAppointmentsContent() {
                                             <th className="p-4">Tanggal & Waktu</th>
                                             <th className="p-4">Pasien</th>
                                             <th className="p-4">Cabang</th>
-                                            <th className="p-4">Treatment & Catatan SOAP</th>
+                                            <th className="p-4">Treatment & SOAP</th>
+                                            <th className="p-4 text-right">Rincian Komisi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 text-sm bg-white">
                                         {records.length === 0 ? (
                                             <tr>
-                                                <td colSpan="4" className="px-6 py-12 text-center border-none">
+                                                <td colSpan="5" className="px-6 py-12 text-center border-none">
                                                     <div className="w-14 h-14 bg-pink-50 rounded-full flex items-center justify-center mb-3 mx-auto text-ayumi-primary font-bold text-xl">
                                                         🔍
                                                     </div>
                                                     <p className="text-gray-600 font-extrabold text-base mb-1">Belum Ada Riwayat Perawatan</p>
-                                                    <p className="text-gray-400 text-xs">Belum ada rekam medis yang tersimpan untuk rentang tanggal ini.</p>
+                                                    <p className="text-gray-400 text-xs">Belum ada rekam medis & komisi tersimpan untuk periode ini.</p>
                                                 </td>
                                             </tr>
                                         ) : (
-                                            records.map(r => (
-                                                <tr key={r.id} className="hover:bg-pink-50/20 transition-colors">
-                                                    <td className="p-4">
-                                                        <div className="font-bold text-gray-900">
-                                                            {new Date(r.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                                        </div>
-                                                        <div className="text-xs text-gray-400 mt-0.5">{r.treatment_time || ''}</div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <div className="font-bold text-gray-900">{r.patients?.full_name || '-'}</div>
-                                                        <div className="text-xs text-gray-400 mt-0.5">{r.patients?.whatsapp || ''}</div>
-                                                    </td>
-                                                    <td className="p-4 text-xs font-semibold text-gray-600">
-                                                        {r.branches?.name || '-'}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <div className="flex flex-wrap gap-1.5 mb-1">
-                                                            {r.treatment_record_items && r.treatment_record_items.length > 0 ? (
-                                                                r.treatment_record_items.map(item => (
-                                                                    <span key={item.id} className="px-2.5 py-0.5 bg-pink-100 text-ayumi-primary text-xs font-bold rounded-lg border border-pink-200">
-                                                                        {item.treatments?.name || 'Treatment'}
-                                                                    </span>
-                                                                ))
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400 font-medium">-</span>
+                                            records.map(r => {
+                                                let totalRecordCommission = 0
+                                                const itemsList = r.treatment_record_items || []
+
+                                                itemsList.forEach(item => {
+                                                    const priceAtTime = Number(item.price_at_time || 0)
+                                                    const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
+                                                        ? Number(item.original_price)
+                                                        : priceAtTime
+                                                    const commPercent = Number(item.commission_percent || 0)
+                                                    totalRecordCommission += Math.round(basePrice * (commPercent / 100))
+                                                })
+
+                                                return (
+                                                    <tr key={r.id} className="hover:bg-pink-50/20 transition-colors">
+                                                        <td className="p-4">
+                                                            <div className="font-bold text-gray-900">
+                                                                {new Date(r.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                            </div>
+                                                            <div className="text-xs text-gray-400 mt-0.5">{r.treatment_time || ''}</div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="font-bold text-gray-900">{r.patients?.full_name || '-'}</div>
+                                                            <div className="text-xs text-gray-400 mt-0.5">{r.patients?.whatsapp || ''}</div>
+                                                        </td>
+                                                        <td className="p-4 text-xs font-semibold text-gray-600">
+                                                            {r.branches?.name || '-'}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col gap-1">
+                                                                {itemsList.length > 0 ? (
+                                                                    itemsList.map(item => (
+                                                                        <div key={item.id} className="flex items-center gap-2">
+                                                                            <span className="px-2.5 py-0.5 bg-pink-100 text-ayumi-primary text-xs font-bold rounded-lg border border-pink-200">
+                                                                                {item.treatments?.name || 'Treatment'}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-400 font-medium">-</span>
+                                                                )}
+                                                            </div>
+                                                            {(r.result_notes || r.recommendation || r.complaints) && (
+                                                                <p className="text-xs text-gray-500 font-medium max-w-xs truncate mt-1">
+                                                                    📝 {r.result_notes || r.recommendation || r.complaints}
+                                                                </p>
                                                             )}
-                                                        </div>
-                                                        {(r.result_notes || r.recommendation || r.complaints) && (
-                                                            <p className="text-xs text-gray-500 font-medium max-w-sm truncate mt-1">
-                                                                📝 {r.result_notes || r.recommendation || r.complaints}
-                                                            </p>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <span className="text-sm font-black text-emerald-600">
+                                                                    +Rp {totalRecordCommission.toLocaleString('id-ID')}
+                                                                </span>
+                                                                <div className="flex flex-wrap justify-end gap-1">
+                                                                    {itemsList.map(item => {
+                                                                        const priceAtTime = Number(item.price_at_time || 0)
+                                                                        const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
+                                                                            ? Number(item.original_price)
+                                                                            : priceAtTime
+                                                                        const commPercent = Number(item.commission_percent || 0)
+                                                                        const itemComm = Math.round(basePrice * (commPercent / 100))
+
+                                                                        return (
+                                                                            <span key={item.id} className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold" title={`${item.treatments?.name}: ${commPercent}%`}>
+                                                                                {commPercent}% (Rp {itemComm.toLocaleString('id-ID')})
+                                                                            </span>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })
                                         )}
                                     </tbody>
                                 </table>

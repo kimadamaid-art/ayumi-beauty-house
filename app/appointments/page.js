@@ -285,8 +285,8 @@ export default function AppointmentsPage() {
                         sender_id: user.id,
                         appointment_id: apt.id,
                         type: 'patient_arrived',
-                        title: 'Pasien Sudah Datang',
-                        message: `${apt.patients?.full_name} sudah datang untuk treatment ${treatmentNames} jam ${startHour}.`
+                        title: 'Pasien Sudah Datang 🙋‍♀️',
+                        message: `Pasien ${apt.patients?.full_name || ''} telah tiba di lokasi untuk ${treatmentNames} (${startHour}). Silakan persiapkan ruangan & perawatan.`
                     }])
                 
                 if (notifErr) {

@@ -391,7 +391,7 @@ export default function TreatmentInputPage({ params }) {
                 .eq('is_active', true)
 
             const recipients = allActiveUsers?.filter(u => 
-                u.role === 'admin' && u.branch_id === appointment.branch_id
+                u.id !== dbUser.id && (u.role === 'owner' || (u.role === 'admin' && (!u.branch_id || u.branch_id === appointment.branch_id)))
             ) || []
 
             if (recipients.length > 0) {
@@ -400,8 +400,8 @@ export default function TreatmentInputPage({ params }) {
                     sender_id: dbUser.id,
                     appointment_id: appointment.id,
                     type: 'treatment_completed',
-                    title: 'Treatment Selesai',
-                    message: `${appointment.patients?.full_name} telah selesai treatment. Silakan klik untuk memproses pembayaran di Kasir POS.`
+                    title: 'Treatment Selesai 💳',
+                    message: `Terapis ${dbUser.full_name} telah menyelesaikan treatment untuk ${appointment.patients?.full_name || ''}. Silakan proses pembayaran di Kasir POS.`
                 }))
                 await supabase.from('notifications').insert(notificationsToInsert)
             }
