@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -12,11 +12,6 @@ export default function TherapistDetailPage() {
     const params = useParams()
     const therapistId = params.id
     const router = useRouter()
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [isLoading, setIsLoading] = useState(true)
     const [isOwner, setIsOwner] = useState(false)

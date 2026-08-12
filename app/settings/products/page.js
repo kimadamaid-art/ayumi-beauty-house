@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
 export default function ProductsPage() {
@@ -34,11 +34,6 @@ export default function ProductsPage() {
         is_active: true,
         branchStocks: {} // { branchId: quantity }
     })
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const checkAccess = async () => {
         setIsLoading(true)

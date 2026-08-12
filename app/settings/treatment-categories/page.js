@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
 export default function TreatmentCategoriesPage() {
@@ -15,11 +15,6 @@ export default function TreatmentCategoriesPage() {
     const [selectedCategory, setSelectedCategory] = useState(null)
     const [categoryName, setCategoryName] = useState('')
     const [isSaving, setIsSaving] = useState(false)
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const checkAccess = async () => {
         setIsLoading(true)

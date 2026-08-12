@@ -1,16 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import BranchFilter from '@/components/ui/BranchFilter'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 
 export default function CRMPage() {
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [activeTab, setActiveTab] = useState('queue')
     const [user, setUser] = useState(null)

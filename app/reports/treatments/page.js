@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -18,13 +18,10 @@ import {
     Legend 
 } from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
+import BranchFilter from '@/components/ui/BranchFilter'
 
 export default function TreatmentsReportPage() {
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [isLoading, setIsLoading] = useState(true)
     const [branches, setBranches] = useState([])

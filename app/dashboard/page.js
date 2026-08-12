@@ -1,11 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
+import BranchFilter from '@/components/ui/BranchFilter'
+import StatCard from '@/components/ui/StatCard'
 import { 
     LineChart, 
     Line, 
@@ -21,10 +23,6 @@ import {
 
 export default function Dashboard() {
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
     
     // Auth & Role States
     const [authUser, setAuthUser] = useState(null)
@@ -861,23 +859,24 @@ export default function Dashboard() {
 
                     {/* 3 KPI Cards: Total Omset Perusahaan, Total Transaksi, Top Branch */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 pt-5 sm:pt-6">
-                        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1 shadow-inner">
-                            <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Total Omset Perusahaan</span>
-                            <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-emerald-300">Rp {companyTotals.rangeIncome.toLocaleString('id-ID')}</p>
-                            <p className="text-[11px] text-emerald-100/80 font-semibold">Periode Terpilih ({branches.length} Cabang)</p>
-                        </div>
-
-                        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1 shadow-inner">
-                            <span className="text-[10px] font-bold text-pink-200 uppercase tracking-widest">Total Transaksi Perusahaan</span>
-                            <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">{companyTotals.rangeTxCount} <span className="text-xs font-sans font-bold">Transaksi</span></p>
-                            <p className="text-[11px] text-pink-100/70 font-semibold">Akumulasi Seluruh Cabang</p>
-                        </div>
-
-                        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md space-y-1 shadow-inner">
-                            <span className="text-[10px] font-bold text-ayumi-accent uppercase tracking-widest">Top Performing Branch</span>
-                            <p className="text-lg sm:text-xl font-black text-ayumi-accent truncate">{companyTotals.topBranchName}</p>
-                            <p className="text-[11px] text-pink-100/70 font-semibold">Omset Tertinggi Periode Terpilih</p>
-                        </div>
+                        <StatCard
+                            title="Total Omset Perusahaan"
+                            value={`Rp ${companyTotals.rangeIncome.toLocaleString('id-ID')}`}
+                            subtitle={`Periode Terpilih (${branches.length} Cabang)`}
+                            variant="glass"
+                        />
+                        <StatCard
+                            title="Total Transaksi Perusahaan"
+                            value={`${companyTotals.rangeTxCount} Transaksi`}
+                            subtitle="Akumulasi Seluruh Cabang"
+                            variant="glass"
+                        />
+                        <StatCard
+                            title="Top Performing Branch"
+                            value={companyTotals.topBranchName}
+                            subtitle="Omset Tertinggi Periode Terpilih"
+                            variant="glass"
+                        />
                     </div>
 
                     {/* Ringkasan Metode Pembayaran Global */}

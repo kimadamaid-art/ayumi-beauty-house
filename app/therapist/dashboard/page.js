@@ -1,19 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import DateRangePicker from '@/components/DateRangePicker'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function TherapistDashboard() {
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [dbUser, setDbUser] = useState(null)
     const [branches, setBranches] = useState([])

@@ -1,17 +1,15 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import BranchFilter from '@/components/ui/BranchFilter'
+import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 
 function PosPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     // Auth & Branches
     const [dbUser, setDbUser] = useState(null)

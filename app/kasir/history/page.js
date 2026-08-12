@@ -1,16 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
 
 export default function TransactionsHistoryPage() {
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
-
     const [transactions, setTransactions] = useState([])
     const [branches, setBranches] = useState([])
     const [dbUser, setDbUser] = useState(null)

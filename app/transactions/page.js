@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import DateRangePicker from "../../components/DateRangePicker"
+import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
@@ -27,10 +28,6 @@ import {
 
 export default function TransactionsPage() {
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     // Auth & UI States
     const [dbUser, setDbUser] = useState(null)
@@ -1645,20 +1642,13 @@ export default function TransactionsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 border-t border-gray-100 pt-4">
                     {/* Branch Filter */}
-                    <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cabang Klinik</label>
-                        <select
-                            value={filterBranch}
-                            onChange={(e) => setFilterBranch(e.target.value)}
-                            disabled={dbUser?.role !== 'owner'}
-                            className="input-ayumi py-2 text-xs bg-gray-50 font-bold text-ayumi-secondary disabled:opacity-75"
-                        >
-                            {dbUser?.role === 'owner' && <option value="">Semua Cabang</option>}
-                            {branches.map(b => (
-                                <option key={b.id} value={b.id}>{b.name}</option>
-                            ))}
-                        </select>
-                    </div>
+                    <BranchFilter
+                        value={filterBranch}
+                        onChange={setFilterBranch}
+                        branches={branches}
+                        userRole={dbUser?.role}
+                        userBranchId={dbUser?.branch_id}
+                    />
 
                     {/* Payment Method */}
                     <div>
@@ -1905,11 +1895,14 @@ export default function TransactionsPage() {
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-pink-50/30 p-4 rounded-2xl border border-pink-100/50">
                             <div className="flex items-center gap-3">
                                 <label className="text-sm font-bold text-ayumi-secondary">Pilih Tanggal:</label>
-                                <input
-                                    type="date"
-                                    value={dailyReportDate}
-                                    onChange={(e) => setDailyReportDate(e.target.value)}
-                                    className="input-ayumi py-1.5 px-3 text-sm bg-white w-48 shadow-sm"
+                                <DateRangePicker 
+                                    startDate={dailyReportDate}
+                                    endDate={dailyReportDate}
+                                    singleDate={true}
+                                    onChange={(range) => {
+                                        if (range.startDate) setDailyReportDate(range.startDate);
+                                    }}
+                                    inputClassName="text-xs font-semibold py-1.5 bg-white shadow-sm"
                                 />
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -2070,11 +2063,19 @@ export default function TransactionsPage() {
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-pink-50/30 p-4 rounded-2xl border border-pink-100/50">
                             <div className="flex items-center gap-3">
                                 <label className="text-sm font-bold text-ayumi-secondary">Pilih Minggu (Mulai Senin):</label>
-                                <input
-                                    type="date"
-                                    value={weeklyReportStart}
-                                    onChange={(e) => setWeeklyReportStart(getStartOfWeek(e.target.value).toISOString().split('T')[0])}
-                                    className="input-ayumi py-1.5 px-3 text-sm bg-white w-48 shadow-sm"
+                                <DateRangePicker 
+                                    startDate={weeklyReportStart}
+                                    endDate={(() => {
+                                        const d = new Date(weeklyReportStart);
+                                        d.setDate(d.getDate() + 6);
+                                        return d.toISOString().split('T')[0];
+                                    })()}
+                                    onChange={(range) => {
+                                        if (range.startDate) {
+                                            setWeeklyReportStart(getStartOfWeek(range.startDate).toISOString().split('T')[0]);
+                                        }
+                                    }}
+                                    inputClassName="text-xs font-semibold py-1.5 bg-white shadow-sm"
                                 />
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -2515,22 +2516,16 @@ export default function TransactionsPage() {
                 {activeMainTab === 'custom' && (
                     <div className="space-y-6">
                         <div className="card-ayumi p-5 bg-gradient-to-r from-pink-50/30 to-purple-50/30 border border-pink-100/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Dari Tanggal</label>
-                                <input
-                                    type="date"
-                                    value={customTabStart}
-                                    onChange={(e) => setCustomTabStart(e.target.value)}
-                                    className="input-ayumi text-sm bg-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">S/D Tanggal</label>
-                                <input
-                                    type="date"
-                                    value={customTabEnd}
-                                    onChange={(e) => setCustomTabEnd(e.target.value)}
-                                    className="input-ayumi text-sm bg-white"
+                            <div className="col-span-1 sm:col-span-2">
+                                <label className="block text-xs font-bold text-gray-500 mb-1">Rentang Tanggal Custom</label>
+                                <DateRangePicker 
+                                    startDate={customTabStart}
+                                    endDate={customTabEnd}
+                                    onChange={(range) => {
+                                        setCustomTabStart(range.startDate);
+                                        setCustomTabEnd(range.endDate);
+                                    }}
+                                    inputClassName="text-xs font-semibold bg-white py-2 w-full"
                                 />
                             </div>
                             {(!dbUser || dbUser.role === 'owner') ? (

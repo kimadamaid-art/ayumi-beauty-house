@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 
@@ -18,15 +18,10 @@ const getBase64ImageFromUrl = async (url) => {
     })
 }
 
-export default function RecordDetailPage() {
+export default function TreatmentRecordDetailPage() {
+    const router = useRouter()
     const params = useParams()
     const id = params.id
-    const router = useRouter()
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [record, setRecord] = useState(null)
     const [items, setItems] = useState([])

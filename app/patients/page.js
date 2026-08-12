@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
+import BranchFilter from '@/components/ui/BranchFilter'
 
 export default function PatientsPage() {
     const [patients, setPatients] = useState([])
@@ -30,11 +31,6 @@ export default function PatientsPage() {
     const fileInputRef = useRef(null)
 
     const PAGE_SIZE = 50
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     // Debounce search input changes
     useEffect(() => {

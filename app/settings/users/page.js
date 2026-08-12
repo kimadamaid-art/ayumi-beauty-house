@@ -1,17 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function UsersPage() {
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [users, setUsers] = useState([])
     const [branches, setBranches] = useState([])

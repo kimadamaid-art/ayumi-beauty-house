@@ -1,16 +1,12 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
 
 export default function BackupRestorePage() {
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
     const router = useRouter()
     const fileInputRef = useRef(null)
 

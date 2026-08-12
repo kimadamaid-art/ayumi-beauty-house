@@ -1,15 +1,12 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
+import BranchFilter from '@/components/ui/BranchFilter'
 
 export default function TreatmentRecordsPage() {
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [records, setRecords] = useState([])
     const [loading, setLoading] = useState(true)

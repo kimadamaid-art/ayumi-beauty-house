@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { useState, Component } from 'react'
+import { useState, useEffect, Component } from 'react'
 import GlobalSidebar from '@/components/GlobalSidebar'
 import GlobalHeader from '@/components/GlobalHeader'
 
@@ -56,6 +56,7 @@ const getPageMeta = (pathname) => {
     if (pathname === '/settings/users') return { title: 'Manajemen Pengguna', subtitle: 'Kelola akun staf, terapis, kasir, dan hak akses sistem.', backPath: '/settings' }
     if (pathname === '/settings/products') return { title: 'Master & Stok Produk', subtitle: 'Kelola catalog produk kecantikan dan stok inventaris di seluruh cabang.', backPath: '/settings' }
     if (pathname === '/settings/product-stock') return { title: 'Stok Produk', subtitle: 'Kelola dan pantau kuantitas stok produk di masing-masing cabang.', backPath: '/settings' }
+    if (pathname === '/settings/backup') return { title: 'Backup & Restore Database', subtitle: 'Cadangkan dan pulihkan cadangan data sistem secara aman.', backPath: '/settings' }
     if (pathname === '/settings') return { title: 'Pengaturan Sistem', subtitle: 'Konfigurasi parameter sistem, manajemen data master, dan otorisasi.', backPath: '/dashboard' }
 
     // Coupon Package Sub-Pages
@@ -110,6 +111,7 @@ const getPageMeta = (pathname) => {
     if (pathname === '/dashboard') return { title: 'Dashboard Overview', subtitle: 'Pantau metrik utama klinik Anda secara real-time.' }
     if (pathname === '/crm') return { title: 'Customer Relationship (CRM)', subtitle: 'Kelola follow-up, retensi pasien, pengingat ulang tahun, dan pasien dormant.' }
     if (pathname === '/coupons') return { title: 'Dashboard Kupon Paket', subtitle: 'Kelola master paket, riwayat kupon pasien, dan klaim sesi perawatan.' }
+    if (pathname === '/kasir/history') return { title: 'Riwayat Transaksi Kasir', subtitle: 'Catatan seluruh transaksi kasir dan bukti pembayaran.', backPath: '/kasir' }
     if (pathname === '/kasir') return { title: 'Kasir & Pembayaran', subtitle: 'Proses pembayaran treatment, pembelian produk, atau pembelian paket kupon.' }
 
     return null
@@ -118,6 +120,8 @@ const getPageMeta = (pathname) => {
 export default function ClientLayout({ children }) {
     const pathname = usePathname()
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [isSidebarHovered, setIsSidebarHovered] = useState(false)
+
     const isLogin = pathname === '/login' || pathname === '/' // Assuming / redirects to login or is public
 
     if (isLogin) {
@@ -127,10 +131,18 @@ export default function ClientLayout({ children }) {
     const pageMeta = getPageMeta(pathname)
 
     return (
-        <div className="flex min-h-screen bg-ayumi-bg">
-            <GlobalSidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-            <div className="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden">
-                <GlobalHeader onMenuToggle={() => setIsMobileMenuOpen(true)} />
+        <div className="flex min-h-screen bg-ayumi-bg relative">
+            <GlobalSidebar 
+                isOpen={isMobileMenuOpen} 
+                onClose={() => setIsMobileMenuOpen(false)}
+                isHovered={isSidebarHovered}
+                onMouseEnter={() => setIsSidebarHovered(true)}
+                onMouseLeave={() => setIsSidebarHovered(false)}
+            />
+            <div className="flex-1 md:ml-0 flex flex-col h-screen overflow-hidden transition-[margin] duration-300 ease-in-out w-full">
+                <GlobalHeader 
+                    onMenuToggle={() => setIsMobileMenuOpen(prev => !prev)}
+                />
                 <main className="flex-1 overflow-y-auto relative bg-ayumi-bg">
                     <div className="px-4 md:px-8 py-4 md:py-8 space-y-6">
                         {pageMeta && (
@@ -161,3 +173,7 @@ export default function ClientLayout({ children }) {
         </div>
     )
 }
+
+
+
+

@@ -1,20 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import DateRangePicker from '../../../components/DateRangePicker'
+import DateRangePicker from '@/components/DateRangePicker'
 
 function TherapistAppointmentsContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const initialTab = searchParams.get('tab') === 'history' ? 'history' : 'appointments'
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [activeTab, setActiveTab] = useState(initialTab)
     const [dbUser, setDbUser] = useState(null)

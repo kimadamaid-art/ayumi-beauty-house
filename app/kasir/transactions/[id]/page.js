@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -12,11 +12,6 @@ export default function ReceiptPage() {
     const [transaction, setTransaction] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false)
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     async function fetchTransaction() {
         setIsLoading(true)

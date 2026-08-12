@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 
-export default function DateRangePicker({ startDate, endDate, onChange, inputClassName = '', autoOpen = false, align = 'left' }) {
+export default function DateRangePicker({ startDate, endDate, onChange, inputClassName = '', autoOpen = false, align = 'left', singleDate = false }) {
     const [isOpen, setIsOpen] = useState(autoOpen)
     const containerRef = useRef(null)
 
@@ -133,6 +133,14 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
     }
 
     const handleDateClick = (dateStr) => {
+        if (singleDate) {
+            setTempStart(dateStr)
+            setTempEnd(dateStr)
+            onChange({ startDate: dateStr, endDate: dateStr })
+            setIsOpen(false)
+            return
+        }
+
         if (!tempStart || (tempStart && tempEnd)) {
             // First click: select start date
             setTempStart(dateStr)
@@ -151,11 +159,12 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
     }
 
     const isSelected = (dateStr) => {
+        if (singleDate) return dateStr === tempStart
         return dateStr === tempStart || dateStr === tempEnd
     }
 
     const isInRange = (dateStr) => {
-        if (!tempStart || !tempEnd) return false
+        if (singleDate || !tempStart || !tempEnd) return false
         const d = new Date(dateStr)
         const start = new Date(tempStart)
         const end = new Date(tempEnd)
@@ -199,9 +208,11 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span className="whitespace-nowrap">
-                        {tempStart && tempEnd 
-                            ? `${formatDateDisplay(tempStart)} - ${formatDateDisplay(tempEnd)}`
-                            : 'Pilih rentang tanggal...'}
+                        {singleDate 
+                            ? (tempStart ? formatDateDisplay(tempStart) : 'Pilih tanggal...')
+                            : (tempStart && tempEnd 
+                                ? `${formatDateDisplay(tempStart)} - ${formatDateDisplay(tempEnd)}`
+                                : 'Pilih rentang tanggal...')}
                     </span>
                 </div>
                 <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,47 +221,49 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
             </button>
 
             {isOpen && (
-                <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-3.5 sm:p-4 flex flex-col md:flex-row gap-3 sm:gap-4 z-50 w-[calc(100vw-2.5rem)] sm:w-auto max-w-[350px] sm:max-w-none sm:min-w-[500px]`}>
+                <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-2 bg-white rounded-2xl border border-gray-200 shadow-2xl p-3.5 sm:p-4 flex flex-col md:flex-row gap-3 sm:gap-4 z-50 w-[calc(100vw-2.5rem)] sm:w-auto max-w-[350px] sm:max-w-none ${singleDate ? 'sm:min-w-[280px]' : 'sm:min-w-[500px]'}`}>
                     
-                    {/* Predefined Ranges Panel */}
-                    <div className="flex flex-row md:flex-col gap-1.5 overflow-x-auto max-w-full shrink-0 pb-2 md:pb-0 md:border-r border-gray-100 pr-0 md:pr-4 custom-scrollbar">
-                        <div className="hidden md:block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Rentang Cepat</div>
-                        <button
-                            type="button"
-                            onClick={() => handleQuickSelect('today')}
-                            className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                            Hari Ini
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleQuickSelect('7days')}
-                            className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                            7 Hari Terakhir
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleQuickSelect('30days')}
-                            className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                            30 Hari Terakhir
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleQuickSelect('thisMonth')}
-                            className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                            Bulan Ini
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleQuickSelect('lastMonth')}
-                            className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                            Bulan Lalu
-                        </button>
-                    </div>
+                    {/* Predefined Ranges Panel (Only for range mode) */}
+                    {!singleDate && (
+                        <div className="flex flex-row md:flex-col gap-1.5 overflow-x-auto max-w-full shrink-0 pb-2 md:pb-0 md:border-r border-gray-100 pr-0 md:pr-4 custom-scrollbar">
+                            <div className="hidden md:block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Rentang Cepat</div>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickSelect('today')}
+                                className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
+                            >
+                                Hari Ini
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickSelect('7days')}
+                                className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
+                            >
+                                7 Hari Terakhir
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickSelect('30days')}
+                                className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
+                            >
+                                30 Hari Terakhir
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickSelect('thisMonth')}
+                                className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
+                            >
+                                Bulan Ini
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleQuickSelect('lastMonth')}
+                                className="text-left px-3 py-2 text-xs font-semibold text-gray-600 hover:text-ayumi-primary hover:bg-pink-50/50 rounded-lg whitespace-nowrap transition-colors"
+                            >
+                                Bulan Lalu
+                            </button>
+                        </div>
+                    )}
 
                     {/* Calendar Panel */}
                     <div className="flex-1">

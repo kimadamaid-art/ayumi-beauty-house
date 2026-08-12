@@ -2,22 +2,17 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
 
-export default function TreatmentDetailPage() {
+export default function TreatmentDetailReportPage() {
     const params = useParams()
     const treatmentId = params.id
     const router = useRouter()
     const searchParams = useSearchParams()
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [isLoading, setIsLoading] = useState(true)
     const [isOwner, setIsOwner] = useState(false)

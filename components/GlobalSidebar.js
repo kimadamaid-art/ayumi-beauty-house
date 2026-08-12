@@ -3,15 +3,17 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 
-export default function GlobalSidebar({ isOpen, onClose }) {
+export default function GlobalSidebar({ 
+    isOpen, 
+    onClose, 
+    isHovered = false, 
+    onMouseEnter, 
+    onMouseLeave 
+}) {
     const pathname = usePathname()
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [dbUser, setDbUser] = useState(null)
     const [settingsOpen, setSettingsOpen] = useState(false)
@@ -35,8 +37,19 @@ export default function GlobalSidebar({ isOpen, onClose }) {
     const isActive = (path) => pathname === path || pathname.startsWith(`${path}/`)
     const isSettingsActive = pathname.startsWith('/settings')
 
+    const isVisible = isOpen || isHovered
+
     return (
         <>
+            {/* Left Edge Sensor Strip (Arahkan mouse ke kiri layar untuk membuka menu) */}
+            {!isHovered && (
+                <div 
+                    onMouseEnter={onMouseEnter}
+                    className="fixed left-0 top-0 h-full w-5 z-40 cursor-pointer hidden md:block"
+                    title="Arahkan kursor ke sini untuk membuka menu"
+                />
+            )}
+
             {/* Mobile Overlay */}
             {isOpen && (
                 <div 
@@ -45,8 +58,14 @@ export default function GlobalSidebar({ isOpen, onClose }) {
                 />
             )}
             
-            <aside className={`w-64 bg-gradient-to-b from-ayumi-secondary to-ayumi-primary shadow-lg fixed top-0 left-0 h-full z-40 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-                {/* Header Logo Monogram Asli */}
+            <aside 
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-64 bg-gradient-to-b from-ayumi-secondary to-ayumi-primary shadow-2xl fixed top-0 left-0 h-full z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+                    isVisible ? 'translate-x-0' : '-translate-x-full'
+                }`}
+            >
+                {/* Header Logo */}
                 <div className="px-4 pt-4 pb-3 border-b border-white/10 flex items-center gap-2">
                     <img
                         src="/logo-ab.png"
@@ -182,7 +201,7 @@ export default function GlobalSidebar({ isOpen, onClose }) {
 
                             {/* Settings Submenu */}
                             {(settingsOpen || isSettingsActive) && (
-                                <div className="pl-10 pr-3 py-1 space-y-1.5 border-l border-white/20 ml-5 mt-1">
+                                <div className="pl-10 pr-3 py-1 space-y-1.5 border-l border-white/20 ml-5 mt-1 animate-fade-in">
                                     {dbUser && dbUser.role === 'owner' && (
                                         <>
                                             <Link href="/settings/branches" onClick={onClose}>
@@ -232,3 +251,7 @@ export default function GlobalSidebar({ isOpen, onClose }) {
         </>
     )
 }
+
+
+
+

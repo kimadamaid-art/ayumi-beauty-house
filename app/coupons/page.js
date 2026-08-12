@@ -1,20 +1,16 @@
 'use client'
 
 import React, { useState, useEffect, Fragment } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
+import BranchFilter from '@/components/ui/BranchFilter'
 
 export default function CouponsDashboardPage() {
     const [activeTab, setActiveTab] = useState('master') // 'master', 'patients', 'usage', 'history'
     const [isLoading, setIsLoading] = useState(false)
     const [dbUser, setDbUser] = useState(null)
     const [userLoaded, setUserLoaded] = useState(false)
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     useEffect(() => {
         fetchUser()

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
@@ -18,10 +18,6 @@ export default function NewAppointmentPage() {
 function NewAppointmentForm() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState('')
@@ -40,7 +36,7 @@ function NewAppointmentForm() {
         start_time: searchParams.get('time') || '08:00',
         end_time: '10:00',
         therapist_id: '',
-        notes: ''
+        notes: searchParams.get('notes') || ''
     })
 
     useEffect(() => {
@@ -49,7 +45,9 @@ function NewAppointmentForm() {
         const localISO = new Date(localDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
         setFormData(prev => ({
             ...prev,
-            appointment_date: searchParams.get('date') || localISO
+            appointment_date: searchParams.get('date') || localISO,
+            start_time: searchParams.get('time') || prev.start_time,
+            notes: searchParams.get('notes') || prev.notes
         }))
         fetchInitialData()
     }, [])
@@ -309,6 +307,9 @@ function NewAppointmentForm() {
                             <option value="15:00">15:00</option>
                             <option value="16:00">16:00</option>
                             <option value="17:00">17:00</option>
+                            <option value="18:00">18:00</option>
+                            <option value="19:00">19:00</option>
+                            <option value="20:00">20:00</option>
                         </select>
                     </div>
                 </div>

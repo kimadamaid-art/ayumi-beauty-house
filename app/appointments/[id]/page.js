@@ -1,18 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter, useParams } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
-import { use } from 'react'
+import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
-export default function AppointmentDetailPage({ params }) {
-    const resolvedParams = use(params)
+export default function AppointmentDetailPage() {
     const router = useRouter()
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
+    const params = useParams()
+    const resolvedParams = params
 
     const [appointment, setAppointment] = useState(null)
     const [loading, setLoading] = useState(true)

@@ -1,16 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
+import BranchFilter from '@/components/ui/BranchFilter'
 
 export default function AppointmentsPage() {
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     const [appointments, setAppointments] = useState([])
     const [branches, setBranches] = useState([])
@@ -677,15 +674,15 @@ export default function AppointmentsPage() {
                                                         <div className="overflow-x-auto custom-scrollbar pb-2">
                                                             <div className="min-w-[850px]">
                                                                 {/* Grid Column Headers */}
-                                                                <div className="flex items-center gap-4 pb-3 mb-2 border-b-2 border-slate-100 text-xs font-black uppercase tracking-wider text-slate-500">
-                                                                    <div className="w-20 flex-shrink-0 text-slate-400">Waktu</div>
-                                                                    <div className="w-52 flex-shrink-0 flex items-center gap-1.5 text-cyan-800 bg-cyan-50/80 px-3 py-1.5 rounded-xl border border-cyan-100/70">
+                                                                <div className="flex items-center gap-4 pb-3 mb-2 border-b border-slate-100 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                                    <div className="w-20 flex-shrink-0 text-slate-400 font-extrabold pl-1">WAKTU</div>
+                                                                    <div className="w-64 flex-shrink-0 flex items-center gap-2 text-cyan-800 bg-cyan-50/90 px-3.5 py-2 rounded-full border border-cyan-100 font-extrabold text-[11px] uppercase tracking-wider">
                                                                         <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                                                                        💧 Layanan Infus
+                                                                        LAYANAN INFUS
                                                                     </div>
-                                                                    <div className="flex-1 flex items-center gap-1.5 text-sky-800 bg-sky-50/80 px-3 py-1.5 rounded-xl border border-sky-100/70">
+                                                                    <div className="flex-1 flex items-center gap-2 text-sky-800 bg-sky-50/90 px-3.5 py-2 rounded-full border border-sky-100 font-extrabold text-[11px] uppercase tracking-wider">
                                                                         <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-                                                                        🌸 Layanan Treatment
+                                                                        LAYANAN TREATMENT
                                                                     </div>
                                                                 </div>
 
@@ -703,7 +700,7 @@ export default function AppointmentsPage() {
                                                                         const treatmentApts = hourApts.filter(a => !isInfusAppointment(a))
 
                                                                         return (
-                                                                            <div key={hourStr} className="flex items-stretch gap-4 py-3 border-b border-slate-100 hover:bg-slate-50/40 transition-colors min-h-[64px]">
+                                                                            <div key={hourStr} className="flex items-stretch gap-4 py-3 border-b border-slate-100 hover:bg-slate-50/40 transition-colors min-h-[56px]">
                                                                                 {/* Waktu (Far Left) */}
                                                                                 <div className="w-20 flex-shrink-0 pt-1.5">
                                                                                     <span className="text-base font-black text-slate-600 tracking-tight bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200/50 inline-block">
@@ -712,11 +709,11 @@ export default function AppointmentsPage() {
                                                                                 </div>
 
                                                                                 {/* Column 1: Infus (Left Column) */}
-                                                                                <div className="w-52 flex-shrink-0 border-l border-slate-100 pl-3">
+                                                                                <div className="w-64 flex-shrink-0 border-l border-slate-100 pl-3 flex flex-col justify-center min-h-[44px]">
                                                                                     {infusApts.length === 0 ? (
-                                                                                        <div className="h-full min-h-[36px] flex items-center text-xs text-slate-300 italic font-medium pl-1">
-                                                                                            -
-                                                                                        </div>
+                                                                                        <Link href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}&notes=Infus`} className="block w-full h-full">
+                                                                                            <div className="h-full min-h-[36px] w-full cursor-pointer hover:bg-cyan-50/40 rounded-lg transition-colors" title={`Tambah Infus Jam ${hourStr.replace('.', ':')}`} />
+                                                                                        </Link>
                                                                                     ) : (
                                                                                         <div className="flex flex-col gap-2.5">
                                                                                             {infusApts.map(apt => {
@@ -789,14 +786,14 @@ export default function AppointmentsPage() {
                                                                                     )}
                                                                                 </div>
 
-                                                                                {/* Column 2: Treatment (Strict Horizontal Row, No Wrapping) */}
-                                                                                <div className="flex-1 border-l border-slate-100 pl-3">
+                                                                                {/* Column 2: Treatment (Strict Horizontal Row) */}
+                                                                                <div className="flex-1 border-l border-slate-100 pl-3 flex items-center min-h-[44px]">
                                                                                     {treatmentApts.length === 0 ? (
-                                                                                        <div className="h-full min-h-[36px] flex items-center text-xs text-slate-300 italic font-medium pl-1">
-                                                                                            -
-                                                                                        </div>
+                                                                                        <Link href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} className="block w-full h-full">
+                                                                                            <div className="h-full min-h-[36px] w-full cursor-pointer hover:bg-sky-50/40 rounded-lg transition-colors" title={`Tambah Treatment Jam ${hourStr.replace('.', ':')}`} />
+                                                                                        </Link>
                                                                                     ) : (
-                                                                                        <div className="flex flex-row flex-nowrap gap-3 items-stretch py-0.5">
+                                                                                        <div className="flex flex-row flex-nowrap items-center gap-3 py-0.5 w-full">
                                                                                             {treatmentApts.map(apt => {
                                                                                                 const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Treatment'
                                                                                                 const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
@@ -863,6 +860,8 @@ export default function AppointmentsPage() {
                                                                                                     </div>
                                                                                                 )
                                                                                             })}
+
+                                                                                            <Link href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} className="flex-1 min-h-[36px] w-full cursor-pointer hover:bg-sky-50/40 rounded-lg transition-colors" title={`Tambah Treatment Jam ${hourStr.replace('.', ':')}`} />
                                                                                         </div>
                                                                                     )}
                                                                                 </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabaseClient'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
@@ -13,11 +13,6 @@ function AddRecordForm() {
     const urlPatientId = searchParams.get('patientId')
     const urlAppointmentId = searchParams.get('appointmentId')
     const urlTransactionId = searchParams.get('transactionId')
-
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
 
     // Authorization & Loading State
     const [isCheckingAccess, setIsCheckingAccess] = useState(true)
