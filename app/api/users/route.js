@@ -104,6 +104,16 @@ export async function POST(request) {
             return NextResponse.json({ error: dbError.message }, { status: 400 })
         }
 
+        // Record audit log to user_branch_assignments if assigned to a branch
+        if (branch_id && role !== 'owner') {
+            await supabaseAdmin.from('user_branch_assignments').insert([{
+                user_id: authData.user.id,
+                branch_id: branch_id,
+                assigned_at: new Date().toISOString(),
+                assigned_by: user.id
+            }]).catch(e => console.warn('Audit assignment log error:', e.message))
+        }
+
         return NextResponse.json({ success: true, user: authData.user })
 
     } catch (error) {
@@ -267,6 +277,11 @@ export async function PUT(request) {
             if (authError) throw authError
         }
 
+        // Fetch existing user to check branch change
+        const { data: existingUser } = await supabaseAdmin.from('users').select('branch_id').eq('id', id).single()
+
+        const targetBranchId = role === 'owner' ? null : (branch_id || null)
+
         // 2. Update public.users
         const { error: dbError } = await supabaseAdmin
             .from('users')
@@ -275,13 +290,32 @@ export async function PUT(request) {
                 full_name,
                 phone: phone || null,
                 role,
-                branch_id: role === 'owner' ? null : (branch_id || null),
+                branch_id: targetBranchId,
                 is_active,
                 updated_at: new Date().toISOString()
             })
             .eq('id', id)
 
         if (dbError) throw dbError
+
+        // 3. Record audit log if branch assignment changed
+        if (existingUser && existingUser.branch_id !== targetBranchId && targetBranchId) {
+            // End previous assignment log if any
+            await supabaseAdmin
+                .from('user_branch_assignments')
+                .update({ ended_at: new Date().toISOString() })
+                .eq('user_id', id)
+                .is('ended_at', null)
+                .catch(e => console.warn('Audit update error:', e.message))
+
+            // Insert new assignment log
+            await supabaseAdmin.from('user_branch_assignments').insert([{
+                user_id: id,
+                branch_id: targetBranchId,
+                assigned_at: new Date().toISOString(),
+                assigned_by: user.id
+            }]).catch(e => console.warn('Audit insert error:', e.message))
+        }
 
         return NextResponse.json({ success: true })
 

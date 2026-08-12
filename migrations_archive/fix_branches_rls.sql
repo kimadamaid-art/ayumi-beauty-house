@@ -2,9 +2,12 @@
 ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if any to avoid conflict
+DROP POLICY IF EXISTS "Allow public SELECT on branches" ON public.branches;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.branches;
 DROP POLICY IF EXISTS "Branches are viewable by all authenticated users" ON public.branches;
 DROP POLICY IF EXISTS "Branches are insertable by owner" ON public.branches;
 DROP POLICY IF EXISTS "Branches are updatable by owner" ON public.branches;
+DROP POLICY IF EXISTS "Branches are deletable by owner" ON public.branches;
 
 -- Allow all authenticated users to view branches
 CREATE POLICY "Branches are viewable by all authenticated users"
