@@ -43,8 +43,8 @@ export default function EditCouponPackagePage() {
         }
         setDbUser(userData)
 
-        // 1. Fetch Treatments
-        const { data: trs } = await supabase.from('treatments').select('id, name, price').order('name')
+        // 1. Fetch Treatments (include is_active to filter new additions while preserving existing)
+        const { data: trs } = await supabase.from('treatments').select('id, name, price, is_active').order('name')
         if (trs) setTreatments(trs)
 
         // 2. Fetch Package
@@ -311,57 +311,73 @@ export default function EditCouponPackagePage() {
                             </div>
                         )}
 
-                        {items.map((item, idx) => (
-                            <div key={idx} className="flex flex-col sm:flex-row gap-3 items-end bg-gray-50 p-4 rounded-xl border border-gray-100 relative group">
-                                {items.length > 1 && !item.id && ( // only allow removing newly added items
-                                    <button 
-                                        type="button" 
-                                        onClick={() => removeItem(idx)}
-                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-500 hover:text-white"
-                                    >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                )}
-                                
-                                <div className="flex-1 w-full">
-                                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Pilih Treatment</label>
-                                    <select 
-                                        value={item.treatment_id}
-                                        onChange={(e) => handleItemChange(idx, 'treatment_id', e.target.value)}
-                                        required
-                                        disabled={!!item.id} // disable editing existing treatment type to prevent FK issues
-                                        className={`input-ayumi bg-white w-full ${item.id ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                    >
-                                        <option value="" disabled>-- Pilih Treatment --</option>
-                                        {treatments.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name} (Rp {t.price?.toLocaleString()})</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="w-full sm:w-32">
-                                    <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Jumlah Sesi</label>
-                                    <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-1">
+                        {items.map((item, idx) => {
+                            const currentTr = treatments.find(t => t.id === item.treatment_id)
+                            const isInactive = currentTr && currentTr.is_active === false
+                            // Only allow active treatments for new items, while preserving the existing treatment even if inactive
+                            const availableTreatments = treatments.filter(t => t.is_active || t.id === item.treatment_id)
+
+                            return (
+                                <div key={idx} className="flex flex-col sm:flex-row gap-3 items-end bg-gray-50 p-4 rounded-xl border border-gray-100 relative group">
+                                    {items.length > 1 && !item.id && ( // only allow removing newly added items
                                         <button 
-                                            type="button"
-                                            onClick={() => handleItemChange(idx, 'quantity', Math.max(1, item.quantity - 1))}
-                                            className="w-8 h-8 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 flex items-center justify-center"
-                                        >-</button>
-                                        <input 
-                                            type="number" 
-                                            value={item.quantity}
-                                            onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value) || 1)}
-                                            className="w-full text-center font-bold text-gray-800 bg-transparent border-none focus:ring-0 p-0"
-                                            min="1"
-                                        />
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleItemChange(idx, 'quantity', item.quantity + 1)}
-                                            className="w-8 h-8 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 flex items-center justify-center"
-                                        >+</button>
+                                            type="button" 
+                                            onClick={() => removeItem(idx)}
+                                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-500 hover:text-white"
+                                        >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    )}
+                                    
+                                    <div className="flex-1 w-full">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Pilih Treatment</label>
+                                            {isInactive && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-full">
+                                                    ⚠️ Layanan Nonaktif
+                                                </span>
+                                            )}
+                                        </div>
+                                        <select 
+                                            value={item.treatment_id}
+                                            onChange={(e) => handleItemChange(idx, 'treatment_id', e.target.value)}
+                                            required
+                                            disabled={!!item.id} // disable editing existing treatment type to prevent FK issues
+                                            className={`input-ayumi bg-white w-full ${item.id ? 'opacity-70 cursor-not-allowed' : ''} ${isInactive ? 'border-amber-300 bg-amber-50/30 text-gray-700' : ''}`}
+                                        >
+                                            <option value="" disabled>-- Pilih Treatment --</option>
+                                            {availableTreatments.map(t => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name} {!t.is_active ? '[Nonaktif]' : ''} (Rp {t.price?.toLocaleString('id-ID')})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="w-full sm:w-32">
+                                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Jumlah Sesi</label>
+                                        <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-1">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleItemChange(idx, 'quantity', Math.max(1, item.quantity - 1))}
+                                                className="w-8 h-8 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 flex items-center justify-center"
+                                            >-</button>
+                                            <input 
+                                                type="number" 
+                                                value={item.quantity}
+                                                onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value) || 1)}
+                                                className="w-full text-center font-bold text-gray-800 bg-transparent border-none focus:ring-0 p-0"
+                                                min="1"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleItemChange(idx, 'quantity', item.quantity + 1)}
+                                                className="w-8 h-8 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 flex items-center justify-center"
+                                            >+</button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
 

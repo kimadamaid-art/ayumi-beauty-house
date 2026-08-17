@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import DateRangePicker from '@/components/DateRangePicker'
 import { supabase } from '@/lib/supabaseClient'
+import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 
 export default function TherapistDashboard() {
     const router = useRouter()
@@ -17,6 +18,7 @@ export default function TherapistDashboard() {
     const [appointments, setAppointments] = useState([])
     const [loading, setLoading] = useState(true)
     const [claimingAptId, setClaimingAptId] = useState(null)
+    const [selectedPatientIdForHistory, setSelectedPatientIdForHistory] = useState(null)
 
     // Calendar States
     const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -64,6 +66,7 @@ export default function TherapistDashboard() {
         }
 
         setDbUser(userData)
+        fetchTherapistCommissions(userData.id, commStartDate, commEndDate)
 
         // Fetch Branches
         const { data: branchData } = await supabase.from('branches').select('id, name')
@@ -90,7 +93,8 @@ export default function TherapistDashboard() {
             .from('appointments')
             .select(`
                 id, start_time, end_time, status, appointment_date, therapist_id, notes, arrival_status, arrived_at, therapist_ready_at,
-                patients(full_name, whatsapp),
+                patient_id,
+                patients(id, full_name),
                 therapist:users!appointments_therapist_id_fkey(full_name),
                 treatment_records(id, result_notes)
             `)
@@ -100,7 +104,30 @@ export default function TherapistDashboard() {
             .order('start_time', { ascending: true })
 
         if (data) {
-            setAppointments(data)
+            const allPatientIds = Array.from(new Set(data.map(a => a.patient_id).filter(Boolean)))
+
+            if (allPatientIds.length > 0) {
+                try {
+                    const res = await fetch('/api/therapist/patient-lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: allPatientIds })
+                    })
+                    if (res.ok) {
+                        const { patientsMap } = await res.json()
+                        if (patientsMap) {
+                            data.forEach(a => {
+                                if (a.patient_id && patientsMap[a.patient_id]) {
+                                    a.patients = patientsMap[a.patient_id]
+                                }
+                            })
+                        }
+                    }
+                } catch (e) {
+                    console.error('Lookup error in dashboard appointments:', e)
+                }
+            }
+            setAppointments([...data])
         }
         setLoading(false)
     }
@@ -125,7 +152,8 @@ export default function TherapistDashboard() {
                     branch_id,
                     branches(name),
                     patient_id,
-                    patients(full_name, whatsapp),
+                    appointment_id,
+                    patients(id, full_name),
                     performed_by
                 ),
                 treatments(id, name)
@@ -135,6 +163,30 @@ export default function TherapistDashboard() {
             .lte('treatment_records.treatment_date', end)
 
         if (!error && data) {
+            const allPatientIds = Array.from(new Set(data.map(item => item.treatment_records?.patient_id).filter(Boolean)))
+
+            if (allPatientIds.length > 0) {
+                try {
+                    const res = await fetch('/api/therapist/patient-lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: allPatientIds })
+                    })
+                    if (res.ok) {
+                        const { patientsMap } = await res.json()
+                        if (patientsMap) {
+                            data.forEach(item => {
+                                if (item.treatment_records?.patient_id && patientsMap[item.treatment_records.patient_id]) {
+                                    item.treatment_records.patients = patientsMap[item.treatment_records.patient_id]
+                                }
+                            })
+                        }
+                    }
+                } catch (e) {
+                    console.error('Lookup error in dashboard commissions:', e)
+                }
+            }
+
             const sorted = data.sort((a, b) => {
                 const dateA = new Date(`${a.treatment_records?.treatment_date}T${a.treatment_records?.treatment_time || '00:00:00'}`)
                 const dateB = new Date(`${b.treatment_records?.treatment_date}T${b.treatment_records?.treatment_time || '00:00:00'}`)
@@ -485,7 +537,7 @@ export default function TherapistDashboard() {
                             Rp {commSummary.totalCommission.toLocaleString('id-ID')}
                         </div>
                         <div className="text-[11px] text-pink-100 font-medium mt-3 flex items-center gap-1">
-                            <span>✨ Akumulasi periode terpilih</span>
+                            <span>Akumulasi periode terpilih</span>
                         </div>
                     </div>
 
@@ -561,8 +613,28 @@ export default function TherapistDashboard() {
                                                         <div className="text-[10px] text-gray-400 mt-0.5">{recordTime || '-'}</div>
                                                     </td>
                                                     <td className="p-3">
-                                                        <div className="font-bold text-gray-800">{item.treatment_records?.patients?.full_name || '-'}</div>
-                                                        <div className="text-[10px] text-gray-400">{item.treatment_records?.patients?.whatsapp || ''}</div>
+                                                        {(() => {
+                                                            const pt = Array.isArray(item.treatment_records?.patients)
+                                                                ? item.treatment_records?.patients[0]
+                                                                : item.treatment_records?.patients
+                                                            const patientName = pt?.full_name || '-'
+                                                            const patientId = item.treatment_records?.patient_id || pt?.id
+                                                            return (
+                                                                <div className="flex flex-col items-start gap-1">
+                                                                    <span className="font-extrabold text-gray-800 text-xs">{patientName}</span>
+                                                                    {patientId && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setSelectedPatientIdForHistory(patientId)}
+                                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200/80 px-1.5 py-0.2 rounded-md transition-all shadow-2xs cursor-pointer"
+                                                                        >
+                                                                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                            <span>Riwayat Medis ↗</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        })()}
                                                     </td>
                                                     <td className="p-3">
                                                         <div className="font-bold text-ayumi-primary">{item.treatments?.name || 'Treatment'}</div>
@@ -703,8 +775,20 @@ export default function TherapistDashboard() {
 
                                         <div>
                                             <div className="flex justify-between items-start mb-2 pl-2">
-                                                <div>
-                                                    <div className="font-bold text-gray-800 text-sm">{apt.patients?.full_name}</div>
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <span className="font-extrabold text-gray-900 text-sm">
+                                                        {apt.patients?.full_name || 'Walk-in Customer'}
+                                                    </span>
+                                                    {(apt.patient_id || apt.patients?.id) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedPatientIdForHistory(apt.patient_id || apt.patients?.id)}
+                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200/80 px-1.5 py-0.2 rounded-md transition-all shadow-2xs cursor-pointer"
+                                                        >
+                                                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                            <span>Riwayat Medis ↗</span>
+                                                        </button>
+                                                    )}
                                                     <div className="text-[11px] text-gray-500 font-semibold mt-0.5">
                                                         {apt.start_time ? apt.start_time.substring(0, 5) : '-'} - {apt.end_time ? apt.end_time.substring(0, 5) : '-'}
                                                     </div>
@@ -791,6 +875,13 @@ export default function TherapistDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Patient History Modal */}
+            <TherapistPatientHistoryModal
+                patientId={selectedPatientIdForHistory}
+                isOpen={!!selectedPatientIdForHistory}
+                onClose={() => setSelectedPatientIdForHistory(null)}
+            />
         </div>
     )
 }

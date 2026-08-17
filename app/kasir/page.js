@@ -1403,14 +1403,13 @@ function PosPageContent() {
                                     <div className="flex items-start justify-between gap-2 mb-3">
                                         <div className="flex flex-col gap-1 min-w-0">
                                             <div className="flex items-center gap-1.5">
-                                                <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm ${
+                                                <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center shadow-xs ${
                                                     item.item_type === 'treatment' 
                                                         ? 'bg-purple-50 text-purple-600 border border-purple-100/70' 
                                                         : item.item_type === 'product'
                                                         ? 'bg-orange-50 text-orange-600 border border-orange-100/70'
                                                         : 'bg-pink-50 text-pink-600 border border-pink-100/70'
                                                 }`}>
-                                                    <span>{item.item_type === 'treatment' ? '✨' : item.item_type === 'product' ? '📦' : '🎫'}</span>
                                                     {item.item_type === 'treatment' ? 'Treatment' : item.item_type === 'product' ? 'Produk Fisik' : 'Kupon Paket'}
                                                 </span>
                                             </div>

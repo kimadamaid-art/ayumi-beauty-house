@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
+import { compressImageForMedical } from '@/lib/imageCompression'
 
 function EditRecordForm() {
     const router = useRouter()
@@ -51,6 +53,15 @@ function EditRecordForm() {
         foto_kiri: null,
         foto_kanan: null
     })
+
+    // Camera Modal State
+    const [isCameraOpen, setIsCameraOpen] = useState(false)
+    const [activeCameraSlot, setActiveCameraSlot] = useState(null)
+    const fileInputRefs = {
+        foto_depan: useRef(null),
+        foto_kiri: useRef(null),
+        foto_kanan: useRef(null)
+    }
 
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState('')
@@ -260,12 +271,14 @@ function EditRecordForm() {
     }
 
     const uploadPhotoSlot = async (file, slotKey, patientId, recordId) => {
-        const ext = file.name.split('.').pop() || 'jpg'
+        // Automatic client-side compression (WebP 1600px q80)
+        const compressed = await compressImageForMedical(file, 1600, 0.8)
+        const ext = compressed.name.split('.').pop() || 'webp'
         const filePath = `${patientId}/${recordId}/${slotKey}.${ext}`
 
         const { error: uploadErr } = await supabase.storage
             .from('patient-photos')
-            .upload(filePath, file, { upsert: true })
+            .upload(filePath, compressed, { upsert: true })
 
         if (uploadErr) {
             throw new Error(`Gagal mengunggah foto slot ${slotKey}: ${uploadErr.message}`)
@@ -689,7 +702,12 @@ function EditRecordForm() {
 
                     {/* Foto Dokumentasi Section */}
                     <div className="card-ayumi p-4 md:p-6 space-y-6">
-                        <h3 className="text-lg font-bold text-ayumi-secondary border-b pb-2">Foto Dokumentasi</h3>
+                        <div className="flex justify-between items-center border-b pb-2">
+                            <div>
+                                <h3 className="text-lg font-bold text-ayumi-secondary">Foto Dokumentasi</h3>
+                                <p className="text-xs text-gray-500">Ambil langsung dengan kamera perangkat atau unggah dari galeri.</p>
+                            </div>
+                        </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {[
@@ -697,36 +715,109 @@ function EditRecordForm() {
                                 { key: 'foto_kiri', label: 'Foto Samping Kiri' },
                                 { key: 'foto_kanan', label: 'Foto Samping Kanan' }
                             ].map(slot => (
-                                <div key={slot.key} className="border-2 border-dashed border-gray-200 rounded-2xl p-4 text-center bg-gray-50 hover:bg-white transition-colors relative flex flex-col justify-center items-center min-h-[160px]">
+                                <div key={slot.key} className="border-2 border-dashed border-gray-200 rounded-2xl p-4 text-center bg-gray-50/70 hover:bg-white transition-all relative flex flex-col justify-center items-center min-h-[190px]">
                                     {photoPreviews[slot.key] ? (
                                         <div className="w-full relative group">
-                                            <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-32 object-cover rounded-xl shadow-sm" />
+                                            <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-36 object-cover rounded-xl shadow-sm" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setActiveCameraSlot(slot.key)
+                                                        setIsCameraOpen(true)
+                                                    }}
+                                                    className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-xl text-xs font-bold shadow transition-transform hover:scale-105 flex items-center gap-1 cursor-pointer"
+                                                    title="Ambil Ulang dari Kamera"
+                                                >
+                                                    <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                    Kamera
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => fileInputRefs[slot.key].current?.click()}
+                                                    className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-xl text-xs font-bold shadow transition-transform hover:scale-105 flex items-center gap-1 cursor-pointer"
+                                                    title="Ganti dari Galeri"
+                                                >
+                                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    Galeri
+                                                </button>
+                                            </div>
                                             <button 
                                                 type="button" 
                                                 onClick={() => {
                                                     setPhotoFiles(prev => ({ ...prev, [slot.key]: null }))
                                                     setPhotoPreviews(prev => ({ ...prev, [slot.key]: null }))
                                                 }}
-                                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors shadow-md"
+                                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors shadow-md z-10 cursor-pointer"
+                                                title="Hapus Foto"
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                                             </button>
+                                            <div className="mt-1.5 text-center">
+                                                <span className="text-xs font-bold text-gray-600">{slot.label}</span>
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col items-center justify-center space-y-2">
-                                            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                            <span className="text-xs font-bold text-gray-500 block">{slot.label}</span>
+                                        <div className="flex flex-col items-center justify-center space-y-3 w-full py-2">
+                                            <div className="w-12 h-12 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center shadow-xs">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-700 block">{slot.label}</span>
+                                            
+                                            <div className="flex items-center gap-2 w-full max-w-[200px]">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setActiveCameraSlot(slot.key)
+                                                        setIsCameraOpen(true)
+                                                    }}
+                                                    className="flex-1 py-2 px-2 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                    Kamera
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => fileInputRefs[slot.key].current?.click()}
+                                                    className="flex-1 py-2 px-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                                                >
+                                                    <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                    Galeri
+                                                </button>
+                                            </div>
+
                                             <input 
                                                 type="file" 
+                                                ref={fileInputRefs[slot.key]}
                                                 accept="image/jpeg,image/png,image/webp" 
-                                                onChange={(e) => handleFileChange(slot.key, e.target.files[0])}
-                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                                capture="environment"
+                                                onChange={(e) => {
+                                                    if (e.target.files && e.target.files[0]) {
+                                                        handleFileChange(slot.key, e.target.files[0])
+                                                    }
+                                                }}
+                                                className="hidden"
                                             />
                                         </div>
                                     )}
                                 </div>
                             ))}
                         </div>
+
+                        {/* Camera Capture Modal */}
+                        <CameraCaptureModal
+                            isOpen={isCameraOpen}
+                            onClose={() => {
+                                setIsCameraOpen(false)
+                                setActiveCameraSlot(null)
+                            }}
+                            title={`Ambil Foto: ${activeCameraSlot ? (activeCameraSlot === 'foto_depan' ? 'Foto Depan' : activeCameraSlot === 'foto_kiri' ? 'Foto Samping Kiri' : 'Foto Samping Kanan') : ''}`}
+                            onCapture={(capturedFile) => {
+                                if (activeCameraSlot && capturedFile) {
+                                    handleFileChange(activeCameraSlot, capturedFile)
+                                }
+                            }}
+                        />
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4">

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DateRangePicker from '@/components/DateRangePicker'
+import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 
 function TherapistAppointmentsContent() {
     const router = useRouter()
@@ -15,6 +16,7 @@ function TherapistAppointmentsContent() {
     const [dbUser, setDbUser] = useState(null)
     const [branches, setBranches] = useState([])
     const [loading, setLoading] = useState(true)
+    const [selectedPatientIdForHistory, setSelectedPatientIdForHistory] = useState(null)
 
     // Data lists
     const [appointments, setAppointments] = useState([])
@@ -93,7 +95,7 @@ function TherapistAppointmentsContent() {
             .from('appointments')
             .select(`
                 *,
-                patients (id, full_name, whatsapp),
+                patients (id, full_name),
                 branches (name)
             `)
             .eq('therapist_id', userId)
@@ -106,7 +108,32 @@ function TherapistAppointmentsContent() {
         }
 
         const { data } = await query
-        if (data) setAppointments(data)
+        if (data) {
+            const allPatientIds = Array.from(new Set(data.map(a => a.patient_id).filter(Boolean)))
+
+            if (allPatientIds.length > 0) {
+                try {
+                    const res = await fetch('/api/therapist/patient-lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: allPatientIds })
+                    })
+                    if (res.ok) {
+                        const { patientsMap } = await res.json()
+                        if (patientsMap) {
+                            data.forEach(a => {
+                                if (a.patient_id && patientsMap[a.patient_id]) {
+                                    a.patients = patientsMap[a.patient_id]
+                                }
+                            })
+                        }
+                    }
+                } catch (e) {
+                    console.error('Lookup error:', e)
+                }
+            }
+            setAppointments([...data])
+        }
         setLoading(false)
     }
 
@@ -117,7 +144,7 @@ function TherapistAppointmentsContent() {
             .from('treatment_records')
             .select(`
                 *,
-                patients (id, full_name, whatsapp),
+                patients (id, full_name),
                 branches (name),
                 treatment_record_items (
                     id, price_at_time, original_price, discount_percent, commission_percent, notes,
@@ -132,8 +159,34 @@ function TherapistAppointmentsContent() {
             query = query.gte('treatment_date', recStartDate).lte('treatment_date', recEndDate)
         }
 
-        const { data } = await query
-        if (data) setRecords(data)
+        const { data, error } = await query
+        if (data) {
+            const allPatientIds = Array.from(new Set(data.map(r => r.patient_id).filter(Boolean)))
+
+            if (allPatientIds.length > 0) {
+                try {
+                    const res = await fetch('/api/therapist/patient-lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: allPatientIds })
+                    })
+                    if (res.ok) {
+                        const { patientsMap } = await res.json()
+                        if (patientsMap) {
+                            data.forEach(r => {
+                                if (r.patient_id && patientsMap[r.patient_id]) {
+                                    r.patients = patientsMap[r.patient_id]
+                                }
+                            })
+                        }
+                    }
+                } catch (e) {
+                    console.error('Lookup error:', e)
+                }
+            }
+
+            setRecords([...data])
+        }
         setLoading(false)
     }
 
@@ -353,8 +406,26 @@ function TherapistAppointmentsContent() {
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        <div className="font-bold text-gray-900">{apt.patients?.full_name || '-'}</div>
-                                                        <div className="text-xs text-gray-400 mt-0.5">{apt.patients?.whatsapp || ''}</div>
+                                                        {(() => {
+                                                            const patientObj = Array.isArray(apt.patients) ? apt.patients[0] : apt.patients
+                                                            const patientName = patientObj?.full_name || apt.patient_name || 'Walk-in Customer'
+                                                            const patientId = apt.patient_id || patientObj?.id
+                                                            return (
+                                                                <div className="flex flex-col items-start gap-1">
+                                                                    <span className="font-extrabold text-gray-900 text-sm">{patientName}</span>
+                                                                    {patientId && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setSelectedPatientIdForHistory(patientId)}
+                                                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200/80 px-2 py-0.5 rounded-lg transition-all shadow-2xs cursor-pointer"
+                                                                        >
+                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                            <span>Riwayat Medis ↗</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        })()}
                                                     </td>
                                                     <td className="p-4 text-xs font-semibold text-gray-600">
                                                         {apt.branches?.name || '-'}
@@ -513,8 +584,28 @@ function TherapistAppointmentsContent() {
                                                             <div className="text-xs text-gray-400 mt-0.5">{r.treatment_time || ''}</div>
                                                         </td>
                                                         <td className="p-4">
-                                                            <div className="font-bold text-gray-900">{r.patients?.full_name || '-'}</div>
-                                                            <div className="text-xs text-gray-400 mt-0.5">{r.patients?.whatsapp || ''}</div>
+                                                            {(() => {
+                                                                const patientObj = Array.isArray(r.patients) 
+                                                                    ? r.patients[0] 
+                                                                    : (r.patients || (Array.isArray(r.appointments?.patients) ? r.appointments?.patients[0] : r.appointments?.patients))
+                                                                const patientName = patientObj?.full_name || '-'
+                                                                const patientId = r.patient_id || patientObj?.id || r.appointments?.patient_id
+                                                                return (
+                                                                    <div className="flex flex-col items-start gap-1">
+                                                                        <span className="font-extrabold text-gray-900 text-sm">{patientName}</span>
+                                                                        {patientId && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setSelectedPatientIdForHistory(patientId)}
+                                                                                className="inline-flex items-center gap-1 text-[11px] font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200/80 px-2 py-0.5 rounded-lg transition-all shadow-2xs cursor-pointer"
+                                                                            >
+                                                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                                <span>Riwayat Medis ↗</span>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            })()}
                                                         </td>
                                                         <td className="p-4 text-xs font-semibold text-gray-600">
                                                             {r.branches?.name || '-'}
@@ -572,6 +663,13 @@ function TherapistAppointmentsContent() {
                         )}
                     </div>
                 )}
+
+                {/* Patient History Modal */}
+                <TherapistPatientHistoryModal
+                    patientId={selectedPatientIdForHistory}
+                    isOpen={!!selectedPatientIdForHistory}
+                    onClose={() => setSelectedPatientIdForHistory(null)}
+                />
 
             </div>
         </div>
