@@ -8,6 +8,13 @@ export async function middleware(request) {
         },
     })
 
+    const isProd = process.env.NODE_ENV === 'production'
+
+    // Clean up legacy Supabase project cookies if present
+    if (request.cookies.has('sb-hrtgqpvfbksnycmtwijp-auth-token')) {
+        response.cookies.delete('sb-hrtgqpvfbksnycmtwijp-auth-token')
+    }
+
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -22,7 +29,12 @@ export async function middleware(request) {
                         request,
                     })
                     cookiesToSet.forEach(({ name, value, options }) =>
-                        response.cookies.set(name, value, options)
+                        response.cookies.set(name, value, {
+                            ...options,
+                            sameSite: 'lax',
+                            secure: isProd,
+                            path: '/',
+                        })
                     )
                 },
             },

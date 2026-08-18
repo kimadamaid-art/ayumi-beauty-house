@@ -212,7 +212,7 @@ export default function GlobalHeader({ onMenuToggle }) {
         if (pathname.startsWith('/patients')) return 'Manajemen Pasien'
 
         if (pathname.startsWith('/appointments/new')) return 'Buat Janji Temu'
-        if (pathname.startsWith('/appointments')) return 'Kalender & Jadwal'
+        if (pathname.startsWith('/appointments')) return 'Janji Temu'
 
         if (pathname.startsWith('/treatment-records/new')) return 'Tambah Rekam Medis'
         if (pathname.startsWith('/treatment-records')) return 'Rekam Medis'

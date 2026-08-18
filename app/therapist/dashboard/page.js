@@ -13,38 +13,58 @@ export default function TherapistDashboard() {
     const router = useRouter()
 
     const [dbUser, setDbUser] = useState(null)
-    const [branches, setBranches] = useState([])
     const [selectedBranch, setSelectedBranch] = useState('')
     const [appointments, setAppointments] = useState([])
     const [loading, setLoading] = useState(true)
     const [claimingAptId, setClaimingAptId] = useState(null)
     const [selectedPatientIdForHistory, setSelectedPatientIdForHistory] = useState(null)
 
-    // Calendar States
-    const [currentMonth, setCurrentMonth] = useState(new Date())
-    const [selectedDate, setSelectedDate] = useState('')
-
-    // Helper to get local date string YYYY-MM-DD
-    const getLocalDateString = (date) => {
+    // Schedule Timeline States
+    const getLocalDateString = (date = new Date()) => {
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, '0')
         const day = String(date.getDate()).padStart(2, '0')
         return `${year}-${month}-${day}`
     }
 
+    const [startDate, setStartDate] = useState(getLocalDateString())
+    const [endDate, setEndDate] = useState(getLocalDateString())
+    const [searchQuery, setSearchQuery] = useState('')
+    const SCHEDULE_HOURS = ['08.00', '09.00', '10.00', '11.00', '12.00', '13.00', '14.00', '15.00', '16.00', '17.00', '18.00', '19.00', '20.00']
+
     // Commission Widget States
-    const todayStr = getLocalDateString(new Date())
+    const todayStr = getLocalDateString()
     const [commPeriodPreset, setCommPeriodPreset] = useState('today') // 'today' | 'week' | 'month' | 'custom'
     const [commStartDate, setCommStartDate] = useState(todayStr)
     const [commEndDate, setCommEndDate] = useState(todayStr)
     const [commItems, setCommItems] = useState([])
     const [commLoading, setCommLoading] = useState(false)
-    const [isCommDetailOpen, setIsCommDetailOpen] = useState(true)
+    const [isCommDetailOpen, setIsCommDetailOpen] = useState(false)
 
     useEffect(() => {
-        setSelectedDate(getLocalDateString(new Date()))
         fetchUserAndData()
+
+        const channel = supabase
+            .channel('therapist-realtime-dashboard')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'appointments' },
+                () => {
+                    fetchAppointments()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
+
+    useEffect(() => {
+        if (selectedBranch) {
+            fetchAppointments()
+        }
+    }, [selectedBranch, startDate, endDate])
 
     const fetchUserAndData = async () => {
         setLoading(true)
@@ -68,44 +88,39 @@ export default function TherapistDashboard() {
         setDbUser(userData)
         fetchTherapistCommissions(userData.id, commStartDate, commEndDate)
 
-        // Fetch Branches
-        const { data: branchData } = await supabase.from('branches').select('id, name')
-        if (branchData) {
-            setBranches(branchData)
-            if (branchData.length > 0) {
-                // Default to branch assigned to therapist if they have one, else first branch
-                setSelectedBranch(userData.branch_id || branchData[0].id)
-            }
-        }
+        const assignedBranchId = userData.branch_id || ''
+        setSelectedBranch(assignedBranchId)
     }
 
     const fetchAppointments = async () => {
         if (!selectedBranch) return
+        setLoading(true)
 
-        const year = currentMonth.getFullYear()
-        const month = currentMonth.getMonth()
-        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
-        const lastDay = new Date(year, month + 1, 0).getDate()
-        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`
-
-        // Fetch all appointments for the branch in the current month range
         const { data, error } = await supabase
             .from('appointments')
             .select(`
-                id, start_time, end_time, status, appointment_date, therapist_id, notes, arrival_status, arrived_at, therapist_ready_at,
-                patient_id,
-                patients(id, full_name),
-                therapist:users!appointments_therapist_id_fkey(full_name),
-                treatment_records(id, result_notes)
+                *,
+                patients (id, full_name, whatsapp),
+                branches (name),
+                therapist:users!appointments_therapist_id_fkey (id, full_name),
+                treatment_records (id, result_notes),
+                appointment_treatments (
+                    treatments (
+                        id,
+                        name,
+                        category_id,
+                        treatment_categories (id, name)
+                    )
+                )
             `)
             .eq('branch_id', selectedBranch)
             .gte('appointment_date', startDate)
             .lte('appointment_date', endDate)
+            .order('appointment_date', { ascending: true })
             .order('start_time', { ascending: true })
 
         if (data) {
             const allPatientIds = Array.from(new Set(data.map(a => a.patient_id).filter(Boolean)))
-
             if (allPatientIds.length > 0) {
                 try {
                     const res = await fetch('/api/therapist/patient-lookup', {
@@ -118,16 +133,16 @@ export default function TherapistDashboard() {
                         if (patientsMap) {
                             data.forEach(a => {
                                 if (a.patient_id && patientsMap[a.patient_id]) {
-                                    a.patients = patientsMap[a.patient_id]
+                                    a.patients = { ...a.patients, ...patientsMap[a.patient_id] }
                                 }
                             })
                         }
                     }
                 } catch (e) {
-                    console.error('Lookup error in dashboard appointments:', e)
+                    console.error('Lookup error in therapist dashboard appointments:', e)
                 }
             }
-            setAppointments([...data])
+            setAppointments(data)
         }
         setLoading(false)
     }
@@ -254,218 +269,189 @@ export default function TherapistDashboard() {
         }
     }, [commItems])
 
-    useEffect(() => {
-        if (dbUser && selectedBranch) {
-            fetchAppointments()
+    const isInfusAppointment = (apt) => {
+        if (!apt) return false
+        const treatmentNames = apt.appointment_treatments?.map(at => at.treatments?.name || '').join(' ').toLowerCase() || ''
+        const categoryNames = apt.appointment_treatments?.map(at => at.treatments?.treatment_categories?.name || '').join(' ').toLowerCase() || ''
+        const notes = (apt.notes || '').toLowerCase()
 
-            // Subscribe to realtime updates for appointments in this branch
-            const channel = supabase
-                .channel('realtime-appointments-therapist')
-                .on(
-                    'postgres_changes',
-                    {
-                        event: '*',
-                        schema: 'public',
-                        table: 'appointments',
-                        filter: `branch_id=eq.${selectedBranch}`
-                    },
-                    () => {
-                        fetchAppointments()
-                    }
-                )
-                .subscribe()
+        return treatmentNames.includes('infus') || categoryNames.includes('infus') || notes.includes('infus')
+    }
 
-            return () => {
-                supabase.removeChannel(channel)
-            }
-        }
-    }, [dbUser, selectedBranch, currentMonth])
-
-    const handleClaimPatient = async (aptId) => {
-        if (!confirm('Apakah Anda yakin ingin menangani pasien ini?')) return
-
+    const handleClaimAppointment = async (aptId) => {
+        if (!dbUser) return
         setClaimingAptId(aptId)
-        toast.loading('Menugaskan Anda ke janji temu...', { id: 'claim' })
 
-        const { data: aptData } = await supabase
-            .from('appointments')
-            .select('*, patients(full_name)')
-            .eq('id', aptId)
-            .maybeSingle()
+        try {
+            const { error } = await supabase
+                .from('appointments')
+                .update({ therapist_id: dbUser.id })
+                .eq('id', aptId)
 
-        const { error } = await supabase
-            .from('appointments')
-            .update({
-                therapist_id: dbUser.id,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', aptId)
+            if (error) throw error
 
-        if (!error) {
-            toast.success('Pasien berhasil ditugaskan ke Anda!', { id: 'claim' })
-
-            // Notification if patient already arrived
-            if (aptData?.arrival_status === 'arrived') {
-                await supabase.from('notifications').insert([{
-                    recipient_id: dbUser.id,
-                    sender_id: dbUser.id,
-                    appointment_id: aptId,
-                    type: 'patient_arrived',
-                    title: 'Pasien Sudah Datang 🙋‍♀️',
-                    message: `Pasien ${aptData?.patients?.full_name || ''} sudah tiba di klinik dan siap Anda tangani!`
-                }])
-            }
-
+            toast.success('Jadwal berhasil Anda ambil! Silakan tangani pasien.')
             fetchAppointments()
-        } else {
-            toast.error('Gagal memilih pasien: ' + getFriendlyErrorMessage(error), { id: 'claim' })
+        } catch (err) {
+            toast.error('Gagal mengambil jadwal: ' + getFriendlyErrorMessage(err))
+        } finally {
+            setClaimingAptId(null)
         }
-        setClaimingAptId(null)
     }
 
     const handleTherapistReady = async (apt) => {
-        if (!confirm('Apakah Anda siap menerima pasien ini?')) return
+        try {
+            const todayStr = new Date().toISOString()
+            const { error: aptErr } = await supabase
+                .from('appointments')
+                .update({
+                    arrival_status: 'therapist_ready',
+                    therapist_ready_at: todayStr,
+                    updated_at: todayStr
+                })
+                .eq('id', apt.id)
 
-        const todayStr = new Date().toISOString()
-        toast.loading('Mengirim notifikasi siap ke admin...', { id: 'ready' })
+            if (aptErr) throw aptErr
+            // Send notification to branch admins of this appointment (excluding owner)
+            const { data: activeAdmins } = await supabase
+                .from('users')
+                .select('id, role, branch_id')
+                .eq('role', 'admin')
+                .eq('is_active', true)
 
-        // 1. Update status
-        const { error: aptErr } = await supabase
-            .from('appointments')
-            .update({
-                arrival_status: 'therapist_ready',
-                therapist_ready_at: todayStr,
-                updated_at: todayStr
-            })
-            .eq('id', apt.id)
+            const recipients = activeAdmins?.filter(u => 
+                u.id !== dbUser.id && (!u.branch_id || u.branch_id === apt.branch_id)
+            ) || []
 
-        if (aptErr) {
-            toast.error('Gagal update status: ' + getFriendlyErrorMessage(aptErr), { id: 'ready' })
-            return
-        }
-
-        // 2. Notify all active admins & owners
-        const { data: allActiveUsers } = await supabase
-            .from('users')
-            .select('id, role, branch_id')
-            .eq('is_active', true)
-
-        const recipients = allActiveUsers?.filter(u => 
-            u.id !== dbUser.id && (u.role === 'owner' || (u.role === 'admin' && (!u.branch_id || u.branch_id === selectedBranch)))
-        ) || []
-
-        if (recipients.length > 0) {
-            // Fetch treatments
-            const { data: apptTreatments } = await supabase
-                .from('appointment_treatments')
-                .select('treatments(name)')
-                .eq('appointment_id', apt.id)
-            
-            const treatmentNames = apptTreatments?.map(t => t.treatments?.name).join(', ') || 'Treatment'
-            
-            const notificationsPayload = recipients.map(recipient => ({
-                recipient_id: recipient.id,
-                sender_id: dbUser.id,
-                appointment_id: apt.id,
-                type: 'therapist_ready',
-                title: 'Terapis Siap 💆‍♀️',
-                message: `Terapis ${dbUser.full_name} sudah siap di ruangan menerima ${apt.patients?.full_name} (${treatmentNames}).`
-            }))
-
-            const { error: notifErr } = await supabase
-                .from('notifications')
-                .insert(notificationsPayload)
-
-            if (notifErr) {
-                console.error('Gagal membuat notifikasi ke admin:', notifErr.message)
+            if (recipients.length > 0) {
+                const notificationsToInsert = recipients.map(adm => ({
+                    recipient_id: adm.id,
+                    sender_id: dbUser.id,
+                    appointment_id: apt.id,
+                    type: 'therapist_ready',
+                    title: 'Terapis Siap! 💆‍♀️',
+                    message: `Terapis ${dbUser.full_name} sudah siap menangani pasien ${apt.patients?.full_name || ''}. Silakan persilakan pasien masuk.`
+                }))
+                await supabase.from('notifications').insert(notificationsToInsert)
             }
+
+            toast.success('Status berhasil diperbarui! Kasir/Admin telah diberi tahu.')
+            fetchAppointments()
+        } catch (err) {
+            toast.error('Gagal update status: ' + err.message)
+        }
+    }
+
+    const getTherapistArrivalActions = (apt) => {
+        if (apt.status === 'completed' || apt.status === 'cancelled') return null
+
+        const status = apt.arrival_status || 'not_arrived'
+        const isMyPatient = apt.therapist_id === dbUser?.id
+        const isUnassigned = !apt.therapist_id
+
+        if (isUnassigned) {
+            return (
+                <button
+                    onClick={() => handleClaimAppointment(apt.id)}
+                    disabled={claimingAptId === apt.id}
+                    className="text-[10px] font-extrabold text-white bg-blue-600 hover:bg-blue-700 px-2 py-0.5 rounded-md transition-colors shadow-2xs cursor-pointer"
+                >
+                    {claimingAptId === apt.id ? 'Memilih...' : 'Pilih Pasien'}
+                </button>
+            )
         }
 
-        toast.success('Kesiapan terkirim ke admin!', { id: 'ready' })
-        fetchAppointments()
-    }
-
-    const getStatusBadge = (status) => {
-        const badges = {
-            'scheduled': 'bg-blue-100 text-blue-700 border-blue-200',
-            'confirmed': 'bg-green-100 text-green-700 border-green-200',
-            'completed': 'bg-gray-100 text-gray-700 border-gray-200',
-            'cancelled': 'bg-red-100 text-red-700 border-red-200',
-            'no_show': 'bg-orange-100 text-orange-700 border-orange-200'
+        if (status === 'arrived' && isMyPatient) {
+            return (
+                <button
+                    onClick={() => handleTherapistReady(apt)}
+                    className="text-[10px] font-extrabold text-white bg-green-600 hover:bg-green-700 px-2 py-0.5 rounded-md transition-colors shadow-2xs cursor-pointer animate-pulse"
+                >
+                    Saya Siap!
+                </button>
+            )
         }
-        const colorClass = badges[status] || 'bg-gray-100 text-gray-700'
-        return <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${colorClass}`}>{status}</span>
-    }
 
-    // --- CALENDAR LOGIC ---
-    const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate()
-    const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay()
-
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
-    const daysInMonth = getDaysInMonth(year, month)
-    const firstDay = getFirstDayOfMonth(year, month)
-
-    const prevMonth = () => {
-        setCurrentMonth(new Date(year, month - 1, 1))
-    }
-
-    const nextMonth = () => {
-        setCurrentMonth(new Date(year, month + 1, 1))
-    }
-
-    const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-    const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
-
-    // Group appointments by date
-    const appointmentsByDate = {}
-    appointments.forEach(apt => {
-        if (!appointmentsByDate[apt.appointment_date]) {
-            appointmentsByDate[apt.appointment_date] = []
+        if (status === 'therapist_ready') {
+            return (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1 animate-pulse"></span>
+                    Siap!
+                </span>
+            )
         }
-        appointmentsByDate[apt.appointment_date].push(apt)
-    })
 
-    const selectedDateAppointments = appointments.filter(a => a.appointment_date === selectedDate)
+        if (status === 'in_treatment') {
+            return (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
+                    Di Ruangan
+                </span>
+            )
+        }
 
-    if (loading && !dbUser) {
+        if (status === 'arrived') {
+            return (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1"></span>
+                    Tiba
+                </span>
+            )
+        }
+
         return (
-            <div className="flex items-center justify-center p-20">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div>
-            </div>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                Scheduled
+            </span>
         )
     }
 
+    const filteredAppointments = appointments.filter(apt => {
+        if (apt.status === 'cancelled') return false
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase()
+            const name = apt.patients?.full_name?.toLowerCase() || ''
+            const wa = apt.patients?.whatsapp || ''
+            if (!name.includes(query) && !wa.includes(query)) return false
+        }
+        return true
+    })
+
     return (
-        <div className="w-full space-y-6">
-            {/* Header & Branch Selector Banner */}
-            <div className="bg-white rounded-3xl p-6 border border-pink-100 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h2 className="text-lg font-black text-gray-900">Dashboard Terapis</h2>
+        <div className="space-y-6">
+            {/* Top Therapist Status & Branch Bar */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white px-5 py-3.5 rounded-2xl border border-pink-100/70 shadow-xs">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-ayumi-primary to-pink-400 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                        💆‍♀️
                     </div>
-                    <p className="text-xs text-gray-500 font-medium">
-                        Penempatan Cabang Aktif: <span className="text-ayumi-primary font-bold">{dbUser?.branches?.name || 'Tidak ada penempatan'}</span>
-                    </p>
+                    <div>
+                        <div className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                            <span>Hai, <b className="text-ayumi-primary">{dbUser?.full_name || 'Terapis'}</b></span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium">
+                            Pantau perolehan komisi dan jadwal pasien Anda hari ini.
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full md:w-auto">
-                    <label className="text-xs font-bold text-gray-400 uppercase shrink-0">Lihat Jadwal Cabang:</label>
-                    <select
-                        value={selectedBranch}
-                        onChange={(e) => setSelectedBranch(e.target.value)}
-                        className="input-ayumi bg-pink-50/70 border-pink-200 text-ayumi-primary font-bold py-2 px-4 rounded-xl cursor-pointer text-xs w-full sm:w-auto"
-                    >
-                        {branches.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                    </select>
+                <div className="flex items-center gap-2">
+                    {dbUser?.branches?.name && (
+                        <div className="flex items-center gap-1.5 bg-pink-50 border border-pink-100 text-ayumi-primary px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">
+                            <span className="w-2 h-2 rounded-full bg-ayumi-primary"></span>
+                            <span>Cabang: <b className="text-slate-800 font-extrabold">{dbUser.branches.name}</b></span>
+                        </div>
+                    )}
+                    <Link href="/therapist/appointments?tab=history">
+                        <button className="text-xs font-bold text-ayumi-secondary hover:text-ayumi-primary bg-white hover:bg-pink-50/50 border border-pink-100 px-3 py-1.5 rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer">
+                            <span>📜 Riwayat</span>
+                        </button>
+                    </Link>
                 </div>
             </div>
 
             {/* RINGKASAN & RINCIAN KOMISI TERAPIS WIDGET */}
-            <div className="bg-white rounded-3xl border-2 border-pink-100 p-5 md:p-6 shadow-sm space-y-5">
+            <div className="bg-white rounded-3xl border border-pink-100/70 p-5 md:p-6 shadow-sm space-y-5">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-gray-100 pb-4">
                     <div>
                         <div className="flex items-center gap-2">
@@ -477,7 +463,7 @@ export default function TherapistDashboard() {
                             </span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1 font-medium">
-                            Pantau perolehan komisi Anda dari setiap tindakan treatment yang Anda selesaikan.
+                            Akumulasi komisi seluruh cabang (harian, mingguan, bulanan, atau custom).
                         </p>
                     </div>
 
@@ -511,7 +497,7 @@ export default function TherapistDashboard() {
                         </div>
 
                         {commPeriodPreset === 'custom' && (
-                            <div className="w-full sm:w-auto z-30">
+                            <div className="w-full sm:w-auto relative z-30">
                                 <DateRangePicker
                                     startDate={commStartDate}
                                     endDate={commEndDate}
@@ -529,7 +515,6 @@ export default function TherapistDashboard() {
 
                 {/* Stat Cards Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Card 1: Total Komisi */}
                     <div className="bg-gradient-to-br from-ayumi-secondary via-ayumi-primary to-pink-600 rounded-2xl p-5 text-white shadow-md flex flex-col justify-between relative overflow-hidden">
                         <div className="absolute -right-4 -bottom-4 opacity-15 text-6xl">💰</div>
                         <div className="text-xs font-bold text-pink-200 uppercase tracking-wider">Total Komisi Diterima</div>
@@ -537,18 +522,17 @@ export default function TherapistDashboard() {
                             Rp {commSummary.totalCommission.toLocaleString('id-ID')}
                         </div>
                         <div className="text-[11px] text-pink-100 font-medium mt-3 flex items-center gap-1">
-                            <span>Akumulasi periode terpilih</span>
+                            <span>Akumulasi komisi seluruh cabang untuk periode terpilih</span>
                         </div>
                     </div>
 
-                    {/* Card 2: Jumlah Perawatan */}
                     <div className="bg-pink-50/60 border border-pink-200/70 rounded-2xl p-5 flex flex-col justify-between">
-                        <div className="text-xs font-bold text-ayumi-secondary uppercase tracking-wider">Tindakan Treatment</div>
+                        <div className="text-xs font-bold text-ayumi-secondary uppercase tracking-wider">Tindakan Treatment Selesai</div>
                         <div className="text-2xl lg:text-3xl font-black text-gray-900 mt-2 leading-none">
                             {commSummary.treatmentCount} <span className="text-sm font-bold text-gray-500">Tindakan</span>
                         </div>
                         <div className="text-[11px] text-gray-500 font-medium mt-3">
-                            Selesai dikerjakan oleh Anda
+                            Total tindakan yang telah Anda selesaikan
                         </div>
                     </div>
                 </div>
@@ -579,7 +563,7 @@ export default function TherapistDashboard() {
                                     <p className="text-xs text-gray-500 font-medium">Memuat data komisi...</p>
                                 </div>
                             ) : commItems.length === 0 ? (
-                                <div className="text-center py-10 bg-gray-50/50">
+                                <div className="text-center py-8 bg-gray-50/50">
                                     <p className="text-gray-500 font-semibold text-xs">Belum ada komisi treatment pada periode ini.</p>
                                 </div>
                             ) : (
@@ -587,6 +571,7 @@ export default function TherapistDashboard() {
                                     <thead>
                                         <tr className="bg-pink-50/70 text-ayumi-secondary font-extrabold uppercase tracking-wider text-[11px]">
                                             <th className="p-3">Tanggal & Waktu</th>
+                                            <th className="p-3">Cabang</th>
                                             <th className="p-3">Pasien</th>
                                             <th className="p-3">Treatment</th>
                                             <th className="p-3 text-center">% Komisi</th>
@@ -603,6 +588,7 @@ export default function TherapistDashboard() {
                                             const commAmount = Math.round(basePrice * (commPercent / 100))
                                             const recordDate = item.treatment_records?.treatment_date
                                             const recordTime = item.treatment_records?.treatment_time
+                                            const branchName = item.treatment_records?.branches?.name || '-'
 
                                             return (
                                                 <tr key={item.id} className="hover:bg-pink-50/20 transition-colors">
@@ -611,6 +597,11 @@ export default function TherapistDashboard() {
                                                             {recordDate ? new Date(recordDate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                                         </div>
                                                         <div className="text-[10px] text-gray-400 mt-0.5">{recordTime || '-'}</div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-md text-[10.5px] border border-slate-200">
+                                                            {branchName}
+                                                        </span>
                                                     </td>
                                                     <td className="p-3">
                                                         {(() => {
@@ -659,229 +650,379 @@ export default function TherapistDashboard() {
                 </div>
             </div>
 
-            {/* Split Calendar & Detail Harian */}
-            <div className="flex flex-col lg:flex-row gap-6">
-                {/* Kolom Kiri: Kalender */}
-                <div className="flex-1 card-ayumi p-4 md:p-6 border border-gray-100 bg-white">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-extrabold text-ayumi-secondary">
-                            Jadwal {monthNames[month]} {year}
+            {/* UNIFIED TIMELINE SCHEDULE BOARD FOR THERAPIST */}
+            <div className="card-ayumi p-4 md:p-6 shadow-sm border border-pink-100/50">
+                {/* Filter Bar */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <h3 className="text-base md:text-lg font-black text-slate-800">
+                            Jadwal Treatment & Infus
                         </h3>
-                        <div className="flex gap-2">
-                            <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-pink-50 text-ayumi-primary transition-colors">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                            </button>
-                            <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-1.5 rounded-lg hover:bg-pink-50 text-sm font-bold text-ayumi-primary transition-colors">
-                                Bulan Ini
-                            </button>
-                            <button onClick={nextMonth} className="p-2 rounded-lg hover:bg-pink-50 text-ayumi-primary transition-colors">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                            </button>
-                        </div>
                     </div>
 
-                    <div className="overflow-x-auto pb-4 custom-scrollbar">
-                        <div className="grid grid-cols-7 gap-1.5 min-w-[500px] md:min-w-0">
-                            {dayNames.map(day => (
-                                <div key={day} className="text-center font-bold text-gray-400 text-xs py-1 uppercase tracking-wider">
-                                    {day}
-                                </div>
-                            ))}
-
-                            {/* Sel Kosong sebelum Tanggal 1 */}
-                            {Array.from({ length: firstDay }).map((_, i) => (
-                                <div key={`empty-${i}`} className="p-2 h-20 rounded-xl bg-gray-50/30"></div>
-                            ))}
-
-                            {/* Hari-hari dalam bulan */}
-                            {Array.from({ length: daysInMonth }).map((_, i) => {
-                                const d = i + 1
-                                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                                const isSelected = selectedDate === dateStr
-                                const isToday = getLocalDateString(new Date()) === dateStr
-                                const dayAppointments = appointmentsByDate[dateStr] || []
-
-                                // Indicators
-                                const hasMyClaim = dayAppointments.some(a => a.therapist_id === dbUser.id)
-                                const hasUnassigned = dayAppointments.some(a => !a.therapist_id)
-
-                                return (
-                                    <div
-                                        key={d}
-                                        onClick={() => setSelectedDate(dateStr)}
-                                        className={`p-2 h-20 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden ${
-                                            isSelected
-                                                ? 'border-ayumi-primary bg-pink-50 shadow-sm'
-                                                : isToday ? 'border-pink-200 bg-white' : 'border-gray-50 hover:border-pink-100 bg-white'
-                                        }`}
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-ayumi-primary text-white' : 'text-gray-700'}`}>
-                                                {d}
-                                            </span>
-                                            {dayAppointments.length > 0 && (
-                                                <span className="text-[9px] font-bold bg-pink-100 text-ayumi-primary px-1.5 py-0.5 rounded-md">
-                                                    {dayAppointments.length}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Indikator Status di bagian bawah sel */}
-                                        <div className="flex gap-1 items-center justify-end mt-1">
-                                            {hasMyClaim && (
-                                                <span className="w-2 h-2 rounded-full bg-pink-500" title="Ada pasien Anda"></span>
-                                            )}
-                                            {hasUnassigned && (
-                                                <span className="w-2 h-2 rounded-full bg-blue-400" title="Ada pasien belum dihandle"></span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto relative z-30">
+                        <DateRangePicker
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={(range) => {
+                                setStartDate(range.startDate)
+                                setEndDate(range.endDate)
+                            }}
+                            inputClassName="text-xs font-semibold"
+                            align="right"
+                        />
+                        <Link href="/appointments/new">
+                            <button className="btn-primary py-2 px-4 flex items-center gap-1.5 text-xs cursor-pointer shadow-pink-500/10 shadow-md">
+                                <span className="font-black text-sm">+</span> Buat Jadwal
+                            </button>
+                        </Link>
                     </div>
                 </div>
 
-                {/* Kolom Kanan: Detail Janji Temu Harian */}
-                <div className="w-full lg:w-96 flex flex-col gap-4">
-                    <div className="bg-ayumi-secondary rounded-2xl p-5 text-white shadow-md">
-                        <div className="text-xs font-medium text-pink-200 mb-1">Jadwal pada tanggal</div>
-                        <h3 className="text-lg font-bold">
-                            {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                        </h3>
+                {loading ? (
+                    <div className="text-center py-20">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary mx-auto mb-4"></div>
+                        <p className="text-gray-500 font-medium text-xs">Memuat jadwal...</p>
                     </div>
+                ) : (
+                    <div className="space-y-6">
+                        {(() => {
+                            const getDatesInRange = (startStr, endStr) => {
+                                if (!startStr || !endStr) return []
+                                const dates = []
+                                const cur = new Date(startStr + 'T00:00:00')
+                                const end = new Date(endStr + 'T00:00:00')
+                                let count = 0
+                                while (cur <= end && count < 31) {
+                                    const year = cur.getFullYear()
+                                    const month = String(cur.getMonth() + 1).padStart(2, '0')
+                                    const day = String(cur.getDate()).padStart(2, '0')
+                                    dates.push(`${year}-${month}-${day}`)
+                                    cur.setDate(cur.getDate() + 1)
+                                    count++
+                                }
+                                return dates
+                            }
 
-                    <div className="flex-1 bg-gray-50 border-2 border-gray-100 rounded-3xl p-5 space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
-                        {selectedDateAppointments.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3 mx-auto text-gray-400">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                </div>
-                                <p className="font-semibold text-sm">Tidak ada jadwal temu</p>
-                                <p className="text-xs text-gray-400 mt-1">Di cabang terpilih pada tanggal ini.</p>
-                            </div>
-                        ) : (
-                            selectedDateAppointments.map(apt => {
-                                const isClaimedByMe = apt.therapist_id === dbUser.id
-                                const isUnassigned = !apt.therapist_id
-                                const isCompleted = apt.status === 'completed' || (apt.treatment_records && apt.treatment_records.length > 0)
-
-                                return (
-                                    <div key={apt.id} className="bg-white border-2 border-pink-100 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                                        <div className={`absolute top-0 left-0 w-1.5 h-full ${
-                                            isClaimedByMe ? 'bg-pink-500' :
-                                            isUnassigned ? 'bg-blue-400' : 'bg-gray-300'
-                                        }`}></div>
-
-                                        <div>
-                                            <div className="flex justify-between items-start mb-2 pl-2">
-                                                <div className="flex flex-col items-start gap-1">
-                                                    <span className="font-extrabold text-gray-900 text-sm">
-                                                        {apt.patients?.full_name || 'Walk-in Customer'}
-                                                    </span>
-                                                    {(apt.patient_id || apt.patients?.id) && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSelectedPatientIdForHistory(apt.patient_id || apt.patients?.id)}
-                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200/80 px-1.5 py-0.2 rounded-md transition-all shadow-2xs cursor-pointer"
-                                                        >
-                                                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                            <span>Riwayat Medis ↗</span>
-                                                        </button>
-                                                    )}
-                                                    <div className="text-[11px] text-gray-500 font-semibold mt-0.5">
-                                                        {apt.start_time ? apt.start_time.substring(0, 5) : '-'} - {apt.end_time ? apt.end_time.substring(0, 5) : '-'}
-                                                    </div>
-                                                </div>
-                                                <div className="scale-75 origin-top-right">
-                                                    {getStatusBadge(isCompleted ? 'completed' : apt.status)}
-                                                </div>
-                                            </div>
-
-                                            {apt.notes && (
-                                                <div className="pl-2 text-[11px] text-gray-500 italic mt-1 line-clamp-2 bg-yellow-50/50 p-1.5 rounded border border-yellow-100">
-                                                    Catatan: {apt.notes}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="pl-2 flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
-                                            <div className="text-xs text-gray-500 font-medium flex flex-col gap-1">
-                                                {isClaimedByMe && <span className="text-pink-600 font-bold">Ditangani Anda</span>}
-                                                {isUnassigned && <span className="text-blue-500 font-bold">Belum ada terapis</span>}
-                                                {!isClaimedByMe && !isUnassigned && (
-                                                    <span className="text-gray-500">
-                                                        Terapis: <span className="font-semibold">{apt.therapist?.full_name?.split(' ')[0]}</span>
-                                                    </span>
-                                                )}
-                                                
-                                                {/* Visual Arrival Status Badge for Therapist */}
-                                                {isClaimedByMe && apt.arrival_status === 'arrived' && (
-                                                    <span className="inline-flex items-center text-[10px] font-extrabold text-yellow-600 animate-pulse mt-0.5">
-                                                        Pasien Sudah Datang!
-                                                    </span>
-                                                )}
-                                                {isClaimedByMe && apt.arrival_status === 'therapist_ready' && (
-                                                    <span className="inline-flex items-center text-[10px] font-bold text-green-600 animate-pulse mt-0.5">
-                                                        Menunggu Pasien Masuk...
-                                                    </span>
-                                                )}
-                                                {isClaimedByMe && apt.arrival_status === 'in_treatment' && (
-                                                    <span className="inline-flex items-center text-[10px] font-bold text-blue-600 mt-0.5">
-                                                        Sedang Treatment
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <div>
-                                                {isUnassigned && (
-                                                    <button
-                                                        onClick={() => handleClaimPatient(apt.id)}
-                                                        disabled={claimingAptId === apt.id}
-                                                        className="text-[11px] font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 px-3 py-1.5 rounded-lg transition-colors shadow-sm cursor-pointer"
-                                                    >
-                                                        {claimingAptId === apt.id ? 'Memproses...' : 'Pilih Pasien'}
-                                                    </button>
-                                                )}
-
-                                                {isClaimedByMe && apt.status !== 'cancelled' && (
-                                                    <div className="flex flex-col gap-1.5 items-end">
-                                                        {apt.arrival_status === 'arrived' && !isCompleted && (
-                                                            <button
-                                                                onClick={() => handleTherapistReady(apt)}
-                                                                className="text-[11px] font-bold text-white bg-yellow-500 hover:bg-yellow-600 px-3 py-1 rounded-lg transition-colors shadow-sm cursor-pointer"
-                                                            >
-                                                                Siap Menerima Pasien
-                                                            </button>
-                                                        )}
-
-                                                        <Link href={`/therapist/treatment-input/${apt.id}`}>
-                                                            <button className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-sm cursor-pointer ${
-                                                                isCompleted 
-                                                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                                                                    : 'bg-ayumi-primary hover:bg-ayumi-primary-hover text-white'
-                                                            }`}>
-                                                                {isCompleted ? '📝 Input / Edit SOAP' : '💆‍♀️ Treatment & SOAP'}
-                                                            </button>
-                                                        </Link>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )
+                            const groupedByDate = {}
+                            filteredAppointments.forEach(apt => {
+                                const d = apt.appointment_date
+                                if (!groupedByDate[d]) groupedByDate[d] = []
+                                groupedByDate[d].push(apt)
                             })
-                        )}
+
+                            const rangeDates = getDatesInRange(startDate, endDate)
+                            const dateSet = new Set(rangeDates)
+                            Object.keys(groupedByDate).forEach(d => dateSet.add(d))
+                            const sortedDates = Array.from(dateSet).sort()
+
+                            if (sortedDates.length === 0) {
+                                return (
+                                    <div className="py-16 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100">
+                                        <p className="text-gray-500 font-medium text-sm">Silakan pilih tanggal untuk melihat jadwal.</p>
+                                    </div>
+                                )
+                            }
+
+                            return (
+                                <div className="space-y-8">
+                                    {sortedDates.map(dateStr => {
+                                        const formattedDate = new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
+                                            weekday: 'long',
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric'
+                                        })
+
+                                        const dayApts = groupedByDate[dateStr] || []
+                                        const totalInfus = dayApts.filter(a => isInfusAppointment(a)).length
+                                        const totalTreatment = dayApts.length - totalInfus
+
+                                        return (
+                                            <div key={dateStr} className="bg-white rounded-2xl border border-pink-100/60 p-4 sm:p-6 shadow-sm overflow-hidden">
+                                                {/* Date Section Header */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg">🗓️</span>
+                                                        <h3 className="font-black text-slate-800 text-base sm:text-lg">
+                                                            {formattedDate}
+                                                        </h3>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 text-xs font-bold">
+                                                        <span className="bg-sky-50 text-sky-700 px-3 py-1 rounded-full border border-sky-100 flex items-center gap-1.5">
+                                                            <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                                                            {totalTreatment} Treatment
+                                                        </span>
+                                                        <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full border border-cyan-100 flex items-center gap-1.5">
+                                                            <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                                                            {totalInfus} Infus
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Scrollable Schedule Board Sheet */}
+                                                <div className="overflow-x-auto custom-scrollbar pb-2">
+                                                    <div className="min-w-[850px]">
+                                                        {/* Grid Column Headers */}
+                                                        <div className="flex items-center gap-4 pb-3 mb-2 border-b border-slate-100 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                            <div className="w-16 flex-shrink-0 text-slate-400 font-black pl-1 text-[11px] uppercase tracking-wider">WAKTU</div>
+                                                            <div className="w-72 flex-shrink-0 flex items-center gap-2 text-cyan-800 bg-cyan-100/70 px-3.5 py-1.5 rounded-full border border-cyan-300 font-extrabold text-[11px] uppercase tracking-wider">
+                                                                <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                                                                LAYANAN INFUS
+                                                            </div>
+                                                            <div className="flex-1 flex items-center gap-2 text-sky-800 bg-sky-100/70 px-3.5 py-1.5 rounded-full border border-sky-300 font-extrabold text-[11px] uppercase tracking-wider">
+                                                                <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                                                                LAYANAN TREATMENT
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Hourly Timeline Grid Rows */}
+                                                        <div className="space-y-0 divide-y divide-slate-100">
+                                                            {SCHEDULE_HOURS.map(hourStr => {
+                                                                const hourNum = parseInt(hourStr.split('.')[0], 10)
+                                                                const hourApts = dayApts.filter(apt => {
+                                                                    if (!apt.start_time) return false
+                                                                    const h = parseInt(apt.start_time.split(':')[0], 10)
+                                                                    return h === hourNum
+                                                                })
+
+                                                                const infusApts = hourApts.filter(a => isInfusAppointment(a))
+                                                                const treatmentApts = hourApts.filter(a => !isInfusAppointment(a))
+
+                                                                return (
+                                                                    <div key={hourStr} className="flex items-stretch gap-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/30 transition-colors min-h-[58px]">
+                                                                        {/* Waktu */}
+                                                                        <div className="w-16 flex-shrink-0 pt-1.5">
+                                                                            <span className="text-xs font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/60 inline-block">
+                                                                                {hourStr}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        {/* Column 1: Infus */}
+                                                                        <div className="w-72 flex-shrink-0 border-l border-slate-100 pl-3 flex flex-col justify-center min-h-[48px]">
+                                                                            {infusApts.length === 0 ? (
+                                                                                <Link 
+                                                                                    href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}&notes=Infus`} 
+                                                                                    className="w-full min-h-[42px] border border-dashed border-slate-200/80 hover:border-cyan-300 hover:bg-cyan-50/40 rounded-xl transition-all flex items-center px-3 text-xs text-slate-400 hover:text-cyan-700 font-semibold gap-2 group cursor-pointer"
+                                                                                    title={`Tambah Infus Jam ${hourStr.replace('.', ':')}`}
+                                                                                >
+                                                                                    <span className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-cyan-100 text-slate-400 group-hover:text-cyan-700 flex items-center justify-center font-black text-xs transition-colors">+</span>
+                                                                                    <span className="opacity-70 group-hover:opacity-100 transition-opacity">Tambah Infus</span>
+                                                                                </Link>
+                                                                            ) : (
+                                                                                <div className="flex flex-col gap-2 w-full">
+                                                                                    {infusApts.map(apt => {
+                                                                                        const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Infus'
+                                                                                        const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
+                                                                                        const endTime = apt.end_time ? apt.end_time.substring(0, 5) : ''
+                                                                                        const isMyPatient = apt.therapist_id === dbUser?.id
+
+                                                                                        return (
+                                                                                            <div 
+                                                                                                key={apt.id}
+                                                                                                className={`border text-slate-800 rounded-xl p-3 w-full shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between ${
+                                                                                                    isMyPatient ? 'bg-[#e3f7fa] border-cyan-400 ring-2 ring-cyan-200' : 'bg-[#ebf9fb] border-cyan-300'
+                                                                                                }`}
+                                                                                            >
+                                                                                                <div>
+                                                                                                    <div className="flex justify-between items-center text-xs font-bold text-cyan-950 pb-1.5 mb-1.5 border-b border-cyan-200/70">
+                                                                                                        <span className="flex items-center gap-1.5 text-cyan-900 font-extrabold text-[11px]">
+                                                                                                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-2xs"></span>
+                                                                                                            💧 {startTime} - {endTime}
+                                                                                                        </span>
+                                                                                                        {isMyPatient && (
+                                                                                                            <span className="text-[10px] font-black bg-cyan-200/80 text-cyan-800 px-1.5 py-0.2 rounded-md">
+                                                                                                                Tugas Anda
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+
+                                                                                                    <div className="font-extrabold text-sm text-slate-900 tracking-tight truncate">
+                                                                                                        {apt.patients?.full_name || 'Pasien'}
+                                                                                                    </div>
+
+                                                                                                    <div className="text-[11px] text-cyan-950 font-semibold mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
+                                                                                                        💧 {treatmentsList}
+                                                                                                    </div>
+
+                                                                                                    <div className="text-[10.5px] text-cyan-900/80 font-medium mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
+                                                                                                        {apt.therapist?.full_name ? (
+                                                                                                            <span>Petugas: <b className="font-bold text-slate-800">{apt.therapist.full_name.split(' ')[0]}</b></span>
+                                                                                                        ) : (
+                                                                                                            <span className="text-amber-600 font-bold">⚠️ Belum Ada Terapis</span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                {/* Footer Actions */}
+                                                                                                <div className="mt-2.5 pt-2 border-t border-cyan-200/70 flex items-center justify-between gap-1">
+                                                                                                    <div className="flex items-center gap-1">
+                                                                                                        {getTherapistArrivalActions(apt)}
+                                                                                                    </div>
+
+                                                                                                    <div className="flex items-center gap-1">
+                                                                                                        {apt.patients?.id && (
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
+                                                                                                                className="text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded-md border border-pink-200 transition-colors cursor-pointer"
+                                                                                                                title="Lihat Riwayat Medis"
+                                                                                                            >
+                                                                                                                📋
+                                                                                                            </button>
+                                                                                                        )}
+                                                                                                        {apt.status !== 'completed' && apt.status !== 'cancelled' && (
+                                                                                                            <Link href={`/therapist/treatment-input/${apt.id}`}>
+                                                                                                                <button
+                                                                                                                    className="text-[10px] font-black text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded-md transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                                                    title="Input Treatment & SOAP Medis"
+                                                                                                                >
+                                                                                                                    <span>📝 Input Treatment</span>
+                                                                                                                </button>
+                                                                                                            </Link>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Column 2: Treatment */}
+                                                                        <div className="flex-1 border-l border-slate-100 pl-3 flex items-center min-h-[48px]">
+                                                                            {treatmentApts.length === 0 ? (
+                                                                                <Link 
+                                                                                    href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
+                                                                                    className="w-full min-h-[42px] border border-dashed border-slate-200/80 hover:border-sky-300 hover:bg-sky-50/40 rounded-xl transition-all flex items-center px-3 text-xs text-slate-400 hover:text-sky-700 font-semibold gap-2 group cursor-pointer"
+                                                                                    title={`Tambah Treatment Jam ${hourStr.replace('.', ':')}`}
+                                                                                >
+                                                                                    <span className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-sky-100 text-slate-400 group-hover:text-sky-700 flex items-center justify-center font-black text-xs transition-colors">+</span>
+                                                                                    <span className="opacity-70 group-hover:opacity-100 transition-opacity">Tambah Jadwal Treatment</span>
+                                                                                </Link>
+                                                                            ) : (
+                                                                                <div className="flex flex-row flex-nowrap items-stretch gap-3 py-0.5 w-full overflow-x-auto custom-scrollbar">
+                                                                                    {treatmentApts.map(apt => {
+                                                                                        const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Treatment'
+                                                                                        const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
+                                                                                        const endTime = apt.end_time ? apt.end_time.substring(0, 5) : ''
+                                                                                        const isMyPatient = apt.therapist_id === dbUser?.id
+
+                                                                                        return (
+                                                                                            <div 
+                                                                                                key={apt.id}
+                                                                                                className={`border text-slate-800 rounded-xl p-3 w-[270px] min-w-[270px] flex-shrink-0 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between ${
+                                                                                                    isMyPatient ? 'bg-[#e0f2fe] border-sky-400 ring-2 ring-sky-200' : 'bg-[#ebf6fe] border-sky-300'
+                                                                                                }`}
+                                                                                            >
+                                                                                                <div>
+                                                                                                    <div className="flex justify-between items-center text-xs font-bold text-sky-950 pb-1.5 mb-1.5 border-b border-sky-200/70">
+                                                                                                        <span className="flex items-center gap-1.5 text-sky-900 font-extrabold text-[11px]">
+                                                                                                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-2xs"></span>
+                                                                                                            {startTime} - {endTime}
+                                                                                                        </span>
+                                                                                                        {isMyPatient ? (
+                                                                                                            <span className="text-[10px] font-black bg-sky-200/80 text-sky-800 px-1.5 py-0.2 rounded-md">
+                                                                                                                Pasien Anda
+                                                                                                            </span>
+                                                                                                        ) : !apt.therapist_id ? (
+                                                                                                            <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-md">
+                                                                                                                Tersedia
+                                                                                                            </span>
+                                                                                                        ) : null}
+                                                                                                    </div>
+
+                                                                                                    <div className="font-extrabold text-sm text-slate-900 tracking-tight truncate">
+                                                                                                        {apt.patients?.full_name || 'Pasien'}
+                                                                                                    </div>
+
+                                                                                                    <div className="text-[11px] text-sky-950 font-semibold mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-sky-200/80 inline-block shadow-2xs truncate max-w-full">
+                                                                                                        {treatmentsList}
+                                                                                                    </div>
+
+                                                                                                    <div className="text-[10.5px] text-sky-900/80 font-medium mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
+                                                                                                        {apt.therapist?.full_name ? (
+                                                                                                            <span>Terapis: <b className="font-bold text-slate-800">{apt.therapist.full_name.split(' ')[0]}</b></span>
+                                                                                                        ) : (
+                                                                                                            <span className="text-amber-600 font-bold">⚠️ Belum Ada Terapis</span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                {/* Footer Actions */}
+                                                                                                <div className="mt-2.5 pt-2 border-t border-sky-200/70 flex items-center justify-between gap-1">
+                                                                                                    <div className="flex items-center gap-1">
+                                                                                                        {getTherapistArrivalActions(apt)}
+                                                                                                    </div>
+
+                                                                                                    <div className="flex items-center gap-1">
+                                                                                                        {apt.patients?.id && (
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
+                                                                                                                className="text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded-md border border-pink-200 transition-colors cursor-pointer"
+                                                                                                                title="Lihat Riwayat Medis"
+                                                                                                            >
+                                                                                                                📋
+                                                                                                            </button>
+                                                                                                        )}
+                                                                                                        {apt.status !== 'completed' && apt.status !== 'cancelled' && (
+                                                                                                            <Link href={`/therapist/treatment-input/${apt.id}`}>
+                                                                                                                <button
+                                                                                                                    className="text-[10px] font-black text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded-md transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                                                    title="Input Treatment & SOAP Medis"
+                                                                                                                >
+                                                                                                                    <span>📝 Input Treatment</span>
+                                                                                                                </button>
+                                                                                                            </Link>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
+
+                                                                                    {/* Compact Ghost Add Slot next to existing patient cards */}
+                                                                                    <Link 
+                                                                                        href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
+                                                                                        className="w-[130px] min-w-[130px] self-stretch min-h-[105px] border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/20 hover:bg-sky-50/60 rounded-xl flex flex-col items-center justify-center text-sky-600 hover:text-sky-700 transition-all text-xs font-bold gap-1 cursor-pointer group shadow-2xs flex-shrink-0"
+                                                                                        title={`Tambah Jadwal Jam ${hourStr.replace('.', ':')}`}
+                                                                                    >
+                                                                                        <span className="w-6 h-6 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center transition-colors text-sky-700 font-black text-xs">+</span>
+                                                                                        <span className="text-[11px] text-sky-700 font-bold group-hover:underline">Tambah</span>
+                                                                                    </Link>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )
+                        })()}
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Patient History Modal */}
-            <TherapistPatientHistoryModal
-                patientId={selectedPatientIdForHistory}
-                isOpen={!!selectedPatientIdForHistory}
-                onClose={() => setSelectedPatientIdForHistory(null)}
-            />
+            {/* Modal Riwayat Medis Pasien */}
+            {selectedPatientIdForHistory && (
+                <TherapistPatientHistoryModal
+                    isOpen={!!selectedPatientIdForHistory}
+                    onClose={() => setSelectedPatientIdForHistory(null)}
+                    patientId={selectedPatientIdForHistory}
+                />
+            )}
         </div>
     )
 }

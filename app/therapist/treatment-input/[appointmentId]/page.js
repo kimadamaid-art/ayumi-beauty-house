@@ -96,7 +96,7 @@ export default function TreatmentInputPage() {
         }
 
         const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-        if (!userData || userData.role !== 'therapist') {
+        if (!userData || !['therapist', 'owner', 'admin'].includes(userData.role)) {
             router.push('/dashboard')
             return
         }
@@ -110,8 +110,8 @@ export default function TreatmentInputPage() {
             .single()
 
         if (aptData) {
-            // Verify assigned therapist
-            if (aptData.therapist_id && aptData.therapist_id !== userData.id) {
+            // Verify assigned therapist only if user is therapist role
+            if (userData.role === 'therapist' && aptData.therapist_id && aptData.therapist_id !== userData.id) {
                 toast.error('Anda tidak ditugaskan untuk jadwal ini.')
                 router.push('/therapist/dashboard')
                 return
@@ -397,30 +397,36 @@ export default function TreatmentInputPage() {
                 .update({ status: 'completed' })
                 .eq('id', appointment.id)
 
-            // 4.5 Send notifications to admins of the branch and owners
+            // 4.5 Send notifications to admins of the branch (excluding owner)
             const { data: allActiveUsers } = await supabase
                 .from('users')
                 .select('id, role, branch_id')
+                .eq('role', 'admin')
                 .eq('is_active', true)
 
             const recipients = allActiveUsers?.filter(u => 
-                u.id !== dbUser.id && (u.role === 'owner' || (u.role === 'admin' && (!u.branch_id || u.branch_id === appointment.branch_id)))
+                u.id !== dbUser.id && (!u.branch_id || u.branch_id === appointment.branch_id)
             ) || []
 
             if (recipients.length > 0) {
+                const performerName = dbUser.role === 'therapist' ? `Terapis ${dbUser.full_name}` : `${dbUser.full_name} (${dbUser.role})`
                 const notificationsToInsert = recipients.map(recipient => ({
                     recipient_id: recipient.id,
                     sender_id: dbUser.id,
                     appointment_id: appointment.id,
                     type: 'treatment_completed',
                     title: 'Treatment Selesai 💳',
-                    message: `Terapis ${dbUser.full_name} telah menyelesaikan treatment untuk ${appointment.patients?.full_name || ''}. Silakan proses pembayaran di Kasir POS.`
+                    message: `${performerName} telah menyelesaikan input treatment untuk ${appointment.patients?.full_name || ''}. Silakan proses pembayaran di Kasir POS.`
                 }))
                 await supabase.from('notifications').insert(notificationsToInsert)
             }
 
             toast.success('Treatment & SOAP berhasil disimpan! Kasir dapat memproses pembayaran.')
-            router.push('/therapist/dashboard')
+            if (dbUser.role === 'therapist') {
+                router.push('/therapist/dashboard')
+            } else {
+                router.push('/appointments')
+            }
             
         } catch (error) {
             toast.error('Terjadi kesalahan: ' + error.message)

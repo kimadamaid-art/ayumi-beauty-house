@@ -90,7 +90,7 @@ const getPageMeta = (pathname) => {
         return { title: 'Edit Janji Temu', subtitle: 'Ubah tanggal, waktu, atau detail janji temu pasien.', backPath: `/appointments/${match[1]}` }
     }
     if (pathname.match(/^\/appointments\/[^/]+$/)) return { title: 'Detail Janji Temu', subtitle: 'Informasi lengkap janji temu dan status kedatangan.', backPath: '/appointments' }
-    if (pathname.startsWith('/appointments')) return { title: 'Kalender & Janji Temu', subtitle: 'Kelola reservasi dan jadwal kedatangan pasien klinik secara terpusat.' }
+    if (pathname.startsWith('/appointments')) return { title: 'Janji Temu', subtitle: 'Kelola reservasi dan jadwal kedatangan pasien klinik secara terpusat.' }
 
     // Treatment Records Sub-Pages
     if (pathname === '/treatment-records/new') return { title: 'Tambah Rekam Medis', subtitle: 'Catat rekam medis baru setelah sesi treatment selesai.', backPath: '/treatment-records' }

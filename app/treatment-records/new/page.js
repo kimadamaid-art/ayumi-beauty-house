@@ -83,7 +83,7 @@ function AddRecordForm() {
             }
 
             // 2. Verify user role is not therapist (only admin/owner can access)
-            const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
+            const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
             if (userData?.role === 'therapist') {
                 toast.error('Terapis tidak diizinkan mengakses halaman input rekam medis.')
                 router.push('/therapist/dashboard')
@@ -107,7 +107,7 @@ function AddRecordForm() {
                 setBranches(brs)
                 setFormData(prev => ({
                     ...prev,
-                    branch_id: prev.branch_id || brs[0].id
+                    branch_id: prev.branch_id || userData?.branch_id || brs[0].id
                 }))
             }
 

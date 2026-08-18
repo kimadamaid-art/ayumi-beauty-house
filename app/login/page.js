@@ -58,9 +58,11 @@ export default function LoginPage() {
                 <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-ayumi-primary rounded-full opacity-20 blur-2xl"></div>
                 
                 <div className="text-center mb-8 relative z-10">
-                    <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-ayumi-secondary to-ayumi-primary rounded-full flex items-center justify-center mb-4 shadow-lg text-white">
-                        <span className="font-extrabold text-2xl font-sans tracking-tighter">ab</span>
-                    </div>
+                    <img 
+                        src="/logo-ab.png" 
+                        alt="Ayumi Beauty House" 
+                        className="w-24 h-24 mx-auto mb-2 object-contain mix-blend-multiply"
+                    />
                     <h1 className="text-3xl font-extrabold text-ayumi-text mb-2 tracking-tight">
                         Ayumi Beauty House
                      </h1>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security & Vulnerability Audit — Ayumi Beauty House</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --txt:#e7eaf0; --muted:#9aa3b2; --accent:#6ea8fe;
+    --crit:#ff4d4f; --high:#ff922b; --med:#ffd43b; --low:#51cf66; --info:#4dabf7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 22px 80px}
+  header.top{border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:26px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;font-size:13px;color:var(--muted)}
+  .meta b{color:var(--txt);font-weight:600}
+  h2{font-size:19px;margin:34px 0 12px;padding-top:8px;border-top:1px solid var(--border)}
+  h3{font-size:15px;margin:0 0 4px}
+  p{margin:8px 0}
+  code{background:#0b0d11;border:1px solid var(--border);border-radius:5px;padding:1px 6px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#c9d5f0;word-break:break-all}
+  pre{background:#0b0d11;border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow:auto;font:12.5px/1.55 ui-monospace,Menlo,monospace;color:#c9d5f0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .stat .n{font-size:24px;font-weight:700}
+  .stat .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;padding:3px 9px;border-radius:20px;text-transform:uppercase}
+  .b-crit{background:rgba(255,77,79,.15);color:#ff7a7c;border:1px solid var(--crit)}
+  .b-high{background:rgba(255,146,43,.15);color:#ffab5e;border:1px solid var(--high)}
+  .b-med{background:rgba(255,212,59,.13);color:#ffe066;border:1px solid var(--med)}
+  .b-low{background:rgba(81,207,102,.13);color:#8ce99a;border:1px solid var(--low)}
+  .b-info{background:rgba(77,171,247,.13);color:#8fc6fb;border:1px solid var(--info)}
+  .b-ok{background:rgba(81,207,102,.13);color:#8ce99a;border:1px solid var(--low)}
+  .finding{background:var(--panel);border:1px solid var(--border);border-left-width:4px;border-radius:10px;padding:18px 20px;margin:16px 0}
+  .finding.crit{border-left-color:var(--crit)}
+  .finding.high{border-left-color:var(--high)}
+  .finding.med{border-left-color:var(--med)}
+  .finding.low{border-left-color:var(--low)}
+  .finding.info{border-left-color:var(--info)}
+  .fhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .fhead .id{font-size:12px;color:var(--muted);font-weight:700}
+  .finding h3{flex:1;min-width:200px}
+  .kv{margin:10px 0;font-size:14px}
+  .kv .k{color:var(--muted);font-weight:600;margin-right:6px}
+  .rec{background:var(--panel2);border-radius:8px;padding:12px 14px;margin-top:12px}
+  .rec b{color:#8ce99a}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  td .badge{font-size:10px}
+  .note{color:var(--muted);font-size:13px}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:4px 0}
+  .disclaimer{background:rgba(255,146,43,.08);border:1px solid var(--high);border-radius:8px;padding:12px 14px;font-size:13px;color:#ffcfa3;margin-top:24px}
+  .ok-list li{color:#8ce99a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <h1>Laporan Security &amp; Vulnerability Audit</h1>
+  <div class="sub">Aplikasi SaaS Klinik Kecantikan — <b>Ayumi Beauty House</b> (multi-cabang / multi-tenant)</div>
+  <div class="meta">
+    <span><b>Tanggal:</b> 18 Agustus 2026</span>
+    <span><b>Metode:</b> Black-box, sisi browser (read-only)</span>
+    <span><b>Target:</b> localhost:3000 + Supabase <code>dtrgxgutcuznrxflmpzk</code></span>
+    <span><b>Sesi uji:</b> Owner (kimadamaid@…)</span>
+  </div>
+</header>
+
+<h2>Ringkasan Eksekutif</h2>
+<p>Audit menemukan <b>satu kerentanan Critical</b> yang berdampak langsung pada seluruh poin fokus Anda: <b>tabel <code>patients</code> tidak dilindungi Row-Level Security (RLS)</b>. Akibatnya <b>3.961 rekam pasien</b> — berisi nama lengkap, nomor WhatsApp, tanggal lahir, alamat, jenis kelamin, Instagram, tipe kulit, keluhan kulit, alergi, dan catatan medis — <b>dapat dibaca oleh siapa pun tanpa login</b>, hanya dengan API key publik yang memang tertanam di aplikasi. Data ini <b>bocor lintas seluruh cabang</b> (Ciamis + Banjar terbukti), sehingga sekaligus melanggar isolasi multi-tenant.</p>
+<p>Kabar baiknya: mayoritas tabel lain (<code>transactions</code>, <code>appointments</code>, <code>branches</code>, <code>users</code>, <code>treatment_records</code>/SOAP, <code>patient_photos</code>, <code>patient_coupons</code>) <b>sudah dilindungi RLS dengan benar</b>, <b>service_role key tidak bocor</b> di bundle, dan tidak ditemukan pola XSS di kode aplikasi. Masalah utamanya terkonsentrasi dan bisa diperbaiki cepat.</p>
+
+<div class="grid">
+  <div class="stat"><div class="n" style="color:var(--crit)">1</div><div class="l">Critical</div></div>
+  <div class="stat"><div class="n" style="color:var(--high)">1</div><div class="l">High</div></div>
+  <div class="stat"><div class="n" style="color:var(--med)">3</div><div class="l">Medium</div></div>
+  <div class="stat"><div class="n" style="color:var(--low)">2</div><div class="l">Low / Info</div></div>
+  <div class="stat"><div class="n" style="color:var(--crit)">3.961</div><div class="l">Rekam pasien bocor</div></div>
+</div>
+
+<h2>Daftar Temuan</h2>
+<table>
+  <thead><tr><th>ID</th><th>Temuan</th><th>Risiko</th><th>Fokus terkait</th></tr></thead>
+  <tbody>
+    <tr><td>F-01</td><td>Tabel <code>patients</code> tanpa RLS — PII &amp; rekam medis publik</td><td><span class="badge b-crit">Critical</span></td><td>#1 #3</td></tr>
+    <tr><td>F-02</td><td>Isolasi multi-tenant/cabang jebol pada data pasien</td><td><span class="badge b-high">High</span></td><td>#1</td></tr>
+    <tr><td>F-03</td><td>Integritas transaksi kasir &amp; komisi dihitung di sisi client</td><td><span class="badge b-med">Medium</span></td><td>#4</td></tr>
+    <tr><td>F-04</td><td>Model RBAC bergantung tabel <code>users</code>; JWT tanpa klaim role/branch</td><td><span class="badge b-med">Medium</span></td><td>#2</td></tr>
+    <tr><td>F-05</td><td>Token sesi Supabase di cookie non-httpOnly</td><td><span class="badge b-med">Medium</span></td><td>#2 #5</td></tr>
+    <tr><td>F-06</td><td>XSS pada input rekam medis / nama pasien</td><td><span class="badge b-low">Low</span></td><td>#5</td></tr>
+    <tr><td>F-07</td><td>service_role key &amp; kebocoran kunci di bundle</td><td><span class="badge b-ok">Aman</span></td><td>#5</td></tr>
+  </tbody>
+</table>
+
+<h2>Detail Temuan &amp; Rekomendasi</h2>
+
+<!-- F-01 -->
+<div class="finding crit">
+  <div class="fhead"><span class="id">F-01</span><h3>Tabel <code>patients</code> tanpa RLS — PII &amp; rekam medis bisa di-scrape publik</h3><span class="badge b-crit">Critical</span></div>
+  <div class="kv"><span class="k">Dampak:</span> Kebocoran massal data pribadi & medis 3.961 pasien; risiko pelanggaran UU PDP, pemerasan, phishing/penipuan ke pasien, kerusakan reputasi klinik.</div>
+  <p>Dengan <b>hanya API key <code>anon</code></b> (yang memang publik dan tertanam di setiap bundle JS) dan <b>tanpa autentikasi sama sekali</b> (tanpa header <code>Authorization</code>), permintaan langsung ke PostgREST mengembalikan seluruh isi tabel <code>patients</code>:</p>
+  <pre>GET https://dtrgxgutcuznrxflmpzk.supabase.co/rest/v1/patients?select=*
+Header: apikey: &lt;ANON_KEY&gt;         (TANPA Authorization / tanpa login)
+
+→ 200 OK   Content-Range: 0-0/<b>3961</b>
+Kolom terekspos: full_name, whatsapp, birth_date, gender, address,
+instagram, skin_type, skin_concerns, allergies, medical_notes, ...</pre>
+  <p>Tabel pembanding pada proyek yang sama <b>menolak</b> permintaan anon (mengembalikan 0 baris), membuktikan RLS mereka aktif dan hanya <code>patients</code> yang salah konfigurasi:</p>
+  <table>
+    <thead><tr><th>Tabel</th><th>Anon (tanpa login)</th><th>Owner (login)</th><th>Status RLS</th></tr></thead>
+    <tbody>
+      <tr><td><code>patients</code></td><td>3961 baris</td><td>3961</td><td><span class="badge b-crit">JEBOL</span></td></tr>
+      <tr><td><code>transactions</code></td><td>0</td><td>44</td><td><span class="badge b-ok">Aman</span></td></tr>
+      <tr><td><code>appointments</code></td><td>0</td><td>32</td><td><span class="badge b-ok">Aman</span></td></tr>
+      <tr><td><code>treatment_records</code> (SOAP)</td><td>0</td><td>3971</td><td><span class="badge b-ok">Aman</span></td></tr>
+      <tr><td><code>branches</code> / <code>users</code></td><td>0</td><td>4 / 11</td><td><span class="badge b-ok">Aman</span></td></tr>
+    </tbody>
+  </table>
+  <div class="rec">
+    <b>Rekomendasi (segera):</b>
+    <ul>
+      <li>Aktifkan &amp; <b>FORCE</b> RLS pada tabel: <code>ALTER TABLE public.patients ENABLE ROW LEVEL SECURITY; ALTER TABLE public.patients FORCE ROW LEVEL SECURITY;</code></li>
+      <li>Hapus policy permisif apa pun (mis. <code>USING (true)</code> atau policy untuk role <code>anon</code>). Buat policy scoping per-cabang, contoh:
+      <pre>CREATE POLICY patients_branch_select ON public.patients
+FOR SELECT TO authenticated
+USING (
+  branch_id IN (
+    SELECT branch_id FROM public.users WHERE auth_id = auth.uid()
+  )
+  OR EXISTS (SELECT 1 FROM public.users WHERE auth_id = auth.uid() AND role = 'owner')
+);</pre></li>
+      <li>Terapkan pola policy yang sama untuk INSERT/UPDATE/DELETE (WITH CHECK), jangan hanya SELECT.</li>
+      <li>Audit ulang seluruh tabel proyek: jalankan pengecekan tabel mana yang <code>rowsecurity=false</code> di <code>pg_tables</code>.</li>
+      <li>Karena data sudah pernah terekspos publik, perlakukan sebagai <b>insiden kebocoran</b>: catat, evaluasi kewajiban notifikasi sesuai UU PDP.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- F-02 -->
+<div class="finding high">
+  <div class="fhead"><span class="id">F-02</span><h3>Isolasi multi-tenant / antar-cabang jebol pada data pasien</h3><span class="badge b-high">High</span></div>
+  <div class="kv"><span class="k">Dampak:</span> Staf/terapis satu cabang (atau pihak tak berwenang) dapat membaca pasien seluruh cabang lain — melanggar prinsip pemisahan data cabang.</div>
+  <p>Query anon tunggal tanpa filter mengembalikan pasien dari <b>lebih dari satu cabang</b>, membuktikan tidak ada penyekatan tenant di lapisan data:</p>
+  <pre>Sebaran patients per cabang (via anon, tanpa login):
+  Ayumi Ciamis .......... 3960 baris  → terbaca
+  Ayumi Banjar .......... 1 baris     → terbaca
+  (query tanpa branch_id filter → semua cabang keluar)</pre>
+  <p>Karena akarnya sama dengan F-01 (RLS <code>patients</code> mati), konsekuensinya: <b>role therapist/admin cabang mana pun otomatis bisa membaca pasien cabang lain</b>. Penyekatan cabang saat ini hanya diandalkan pada filter di sisi client (UI), bukan di server.</p>
+  <div class="rec">
+    <b>Rekomendasi:</b>
+    <ul>
+      <li>Perbaikan F-01 sekaligus menutup ini: policy RLS <b>wajib</b> mem-filter <code>branch_id</code> berdasarkan cabang milik user (dari tabel <code>users</code>), bukan berdasarkan parameter yang dikirim client.</li>
+      <li>Jangan pernah mengandalkan <code>.eq('branch_id', …)</code> di kode client sebagai batas keamanan — itu hanya filter tampilan, bukan otorisasi.</li>
+      <li>Uji lanjutan: login sebagai therapist cabang Banjar, lalu coba <code>GET patients?branch_id=eq.&lt;Ciamis&gt;</code> — setelah RLS benar, hasilnya harus kosong.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- F-03 -->
+<div class="finding med">
+  <div class="fhead"><span class="id">F-03</span><h3>Integritas transaksi kasir &amp; komisi dihitung/dipercaya di sisi client</h3><span class="badge b-med">Medium</span></div>
+  <div class="kv"><span class="k">Catatan:</span> Tidak diverifikasi tuntas karena audit dibatasi read-only; dinilai dari arsitektur data yang teramati. Bisa naik ke <b>High</b> bila penulisan tidak divalidasi server.</div>
+  <p>Dashboard menarik komponen harga mentah ke client dan menjumlahkannya di browser:</p>
+  <pre>GET /rest/v1/transactions?select=id,branch_id,total,payment_method,
+    transaction_items(item_type,name,quantity,subtotal,
+                      original_price,<b>discount_percent</b>)</pre>
+  <p>Bila policy RLS untuk <b>INSERT/UPDATE</b> pada <code>transactions</code>/<code>transaction_items</code> mengizinkan user authenticated menulis nilai <code>discount_percent</code>, <code>subtotal</code>, <code>total</code>, atau komisi/sisa sesi kupon secara langsung, maka kasir/terapis <b>dapat memanipulasi angka</b> (mis. menambah diskon, mengecilkan total, menaikkan komisi) lewat panggilan API langsung — melewati UI.</p>
+  <div class="rec">
+    <b>Rekomendasi:</b>
+    <ul>
+      <li>Hitung <b>ulang total, diskon, dan komisi di server</b> (Postgres function / RPC / Edge Function), jangan percaya nilai kiriman client.</li>
+      <li>Batasi kolom yang boleh ditulis client; jadikan <code>total</code>, <code>subtotal</code>, komisi sebagai <b>generated/derived</b> atau diisi oleh trigger, bukan input bebas.</li>
+      <li>Terapkan batas <code>discount_percent</code> (0–maksimum kebijakan) via <code>CHECK</code> constraint + policy WITH CHECK; catat siapa yang memberi diskon (<code>created_by</code>) untuk audit.</li>
+      <li>Kurangi sisa sesi kupon lewat transaksi atomik server-side agar tidak bisa di-<i>replay</i>/diperbanyak dari client.</li>
+      <li><b>Uji tulis</b> (di lingkungan staging) untuk memastikan manipulasi ini benar-benar tertolak.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- F-04 -->
+<div class="finding med">
+  <div class="fhead"><span class="id">F-04</span><h3>RBAC bergantung tabel <code>users</code>; JWT tidak memuat klaim role/branch</h3><span class="badge b-med">Medium</span></div>
+  <div class="kv"><span class="k">Dampak:</span> Otorisasi rawan jika hanya diperiksa di UI/route; potensi privilege escalation bila policy pada <code>users</code> longgar.</div>
+  <p>JWT sesi <b>tidak</b> memuat role aplikasi maupun <code>branch_id</code> — hanya role Postgres standar <code>authenticated</code>:</p>
+  <pre>app_metadata: { provider: "email" }   // tidak ada "role", tidak ada "branch_id"
+role: "authenticated"</pre>
+  <p>Role sebenarnya (<code>owner</code> / <code>admin</code> / <code>therapist</code>) dan <code>branch_id</code> disimpan di tabel <code>users</code>. Ini valid, <b>tetapi</b> menimbulkan dua risiko:</p>
+  <ul>
+    <li>Halaman khusus owner (<code>/settings/users</code>, <code>/settings/branches</code>, <code>/reports/therapists</code>) harus dijaga oleh <b>RLS di setiap tabel</b>, bukan sekadar sembunyi di UI. Route guard di client dapat di-bypass via DevTools / panggilan API langsung.</li>
+    <li>Jika policy pada tabel <code>users</code> mengizinkan user meng-<b>UPDATE baris sendiri termasuk kolom <code>role</code></b>, seorang therapist bisa menaikkan dirinya jadi <code>owner</code> (privilege escalation). Kolom <code>role</code>, <code>branch_id</code>, <code>email</code>, <code>phone</code> seluruh staf juga terlihat oleh sesi login — perlu dipastikan scoping-nya.</li>
+  </ul>
+  <div class="rec">
+    <b>Rekomendasi:</b>
+    <ul>
+      <li>Pindahkan role &amp; branch ke <b>custom JWT claims</b> (via Auth Hook / <code>app_metadata</code> yang hanya bisa diubah service_role), sehingga RLS bisa membaca <code>auth.jwt()-&gt;&gt;'role'</code> tanpa subquery dan tidak bisa dipalsukan client.</li>
+      <li>Pada tabel <code>users</code>: policy UPDATE harus <b>melarang</b> perubahan kolom <code>role</code> &amp; <code>branch_id</code> oleh non-owner (gunakan WITH CHECK membandingkan nilai lama vs baru, atau kolom sensitif diubah hanya lewat RPC ber-otorisasi).</li>
+      <li>Verifikasi RLS untuk owner-only pada tabel <code>users</code>, <code>branches</code>, laporan komisi terapis — uji dengan sesi therapist yang mencoba <code>GET</code> data lintas cabang.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- F-05 -->
+<div class="finding med">
+  <div class="fhead"><span class="id">F-05</span><h3>Token sesi Supabase tersimpan di cookie non-httpOnly (terbaca JavaScript)</h3><span class="badge b-med">Medium</span></div>
+  <div class="kv"><span class="k">Dampak:</span> Bila terjadi XSS, penyerang bisa mencuri <code>access_token</code>/<code>refresh_token</code> → pengambilalihan akun penuh.</div>
+  <p>Cookie <code>sb-dtrgxgutcuznrxflmpzk-auth-token</code> terbaca penuh via <code>document.cookie</code> (bukan <code>HttpOnly</code>). Ditemukan pula cookie sisa dari proyek Supabase lain (<code>sb-hrtgqpvfbksnycmtwijp-auth-token</code>) yang sebaiknya dibersihkan. Ini adalah perilaku default <code>@supabase/ssr</code>, namun tetap memperbesar dampak bila ada celah XSS (F-06).</p>
+  <div class="rec">
+    <b>Rekomendasi:</b>
+    <ul>
+      <li>Gunakan pola SSR yang menaruh token di <b>cookie <code>HttpOnly</code> + <code>Secure</code> + <code>SameSite=Lax/Strict</code></b> dan lakukan refresh di server, sehingga token tidak terjangkau JS.</li>
+      <li>Terapkan <b>Content-Security-Policy</b> ketat untuk membatasi eksfiltrasi bila XSS terjadi.</li>
+      <li>Bersihkan cookie proyek Supabase yang tidak terpakai.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- F-06 -->
+<div class="finding low">
+  <div class="fhead"><span class="id">F-06</span><h3>XSS pada input rekam medis &amp; nama pasien</h3><span class="badge b-low">Low</span></div>
+  <p>Pemindaian seluruh bundle (28 chunk) <b>tidak menemukan <code>dangerouslySetInnerHTML</code> pada kode aplikasi</b> — kemunculannya hanya di pustaka framework (Next.js, Recharts). Karena React meng-<i>escape</i> teks secara default, XSS tersimpan lewat nama pasien / catatan SOAP <b>kecil kemungkinannya</b> saat ini.</p>
+  <div class="rec">
+    <b>Rekomendasi (pencegahan):</b>
+    <ul>
+      <li>Pertahankan larangan <code>dangerouslySetInnerHTML</code> untuk data yang berasal dari input pengguna.</li>
+      <li>Waspadai konteks non-React: pembuatan link <code>wa.me</code>, ekspor "Cetak Laporan"/PDF, atau <code>href</code> dinamis — sanitasi & validasi nomor WA/URL.</li>
+      <li>Validasi input di server (panjang, karakter) untuk <code>full_name</code>, <code>medical_notes</code>, <code>complaints</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- F-07 -->
+<div class="finding info">
+  <div class="fhead"><span class="id">F-07</span><h3>Pemeriksaan kebocoran kunci — HASIL AMAN</h3><span class="badge b-ok">Aman</span></div>
+  <p>Pemeriksaan network tab &amp; seluruh bundle JavaScript:</p>
+  <ul class="ok-list">
+    <li><b>SUPABASE_SERVICE_ROLE_KEY tidak ditemukan</b> di bundle maupun network — tidak ada kebocoran kunci istimewa. (String "service_role" yang muncul hanya bagian dari pustaka <code>@supabase/auth-js</code>, bukan kunci nyata.)</li>
+    <li>Hanya <b>anon key</b> yang terekspos — ini memang publik dan wajar, <u>selama RLS benar</u> (lihat F-01).</li>
+    <li>Tidak ada <b>storage bucket</b> yang terkonfigurasi (fitur foto treatment belum terisi) — belum ada eksposur file publik saat ini.</li>
+  </ul>
+  <p class="note">Catatan: keamanan anon key sepenuhnya bergantung pada RLS. Selama F-01 belum diperbaiki, kunci publik ini adalah pintu menuju seluruh data pasien.</p>
+</div>
+
+<h2>Prioritas Perbaikan</h2>
+<table>
+  <thead><tr><th>Prioritas</th><th>Tindakan</th><th>Estimasi</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge b-crit">1 — Sekarang</span></td><td>Aktifkan &amp; FORCE RLS pada <code>patients</code> + policy scoping cabang (F-01/F-02)</td><td>&lt; 1 jam</td></tr>
+    <tr><td><span class="badge b-high">2 — Hari ini</span></td><td>Audit semua tabel: pastikan <code>rowsecurity=true</code> &amp; tak ada policy <code>USING(true)</code>/anon</td><td>1–2 jam</td></tr>
+    <tr><td><span class="badge b-med">3 — Minggu ini</span></td><td>Validasi total/diskon/komisi di server (F-03); kunci kolom <code>role</code> di <code>users</code> (F-04)</td><td>1–2 hari</td></tr>
+    <tr><td><span class="badge b-med">4 — Pengerasan</span></td><td>Cookie HttpOnly + CSP (F-05); custom JWT claims role/branch</td><td>1–2 hari</td></tr>
+  </tbody>
+</table>
+
+<div class="disclaimer">
+  <b>Batas cakupan audit ini.</b> Audit dilakukan <b>black-box, read-only, dari sesi owner</b> — tidak ada operasi tulis (INSERT/UPDATE/DELETE) yang dijalankan, dan tidak dilakukan login sebagai therapist. Karena itu F-03 &amp; F-04 (yang bergantung pada policy tulis &amp; sesi role rendah) <b>belum diverifikasi penuh</b> dan ditandai sebagai perlu pengujian lanjutan di staging. Untuk audit yang lebih dalam, disarankan: (a) review source code policy RLS &amp; server actions, dan (b) pengujian dengan sesi role therapist/admin. Angka &amp; nama pasien nyata sengaja <b>tidak</b> dicantumkan dalam laporan ini demi kerahasiaan.
+</div>
+
+</div>
+</body>
+</html>

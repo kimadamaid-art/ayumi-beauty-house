@@ -29,6 +29,21 @@ function NewAppointmentForm() {
     const [isOwner, setIsOwner] = useState(false)
     const [patientSearch, setPatientSearch] = useState('')
 
+    // Quick Add Patient Modal State
+    const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false)
+    const [isSavingPatient, setIsSavingPatient] = useState(false)
+    const [newPatientData, setNewPatientData] = useState({
+        full_name: '',
+        whatsapp: '',
+        gender: 'female',
+        birth_date: '',
+        branch_id: '',
+        address: '',
+        skin_type: 'normal',
+        allergies: '',
+        medical_notes: ''
+    })
+
     const [formData, setFormData] = useState({
         patient_id: '',
         branch_id: '',
@@ -68,7 +83,7 @@ function NewAppointmentForm() {
         }
 
         // Fetch Patients
-        const { data: ptData } = await supabase.from('patients').select('id, full_name, whatsapp')
+        const { data: ptData } = await supabase.from('patients').select('id, full_name, whatsapp').order('created_at', { ascending: false })
         if (ptData) setPatients(ptData)
 
         // Fetch Branches
@@ -79,12 +94,23 @@ function NewAppointmentForm() {
         const { data: brData } = await brQuery
         if (brData && brData.length > 0) {
             setBranches(brData)
-            setFormData(prev => ({ ...prev, branch_id: brData[0].id }))
+            setFormData(prev => ({ ...prev, branch_id: userBranchId || brData[0].id }))
+            setNewPatientData(prev => ({ ...prev, branch_id: userBranchId || brData[0].id }))
         }
 
         // Fetch Therapists
-        const { data: trpData } = await supabase.from('users').select('id, full_name').eq('role', 'therapist').order('full_name')
+        const { data: trpData } = await supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').order('full_name')
         if (trpData) setTherapists(trpData)
+    }
+
+    // Open Modal with prefilled search name if available
+    const openNewPatientModal = (initialName = '') => {
+        setNewPatientData(prev => ({
+            ...prev,
+            full_name: initialName || (patientSearch && !formData.patient_id ? patientSearch : ''),
+            branch_id: formData.branch_id || (branches[0]?.id || '')
+        }))
+        setIsNewPatientModalOpen(true)
     }
 
     // Filter patients based on search
@@ -100,6 +126,101 @@ function NewAppointmentForm() {
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData(prev => ({ ...prev, [name]: value }))
+    }
+
+    const handleNewPatientChange = (e) => {
+        const { name, value } = e.target
+        setNewPatientData(prev => ({ ...prev, [name]: value }))
+    }
+
+    // Save New Patient Modal
+    const handleSaveNewPatient = async (e) => {
+        e.preventDefault()
+        
+        if (!newPatientData.full_name.trim()) {
+            toast.error('Nama lengkap pasien wajib diisi.')
+            return
+        }
+
+        if (!newPatientData.whatsapp.trim()) {
+            toast.error('Nomor WhatsApp pasien wajib diisi.')
+            return
+        }
+
+        setIsSavingPatient(true)
+
+        try {
+            // Clean whatsapp input
+            let cleanWa = newPatientData.whatsapp.trim().replace(/[^0-9+]/g, '')
+            if (cleanWa.startsWith('+')) cleanWa = cleanWa.substring(1)
+
+            // Check existing whatsapp
+            const { data: existingPt } = await supabase
+                .from('patients')
+                .select('id, full_name')
+                .eq('whatsapp', cleanWa)
+                .maybeSingle()
+
+            if (existingPt) {
+                toast.error(`Nomor WhatsApp ${cleanWa} sudah terdaftar atas nama ${existingPt.full_name}.`)
+                setIsSavingPatient(false)
+                return
+            }
+
+            // Insert into Supabase patients table
+            const finalBirthDate = newPatientData.birth_date && newPatientData.birth_date.trim() !== '' ? newPatientData.birth_date : null
+            
+            const payload = {
+                branch_id: newPatientData.branch_id || formData.branch_id || (branches[0]?.id || null),
+                full_name: newPatientData.full_name.trim(),
+                whatsapp: cleanWa,
+                gender: newPatientData.gender || 'female',
+                birth_date: finalBirthDate,
+                address: newPatientData.address?.trim() || null,
+                skin_type: newPatientData.skin_type || 'normal',
+                allergies: newPatientData.allergies?.trim() || null,
+                medical_notes: newPatientData.medical_notes?.trim() || null
+            }
+
+            const { data: createdPatient, error: ptErr } = await supabase
+                .from('patients')
+                .insert([payload])
+                .select('id, full_name, whatsapp')
+                .single()
+
+            if (ptErr) throw ptErr
+
+            toast.success(`Pasien "${createdPatient.full_name}" berhasil didaftarkan!`)
+
+            // Update patients list and select the newly created patient
+            setPatients(prev => [createdPatient, ...prev])
+            setFormData(prev => ({
+                ...prev,
+                patient_id: createdPatient.id,
+                branch_id: payload.branch_id || prev.branch_id
+            }))
+            setPatientSearch(createdPatient.full_name)
+
+            // Reset and close modal
+            setNewPatientData({
+                full_name: '',
+                whatsapp: '',
+                gender: 'female',
+                birth_date: '',
+                branch_id: formData.branch_id || (branches[0]?.id || ''),
+                address: '',
+                skin_type: 'normal',
+                allergies: '',
+                medical_notes: ''
+            })
+            setIsNewPatientModalOpen(false)
+
+        } catch (err) {
+            console.error('Error creating patient:', err)
+            toast.error('Gagal menambahkan pasien: ' + (err.message || 'Terjadi kesalahan'))
+        } finally {
+            setIsSavingPatient(false)
+        }
     }
 
     // Auto calculate End Time (+2 hours) when start_time changes
@@ -165,7 +286,7 @@ function NewAppointmentForm() {
         <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-4 mb-4">
                 <Link href="/appointments">
-                    <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors">
+                    <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors cursor-pointer">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     </button>
                 </Link>
@@ -196,12 +317,24 @@ function NewAppointmentForm() {
                     Informasi Jadwal
                 </h3>
 
-                {/* Cari Pasien */}
+                {/* Cari Pasien & Tambah Pasien Baru Button */}
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Cari Pasien *</label>
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-bold text-gray-700">
+                            Cari / Pilih Pasien <span className="text-red-500">*</span>
+                        </label>
+                        <button 
+                            type="button" 
+                            onClick={() => openNewPatientModal()}
+                            className="text-xs font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                            <span className="text-sm font-black">+</span> Tambah Pasien Baru
+                        </button>
+                    </div>
+
                     <input
                         type="text"
-                        placeholder="Ketik nama atau WhatsApp..."
+                        placeholder="Ketik nama atau WhatsApp pasien..."
                         value={patientSearch}
                         onChange={(e) => {
                             setPatientSearch(e.target.value)
@@ -209,35 +342,69 @@ function NewAppointmentForm() {
                                 setFormData(prev => ({ ...prev, patient_id: '' }))
                             }
                         }}
-                        className="input-ayumi bg-white mb-3"
+                        className="input-ayumi bg-white mb-2"
                     />
+
                     {!formData.patient_id && (
-                        <div className="max-h-48 overflow-y-auto bg-white rounded-xl border border-gray-100 shadow-sm">
+                        <div className="max-h-48 overflow-y-auto bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
                             {filteredPatients.length === 0 ? (
-                                <div className="p-4 text-center text-sm text-gray-500">Pasien tidak ditemukan.</div>
-                            ) : (
-                                filteredPatients.slice(0, 50).map(pt => (
-                                    <div 
-                                        key={pt.id} 
-                                        onClick={() => {
-                                            setFormData(prev => ({ ...prev, patient_id: pt.id }))
-                                            setPatientSearch(pt.full_name)
-                                        }}
-                                        className="p-3 border-b border-gray-50 cursor-pointer transition-colors hover:bg-pink-50/50"
+                                <div className="p-4 text-center">
+                                    <p className="text-sm text-gray-500">Pasien tidak ditemukan.</p>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => openNewPatientModal(patientSearch)}
+                                        className="mt-2 text-xs font-bold text-ayumi-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
                                     >
-                                        <div className="font-bold text-gray-800 text-sm">{pt.full_name}</div>
-                                        <div className="text-xs text-gray-500">{pt.whatsapp}</div>
+                                        + Daftarkan "{patientSearch}" Sebagai Pasien Baru
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    {filteredPatients.slice(0, 50).map(pt => (
+                                        <div 
+                                            key={pt.id} 
+                                            onClick={() => {
+                                                setFormData(prev => ({ ...prev, patient_id: pt.id }))
+                                                setPatientSearch(pt.full_name)
+                                            }}
+                                            className="p-3 cursor-pointer transition-colors hover:bg-pink-50/50 flex items-center justify-between"
+                                        >
+                                            <div>
+                                                <div className="font-bold text-gray-800 text-sm">{pt.full_name}</div>
+                                                <div className="text-xs text-gray-500">{pt.whatsapp}</div>
+                                            </div>
+                                            <span className="text-[11px] font-bold text-ayumi-primary opacity-0 hover:opacity-100">Pilih →</span>
+                                        </div>
+                                    ))}
+
+                                    <div className="p-2.5 bg-pink-50/30 border-t border-pink-100 flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">Pasien belum terdaftar?</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => openNewPatientModal(patientSearch)}
+                                            className="font-bold text-ayumi-primary hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                            + Tambah Pasien Baru
+                                        </button>
                                     </div>
-                                ))
+                                </>
                             )}
                         </div>
                     )}
+
                     {formData.patient_id && (
-                        <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
-                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                            <span className="text-sm font-bold text-green-700">{patientSearch}</span>
-                            <button type="button" onClick={() => { setFormData(prev => ({ ...prev, patient_id: '' })); setPatientSearch('') }} className="ml-auto text-gray-400 hover:text-red-500">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3.5 py-2.5 shadow-2xs">
+                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                            <div>
+                                <span className="text-xs font-bold text-green-800 uppercase tracking-wider block">Pasien Terpilih:</span>
+                                <span className="text-sm font-extrabold text-green-900">{patientSearch}</span>
+                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => { setFormData(prev => ({ ...prev, patient_id: '' })); setPatientSearch('') }} 
+                                className="ml-auto text-xs font-bold text-red-500 hover:text-red-700 bg-white/80 hover:bg-white px-2 py-1 rounded-md border border-red-200 transition-colors cursor-pointer"
+                            >
+                                Ganti Pasien
                             </button>
                         </div>
                     )}
@@ -270,9 +437,12 @@ function NewAppointmentForm() {
                             className="input-ayumi focus:bg-white"
                         >
                             <option value="">-- Belum ditentukan --</option>
-                            {therapists.map(t => (
-                                <option key={t.id} value={t.id}>{t.full_name}</option>
-                            ))}
+                            {therapists
+                                .filter(t => !t.branch_id || !formData.branch_id || t.branch_id === formData.branch_id)
+                                .map(t => (
+                                    <option key={t.id} value={t.id}>{t.full_name}</option>
+                                ))
+                            }
                         </select>
                     </div>
 
@@ -330,7 +500,7 @@ function NewAppointmentForm() {
                     <Link href="/appointments">
                         <button
                             type="button"
-                            className="px-8 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                            className="px-8 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
                         >
                             Batal
                         </button>
@@ -338,12 +508,175 @@ function NewAppointmentForm() {
                     <button
                         type="submit"
                         disabled={isSaving}
-                        className="btn-primary px-8 py-3.5"
+                        className="btn-primary px-8 py-3.5 cursor-pointer shadow-md"
                     >
                         {isSaving ? 'Menyimpan...' : 'Simpan Jadwal'}
                     </button>
                 </div>
             </form>
+
+            {/* MODAL TAMBAH PASIEN BARU */}
+            {isNewPatientModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-pink-100 max-h-[90vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between pb-4 mb-5 border-b border-gray-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-pink-50 border border-pink-100 flex items-center justify-center text-ayumi-primary font-black">
+                                    👤
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-800">Tambah Pasien Baru</h3>
+                                    <p className="text-xs text-gray-500 font-medium">Daftarkan profil pasien baru ke database</p>
+                                </div>
+                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsNewPatientModalOpen(false)}
+                                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-bold transition-colors cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Modal Form */}
+                        <form onSubmit={handleSaveNewPatient} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                    Nama Lengkap Pasien <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="full_name"
+                                    required
+                                    placeholder="Contoh: Siti Rahmawati"
+                                    value={newPatientData.full_name}
+                                    onChange={handleNewPatientChange}
+                                    className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                        Nomor WhatsApp <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        name="whatsapp"
+                                        required
+                                        placeholder="08123456789"
+                                        value={newPatientData.whatsapp}
+                                        onChange={handleNewPatientChange}
+                                        className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                        Jenis Kelamin
+                                    </label>
+                                    <select
+                                        name="gender"
+                                        value={newPatientData.gender}
+                                        onChange={handleNewPatientChange}
+                                        className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                    >
+                                        <option value="female">Perempuan</option>
+                                        <option value="male">Laki-laki</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                        Tanggal Lahir (Opsional)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        name="birth_date"
+                                        value={newPatientData.birth_date}
+                                        onChange={handleNewPatientChange}
+                                        className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                        Cabang Terdaftar
+                                    </label>
+                                    <select
+                                        name="branch_id"
+                                        value={newPatientData.branch_id}
+                                        onChange={handleNewPatientChange}
+                                        className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                    >
+                                        {branches.map(b => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                    Alamat (Opsional)
+                                </label>
+                                <input
+                                    type="text"
+                                    name="address"
+                                    placeholder="Contoh: Jl. Ahmad Yani No. 12"
+                                    value={newPatientData.address}
+                                    onChange={handleNewPatientChange}
+                                    className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                    Riwayat Alergi / Catatan Medis (Opsional)
+                                </label>
+                                <input
+                                    type="text"
+                                    name="allergies"
+                                    placeholder="Contoh: Alergi alkohol, kulit sensitif..."
+                                    value={newPatientData.allergies}
+                                    onChange={handleNewPatientChange}
+                                    className="input-ayumi py-2.5 bg-gray-50/50 focus:bg-white text-sm"
+                                />
+                            </div>
+
+                            {/* Actions */}
+                            <div className="pt-4 mt-5 border-t border-gray-100 flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsNewPatientModalOpen(false)}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingPatient}
+                                    className="btn-primary px-6 py-2.5 text-xs font-bold cursor-pointer shadow-pink-500/20 shadow-md flex items-center gap-1.5"
+                                >
+                                    {isSavingPatient ? (
+                                        <>
+                                            <div className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></div>
+                                            <span>Menyimpan...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>💾 Simpan & Pilih Pasien</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
