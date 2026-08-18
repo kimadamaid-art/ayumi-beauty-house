@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
+import { toast } from 'react-hot-toast'
+import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
 
@@ -272,6 +274,207 @@ export default function TherapistDetailPage() {
         XLSX.writeFile(wb, filename)
     }
 
+    // Export to PDF
+    const handleExportPDF = async () => {
+        if (treatmentRecords.length === 0) {
+            alert('Tidak ada data untuk diekspor pada filter terpilih.')
+            return
+        }
+
+        const toastId = toast.loading('Menyiapkan dokumen PDF...')
+        try {
+            const { jsPDF } = await import('jspdf')
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            })
+
+            const formatCurrency = (val) => "Rp " + Number(val).toLocaleString('id-ID')
+            const primaryColor = [212, 98, 33]
+            const secondaryColor = [78, 42, 18]
+            const accentColor = [242, 216, 195]
+            const darkText = [44, 30, 22]
+            const mutedText = [140, 125, 115]
+
+            let y = 15
+            const pageHeight = 297
+            const margin = 15
+            const contentWidth = 180
+            let pageNum = 1
+
+            const addHeaderFooter = (d, isFirstPage = false) => {
+                if (!isFirstPage) {
+                    d.setFont('helvetica', 'bold')
+                    d.setFontSize(8)
+                    d.setTextColor(...mutedText)
+                    d.text(`LAPORAN KINERJA TERAPIS: ${therapistInfo?.full_name?.toUpperCase()} - AYUMI BEAUTY HOUSE`, margin, 10)
+                    d.setDrawColor(245, 238, 230)
+                    d.setLineWidth(0.3)
+                    d.line(margin, 12, margin + contentWidth, 12)
+                }
+                d.setFont('helvetica', 'normal')
+                d.setFontSize(7.5)
+                d.setTextColor(...mutedText)
+                d.text(`Ayumi Beauty House  |  Dicetak pada: ${new Date().toLocaleString('id-ID')}`, margin, pageHeight - 10)
+                d.text(`Halaman ${pageNum}`, margin + contentWidth - 15, pageHeight - 10)
+            }
+
+            const logoBase64 = await getLogoBase64()
+
+            // KOP SURAT
+            doc.setFillColor(...primaryColor)
+            doc.rect(margin, y, contentWidth, 2.5, 'F')
+            y += 6.5
+
+            let textStartX = margin
+            if (logoBase64) {
+                try {
+                    doc.addImage(logoBase64, 'PNG', margin, y, 16, 16)
+                    textStartX = margin + 19
+                } catch (e) {
+                    console.error('Failed to embed logo in therapist detail PDF:', e)
+                }
+            }
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(15)
+            doc.setTextColor(...secondaryColor)
+            doc.text('AYUMI BEAUTY HOUSE', textStartX, y + 4.5)
+
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...mutedText)
+            doc.text('Kecantikan, Kosmetik & Perawatan Diri', textStartX, y + 8.5)
+
+            doc.setFontSize(9.5)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...primaryColor)
+            doc.text(`LAPORAN RINCIAN KINERJA & KOMISI: ${therapistInfo?.full_name?.toUpperCase()}`, textStartX, y + 14)
+
+            doc.setFontSize(7.5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...darkText)
+            const printDateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+
+            const metaX = margin + 115
+            doc.text(`Periode: ${startDate} s.d ${endDate}`, metaX, y + 3)
+            doc.text(`Cabang: ${therapistInfo.branches?.name || 'Pusat'}`, metaX, y + 7)
+            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 11)
+
+            y += 20
+            doc.setDrawColor(...accentColor)
+            doc.setLineWidth(0.4)
+            doc.line(margin, y, margin + contentWidth, y)
+            y += 8
+
+            // SUMMARY CARDS
+            doc.setFillColor(254, 252, 250)
+            doc.roundedRect(margin, y, 86, 16, 2, 2, 'FD')
+            doc.roundedRect(margin + 94, y, 86, 16, 2, 2, 'FD')
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7.5)
+            doc.setTextColor(...mutedText)
+            doc.text('TOTAL KOMISI DITERIMA', margin + 4, y + 5.5)
+            doc.text('TOTAL TINDAKAN SELESAI', margin + 98, y + 5.5)
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(11)
+            doc.setTextColor(...primaryColor)
+            doc.text(formatCurrency(summary.totalCommission), margin + 4, y + 12.5)
+            doc.setTextColor(...darkText)
+            doc.text(`${summary.totalTreatments} Tindakan`, margin + 98, y + 12.5)
+
+            y += 24
+
+            // TABLE HEADER
+            const tableHeaders = ['No', 'Tanggal', 'Nama Pasien', 'Treatment', 'Harga (Rp)', '% Komisi', 'Komisi (Rp)']
+            const colWidths = [10, 24, 40, 44, 24, 16, 22]
+
+            const drawTableHeader = () => {
+                doc.setFillColor(242, 216, 195)
+                doc.rect(margin, y, contentWidth, 7, 'F')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7.5)
+                doc.setTextColor(...secondaryColor)
+
+                let currentX = margin
+                tableHeaders.forEach((h, idx) => {
+                    const align = idx >= 4 ? 'right' : 'left'
+                    const textX = align === 'right' ? currentX + colWidths[idx] - 2 : currentX + 2
+                    doc.text(h, textX, y + 4.5, { align })
+                    currentX += colWidths[idx]
+                })
+                y += 7
+            }
+
+            drawTableHeader()
+
+            // TABLE ROWS
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+
+            filteredRecords.forEach((r, idx) => {
+                if (y + 8 > pageHeight - 15) {
+                    addHeaderFooter(doc)
+                    doc.addPage()
+                    pageNum++
+                    y = 15
+                    drawTableHeader()
+                }
+
+                if (idx % 2 === 1) {
+                    doc.setFillColor(250, 246, 240)
+                    doc.rect(margin, y, contentWidth, 6, 'F')
+                }
+
+                doc.setTextColor(...darkText)
+                let currentX = margin
+
+                const price = Number(r.price_at_time || 0)
+                const basePrice = (price === 0 && Number(r.original_price || 0) > 0) ? Number(r.original_price) : price
+                const commPercent = Number(r.commission_percent || 0)
+                const commAmount = Math.round(basePrice * (commPercent / 100))
+
+                const rowData = [
+                    (idx + 1).toString(),
+                    r.treatment_records?.treatment_date || '-',
+                    (r.treatment_records?.patients?.full_name || '-').substring(0, 22),
+                    (r.treatments?.name || '-').substring(0, 26),
+                    Number(price).toLocaleString('id-ID'),
+                    `${commPercent}%`,
+                    Number(commAmount).toLocaleString('id-ID')
+                ]
+
+                rowData.forEach((val, colIdx) => {
+                    const align = colIdx >= 4 ? 'right' : 'left'
+                    const textX = align === 'right' ? currentX + colWidths[colIdx] - 2 : currentX + 2
+                    doc.text(val, textX, y + 4.2, { align })
+                    currentX += colWidths[colIdx]
+                })
+
+                doc.setDrawColor(245, 238, 230)
+                doc.setLineWidth(0.2)
+                doc.line(margin, y + 6, margin + contentWidth, y + 6)
+
+                y += 6
+            })
+
+            addHeaderFooter(doc, pageNum === 1)
+
+            const start = new Date(startDate)
+            const monthStr = indonesianMonths[start.getMonth()]
+            const yearStr = start.getFullYear()
+            const therapistCleanName = (therapistInfo?.full_name || 'Terapis').replace(/[^a-zA-Z0-9]/g, '_')
+            doc.save(`Laporan_${therapistCleanName}_${monthStr}${yearStr}.pdf`)
+            toast.success('Laporan PDF berhasil diunduh.', { id: toastId })
+        } catch (err) {
+            console.error('Error generating PDF:', err)
+            toast.error('Gagal membuat PDF: ' + err.message, { id: toastId })
+        }
+    }
+
     const formatWA = (wa) => {
         if (!wa) return null
         let num = wa.replace(/[^0-9]/g, '')
@@ -291,12 +494,12 @@ export default function TherapistDetailPage() {
     return (
         <div className="space-y-6 pb-16">
             
-            {/* Top Navigation & Excel Export */}
+            {/* Top Navigation & Excel / PDF Export */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <button 
                         onClick={() => router.push('/reports/therapists')}
-                        className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors border border-gray-100 flex items-center justify-center"
+                        className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-colors border border-gray-100 flex items-center justify-center cursor-pointer"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     </button>
@@ -305,13 +508,22 @@ export default function TherapistDetailPage() {
                     </div>
                 </div>
 
-                <button 
-                    onClick={handleExportExcel}
-                    className="btn-secondary px-6 py-2.5 flex items-center gap-2 text-sm font-bold shadow-sm"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Export Excel
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <button 
+                        onClick={handleExportExcel}
+                        className="btn-secondary px-5 py-2.5 flex items-center gap-2 text-xs font-bold shadow-sm cursor-pointer"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Export Excel
+                    </button>
+                    <button 
+                        onClick={handleExportPDF}
+                        className="btn-primary px-5 py-2.5 flex items-center gap-2 text-xs font-bold shadow-sm cursor-pointer"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        Cetak Laporan PDF
+                    </button>
+                </div>
             </div>
 
             {/* Profile Header Card */}

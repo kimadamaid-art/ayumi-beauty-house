@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
+import { getLogoBase64 } from '@/lib/pdfLogo'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -598,26 +599,45 @@ export default function TransactionsPage() {
                 d.text(`Halaman ${pageNum}`, margin + contentWidth - 15, pageHeight - 10)
             }
 
+            const logoBase64 = await getLogoBase64()
+
             // --- 1. KOP SURAT / HEADER LAPORAN ---
             // Aksen bar atas oranye
             doc.setFillColor(...primaryColor)
-            doc.rect(margin, y, contentWidth, 3, 'F')
-            y += 9
+            doc.rect(margin, y, contentWidth, 2.5, 'F')
+            y += 6.5
+
+            // Logo Klinik
+            let textStartX = margin
+            if (logoBase64) {
+                try {
+                    doc.addImage(logoBase64, 'PNG', margin, y, 16, 16)
+                    textStartX = margin + 19
+                } catch (e) {
+                    console.error('Failed to embed logo in PDF:', e)
+                }
+            }
 
             // Nama Klinik
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(18)
+            doc.setFontSize(15)
             doc.setTextColor(...secondaryColor)
-            doc.text('AYUMI BEAUTY HOUSE', margin, y)
+            doc.text('AYUMI BEAUTY HOUSE', textStartX, y + 4.5)
+
+            // Tagline Klinik
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...mutedText)
+            doc.text('Kecantikan, Kosmetik & Perawatan Diri', textStartX, y + 8.5)
             
             // Subtitle Laporan
-            doc.setFontSize(10.5)
+            doc.setFontSize(9.5)
             doc.setFont('helvetica', 'bold')
             doc.setTextColor(...primaryColor)
-            doc.text(`LAPORAN OMSET & KINERJA KEUANGAN (${reportType.toUpperCase()})`, margin, y + 5.5)
+            doc.text(`LAPORAN OMSET & KINERJA KEUANGAN (${reportType.toUpperCase()})`, textStartX, y + 14)
 
             // Metadata Cetak di sisi kanan
-            doc.setFontSize(8)
+            doc.setFontSize(7.5)
             doc.setFont('helvetica', 'normal')
             doc.setTextColor(...darkText)
             
@@ -625,13 +645,13 @@ export default function TransactionsPage() {
             const printDateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
             const printedBy = dbUser?.full_name || 'Owner/Admin'
 
-            const metaX = margin + 110
-            doc.text(`Periode: ${title.replace(/_/g, ' ')}`, metaX, y)
-            doc.text(`Cabang: ${activeBranchName}`, metaX, y + 4)
-            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 8)
-            doc.text(`Pencetak: ${printedBy}`, metaX, y + 12)
+            const metaX = margin + 115
+            doc.text(`Periode: ${title.replace(/_/g, ' ')}`, metaX, y + 3)
+            doc.text(`Cabang: ${activeBranchName}`, metaX, y + 7)
+            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 11)
+            doc.text(`Pencetak: ${printedBy}`, metaX, y + 15)
 
-            y += 18
+            y += 20
 
             // Garis pembatas elegan
             doc.setDrawColor(...accentColor)

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getLogoBase64 } from '@/lib/pdfLogo'
 
 // Helper to convert an image URL to a base64 string
 const getBase64ImageFromUrl = async (url) => {
@@ -227,28 +228,55 @@ export default function TreatmentRecordDetailPage() {
 
             let y = 15
 
+            const logoBase64 = await getLogoBase64()
+
             // --- HEADER PDF ---
             doc.setFillColor(212, 98, 33) // #D46221 (Ayumi Primary)
-            doc.rect(15, y, 180, 8, 'F')
-            y += 15
+            doc.rect(15, y, 180, 2.5, 'F')
+            y += 6.5
+
+            let textStartX = 15
+            if (logoBase64) {
+                try {
+                    doc.addImage(logoBase64, 'PNG', 15, y, 16, 16)
+                    textStartX = 34
+                } catch (e) {
+                    console.error('Failed to embed logo in treatment record PDF:', e)
+                }
+            }
 
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(22)
+            doc.setFontSize(15)
             doc.setTextColor(78, 42, 18) // #4E2A12 (Ayumi Secondary)
-            doc.text('AYUMI BEAUTY HOUSE', 15, y)
-            
-            doc.setFontSize(10)
+            doc.text('AYUMI BEAUTY HOUSE', textStartX, y + 4.5)
+
+            doc.setFontSize(8)
             doc.setFont('helvetica', 'normal')
-            doc.setTextColor(120, 120, 120)
-            doc.text(`Cabang: ${record.branches?.name || 'Pusat'}`, 15, y + 5)
-            doc.text(`Tanggal Rekam Medis: ${new Date(record.created_at).toLocaleDateString('id-ID')}`, 15, y + 10)
-            y += 18
+            doc.setTextColor(140, 125, 115)
+            doc.text('Kecantikan, Kosmetik & Perawatan Diri', textStartX, y + 8.5)
+            
+            doc.setFontSize(9.5)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(212, 98, 33)
+            doc.text('REKAM MEDIS & CATATAN PERAWATAN (SOAP)', textStartX, y + 14)
+
+            // Metadata Right Side
+            doc.setFontSize(7.5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(44, 30, 22)
+            const metaX = 130
+            doc.text(`Cabang: ${record.branches?.name || 'Pusat'}`, metaX, y + 3)
+            doc.text(`Tanggal Rekam: ${new Date(record.created_at).toLocaleDateString('id-ID')}`, metaX, y + 7)
+            doc.text(`Tindakan: ${new Date(record.treatment_date).toLocaleDateString('id-ID')}`, metaX, y + 11)
+            doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID')}`, metaX, y + 15)
+
+            y += 20
 
             // Separator Line
-            doc.setDrawColor(240, 240, 240)
-            doc.setLineWidth(0.5)
+            doc.setDrawColor(242, 216, 195)
+            doc.setLineWidth(0.4)
             doc.line(15, y, 195, y)
-            y += 10
+            y += 8
 
             // --- IDENTITY & TREATMENT INFO ---
             doc.setFont('helvetica', 'bold')
