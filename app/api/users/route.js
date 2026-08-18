@@ -47,6 +47,11 @@ export async function POST(request) {
         const body = await request.json()
         const { email, password, full_name, phone, role, branch_id } = body
 
+        const ALLOWED_ROLES = ['owner', 'admin', 'therapist']
+        if (!role || !ALLOWED_ROLES.includes(role)) {
+            return NextResponse.json({ error: 'Validation Error: Role tidak valid. Pilihan yang diizinkan: owner, admin, therapist.' }, { status: 400 })
+        }
+
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
         
         if (!serviceRoleKey) {
@@ -247,6 +252,11 @@ export async function PUT(request) {
 
         if (!id) {
             return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+        }
+
+        const ALLOWED_ROLES = ['owner', 'admin', 'therapist']
+        if (role && !ALLOWED_ROLES.includes(role)) {
+            return NextResponse.json({ error: 'Validation Error: Role tidak valid. Pilihan yang diizinkan: owner, admin, therapist.' }, { status: 400 })
         }
 
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
