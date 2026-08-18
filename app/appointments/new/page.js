@@ -74,6 +74,11 @@ function NewAppointmentForm() {
 
         if (user) {
             const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
+            if (userData?.role === 'therapist') {
+                toast.error('Akses Ditolak: Penambahan jadwal hanya dapat dilakukan oleh Admin Cabang dan Owner.')
+                router.push('/therapist/dashboard')
+                return
+            }
             if (userData?.role === 'owner') {
                 ownerFlag = true
                 setIsOwner(true)

@@ -480,11 +480,6 @@ function TherapistAppointmentsContent() {
                                     }}
                                     inputClassName="text-xs font-semibold"
                                 />
-                                <Link href="/appointments/new">
-                                    <button className="btn-primary py-2 px-4 flex items-center gap-1.5 text-xs cursor-pointer shadow-pink-500/10 shadow-md">
-                                        <span className="font-black text-sm">+</span> Buat Jadwal
-                                    </button>
-                                </Link>
                             </div>
                         </div>
 
@@ -611,14 +606,9 @@ function TherapistAppointmentsContent() {
                                                                                 {/* Column 1: Infus */}
                                                                                 <div className="w-72 flex-shrink-0 border-l border-slate-100 pl-3 flex flex-col justify-center min-h-[48px]">
                                                                                     {infusApts.length === 0 ? (
-                                                                                        <Link 
-                                                                                            href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}&notes=Infus`} 
-                                                                                            className="w-full min-h-[42px] border border-dashed border-slate-200/80 hover:border-cyan-300 hover:bg-cyan-50/40 rounded-xl transition-all flex items-center px-3 text-xs text-slate-400 hover:text-cyan-700 font-semibold gap-2 group cursor-pointer"
-                                                                                            title={`Tambah Infus Jam ${hourStr.replace('.', ':')}`}
-                                                                                        >
-                                                                                            <span className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-cyan-100 text-slate-400 group-hover:text-cyan-700 flex items-center justify-center font-black text-xs transition-colors">+</span>
-                                                                                            <span className="opacity-70 group-hover:opacity-100 transition-opacity">Tambah Infus</span>
-                                                                                        </Link>
+                                                                                        <div className="w-full min-h-[38px] border border-dashed border-slate-100/80 rounded-xl flex items-center px-3 text-slate-300">
+                                                                                            <span className="italic text-[11px]">- Kosong -</span>
+                                                                                        </div>
                                                                                     ) : (
                                                                                         <div className="flex flex-col gap-2 w-full">
                                                                                             {infusApts.map(apt => {
@@ -703,14 +693,9 @@ function TherapistAppointmentsContent() {
                                                                                 {/* Column 2: Treatment */}
                                                                                 <div className="flex-1 border-l border-slate-100 pl-3 flex items-center min-h-[48px]">
                                                                                     {treatmentApts.length === 0 ? (
-                                                                                        <Link 
-                                                                                            href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
-                                                                                            className="w-full min-h-[42px] border border-dashed border-slate-200/80 hover:border-sky-300 hover:bg-sky-50/40 rounded-xl transition-all flex items-center px-3 text-xs text-slate-400 hover:text-sky-700 font-semibold gap-2 group cursor-pointer"
-                                                                                            title={`Tambah Treatment Jam ${hourStr.replace('.', ':')}`}
-                                                                                        >
-                                                                                            <span className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-sky-100 text-slate-400 group-hover:text-sky-700 flex items-center justify-center font-black text-xs transition-colors">+</span>
-                                                                                            <span className="opacity-70 group-hover:opacity-100 transition-opacity">Tambah Jadwal Treatment</span>
-                                                                                        </Link>
+                                                                                        <div className="w-full min-h-[38px] border border-dashed border-slate-100/80 rounded-xl flex items-center px-3 text-slate-300">
+                                                                                            <span className="italic text-[11px]">- Kosong -</span>
+                                                                                        </div>
                                                                                     ) : (
                                                                                         <div className="flex flex-row flex-nowrap items-stretch gap-3 py-0.5 w-full overflow-x-auto custom-scrollbar">
                                                                                             {treatmentApts.map(apt => {
@@ -792,16 +777,6 @@ function TherapistAppointmentsContent() {
                                                                                                     </div>
                                                                                                 )
                                                                                             })}
-
-                                                                                            {/* Compact Ghost Add Slot next to existing patient cards */}
-                                                                                            <Link 
-                                                                                                href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
-                                                                                                className="w-[130px] min-w-[130px] self-stretch min-h-[105px] border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/20 hover:bg-sky-50/60 rounded-xl flex flex-col items-center justify-center text-sky-600 hover:text-sky-700 transition-all text-xs font-bold gap-1 cursor-pointer group shadow-2xs flex-shrink-0"
-                                                                                                title={`Tambah Jadwal Jam ${hourStr.replace('.', ':')}`}
-                                                                                            >
-                                                                                                <span className="w-6 h-6 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center transition-colors text-sky-700 font-black text-xs">+</span>
-                                                                                                <span className="text-[11px] text-sky-700 font-bold group-hover:underline">Tambah</span>
-                                                                                            </Link>
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
