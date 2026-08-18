@@ -89,7 +89,6 @@ export default function TherapistDashboard() {
         if (!selectedBranch) return
         setLoading(true)
 
-        // Only fetch today's appointments for the therapist action center dashboard
         const { data, error } = await supabase
             .from('appointments')
             .select(`
@@ -235,7 +234,7 @@ export default function TherapistDashboard() {
 
             if (error) throw error
 
-            toast.success('Jadwal berhasil Anda ambil! Silakan tangani pasien.')
+            toast.success('Jadwal berhasil Anda ambil. Silakan tangani pasien.')
             fetchAppointments()
         } catch (err) {
             toast.error('Gagal mengambil jadwal: ' + getFriendlyErrorMessage(err))
@@ -258,7 +257,6 @@ export default function TherapistDashboard() {
 
             if (aptErr) throw aptErr
 
-            // Send notification to branch admins of this appointment
             const { data: activeAdmins } = await supabase
                 .from('users')
                 .select('id, role, branch_id')
@@ -275,13 +273,13 @@ export default function TherapistDashboard() {
                     sender_id: dbUser.id,
                     appointment_id: apt.id,
                     type: 'therapist_ready',
-                    title: 'Terapis Siap! 💆‍♀️',
+                    title: 'Terapis Siap',
                     message: `Terapis ${dbUser.full_name} sudah siap menangani pasien ${apt.patients?.full_name || ''}. Silakan persilakan pasien masuk.`
                 }))
                 await supabase.from('notifications').insert(notificationsToInsert)
             }
 
-            toast.success('Status berhasil diperbarui! Kasir/Admin telah diberi tahu.')
+            toast.success('Status berhasil diperbarui. Kasir/Admin telah diberi tahu.')
             fetchAppointments()
         } catch (err) {
             toast.error('Gagal update status: ' + err.message)
@@ -297,15 +295,12 @@ export default function TherapistDashboard() {
 
     // Find the current active or next priority patient for this therapist
     const priorityPatient = useMemo(() => {
-        // 1. Check if there's any patient currently in treatment or therapist ready
         const currentActive = myAppointments.find(a => a.arrival_status === 'in_treatment' || a.arrival_status === 'therapist_ready')
         if (currentActive) return currentActive
 
-        // 2. Check if there's any patient who arrived and waiting
         const arrived = myAppointments.find(a => a.arrival_status === 'arrived' && a.status !== 'completed')
         if (arrived) return arrived
 
-        // 3. Find next scheduled patient today who is not completed
         const nextScheduled = myAppointments.find(a => a.status !== 'completed')
         if (nextScheduled) return nextScheduled
 
@@ -324,17 +319,17 @@ export default function TherapistDashboard() {
     return (
         <div className="space-y-6 w-full">
             {/* Top Therapist Status & Branch Bar */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white px-5 py-4 rounded-3xl border border-pink-100/70 shadow-xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white px-6 py-4 rounded-2xl border border-slate-200/80 shadow-xs">
                 <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-ayumi-primary to-pink-400 text-white font-black text-xl flex items-center justify-center shadow-sm">
-                        💆‍♀️
+                    <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-extrabold text-sm flex items-center justify-center shadow-2xs">
+                        {dbUser?.full_name ? dbUser.full_name.charAt(0).toUpperCase() : 'T'}
                     </div>
                     <div>
-                        <div className="text-base font-black text-slate-800 flex items-center gap-2">
-                            <span>Selamat Bertugas, <b className="text-ayumi-primary">{dbUser?.full_name || 'Terapis'}</b></span>
+                        <div className="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>Selamat Bertugas, <span className="text-ayumi-primary">{dbUser?.full_name || 'Terapis'}</span></span>
                         </div>
-                        <div className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-2">
-                            <span>📅 {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                        <div className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-2">
+                            <span>{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
                             <span>•</span>
                             <span>Pusat Kerja & Antrean Hari Ini</span>
                         </div>
@@ -343,19 +338,19 @@ export default function TherapistDashboard() {
 
                 <div className="flex flex-wrap items-center gap-2.5">
                     {dbUser?.branches?.name && (
-                        <div className="flex items-center gap-1.5 bg-pink-50 border border-pink-100 text-ayumi-primary px-3.5 py-2 rounded-2xl text-xs font-bold shrink-0">
-                            <span className="w-2 h-2 rounded-full bg-ayumi-primary"></span>
-                            <span>Cabang: <b className="text-slate-800 font-extrabold">{dbUser.branches.name}</b></span>
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>Cabang: <b className="text-slate-900 font-bold">{dbUser.branches.name}</b></span>
                         </div>
                     )}
                     <Link href="/therapist/appointments">
-                        <button className="text-xs font-bold text-slate-700 hover:text-ayumi-primary bg-slate-50 hover:bg-pink-50/50 border border-slate-200 px-3.5 py-2 rounded-2xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer">
-                            <span>🗓️ Papan Jadwal Penuh</span>
+                        <button className="text-xs font-bold text-slate-700 hover:text-ayumi-primary bg-white hover:bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer">
+                            Papan Jadwal Penuh
                         </button>
                     </Link>
                     <Link href="/therapist/appointments?tab=history">
-                        <button className="text-xs font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-3.5 py-2 rounded-2xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer">
-                            <span>📜 Riwayat Komisi</span>
+                        <button className="text-xs font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-3.5 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer">
+                            Riwayat Komisi
                         </button>
                     </Link>
                 </div>
@@ -364,110 +359,110 @@ export default function TherapistDashboard() {
             {/* 4 Summary Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Stat 1: Komisi */}
-                <div className="bg-gradient-to-br from-ayumi-secondary via-ayumi-primary to-pink-600 rounded-3xl p-5 text-white shadow-sm flex flex-col justify-between relative overflow-hidden">
-                    <div className="absolute -right-3 -bottom-3 opacity-15 text-5xl">💰</div>
+                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-xs flex flex-col justify-between">
                     <div className="flex justify-between items-start">
-                        <span className="text-xs font-bold text-pink-200 uppercase tracking-wider">Komisi Anda</span>
-                        <div className="bg-black/20 p-0.5 rounded-lg flex text-[10px] font-bold">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Komisi Anda</span>
+                        <div className="bg-white/10 p-0.5 rounded-lg flex text-[10px] font-bold">
                             <button 
                                 onClick={() => handleCommPresetChange('today')}
-                                className={`px-2 py-0.5 rounded ${commPeriodPreset === 'today' ? 'bg-white text-ayumi-primary' : 'text-white'}`}
+                                className={`px-2 py-0.5 rounded transition-colors ${commPeriodPreset === 'today' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
                             >
                                 Hari Ini
                             </button>
                             <button 
                                 onClick={() => handleCommPresetChange('month')}
-                                className={`px-2 py-0.5 rounded ${commPeriodPreset === 'month' ? 'bg-white text-ayumi-primary' : 'text-white'}`}
+                                className={`px-2 py-0.5 rounded transition-colors ${commPeriodPreset === 'month' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
                             >
                                 Bulan Ini
                             </button>
                         </div>
                     </div>
-                    <div className="text-2xl font-black mt-2 leading-none">
+                    <div className="text-2xl font-black mt-3 leading-none text-white tracking-tight">
                         Rp {commSummary.totalCommission.toLocaleString('id-ID')}
                     </div>
-                    <div className="text-[11px] text-pink-100 font-medium mt-3">
+                    <div className="text-[11px] text-slate-400 font-medium mt-3">
                         {commSummary.treatmentCount} tindakan treatment selesai
                     </div>
                 </div>
 
                 {/* Stat 2: Tugas Hari Ini */}
-                <div className="bg-white rounded-3xl p-5 border border-pink-100/70 shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        <span>Tugas Anda Hari Ini</span>
-                        <span className="text-lg">💆‍♀️</span>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        <span>Tugas Hari Ini</span>
+                        <span className="w-2 h-2 rounded-full bg-ayumi-primary"></span>
                     </div>
-                    <div className="text-3xl font-black text-slate-800 mt-2 leading-none">
-                        {myAppointments.length} <span className="text-xs font-bold text-slate-400">Pasien</span>
+                    <div className="text-2xl font-black text-slate-900 mt-2 leading-none">
+                        {myAppointments.length} <span className="text-xs font-semibold text-slate-400">Pasien</span>
                     </div>
-                    <div className="text-[11px] text-slate-500 font-medium mt-3 flex items-center gap-1">
-                        <span className="text-emerald-600 font-bold">{completedToday.length} selesai</span>
+                    <div className="text-[11px] text-slate-500 font-medium mt-3 flex items-center gap-1.5">
+                        <span className="text-emerald-700 font-bold">{completedToday.length} selesai</span>
                         <span>•</span>
-                        <span className="text-amber-600 font-bold">{myAppointments.length - completedToday.length} menunggu</span>
+                        <span className="text-amber-700 font-bold">{myAppointments.length - completedToday.length} menunggu</span>
                     </div>
                 </div>
 
                 {/* Stat 3: Pasien Tiba & Menunggu */}
-                <div className="bg-white rounded-3xl p-5 border border-pink-100/70 shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <span>Tiba di Klinik</span>
-                        <span className="text-lg">🙋‍♀️</span>
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                     </div>
-                    <div className="text-3xl font-black text-amber-600 mt-2 leading-none">
-                        {arrivedWaitingAppointments.length} <span className="text-xs font-bold text-slate-400">Menunggu</span>
+                    <div className="text-2xl font-black text-amber-600 mt-2 leading-none">
+                        {arrivedWaitingAppointments.length} <span className="text-xs font-semibold text-slate-400">Menunggu</span>
                     </div>
                     <div className="text-[11px] text-slate-500 font-medium mt-3">
-                        {arrivedWaitingAppointments.length > 0 ? 'Siap dipanggil ke ruangan treatment' : 'Belum ada pasien menunggu'}
+                        {arrivedWaitingAppointments.length > 0 ? 'Siap dipanggil ke ruangan treatment' : 'Tidak ada pasien menunggu'}
                     </div>
                 </div>
 
                 {/* Stat 4: Pasien Tersedia / Belum Ada Terapis */}
-                <div className="bg-white rounded-3xl p-5 border border-pink-100/70 shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <span>Pasien Tersedia</span>
-                        <span className="text-lg">✨</span>
+                        <span className="w-2 h-2 rounded-full bg-sky-500"></span>
                     </div>
-                    <div className="text-3xl font-black text-sky-600 mt-2 leading-none">
-                        {unassignedAppointments.length} <span className="text-xs font-bold text-slate-400">Bisa Diambil</span>
+                    <div className="text-2xl font-black text-sky-600 mt-2 leading-none">
+                        {unassignedAppointments.length} <span className="text-xs font-semibold text-slate-400">Bisa Diambil</span>
                     </div>
                     <div className="text-[11px] text-slate-500 font-medium mt-3">
-                        {unassignedAppointments.length > 0 ? 'Bisa Anda ambil untuk dikerjakan' : 'Semua jadwal sudah ada terapis'}
+                        {unassignedAppointments.length > 0 ? 'Tersedia untuk diambil terapis' : 'Semua jadwal telah terisi'}
                     </div>
                 </div>
             </div>
 
             {/* MAIN FOCUS: NEXT PRIORITY PATIENT CARD */}
             {priorityPatient ? (
-                <div className="bg-gradient-to-r from-pink-500/10 via-pink-50 to-white rounded-3xl border-2 border-pink-300/80 p-5 md:p-6 shadow-sm relative overflow-hidden">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 shadow-xs relative overflow-hidden">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-start gap-4">
-                            <div className="w-14 h-14 rounded-2xl bg-white border border-pink-200 text-ayumi-primary font-black text-2xl flex items-center justify-center shadow-xs shrink-0">
-                                🎯
+                            <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs flex flex-col items-center justify-center shadow-2xs shrink-0">
+                                <span className="text-[10px] uppercase text-slate-400 font-bold">Fokus</span>
+                                <span className="text-xs font-black text-slate-800">Tugas</span>
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <span className="px-2.5 py-0.5 bg-ayumi-primary text-white text-[10.5px] font-black rounded-full uppercase tracking-wider shadow-2xs">
-                                        Fokus Tugas Saat Ini
+                                    <span className="px-2.5 py-0.5 bg-slate-900 text-white text-[10.5px] font-bold rounded-md uppercase tracking-wider">
+                                        Pasien Prioritas
                                     </span>
-                                    <span className="text-xs font-black text-slate-700 bg-white/80 px-2.5 py-0.5 rounded-lg border border-pink-200">
-                                        🕒 {priorityPatient.start_time?.substring(0, 5)} - {priorityPatient.end_time?.substring(0, 5)}
+                                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                        {priorityPatient.start_time?.substring(0, 5)} - {priorityPatient.end_time?.substring(0, 5)}
                                     </span>
                                 </div>
-                                <h3 className="text-lg md:text-xl font-black text-slate-900 mt-1">
+                                <h3 className="text-lg font-bold text-slate-900 mt-1.5">
                                     {priorityPatient.patients?.full_name || 'Nama Pasien'}
                                 </h3>
-                                <div className="text-xs font-bold text-ayumi-secondary mt-0.5 flex flex-wrap items-center gap-2">
-                                    <span>Layanan: <b className="text-slate-800">{priorityPatient.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || priorityPatient.notes || 'Treatment'}</b></span>
+                                <div className="text-xs font-medium text-slate-600 mt-0.5 flex flex-wrap items-center gap-2">
+                                    <span>Layanan: <b className="text-slate-900 font-bold">{priorityPatient.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || priorityPatient.notes || 'Treatment'}</b></span>
                                     <span>•</span>
                                     <span>Status: 
-                                        <b className={`ml-1 font-extrabold ${
-                                            priorityPatient.arrival_status === 'arrived' ? 'text-amber-600' :
-                                            priorityPatient.arrival_status === 'therapist_ready' ? 'text-green-600' :
-                                            priorityPatient.arrival_status === 'in_treatment' ? 'text-emerald-600' : 'text-blue-600'
+                                        <b className={`ml-1 font-bold ${
+                                            priorityPatient.arrival_status === 'arrived' ? 'text-amber-700' :
+                                            priorityPatient.arrival_status === 'therapist_ready' ? 'text-emerald-700' :
+                                            priorityPatient.arrival_status === 'in_treatment' ? 'text-sky-700' : 'text-slate-700'
                                         }`}>
-                                            {priorityPatient.arrival_status === 'arrived' ? 'Sudah Tiba di Klinik 🙋‍♀️' :
-                                             priorityPatient.arrival_status === 'therapist_ready' ? 'Terapis Siap 💆‍♀️' :
-                                             priorityPatient.arrival_status === 'in_treatment' ? 'Sedang di Ruangan Perawatan' : 'Terjadwal'}
+                                            {priorityPatient.arrival_status === 'arrived' ? 'Tiba di Klinik' :
+                                             priorityPatient.arrival_status === 'therapist_ready' ? 'Terapis Siap' :
+                                             priorityPatient.arrival_status === 'in_treatment' ? 'Sedang Perawatan' : 'Terjadwal'}
                                         </b>
                                     </span>
                                 </div>
@@ -479,25 +474,25 @@ export default function TherapistDashboard() {
                             {priorityPatient.patients?.id && (
                                 <button
                                     onClick={() => setSelectedPatientIdForHistory(priorityPatient.patients.id)}
-                                    className="px-3.5 py-2.5 rounded-xl border border-pink-200 bg-white hover:bg-pink-50 text-ayumi-primary font-extrabold text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-all shadow-2xs cursor-pointer"
                                 >
-                                    <span>📋 Riwayat Medis</span>
+                                    Riwayat Medis
                                 </button>
                             )}
 
                             {priorityPatient.arrival_status === 'arrived' && (
                                 <button
                                     onClick={() => handleTherapistReady(priorityPatient)}
-                                    className="btn-primary px-4 py-2.5 text-xs font-extrabold flex items-center gap-1.5 shadow-md animate-pulse cursor-pointer"
+                                    className="btn-primary px-4 py-2 text-xs font-bold shadow-xs cursor-pointer"
                                 >
-                                    <span>💆‍♀️ Saya Siap! (Panggil Pasien)</span>
+                                    Saya Siap (Panggil Pasien)
                                 </button>
                             )}
 
                             {priorityPatient.status !== 'completed' && (
                                 <Link href={`/therapist/treatment-input/${priorityPatient.id}`}>
-                                    <button className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
-                                        <span>📝 Input Treatment & SOAP</span>
+                                    <button className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer">
+                                        Input Treatment & SOAP
                                     </button>
                                 </Link>
                             )}
@@ -505,62 +500,61 @@ export default function TherapistDashboard() {
                     </div>
                 </div>
             ) : (
-                <div className="bg-gradient-to-r from-emerald-50 to-pink-50/40 rounded-3xl border border-emerald-200/60 p-5 text-center flex items-center justify-center gap-3">
-                    <span className="text-2xl">🎉</span>
-                    <span className="text-sm font-bold text-slate-700">Semua tugas pasien Anda hari ini telah selesai atau belum ada jadwal mendesak.</span>
+                <div className="bg-slate-50 rounded-2xl border border-slate-200/80 p-4 text-center">
+                    <span className="text-xs font-semibold text-slate-600">Semua tugas pasien Anda hari ini telah selesai atau belum ada jadwal mendesak.</span>
                 </div>
             )}
 
             {/* TODAY'S TREATMENT QUEUE LIST */}
-            <div className="bg-white rounded-3xl border border-pink-100/70 p-5 md:p-6 shadow-sm space-y-5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 md:p-6 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                     <div>
-                        <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-                            <span>📋 Antrean & Jadwal Pasien Hari Ini</span>
+                        <h3 className="text-base font-bold text-slate-900">
+                            Antrean & Jadwal Pasien Hari Ini
                         </h3>
-                        <p className="text-xs text-slate-400 font-medium mt-0.5">
-                            Daftar pasien yang terdaftar di cabang {dbUser?.branches?.name || 'klinik'} untuk hari ini ({new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}).
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            Daftar pasien di cabang {dbUser?.branches?.name || 'klinik'} untuk hari ini ({new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}).
                         </p>
                     </div>
 
                     {/* Filter Tabs */}
-                    <div className="flex flex-wrap gap-1 bg-pink-50/70 p-1 rounded-2xl border border-pink-100">
+                    <div className="flex flex-wrap gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
                         <button
                             onClick={() => setQueueFilter('my_tasks')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                queueFilter === 'my_tasks' ? 'bg-ayumi-primary text-white shadow-xs' : 'text-slate-600 hover:text-ayumi-primary'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                queueFilter === 'my_tasks' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
                             Tugas Saya ({myAppointments.filter(a => a.status !== 'completed').length})
                         </button>
                         <button
                             onClick={() => setQueueFilter('waiting')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                queueFilter === 'waiting' ? 'bg-ayumi-primary text-white shadow-xs' : 'text-slate-600 hover:text-ayumi-primary'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                queueFilter === 'waiting' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
                             Tiba & Menunggu ({arrivedWaitingAppointments.length})
                         </button>
                         <button
                             onClick={() => setQueueFilter('unassigned')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                queueFilter === 'unassigned' ? 'bg-ayumi-primary text-white shadow-xs' : 'text-slate-600 hover:text-ayumi-primary'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                queueFilter === 'unassigned' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
                             Tersedia ({unassignedAppointments.length})
                         </button>
                         <button
                             onClick={() => setQueueFilter('completed')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                queueFilter === 'completed' ? 'bg-ayumi-primary text-white shadow-xs' : 'text-slate-600 hover:text-ayumi-primary'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                queueFilter === 'completed' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
                             Selesai ({completedToday.length})
                         </button>
                         <button
                             onClick={() => setQueueFilter('all')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                queueFilter === 'all' ? 'bg-ayumi-primary text-white shadow-xs' : 'text-slate-600 hover:text-ayumi-primary'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                queueFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
                             Semua ({appointments.length})
@@ -570,12 +564,11 @@ export default function TherapistDashboard() {
 
                 {loading ? (
                     <div className="text-center py-16">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ayumi-primary mx-auto mb-3"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-700 mx-auto mb-3"></div>
                         <p className="text-xs text-slate-500 font-medium">Memuat antrean pasien...</p>
                     </div>
                 ) : displayedQueue.length === 0 ? (
-                    <div className="text-center py-12 bg-slate-50/50 rounded-2xl border border-slate-100">
-                        <div className="text-3xl mb-2">🌿</div>
+                    <div className="text-center py-12 bg-slate-50/50 rounded-xl border border-slate-100">
                         <p className="text-sm font-bold text-slate-700">Tidak ada pasien dalam kategori ini untuk hari ini.</p>
                         <p className="text-xs text-slate-400 mt-1">Gunakan tombol "Papan Jadwal Penuh" untuk melihat jadwal di tanggal lain.</p>
                     </div>
@@ -592,74 +585,74 @@ export default function TherapistDashboard() {
                             return (
                                 <div 
                                     key={apt.id}
-                                    className={`rounded-2xl border p-4.5 transition-all shadow-xs flex flex-col justify-between ${
+                                    className={`rounded-xl border p-4 transition-all shadow-2xs flex flex-col justify-between ${
                                         isCompleted ? 'bg-slate-50/70 border-slate-200 opacity-80' :
-                                        isMyTask ? 'bg-white border-pink-200 ring-1 ring-pink-100 hover:border-pink-300' :
-                                        'bg-white border-slate-200 hover:border-sky-300'
+                                        isMyTask ? 'bg-white border-pink-300 ring-1 ring-pink-200' :
+                                        'bg-white border-slate-200'
                                     }`}
                                 >
                                     <div>
                                         {/* Card Header: Time & Badges */}
                                         <div className="flex justify-between items-center pb-2 mb-2.5 border-b border-slate-100 text-xs">
-                                            <span className="font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                🕒 {startTime} - {endTime}
+                                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                                                {startTime} - {endTime}
                                             </span>
                                             
                                             {isCompleted ? (
-                                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-md text-[10px]">
-                                                    ✅ Selesai
+                                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded text-[10.5px] border border-emerald-200/60">
+                                                    Selesai
                                                 </span>
                                             ) : apt.arrival_status === 'arrived' ? (
-                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-black rounded-md text-[10px] animate-pulse">
-                                                    🙋‍♀️ Tiba di Klinik
+                                                <span className="px-2 py-0.5 bg-amber-50 text-amber-800 font-bold rounded text-[10.5px] border border-amber-200/60">
+                                                    Tiba di Klinik
                                                 </span>
                                             ) : apt.arrival_status === 'therapist_ready' ? (
-                                                <span className="px-2 py-0.5 bg-green-100 text-green-800 font-bold rounded-md text-[10px]">
-                                                    💆‍♀️ Siap Masuk
+                                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-bold rounded text-[10.5px] border border-emerald-200/60">
+                                                    Siap Masuk
                                                 </span>
                                             ) : apt.arrival_status === 'in_treatment' ? (
-                                                <span className="px-2 py-0.5 bg-sky-100 text-sky-800 font-bold rounded-md text-[10px]">
-                                                    🩺 Di Ruangan
+                                                <span className="px-2 py-0.5 bg-sky-50 text-sky-800 font-bold rounded text-[10.5px] border border-sky-200/60">
+                                                    Di Ruangan
                                                 </span>
                                             ) : (
-                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded-md text-[10px]">
+                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 font-semibold rounded text-[10.5px]">
                                                     Terjadwal
                                                 </span>
                                             )}
                                         </div>
 
                                         {/* Patient Name */}
-                                        <div className="font-black text-slate-900 text-base tracking-tight truncate">
+                                        <div className="font-bold text-slate-900 text-sm tracking-tight truncate">
                                             {apt.patients?.full_name || 'Nama Pasien'}
                                         </div>
 
                                         {/* Treatment Details */}
-                                        <div className="text-xs text-ayumi-primary font-bold mt-1 bg-pink-50/70 border border-pink-100 px-2.5 py-1 rounded-lg truncate">
-                                            ✨ {treatmentsList}
+                                        <div className="text-xs text-slate-700 font-semibold mt-1 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded truncate">
+                                            {treatmentsList}
                                         </div>
 
                                         {/* Therapist info */}
-                                        <div className="text-[11px] text-slate-400 font-medium mt-2 flex items-center gap-1">
+                                        <div className="text-[11px] text-slate-500 font-medium mt-2 flex items-center gap-1">
                                             <span>Petugas: </span>
                                             {apt.therapist?.full_name ? (
-                                                <b className="text-slate-700 font-bold">{isMyTask ? 'Anda' : apt.therapist.full_name}</b>
+                                                <b className="text-slate-800 font-semibold">{isMyTask ? 'Anda' : apt.therapist.full_name}</b>
                                             ) : (
-                                                <span className="text-amber-600 font-bold">⚠️ Belum Ada Terapis</span>
+                                                <span className="text-amber-700 font-semibold">Belum Ditugaskan</span>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Action Buttons */}
                                     <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                                        <div className="flex items-center gap-1">
+                                        <div>
                                             {apt.patients?.id && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
-                                                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-pink-50 hover:text-ayumi-primary text-slate-600 transition-colors text-xs cursor-pointer"
+                                                    className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors text-[11px] font-semibold cursor-pointer"
                                                     title="Lihat Rekam Medis"
                                                 >
-                                                    📋 Medis
+                                                    Rekam Medis
                                                 </button>
                                             )}
                                         </div>
@@ -669,25 +662,25 @@ export default function TherapistDashboard() {
                                                 <button
                                                     onClick={() => handleClaimAppointment(apt.id)}
                                                     disabled={claimingAptId === apt.id}
-                                                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[11px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer"
                                                 >
-                                                    {claimingAptId === apt.id ? 'Memilih...' : '+ Ambil Tugas'}
+                                                    {claimingAptId === apt.id ? 'Memilih...' : 'Ambil Tugas'}
                                                 </button>
                                             )}
 
                                             {isMyTask && apt.arrival_status === 'arrived' && !isCompleted && (
                                                 <button
                                                     onClick={() => handleTherapistReady(apt)}
-                                                    className="px-2.5 py-1 rounded-lg bg-green-600 hover:bg-green-700 text-white font-extrabold text-[11px] transition-colors shadow-2xs cursor-pointer animate-pulse"
+                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer"
                                                 >
-                                                    Saya Siap!
+                                                    Saya Siap
                                                 </button>
                                             )}
 
                                             {!isCompleted && (
                                                 <Link href={`/therapist/treatment-input/${apt.id}`}>
-                                                    <button className="px-2.5 py-1 rounded-lg bg-ayumi-primary hover:bg-[#9a4b75] text-white font-extrabold text-[11px] transition-colors shadow-2xs cursor-pointer">
-                                                        📝 Input SOAP
+                                                    <button className="px-2.5 py-1 rounded bg-ayumi-primary hover:bg-[#9a4b75] text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer">
+                                                        Input SOAP
                                                     </button>
                                                 </Link>
                                             )}
