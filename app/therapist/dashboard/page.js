@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { supabase } from '@/lib/supabaseClient'
+import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 
 export default function TherapistDashboard() {
@@ -19,7 +20,7 @@ export default function TherapistDashboard() {
     const [selectedPatientIdForHistory, setSelectedPatientIdForHistory] = useState(null)
     const [queueFilter, setQueueFilter] = useState('my_tasks') // 'my_tasks' | 'waiting' | 'unassigned' | 'completed' | 'all'
 
-    // Today's Date String
+    // Helper Date
     const getLocalDateString = (date = new Date()) => {
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -30,9 +31,12 @@ export default function TherapistDashboard() {
     const todayStr = getLocalDateString()
 
     // Commission Widget States
-    const [commPeriodPreset, setCommPeriodPreset] = useState('month') // 'today' | 'week' | 'month'
+    const [commPeriodPreset, setCommPeriodPreset] = useState('month') // 'today' | 'week' | 'month' | 'custom'
+    const [commStartDate, setCommStartDate] = useState(todayStr)
+    const [commEndDate, setCommEndDate] = useState(todayStr)
     const [commItems, setCommItems] = useState([])
     const [commLoading, setCommLoading] = useState(false)
+    const [isCommDetailOpen, setIsCommDetailOpen] = useState(false)
 
     useEffect(() => {
         fetchUserAndData()
@@ -79,7 +83,17 @@ export default function TherapistDashboard() {
         }
 
         setDbUser(userData)
-        fetchTherapistCommissions(userData.id, commPeriodPreset)
+
+        // Default set to month
+        const now = new Date()
+        const first = new Date(now.getFullYear(), now.getMonth(), 1)
+        const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const startMonthStr = getLocalDateString(first)
+        const endMonthStr = getLocalDateString(last)
+        setCommStartDate(startMonthStr)
+        setCommEndDate(endMonthStr)
+
+        fetchTherapistCommissions(userData.id, startMonthStr, endMonthStr)
 
         const assignedBranchId = userData.branch_id || ''
         setSelectedBranch(assignedBranchId)
@@ -138,31 +152,9 @@ export default function TherapistDashboard() {
         setLoading(false)
     }
 
-    const fetchTherapistCommissions = async (userId = dbUser?.id, preset = commPeriodPreset) => {
+    const fetchTherapistCommissions = async (userId = dbUser?.id, start = commStartDate, end = commEndDate) => {
         if (!userId) return
         setCommLoading(true)
-
-        const now = new Date()
-        let start = todayStr
-        let end = todayStr
-
-        if (preset === 'week') {
-            const d = new Date()
-            const dayOfWeek = d.getDay()
-            const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
-            const monday = new Date(d.setDate(diffToMon))
-            const sunday = new Date(monday)
-            sunday.setDate(monday.getDate() + 6)
-            start = getLocalDateString(monday)
-            end = getLocalDateString(sunday)
-        } else if (preset === 'month') {
-            const y = now.getFullYear()
-            const m = now.getMonth()
-            const first = new Date(y, m, 1)
-            const last = new Date(y, m + 1, 0)
-            start = getLocalDateString(first)
-            end = getLocalDateString(last)
-        }
 
         const { data, error } = await supabase
             .from('treatment_record_items')
@@ -172,17 +164,22 @@ export default function TherapistDashboard() {
                 original_price,
                 discount_percent,
                 commission_percent,
+                notes,
+                treatments(name),
                 treatment_records!inner(
                     id,
                     treatment_date,
                     treatment_time,
                     branch_id,
-                    performed_by
+                    performed_by,
+                    patients(full_name),
+                    branches(name)
                 )
             `)
             .eq('treatment_records.performed_by', userId)
             .gte('treatment_records.treatment_date', start)
             .lte('treatment_records.treatment_date', end)
+            .order('treatment_records(treatment_date)', { ascending: false })
 
         if (!error && data) {
             setCommItems(data)
@@ -194,8 +191,34 @@ export default function TherapistDashboard() {
 
     const handleCommPresetChange = (preset) => {
         setCommPeriodPreset(preset)
-        if (dbUser?.id) {
-            fetchTherapistCommissions(dbUser.id, preset)
+        const now = new Date()
+        let start = todayStr
+        let end = todayStr
+
+        if (preset === 'today') {
+            start = todayStr
+            end = todayStr
+        } else if (preset === 'week') {
+            const d = new Date()
+            const dayOfWeek = d.getDay()
+            const diffToMon = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+            const monday = new Date(d.setDate(diffToMon))
+            const sunday = new Date(monday)
+            sunday.setDate(monday.getDate() + 6)
+            start = getLocalDateString(monday)
+            end = getLocalDateString(sunday)
+        } else if (preset === 'month') {
+            const first = new Date(now.getFullYear(), now.getMonth(), 1)
+            const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+            start = getLocalDateString(first)
+            end = getLocalDateString(last)
+        }
+
+        setCommStartDate(start)
+        setCommEndDate(end)
+
+        if (preset !== 'custom' && dbUser?.id) {
+            fetchTherapistCommissions(dbUser.id, start, end)
         }
     }
 
@@ -290,22 +313,7 @@ export default function TherapistDashboard() {
     const myAppointments = appointments.filter(a => a.therapist_id === dbUser?.id && a.status !== 'cancelled')
     const unassignedAppointments = appointments.filter(a => !a.therapist_id && a.status !== 'cancelled')
     const arrivedWaitingAppointments = myAppointments.filter(a => a.arrival_status === 'arrived' && a.status !== 'completed')
-    const inTreatmentAppointments = myAppointments.filter(a => (a.arrival_status === 'therapist_ready' || a.arrival_status === 'in_treatment') && a.status !== 'completed')
     const completedToday = myAppointments.filter(a => a.status === 'completed')
-
-    // Find the current active or next priority patient for this therapist
-    const priorityPatient = useMemo(() => {
-        const currentActive = myAppointments.find(a => a.arrival_status === 'in_treatment' || a.arrival_status === 'therapist_ready')
-        if (currentActive) return currentActive
-
-        const arrived = myAppointments.find(a => a.arrival_status === 'arrived' && a.status !== 'completed')
-        if (arrived) return arrived
-
-        const nextScheduled = myAppointments.find(a => a.status !== 'completed')
-        if (nextScheduled) return nextScheduled
-
-        return null
-    }, [myAppointments])
 
     // Filter queue list
     const displayedQueue = useMemo(() => {
@@ -317,21 +325,21 @@ export default function TherapistDashboard() {
     }, [queueFilter, appointments, myAppointments, unassignedAppointments, completedToday])
 
     return (
-        <div className="space-y-6 w-full">
+        <div className="space-y-6 w-full pb-10">
             {/* Top Therapist Status & Branch Bar */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white px-6 py-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white px-6 py-4 rounded-2xl border border-slate-200 shadow-2xs">
                 <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-extrabold text-sm flex items-center justify-center shadow-2xs">
+                    <div className="w-10 h-10 rounded-xl bg-pink-50 border border-pink-100 text-ayumi-primary font-black text-base flex items-center justify-center shadow-2xs">
                         {dbUser?.full_name ? dbUser.full_name.charAt(0).toUpperCase() : 'T'}
                     </div>
                     <div>
                         <div className="text-base font-bold text-slate-900 flex items-center gap-2">
-                            <span>Selamat Bertugas, <span className="text-ayumi-primary">{dbUser?.full_name || 'Terapis'}</span></span>
+                            <span>Selamat Bertugas, <span className="text-ayumi-primary font-black">{dbUser?.full_name || 'Terapis'}</span></span>
                         </div>
                         <div className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-2">
                             <span>{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
                             <span>•</span>
-                            <span>Pusat Kerja & Antrean Hari Ini</span>
+                            <span>Pusat Kerja Harian</span>
                         </div>
                     </div>
                 </div>
@@ -356,169 +364,220 @@ export default function TherapistDashboard() {
                 </div>
             </div>
 
-            {/* 4 Summary Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Stat 1: Komisi */}
-                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-start">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Komisi Anda</span>
-                        <div className="bg-white/10 p-0.5 rounded-lg flex text-[10px] font-bold">
-                            <button 
+            {/* SECTION 1: PERFORMANCE & COMMISSION WIDGET */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 space-y-4">
+                {/* Header Filter Bar */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                            Performa & Komisi Saya
+                        </h2>
+                        <p className="text-xs text-slate-400">
+                            Akumulasi seluruh tindakan perawatan dan komisi dari seluruh cabang klinik.
+                        </p>
+                    </div>
+
+                    {/* Period Buttons */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/70 text-xs font-semibold">
+                            <button
                                 onClick={() => handleCommPresetChange('today')}
-                                className={`px-2 py-0.5 rounded transition-colors ${commPeriodPreset === 'today' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
+                                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                                    commPeriodPreset === 'today' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                                }`}
                             >
                                 Hari Ini
                             </button>
-                            <button 
+                            <button
+                                onClick={() => handleCommPresetChange('week')}
+                                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                                    commPeriodPreset === 'week' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Minggu Ini
+                            </button>
+                            <button
                                 onClick={() => handleCommPresetChange('month')}
-                                className={`px-2 py-0.5 rounded transition-colors ${commPeriodPreset === 'month' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
+                                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                                    commPeriodPreset === 'month' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                                }`}
                             >
                                 Bulan Ini
                             </button>
+                            <button
+                                onClick={() => handleCommPresetChange('custom')}
+                                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                                    commPeriodPreset === 'custom' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Custom
+                            </button>
+                        </div>
+
+                        {commPeriodPreset === 'custom' && (
+                            <DateRangePicker
+                                startDate={commStartDate}
+                                endDate={commEndDate}
+                                onChange={(range) => {
+                                    setCommStartDate(range.startDate)
+                                    setCommEndDate(range.endDate)
+                                    if (dbUser?.id) {
+                                        fetchTherapistCommissions(dbUser.id, range.startDate, range.endDate)
+                                    }
+                                }}
+                                inputClassName="text-xs font-semibold py-1 px-2.5"
+                            />
+                        )}
+                    </div>
+                </div>
+
+                {/* 4 Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1: Warm Terracotta Gradient Commission Card */}
+                    <div className="bg-gradient-to-r from-[#ba5d45] via-[#a84c35] to-[#8f3a25] rounded-xl p-5 text-white shadow-sm flex flex-col justify-between">
+                        <div className="text-[11px] font-bold text-orange-200 uppercase tracking-wider">
+                            Total Komisi Diterima
+                        </div>
+                        <div className="text-2xl lg:text-3xl font-black tracking-tight mt-2 text-white">
+                            Rp {commSummary.totalCommission.toLocaleString('id-ID')}
+                        </div>
+                        <div className="text-[11px] text-orange-100/90 font-medium mt-3">
+                            Akumulasi komisi seluruh cabang
                         </div>
                     </div>
-                    <div className="text-2xl font-black mt-3 leading-none text-white tracking-tight">
-                        Rp {commSummary.totalCommission.toLocaleString('id-ID')}
+
+                    {/* Card 2: Tindakan Selesai */}
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            <span>Tindakan Selesai</span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        </div>
+                        <div className="text-2xl lg:text-3xl font-black text-slate-900 mt-2">
+                            {commSummary.treatmentCount} <span className="text-xs font-semibold text-slate-400">Tindakan</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-medium mt-3">
+                            Total tindakan yang Anda kerjakan
+                        </div>
                     </div>
-                    <div className="text-[11px] text-slate-400 font-medium mt-3">
-                        {commSummary.treatmentCount} tindakan treatment selesai
+
+                    {/* Card 3: Tugas Hari Ini */}
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            <span>Tugas Pasien Hari Ini</span>
+                            <span className="w-2 h-2 rounded-full bg-ayumi-primary"></span>
+                        </div>
+                        <div className="text-2xl lg:text-3xl font-black text-slate-900 mt-2">
+                            {myAppointments.length} <span className="text-xs font-semibold text-slate-400">Pasien</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-medium mt-3 flex items-center gap-1.5">
+                            <span className="text-emerald-700 font-bold">{completedToday.length} selesai</span>
+                            <span>•</span>
+                            <span className="text-amber-700 font-bold">{myAppointments.length - completedToday.length} menunggu</span>
+                        </div>
+                    </div>
+
+                    {/* Card 4: Pasien Tiba di Klinik */}
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5 flex flex-col justify-between">
+                        <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            <span>Tiba & Menunggu</span>
+                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        </div>
+                        <div className="text-2xl lg:text-3xl font-black text-amber-600 mt-2">
+                            {arrivedWaitingAppointments.length} <span className="text-xs font-semibold text-slate-400">Pasien</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-medium mt-3">
+                            {arrivedWaitingAppointments.length > 0 ? 'Siap dipanggil ke ruangan' : 'Belum ada pasien menunggu'}
+                        </div>
                     </div>
                 </div>
 
-                {/* Stat 2: Tugas Hari Ini */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        <span>Tugas Hari Ini</span>
-                        <span className="w-2 h-2 rounded-full bg-ayumi-primary"></span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-900 mt-2 leading-none">
-                        {myAppointments.length} <span className="text-xs font-semibold text-slate-400">Pasien</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-medium mt-3 flex items-center gap-1.5">
-                        <span className="text-emerald-700 font-bold">{completedToday.length} selesai</span>
-                        <span>•</span>
-                        <span className="text-amber-700 font-bold">{myAppointments.length - completedToday.length} menunggu</span>
-                    </div>
-                </div>
+                {/* Collapsible Commission Details Table */}
+                <div className="pt-2">
+                    <button
+                        onClick={() => setIsCommDetailOpen(!isCommDetailOpen)}
+                        className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 py-1 cursor-pointer transition-colors"
+                    >
+                        <span>{isCommDetailOpen ? '▼ Sembunyikan Rincian Komisi' : '▶ Tampilkan Rincian Komisi per Tindakan'}</span>
+                        <span className="text-[11px] font-medium text-slate-400">({commItems.length} item)</span>
+                    </button>
 
-                {/* Stat 3: Pasien Tiba & Menunggu */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        <span>Tiba di Klinik</span>
-                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    </div>
-                    <div className="text-2xl font-black text-amber-600 mt-2 leading-none">
-                        {arrivedWaitingAppointments.length} <span className="text-xs font-semibold text-slate-400">Menunggu</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-medium mt-3">
-                        {arrivedWaitingAppointments.length > 0 ? 'Siap dipanggil ke ruangan treatment' : 'Tidak ada pasien menunggu'}
-                    </div>
-                </div>
+                    {isCommDetailOpen && (
+                        <div className="mt-3 overflow-x-auto border border-slate-200 rounded-xl">
+                            {commLoading ? (
+                                <div className="text-center py-8 text-xs text-slate-400">Memuat rincian...</div>
+                            ) : commItems.length === 0 ? (
+                                <div className="text-center py-8 text-xs text-slate-400">Tidak ada data komisi untuk periode ini.</div>
+                            ) : (
+                                <table className="w-full text-xs text-left">
+                                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                                        <tr>
+                                            <th className="py-2.5 px-3">Tanggal</th>
+                                            <th className="py-2.5 px-3">Cabang</th>
+                                            <th className="py-2.5 px-3">Pasien</th>
+                                            <th className="py-2.5 px-3">Treatment</th>
+                                            <th className="py-2.5 px-3 text-right">Tarif</th>
+                                            <th className="py-2.5 px-3 text-center">% Komisi</th>
+                                            <th className="py-2.5 px-3 text-right">Nominal Komisi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {commItems.map(item => {
+                                            const rec = item.treatment_records
+                                            const priceAtTime = Number(item.price_at_time || 0)
+                                            const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
+                                                ? Number(item.original_price)
+                                                : priceAtTime
+                                            const commPercent = Number(item.commission_percent || 0)
+                                            const commAmount = Math.round(basePrice * (commPercent / 100))
 
-                {/* Stat 4: Pasien Tersedia / Belum Ada Terapis */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        <span>Pasien Tersedia</span>
-                        <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-                    </div>
-                    <div className="text-2xl font-black text-sky-600 mt-2 leading-none">
-                        {unassignedAppointments.length} <span className="text-xs font-semibold text-slate-400">Bisa Diambil</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-medium mt-3">
-                        {unassignedAppointments.length > 0 ? 'Tersedia untuk diambil terapis' : 'Semua jadwal telah terisi'}
-                    </div>
+                                            return (
+                                                <tr key={item.id} className="hover:bg-slate-50/50">
+                                                    <td className="py-2 px-3 text-slate-700 font-medium whitespace-nowrap">
+                                                        {rec?.treatment_date || '-'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-slate-700 whitespace-nowrap font-semibold">
+                                                        {rec?.branches?.name || '-'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-slate-900 font-bold whitespace-nowrap">
+                                                        {rec?.patients?.full_name || '-'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-slate-800">
+                                                        {item.treatments?.name || item.notes || '-'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-right font-medium text-slate-600">
+                                                        Rp {basePrice.toLocaleString('id-ID')}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-center font-bold text-slate-700">
+                                                        {commPercent}%
+                                                    </td>
+                                                    <td className="py-2 px-3 text-right font-extrabold text-[#ba5d45]">
+                                                        Rp {commAmount.toLocaleString('id-ID')}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* MAIN FOCUS: NEXT PRIORITY PATIENT CARD */}
-            {priorityPatient ? (
-                <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 shadow-xs relative overflow-hidden">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs flex flex-col items-center justify-center shadow-2xs shrink-0">
-                                <span className="text-[10px] uppercase text-slate-400 font-bold">Fokus</span>
-                                <span className="text-xs font-black text-slate-800">Tugas</span>
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <span className="px-2.5 py-0.5 bg-slate-900 text-white text-[10.5px] font-bold rounded-md uppercase tracking-wider">
-                                        Pasien Prioritas
-                                    </span>
-                                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                        {priorityPatient.start_time?.substring(0, 5)} - {priorityPatient.end_time?.substring(0, 5)}
-                                    </span>
-                                </div>
-                                <h3 className="text-lg font-bold text-slate-900 mt-1.5">
-                                    {priorityPatient.patients?.full_name || 'Nama Pasien'}
-                                </h3>
-                                <div className="text-xs font-medium text-slate-600 mt-0.5 flex flex-wrap items-center gap-2">
-                                    <span>Layanan: <b className="text-slate-900 font-bold">{priorityPatient.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || priorityPatient.notes || 'Treatment'}</b></span>
-                                    <span>•</span>
-                                    <span>Status: 
-                                        <b className={`ml-1 font-bold ${
-                                            priorityPatient.arrival_status === 'arrived' ? 'text-amber-700' :
-                                            priorityPatient.arrival_status === 'therapist_ready' ? 'text-emerald-700' :
-                                            priorityPatient.arrival_status === 'in_treatment' ? 'text-sky-700' : 'text-slate-700'
-                                        }`}>
-                                            {priorityPatient.arrival_status === 'arrived' ? 'Tiba di Klinik' :
-                                             priorityPatient.arrival_status === 'therapist_ready' ? 'Terapis Siap' :
-                                             priorityPatient.arrival_status === 'in_treatment' ? 'Sedang Perawatan' : 'Terjadwal'}
-                                        </b>
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Action Buttons for Focus Patient */}
-                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-                            {priorityPatient.patients?.id && (
-                                <button
-                                    onClick={() => setSelectedPatientIdForHistory(priorityPatient.patients.id)}
-                                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-all shadow-2xs cursor-pointer"
-                                >
-                                    Riwayat Medis
-                                </button>
-                            )}
-
-                            {priorityPatient.arrival_status === 'arrived' && (
-                                <button
-                                    onClick={() => handleTherapistReady(priorityPatient)}
-                                    className="btn-primary px-4 py-2 text-xs font-bold shadow-xs cursor-pointer"
-                                >
-                                    Saya Siap (Panggil Pasien)
-                                </button>
-                            )}
-
-                            {priorityPatient.status !== 'completed' && (
-                                <Link href={`/therapist/treatment-input/${priorityPatient.id}`}>
-                                    <button className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer">
-                                        Input Treatment & SOAP
-                                    </button>
-                                </Link>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="bg-slate-50 rounded-2xl border border-slate-200/80 p-4 text-center">
-                    <span className="text-xs font-semibold text-slate-600">Semua tugas pasien Anda hari ini telah selesai atau belum ada jadwal mendesak.</span>
-                </div>
-            )}
-
-            {/* TODAY'S TREATMENT QUEUE LIST */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 md:p-6 shadow-xs space-y-5">
+            {/* SECTION 2: TODAY'S TREATMENT QUEUE LIST */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 md:p-6 space-y-5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                     <div>
                         <h3 className="text-base font-bold text-slate-900">
-                            Antrean & Jadwal Pasien Hari Ini
+                            Antrean Pasien Hari Ini
                         </h3>
                         <p className="text-xs text-slate-500 font-medium mt-0.5">
-                            Daftar pasien di cabang {dbUser?.branches?.name || 'klinik'} untuk hari ini ({new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}).
+                            Daftar janji temu pasien di cabang {dbUser?.branches?.name || 'klinik'} untuk hari ini ({new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}).
                         </p>
                     </div>
 
                     {/* Filter Tabs */}
-                    <div className="flex flex-wrap gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+                    <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70">
                         <button
                             onClick={() => setQueueFilter('my_tasks')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -568,7 +627,7 @@ export default function TherapistDashboard() {
                         <p className="text-xs text-slate-500 font-medium">Memuat antrean pasien...</p>
                     </div>
                 ) : displayedQueue.length === 0 ? (
-                    <div className="text-center py-12 bg-slate-50/50 rounded-xl border border-slate-100">
+                    <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-100">
                         <p className="text-sm font-bold text-slate-700">Tidak ada pasien dalam kategori ini untuk hari ini.</p>
                         <p className="text-xs text-slate-400 mt-1">Gunakan tombol "Papan Jadwal Penuh" untuk melihat jadwal di tanggal lain.</p>
                     </div>
@@ -581,12 +640,13 @@ export default function TherapistDashboard() {
                             const isMyTask = apt.therapist_id === dbUser?.id
                             const isUnassigned = !apt.therapist_id
                             const isCompleted = apt.status === 'completed'
+                            const isInfus = treatmentsList.toLowerCase().includes('infus')
 
                             return (
                                 <div 
                                     key={apt.id}
                                     className={`rounded-xl border p-4 transition-all shadow-2xs flex flex-col justify-between ${
-                                        isCompleted ? 'bg-slate-50/70 border-slate-200 opacity-80' :
+                                        isCompleted ? 'bg-slate-50 border-slate-200 opacity-80' :
                                         isMyTask ? 'bg-white border-pink-300 ring-1 ring-pink-200' :
                                         'bg-white border-slate-200'
                                     }`}
@@ -594,7 +654,7 @@ export default function TherapistDashboard() {
                                     <div>
                                         {/* Card Header: Time & Badges */}
                                         <div className="flex justify-between items-center pb-2 mb-2.5 border-b border-slate-100 text-xs">
-                                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
                                                 {startTime} - {endTime}
                                             </span>
                                             
@@ -603,7 +663,7 @@ export default function TherapistDashboard() {
                                                     Selesai
                                                 </span>
                                             ) : apt.arrival_status === 'arrived' ? (
-                                                <span className="px-2 py-0.5 bg-amber-50 text-amber-800 font-bold rounded text-[10.5px] border border-amber-200/60">
+                                                <span className="px-2 py-0.5 bg-amber-50 text-amber-800 font-bold rounded text-[10.5px] border border-amber-200/60 animate-pulse">
                                                     Tiba di Klinik
                                                 </span>
                                             ) : apt.arrival_status === 'therapist_ready' ? (
@@ -622,17 +682,19 @@ export default function TherapistDashboard() {
                                         </div>
 
                                         {/* Patient Name */}
-                                        <div className="font-bold text-slate-900 text-sm tracking-tight truncate">
+                                        <div className="font-bold text-slate-900 text-base tracking-tight truncate">
                                             {apt.patients?.full_name || 'Nama Pasien'}
                                         </div>
 
                                         {/* Treatment Details */}
-                                        <div className="text-xs text-slate-700 font-semibold mt-1 bg-slate-50 border border-slate-200/70 px-2.5 py-1 rounded truncate">
+                                        <div className={`text-xs font-semibold mt-1.5 px-2.5 py-1 rounded truncate border ${
+                                            isInfus ? 'bg-cyan-50 text-cyan-900 border-cyan-200/80' : 'bg-slate-50 text-slate-800 border-slate-200/80'
+                                        }`}>
                                             {treatmentsList}
                                         </div>
 
                                         {/* Therapist info */}
-                                        <div className="text-[11px] text-slate-500 font-medium mt-2 flex items-center gap-1">
+                                        <div className="text-[11px] text-slate-500 font-medium mt-2.5 flex items-center gap-1">
                                             <span>Petugas: </span>
                                             {apt.therapist?.full_name ? (
                                                 <b className="text-slate-800 font-semibold">{isMyTask ? 'Anda' : apt.therapist.full_name}</b>
@@ -649,7 +711,7 @@ export default function TherapistDashboard() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
-                                                    className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors text-[11px] font-semibold cursor-pointer"
+                                                    className="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors text-[11px] font-semibold cursor-pointer"
                                                     title="Lihat Rekam Medis"
                                                 >
                                                     Rekam Medis
@@ -662,7 +724,7 @@ export default function TherapistDashboard() {
                                                 <button
                                                     onClick={() => handleClaimAppointment(apt.id)}
                                                     disabled={claimingAptId === apt.id}
-                                                    className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-3 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer"
                                                 >
                                                     {claimingAptId === apt.id ? 'Memilih...' : 'Ambil Tugas'}
                                                 </button>
@@ -671,7 +733,7 @@ export default function TherapistDashboard() {
                                             {isMyTask && apt.arrival_status === 'arrived' && !isCompleted && (
                                                 <button
                                                     onClick={() => handleTherapistReady(apt)}
-                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer"
                                                 >
                                                     Saya Siap
                                                 </button>
@@ -679,7 +741,7 @@ export default function TherapistDashboard() {
 
                                             {!isCompleted && (
                                                 <Link href={`/therapist/treatment-input/${apt.id}`}>
-                                                    <button className="px-2.5 py-1 rounded bg-ayumi-primary hover:bg-[#9a4b75] text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer">
+                                                    <button className="px-3 py-1 rounded bg-ayumi-primary hover:bg-[#9a4b75] text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer">
                                                         Input SOAP
                                                     </button>
                                                 </Link>
