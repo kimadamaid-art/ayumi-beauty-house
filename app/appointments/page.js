@@ -680,10 +680,10 @@ export default function AppointmentsPage() {
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[10px] font-black text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded-md transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                                                    className="text-[10px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2.5 py-1 rounded-md transition-all shadow-2xs cursor-pointer"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
-                                                                                                                    <span>📝 Input Treatment</span>
+                                                                                                                    Input Treatment
                                                                                                                 </button>
                                                                                                             </Link>
                                                                                                         )}
@@ -772,10 +772,10 @@ export default function AppointmentsPage() {
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[10px] font-black text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded-md transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                                                    className="text-[10px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2.5 py-1 rounded-md transition-all shadow-2xs cursor-pointer"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
-                                                                                                                    <span>📝 Input Treatment</span>
+                                                                                                                    Input Treatment
                                                                                                                 </button>
                                                                                                             </Link>
                                                                                                         )}

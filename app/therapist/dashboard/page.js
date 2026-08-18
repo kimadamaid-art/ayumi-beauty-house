@@ -304,7 +304,7 @@ export default function TherapistDashboard() {
                     sender_id: dbUser.id,
                     appointment_id: apt.id,
                     type: 'therapist_ready',
-                    title: 'Terapis Siap! 💆‍♀️',
+                    title: 'Terapis Siap',
                     message: `Terapis ${dbUser.full_name} sudah siap menangani pasien ${apt.patients?.full_name || ''}. Silakan persilakan pasien masuk.`
                 }))
                 await supabase.from('notifications').insert(notificationsToInsert)
@@ -812,7 +812,7 @@ export default function TherapistDashboard() {
                                                                                                     <div className="flex justify-between items-center text-xs font-bold text-cyan-950 pb-1.5 mb-1.5 border-b border-cyan-200/70">
                                                                                                         <span className="flex items-center gap-1.5 text-cyan-900 font-extrabold text-[11px]">
                                                                                                             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-2xs"></span>
-                                                                                                            💧 {startTime} - {endTime}
+                                                                                                            {startTime} - {endTime}
                                                                                                         </span>
                                                                                                         {apt.therapist_id === dbUser?.id && (
                                                                                                             <span className="text-[10px] font-black bg-cyan-200/80 text-cyan-800 px-1.5 py-0.2 rounded-md">
@@ -828,7 +828,7 @@ export default function TherapistDashboard() {
 
                                                                                                     {/* Treatment list */}
                                                                                                     <div className="text-[11px] text-cyan-950 font-semibold mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
-                                                                                                        💧 {treatmentsList}
+                                                                                                        {treatmentsList}
                                                                                                     </div>
 
                                                                                                     {/* Therapist & Branch Info */}
@@ -851,19 +851,19 @@ export default function TherapistDashboard() {
                                                                                                             <button
                                                                                                                 type="button"
                                                                                                                 onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
-                                                                                                                className="text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded-md border border-pink-200 transition-colors cursor-pointer"
-                                                                                                                title="Lihat Riwayat Medis"
+                                                                                                                className="text-[10px] font-bold text-slate-700 hover:text-ayumi-primary bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                                                                                                                title="Lihat Rekam Medis"
                                                                                                             >
-                                                                                                                📋
+                                                                                                                Medis
                                                                                                             </button>
                                                                                                         )}
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[10px] font-black text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded-md transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                                                    className="text-[10.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2.5 py-1 rounded-md transition-all shadow-2xs cursor-pointer"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
-                                                                                                                    <span>📝 Input Treatment</span>
+                                                                                                                    Input Treatment
                                                                                                                 </button>
                                                                                                             </Link>
                                                                                                         )}
@@ -942,19 +942,19 @@ export default function TherapistDashboard() {
                                                                                                             <button
                                                                                                                 type="button"
                                                                                                                 onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
-                                                                                                                className="text-[10px] font-bold text-ayumi-primary hover:text-pink-700 bg-white/80 hover:bg-white px-1.5 py-0.5 rounded-md border border-pink-200 transition-colors cursor-pointer"
-                                                                                                                title="Lihat Riwayat Medis"
+                                                                                                                className="text-[10px] font-bold text-slate-700 hover:text-ayumi-primary bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                                                                                                                title="Lihat Rekam Medis"
                                                                                                             >
-                                                                                                                📋
+                                                                                                                Medis
                                                                                                             </button>
                                                                                                         )}
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[10px] font-black text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded-md transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                                                    className="text-[10.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2.5 py-1 rounded-md transition-all shadow-2xs cursor-pointer"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
-                                                                                                                    <span>📝 Input Treatment</span>
+                                                                                                                    Input Treatment
                                                                                                                 </button>
                                                                                                             </Link>
                                                                                                         )}
