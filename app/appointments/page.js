@@ -642,7 +642,7 @@ export default function AppointmentsPage() {
                                                                                                     <div className="flex justify-between items-center text-xs font-bold text-cyan-950 pb-1.5 mb-1.5 border-b border-cyan-200/70">
                                                                                                         <span className="flex items-center gap-1.5 text-cyan-900 font-extrabold text-[11px]">
                                                                                                             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-2xs"></span>
-                                                                                                            💧 {startTime} - {endTime}
+                                                                                                            {startTime} - {endTime}
                                                                                                         </span>
                                                                                                         <Link href={`/appointments/${apt.id}`}>
                                                                                                             <span className="text-cyan-700 hover:text-cyan-900 flex items-center gap-1 font-bold text-[10.5px] cursor-pointer hover:underline bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-cyan-200 transition-colors">
@@ -658,7 +658,7 @@ export default function AppointmentsPage() {
 
                                                                                                     {/* Treatment list */}
                                                                                                     <div className="text-[11px] text-cyan-950 font-semibold mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
-                                                                                                        💧 {treatmentsList}
+                                                                                                        {treatmentsList}
                                                                                                     </div>
 
                                                                                                     {/* Therapist & Branch Info */}
