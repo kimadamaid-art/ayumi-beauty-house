@@ -322,7 +322,7 @@ export default function TherapistDashboard() {
     }, [queueFilter, appointments, myAppointments, unassignedAppointments, completedToday])
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="space-y-6 w-full">
             {/* Top Therapist Status & Branch Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white px-5 py-4 rounded-3xl border border-pink-100/70 shadow-xs">
                 <div className="flex items-center gap-3.5">
@@ -580,7 +580,7 @@ export default function TherapistDashboard() {
                         <p className="text-xs text-slate-400 mt-1">Gunakan tombol "Papan Jadwal Penuh" untuk melihat jadwal di tanggal lain.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {displayedQueue.map(apt => {
                             const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
                             const endTime = apt.end_time ? apt.end_time.substring(0, 5) : ''
