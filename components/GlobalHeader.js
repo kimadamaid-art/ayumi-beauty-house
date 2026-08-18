@@ -16,20 +16,28 @@ export default function GlobalHeader({ onMenuToggle }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
     useEffect(() => {
+        let isMounted = true
         const fetchUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                setUser(user)
-                const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-                if (userData) {
-                    setDbUser(userData)
-                } else {
-                    setDbUser({ role: 'owner', full_name: user.email })
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!isMounted) return
+                if (user) {
+                    setUser(user)
+                    const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+                    if (!isMounted) return
+                    if (userData) {
+                        setDbUser(userData)
+                    } else {
+                        setDbUser({ role: 'owner', full_name: user.email })
+                    }
                 }
+            } catch (err) {
+                console.error('Error fetching user profile in header:', err)
             }
         }
         fetchUser()
-    }, [supabase])
+        return () => { isMounted = false }
+    }, [])
 
     const fetchNotifications = async (userId) => {
         const { data, error } = await supabase

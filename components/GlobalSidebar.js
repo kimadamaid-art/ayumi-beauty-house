@@ -23,14 +23,18 @@ export default function GlobalSidebar({
     }, [])
 
     async function fetchUser() {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-            if (data) {
-                setDbUser(data)
-            } else {
-                setDbUser({ role: 'unauthorized' })
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+                if (data) {
+                    setDbUser(data)
+                } else {
+                    setDbUser({ role: 'unauthorized' })
+                }
             }
+        } catch (err) {
+            console.error('Error fetching user in sidebar:', err)
         }
     }
 

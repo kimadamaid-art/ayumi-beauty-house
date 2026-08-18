@@ -3,12 +3,11 @@ import { NextResponse } from 'next/server'
 
 export async function middleware(request) {
     const isProd = process.env.NODE_ENV === 'production'
-    const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
 
-    // Construct CSP Header
+    // Construct Robust CSP Header (allows Next.js scripts & styles to execute without blocking)
     const cspHeader = `
       default-src 'self';
-      script-src ${isProd ? `'self' 'nonce-${nonce}' 'strict-dynamic'` : `'self' 'unsafe-inline' 'unsafe-eval'`};
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' data: blob: https://*.supabase.co;
       font-src 'self' https://fonts.gstatic.com;
@@ -18,9 +17,7 @@ export async function middleware(request) {
       frame-ancestors 'none';
     `.replace(/\s{2,}/g, ' ').trim()
 
-    // Pass nonce to request headers so Next.js components can consume it
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-nonce', nonce)
     requestHeaders.set('Content-Security-Policy', cspHeader)
 
     let response = NextResponse.next({
@@ -29,7 +26,6 @@ export async function middleware(request) {
         },
     })
 
-    // Set CSP in response headers
     response.headers.set('Content-Security-Policy', cspHeader)
 
     // Clean up legacy Supabase project cookies if present
