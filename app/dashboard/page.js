@@ -1072,8 +1072,9 @@ export default function Dashboard() {
             doc.setTextColor(...secondaryColor)
             doc.text('TOP TREATMENT TERLARIS', margin + 3.5, y + 5.5)
 
-            let tY = y + 10.5
-            (topTreatments.slice(0, 5) || []).forEach((t, idx) => {
+            let tY = y + 10.5;
+            const safeTopTreatments = topTreatments && Array.isArray(topTreatments) ? topTreatments.slice(0, 5) : [];
+            safeTopTreatments.forEach((t, idx) => {
                 doc.setFont('helvetica', 'normal')
                 doc.setFontSize(6.8)
                 doc.setTextColor(...darkText)
@@ -1081,7 +1082,7 @@ export default function Dashboard() {
                 doc.setFont('helvetica', 'bold')
                 doc.text(`${t.count}x (${formatCurrency(t.revenue)})`, margin + colW - 3.5, tY, { align: 'right' })
                 tY += 4.8
-            })
+            });
 
             // Top Products Box
             const pBoxX = margin + colW + colGap
@@ -1092,8 +1093,9 @@ export default function Dashboard() {
             doc.setTextColor(...secondaryColor)
             doc.text('TOP PRODUK TERLARIS', pBoxX + 3.5, y + 5.5)
 
-            let prY = y + 10.5
-            (topProducts.slice(0, 5) || []).forEach((p, idx) => {
+            let prY = y + 10.5;
+            const safeTopProducts = topProducts && Array.isArray(topProducts) ? topProducts.slice(0, 5) : [];
+            safeTopProducts.forEach((p, idx) => {
                 doc.setFont('helvetica', 'normal')
                 doc.setFontSize(6.8)
                 doc.setTextColor(...darkText)
@@ -1101,7 +1103,7 @@ export default function Dashboard() {
                 doc.setFont('helvetica', 'bold')
                 doc.text(`${p.count}x (${formatCurrency(p.revenue)})`, pBoxX + colW - 3.5, prY, { align: 'right' })
                 prY += 4.8
-            })
+            });
 
             addHeaderFooter(doc, pageNum === 1)
 
