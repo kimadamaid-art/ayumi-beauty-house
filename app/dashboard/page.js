@@ -818,11 +818,11 @@ export default function Dashboard() {
             })
 
             const formatCurrency = (val) => "Rp " + Number(val || 0).toLocaleString('id-ID')
-            const primaryColor = [212, 98, 33]
-            const secondaryColor = [78, 42, 18]
-            const accentColor = [242, 216, 195]
-            const darkText = [44, 30, 22]
-            const mutedText = [140, 125, 115]
+            const primaryColor = [212, 98, 33]    // #D46221
+            const secondaryColor = [78, 42, 18]   // #4E2A12
+            const accentColor = [242, 216, 195]   // #F2D8C3
+            const darkText = [44, 30, 22]         // #2C1E16
+            const mutedText = [140, 125, 115]     // #8C7D73
 
             let y = 15
             const pageHeight = 297
@@ -849,10 +849,10 @@ export default function Dashboard() {
 
             const logoBase64 = await getLogoBase64()
 
-            // --- KOP SURAT ---
+            // --- 1. KOP SURAT ---
             doc.setFillColor(...primaryColor)
             doc.rect(margin, y, contentWidth, 2.5, 'F')
-            y += 6.5
+            y += 6
 
             let textStartX = margin
             if (logoBase64) {
@@ -867,146 +867,146 @@ export default function Dashboard() {
             doc.setFont('helvetica', 'bold')
             doc.setFontSize(15)
             doc.setTextColor(...secondaryColor)
-            doc.text('AYUMI BEAUTY HOUSE', textStartX, y + 4.5)
+            doc.text('AYUMI BEAUTY HOUSE', textStartX, y + 4)
 
             doc.setFontSize(8)
             doc.setFont('helvetica', 'normal')
             doc.setTextColor(...mutedText)
-            doc.text('Kecantikan, Kosmetik & Perawatan Diri', textStartX, y + 8.5)
+            doc.text('Kecantikan, Kosmetik & Perawatan Diri', textStartX, y + 8)
 
-            doc.setFontSize(9.5)
+            doc.setFontSize(9)
             doc.setFont('helvetica', 'bold')
             doc.setTextColor(...primaryColor)
-            doc.text('EXECUTIVE BUSINESS SUMMARY - REKAP OMSET PERUSAHAAN', textStartX, y + 14)
+            doc.text('EXECUTIVE SUMMARY - REKAP OMSET PERUSAHAAN', textStartX, y + 13.5)
 
-            // Metadata Right Side
-            doc.setFontSize(7.5)
+            // Metadata Right Side (No overlap)
+            doc.setFontSize(7)
             doc.setFont('helvetica', 'normal')
             doc.setTextColor(...darkText)
             const printDateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
             const printedBy = dbUser?.full_name || 'Owner'
 
-            const metaX = margin + 115
-            doc.text(`Periode: ${startDate} s.d ${endDate}`, metaX, y + 3)
-            doc.text(`Cakupan: ${branches.length} Cabang Klinik`, metaX, y + 7)
-            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 11)
-            doc.text(`Pencetak: ${printedBy}`, metaX, y + 15)
+            const metaX = margin + 120
+            doc.text(`Periode: ${startDate} s.d ${endDate}`, metaX, y + 2.5)
+            doc.text(`Cakupan: ${branches.length} Cabang Klinik`, metaX, y + 6.2)
+            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 9.9)
+            doc.text(`Pencetak: ${printedBy}`, metaX, y + 13.6)
 
-            y += 20
+            y += 19
             doc.setDrawColor(...accentColor)
             doc.setLineWidth(0.4)
             doc.line(margin, y, margin + contentWidth, y)
-            y += 8
+            y += 7
 
-            // --- 3 KPI SUMMARY CARDS ---
-            const cardW = 56
-            const cardGap = 6
+            // --- 2. DUA KARTU KPI UTAMA (50% - 50%) ---
+            const cardW = 86
+            const cardGap = 8
             const cardH = 17
 
-            // Card 1
+            // Card 1: Total Omset Perusahaan
             doc.setFillColor(254, 252, 250)
+            doc.setDrawColor(...accentColor)
+            doc.setLineWidth(0.3)
             doc.roundedRect(margin, y, cardW, cardH, 2, 2, 'FD')
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(7)
+            doc.setFontSize(7.5)
             doc.setTextColor(...mutedText)
-            doc.text('TOTAL OMSET PERUSAHAAN', margin + 3.5, y + 5)
-            doc.setFontSize(10)
+            doc.text('TOTAL OMSET PERUSAHAAN', margin + 4, y + 5)
+            doc.setFontSize(11)
             doc.setTextColor(...primaryColor)
-            doc.text(formatCurrency(companyTotals.rangeIncome), margin + 3.5, y + 11.5)
+            doc.text(formatCurrency(companyTotals.rangeIncome), margin + 4, y + 11.5)
             doc.setFontSize(6.5)
-            doc.setTextColor(...mutedText)
-            doc.text(`Akumulasi ${branches.length} Cabang`, margin + 3.5, y + 15)
+            doc.setTextColor(...darkText)
+            doc.text(`Akumulasi Seluruh (${branches.length}) Cabang Klinik`, margin + 4, y + 15)
 
-            // Card 2
+            // Card 2: Total Transaksi Perusahaan
             const c2X = margin + cardW + cardGap
             doc.roundedRect(c2X, y, cardW, cardH, 2, 2, 'FD')
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(7)
+            doc.setFontSize(7.5)
             doc.setTextColor(...mutedText)
-            doc.text('TOTAL TRANSAKSI', c2X + 3.5, y + 5)
-            doc.setFontSize(10)
+            doc.text('TOTAL TRANSAKSI PERUSAHAAN', c2X + 4, y + 5)
+            doc.setFontSize(11)
             doc.setTextColor(...darkText)
-            doc.text(`${companyTotals.rangeTxCount} Transaksi`, c2X + 3.5, y + 11.5)
+            doc.text(`${companyTotals.rangeTxCount} Transaksi`, c2X + 4, y + 11.5)
             doc.setFontSize(6.5)
             doc.setTextColor(...mutedText)
-            doc.text('Aktivitas Kasir POS', c2X + 3.5, y + 15)
-
-            // Card 3
-            const c3X = c2X + cardW + cardGap
-            doc.roundedRect(c3X, y, cardW, cardH, 2, 2, 'FD')
-            doc.setFont('helvetica', 'bold')
-            doc.setFontSize(7)
-            doc.setTextColor(...mutedText)
-            doc.text('TOP PERFORMING BRANCH', c3X + 3.5, y + 5)
-            doc.setFontSize(9.5)
-            doc.setTextColor(22, 101, 52)
-            doc.text((companyTotals.topBranchName || '-').substring(0, 16), c3X + 3.5, y + 11.5)
-            doc.setFontSize(6.5)
-            doc.setTextColor(...mutedText)
-            doc.text('Omset Tertinggi Periode Ini', c3X + 3.5, y + 15)
+            doc.text('Total Seluruh Transaksi Kasir POS', c2X + 4, y + 15)
 
             y += cardH + 7
 
-            // --- SEBARAN METODE BAYAR ---
-            doc.setFont('helvetica', 'bold')
-            doc.setFontSize(8.5)
-            doc.setTextColor(...secondaryColor)
-            doc.text('SEBARAN METODE PEMBAYARAN', margin, y)
-            y += 4
-
+            // --- 3. SEBARAN METODE PEMBAYARAN ---
             if (paymentBreakdown && paymentBreakdown.length > 0) {
-                const totalPaid = paymentBreakdown.reduce((acc, cur) => acc + (cur.value || 0), 0)
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(8)
+                doc.setTextColor(...secondaryColor)
+                doc.text('SEBARAN METODE PEMBAYARAN', margin, y)
+                y += 3.5
+
                 let pX = margin
                 paymentBreakdown.forEach((pm) => {
-                    const pct = totalPaid > 0 ? ((pm.value / totalPaid) * 100).toFixed(1) : '0'
-                    const pText = `${pm.name}: ${formatCurrency(pm.value)} (${pct}%)`
-                    doc.setFont('helvetica', 'normal')
-                    doc.setFontSize(7.5)
+                    const methodLabel = pm.method || 'CASH'
+                    const methodAmt = formatCurrency(pm.amount || 0)
+                    const methodPct = `${pm.percent || 0}%`
+                    const pText = `${methodLabel}: ${methodAmt} (${methodPct})`
+
+                    doc.setFont('helvetica', 'bold')
+                    doc.setFontSize(7)
                     doc.setTextColor(...darkText)
-                    doc.setFillColor(245, 238, 230)
-                    const pWidth = (doc.getStringUnitWidth(pText) * 7.5 * 25.4) / 72 + 6
+                    doc.setFillColor(254, 252, 250)
+                    doc.setDrawColor(...accentColor)
+                    doc.setLineWidth(0.2)
+
+                    const pWidth = (doc.getStringUnitWidth(pText) * 7 * 25.4) / 72 + 6
                     if (pX + pWidth > margin + contentWidth) {
                         pX = margin
                         y += 6
                     }
-                    doc.roundedRect(pX, y - 3.5, pWidth, 5, 1, 1, 'FD')
+                    doc.roundedRect(pX, y - 3.2, pWidth, 4.8, 1, 1, 'FD')
                     doc.text(pText, pX + 3, y)
                     pX += pWidth + 3
                 })
                 y += 8
             }
 
-            // --- TABEL PERBANDINGAN PERFORMA CABANG ---
+            // --- 4. TABEL RINCIAN PERFORMA & OMSET PER CABANG ---
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(8.5)
+            doc.setFontSize(8)
             doc.setTextColor(...secondaryColor)
             doc.text('RINCIAN PERFORMA & OMSET PER CABANG', margin, y)
-            y += 4
+            y += 3.5
 
             const bHeaders = ['Nama Cabang', 'Omset Treatment', 'Omset Produk', 'Kupon Terjual', 'Pemakaian Kupon', 'Total Omset', 'Trx']
             const bWidths = [38, 26, 26, 24, 26, 28, 12]
 
             const drawBranchHeader = () => {
-                doc.setFillColor(242, 216, 195)
-                doc.rect(margin, y, contentWidth, 6.5, 'F')
+                doc.setFillColor(...primaryColor)
+                doc.rect(margin, y, contentWidth, 6, 'F')
                 doc.setFont('helvetica', 'bold')
                 doc.setFontSize(7)
-                doc.setTextColor(...secondaryColor)
+                doc.setTextColor(255, 255, 255)
 
                 let curX = margin
                 bHeaders.forEach((h, idx) => {
                     const align = idx === 0 ? 'left' : 'right'
                     const textX = align === 'right' ? curX + bWidths[idx] - 2 : curX + 2
-                    doc.text(h, textX, y + 4.2, { align })
+                    doc.text(h, textX, y + 4, { align })
                     curX += bWidths[idx]
                 })
-                y += 6.5
+                y += 6
             }
 
             drawBranchHeader()
 
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(7)
+
+            let totalTreatAll = 0
+            let totalProdAll = 0
+            let totalCouponSalesAll = 0
+            let totalCouponUsedAll = 0
+            let totalGrandOmset = 0
+            let totalTrxAll = 0
 
             branchDailyComparison.forEach((b, idx) => {
                 if (y + 7 > pageHeight - 15) {
@@ -1018,43 +1018,87 @@ export default function Dashboard() {
                 }
 
                 if (idx % 2 === 1) {
-                    doc.setFillColor(250, 246, 240)
-                    doc.rect(margin, y, contentWidth, 5.8, 'F')
+                    doc.setFillColor(254, 252, 250)
+                    doc.rect(margin, y, contentWidth, 5.5, 'F')
                 }
 
                 doc.setTextColor(...darkText)
                 let curX = margin
 
+                const treatVal = Number(b.treatmentIncome || 0)
+                const prodVal = Number(b.productIncome || 0)
+                const cSalesVal = Number(b.couponSalesIncome || 0)
+                const cUsedVal = Number(b.couponUsedValue || 0)
+                const totVal = Number(b.totalIncome || 0)
+                const trxVal = Number(b.transactionCount || 0)
+
+                totalTreatAll += treatVal
+                totalProdAll += prodVal
+                totalCouponSalesAll += cSalesVal
+                totalCouponUsedAll += cUsedVal
+                totalGrandOmset += totVal
+                totalTrxAll += trxVal
+
                 const rowData = [
                     b.branchName || 'Cabang',
-                    Number(b.treatmentIncome || 0).toLocaleString('id-ID'),
-                    Number(b.productIncome || 0).toLocaleString('id-ID'),
-                    Number(b.couponSalesIncome || 0).toLocaleString('id-ID'),
-                    Number(b.couponUsedValue || 0).toLocaleString('id-ID'),
-                    Number(b.totalIncome || 0).toLocaleString('id-ID'),
-                    (b.transactionCount || 0).toString()
+                    treatVal.toLocaleString('id-ID'),
+                    prodVal.toLocaleString('id-ID'),
+                    cSalesVal.toLocaleString('id-ID'),
+                    cUsedVal.toLocaleString('id-ID'),
+                    totVal.toLocaleString('id-ID'),
+                    trxVal.toString()
                 ]
 
                 rowData.forEach((val, colIdx) => {
                     const align = colIdx === 0 ? 'left' : 'right'
                     const textX = align === 'right' ? curX + bWidths[colIdx] - 2 : curX + 2
-                    if (colIdx === 5) doc.setFont('helvetica', 'bold')
-                    else doc.setFont('helvetica', 'normal')
-                    doc.text(val, textX, y + 4, { align })
+                    if (colIdx === 5) {
+                        doc.setFont('helvetica', 'bold')
+                        doc.setTextColor(...primaryColor)
+                    } else {
+                        doc.setFont('helvetica', 'normal')
+                        doc.setTextColor(...darkText)
+                    }
+                    doc.text(val, textX, y + 3.8, { align })
                     curX += bWidths[colIdx]
                 })
 
-                doc.setDrawColor(245, 238, 230)
-                doc.setLineWidth(0.2)
-                doc.line(margin, y + 5.8, margin + contentWidth, y + 5.8)
+                doc.setDrawColor(242, 216, 195)
+                doc.setLineWidth(0.15)
+                doc.line(margin, y + 5.5, margin + contentWidth, y + 5.5)
 
-                y += 5.8
+                y += 5.5
             })
 
-            y += 8
+            // Baris Total Keseluruhan di Tabel
+            doc.setFillColor(242, 216, 195)
+            doc.rect(margin, y, contentWidth, 6, 'F')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.setTextColor(...secondaryColor)
 
-            // --- TOP TREATMENT & TOP PRODUK (2 Columns side-by-side) ---
-            if (y + 40 > pageHeight - 15) {
+            let curTotX = margin
+            const summaryRowData = [
+                'TOTAL KESELURUHAN',
+                totalTreatAll.toLocaleString('id-ID'),
+                totalProdAll.toLocaleString('id-ID'),
+                totalCouponSalesAll.toLocaleString('id-ID'),
+                totalCouponUsedAll.toLocaleString('id-ID'),
+                totalGrandOmset.toLocaleString('id-ID'),
+                totalTrxAll.toString()
+            ]
+
+            summaryRowData.forEach((val, colIdx) => {
+                const align = colIdx === 0 ? 'left' : 'right'
+                const textX = align === 'right' ? curTotX + bWidths[colIdx] - 2 : curTotX + 2
+                doc.text(val, textX, y + 4, { align })
+                curTotX += bWidths[colIdx]
+            })
+
+            y += 10
+
+            // --- 5. TOP TREATMENT & TOP PRODUK (2 Columns side-by-side) ---
+            if (y + 36 > pageHeight - 15) {
                 addHeaderFooter(doc)
                 doc.addPage()
                 pageNum++
@@ -1066,13 +1110,15 @@ export default function Dashboard() {
 
             // Top Treatments Box
             doc.setFillColor(254, 252, 250)
-            doc.roundedRect(margin, y, colW, 36, 2, 2, 'FD')
+            doc.setDrawColor(...accentColor)
+            doc.setLineWidth(0.3)
+            doc.roundedRect(margin, y, colW, 35, 2, 2, 'FD')
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(8)
+            doc.setFontSize(7.5)
             doc.setTextColor(...secondaryColor)
-            doc.text('TOP TREATMENT TERLARIS', margin + 3.5, y + 5.5)
+            doc.text('TOP TREATMENT TERLARIS', margin + 3.5, y + 5)
 
-            let tY = y + 10.5;
+            let tY = y + 9.5;
             const safeTopTreatments = topTreatments && Array.isArray(topTreatments) ? topTreatments.slice(0, 5) : [];
             safeTopTreatments.forEach((t, idx) => {
                 doc.setFont('helvetica', 'normal')
@@ -1080,6 +1126,7 @@ export default function Dashboard() {
                 doc.setTextColor(...darkText)
                 doc.text(`${idx + 1}. ${(t.name || '-').substring(0, 24)}`, margin + 3.5, tY)
                 doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...primaryColor)
                 doc.text(`${t.count}x (${formatCurrency(t.revenue)})`, margin + colW - 3.5, tY, { align: 'right' })
                 tY += 4.8
             });
@@ -1087,13 +1134,13 @@ export default function Dashboard() {
             // Top Products Box
             const pBoxX = margin + colW + colGap
             doc.setFillColor(254, 252, 250)
-            doc.roundedRect(pBoxX, y, colW, 36, 2, 2, 'FD')
+            doc.roundedRect(pBoxX, y, colW, 35, 2, 2, 'FD')
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(8)
+            doc.setFontSize(7.5)
             doc.setTextColor(...secondaryColor)
-            doc.text('TOP PRODUK TERLARIS', pBoxX + 3.5, y + 5.5)
+            doc.text('TOP PRODUK TERLARIS', pBoxX + 3.5, y + 5)
 
-            let prY = y + 10.5;
+            let prY = y + 9.5;
             const safeTopProducts = topProducts && Array.isArray(topProducts) ? topProducts.slice(0, 5) : [];
             safeTopProducts.forEach((p, idx) => {
                 doc.setFont('helvetica', 'normal')
@@ -1101,6 +1148,7 @@ export default function Dashboard() {
                 doc.setTextColor(...darkText)
                 doc.text(`${idx + 1}. ${(p.name || '-').substring(0, 24)}`, pBoxX + 3.5, prY)
                 doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...primaryColor)
                 doc.text(`${p.count}x (${formatCurrency(p.revenue)})`, pBoxX + colW - 3.5, prY, { align: 'right' })
                 prY += 4.8
             });
@@ -1154,7 +1202,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2">
                             <button 
                                 onClick={handlePrintSummary}
-                                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-white/20 shadow-sm transition-all flex items-center justify-center gap-2"
+                                className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border border-white/20 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                                 <svg className="w-4 h-4 text-ayumi-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                 <span>Cetak Laporan</span>
@@ -1162,8 +1210,8 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* 3 KPI Cards: Total Omset Perusahaan, Total Transaksi, Top Branch */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 pt-5 sm:pt-6">
+                    {/* 2 KPI Cards: Total Omset Perusahaan & Total Transaksi (Top Branch Dihilangkan) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-5 sm:pt-6">
                         <StatCard
                             title="Total Omset Perusahaan"
                             value={`Rp ${companyTotals.rangeIncome.toLocaleString('id-ID')}`}
@@ -1174,12 +1222,6 @@ export default function Dashboard() {
                             title="Total Transaksi Perusahaan"
                             value={`${companyTotals.rangeTxCount} Transaksi`}
                             subtitle="Akumulasi Seluruh Cabang"
-                            variant="glass"
-                        />
-                        <StatCard
-                            title="Top Performing Branch"
-                            value={companyTotals.topBranchName}
-                            subtitle="Omset Tertinggi Periode Terpilih"
                             variant="glass"
                         />
                     </div>
