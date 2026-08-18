@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
+import { getLogoBase64 } from '@/lib/pdfLogo'
 import DateRangePicker from '../../components/DateRangePicker'
 import BranchFilter from '@/components/ui/BranchFilter'
 import StatCard from '@/components/ui/StatCard'
@@ -806,8 +807,310 @@ export default function Dashboard() {
         }))
     }
 
-    const handlePrintSummary = () => {
-        window.print()
+    const handlePrintSummary = async () => {
+        const toastId = toast.loading('Menyiapkan dokumen PDF Rekap Omset...')
+        try {
+            const { jsPDF } = await import('jspdf')
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            })
+
+            const formatCurrency = (val) => "Rp " + Number(val || 0).toLocaleString('id-ID')
+            const primaryColor = [212, 98, 33]
+            const secondaryColor = [78, 42, 18]
+            const accentColor = [242, 216, 195]
+            const darkText = [44, 30, 22]
+            const mutedText = [140, 125, 115]
+
+            let y = 15
+            const pageHeight = 297
+            const margin = 15
+            const contentWidth = 180
+            let pageNum = 1
+
+            const addHeaderFooter = (d, isFirstPage = false) => {
+                if (!isFirstPage) {
+                    d.setFont('helvetica', 'bold')
+                    d.setFontSize(8)
+                    d.setTextColor(...mutedText)
+                    d.text('EXECUTIVE BUSINESS SUMMARY - AYUMI BEAUTY HOUSE', margin, 10)
+                    d.setDrawColor(245, 238, 230)
+                    d.setLineWidth(0.3)
+                    d.line(margin, 12, margin + contentWidth, 12)
+                }
+                d.setFont('helvetica', 'normal')
+                d.setFontSize(7.5)
+                d.setTextColor(...mutedText)
+                d.text(`Ayumi Beauty House  |  Dicetak pada: ${new Date().toLocaleString('id-ID')}`, margin, pageHeight - 10)
+                d.text(`Halaman ${pageNum}`, margin + contentWidth - 15, pageHeight - 10)
+            }
+
+            const logoBase64 = await getLogoBase64()
+
+            // --- KOP SURAT ---
+            doc.setFillColor(...primaryColor)
+            doc.rect(margin, y, contentWidth, 2.5, 'F')
+            y += 6.5
+
+            let textStartX = margin
+            if (logoBase64) {
+                try {
+                    doc.addImage(logoBase64, 'PNG', margin, y, 16, 16)
+                    textStartX = margin + 19
+                } catch (e) {
+                    console.error('Failed to embed logo in dashboard PDF:', e)
+                }
+            }
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(15)
+            doc.setTextColor(...secondaryColor)
+            doc.text('AYUMI BEAUTY HOUSE', textStartX, y + 4.5)
+
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...mutedText)
+            doc.text('Kecantikan, Kosmetik & Perawatan Diri', textStartX, y + 8.5)
+
+            doc.setFontSize(9.5)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...primaryColor)
+            doc.text('EXECUTIVE BUSINESS SUMMARY - REKAP OMSET PERUSAHAAN', textStartX, y + 14)
+
+            // Metadata Right Side
+            doc.setFontSize(7.5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...darkText)
+            const printDateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            const printedBy = dbUser?.full_name || 'Owner'
+
+            const metaX = margin + 115
+            doc.text(`Periode: ${startDate} s.d ${endDate}`, metaX, y + 3)
+            doc.text(`Cakupan: ${branches.length} Cabang Klinik`, metaX, y + 7)
+            doc.text(`Tanggal Cetak: ${printDateStr}`, metaX, y + 11)
+            doc.text(`Pencetak: ${printedBy}`, metaX, y + 15)
+
+            y += 20
+            doc.setDrawColor(...accentColor)
+            doc.setLineWidth(0.4)
+            doc.line(margin, y, margin + contentWidth, y)
+            y += 8
+
+            // --- 3 KPI SUMMARY CARDS ---
+            const cardW = 56
+            const cardGap = 6
+            const cardH = 17
+
+            // Card 1
+            doc.setFillColor(254, 252, 250)
+            doc.roundedRect(margin, y, cardW, cardH, 2, 2, 'FD')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.setTextColor(...mutedText)
+            doc.text('TOTAL OMSET PERUSAHAAN', margin + 3.5, y + 5)
+            doc.setFontSize(10)
+            doc.setTextColor(...primaryColor)
+            doc.text(formatCurrency(companyTotals.rangeIncome), margin + 3.5, y + 11.5)
+            doc.setFontSize(6.5)
+            doc.setTextColor(...mutedText)
+            doc.text(`Akumulasi ${branches.length} Cabang`, margin + 3.5, y + 15)
+
+            // Card 2
+            const c2X = margin + cardW + cardGap
+            doc.roundedRect(c2X, y, cardW, cardH, 2, 2, 'FD')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.setTextColor(...mutedText)
+            doc.text('TOTAL TRANSAKSI', c2X + 3.5, y + 5)
+            doc.setFontSize(10)
+            doc.setTextColor(...darkText)
+            doc.text(`${companyTotals.rangeTxCount} Transaksi`, c2X + 3.5, y + 11.5)
+            doc.setFontSize(6.5)
+            doc.setTextColor(...mutedText)
+            doc.text('Aktivitas Kasir POS', c2X + 3.5, y + 15)
+
+            // Card 3
+            const c3X = c2X + cardW + cardGap
+            doc.roundedRect(c3X, y, cardW, cardH, 2, 2, 'FD')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.setTextColor(...mutedText)
+            doc.text('TOP PERFORMING BRANCH', c3X + 3.5, y + 5)
+            doc.setFontSize(9.5)
+            doc.setTextColor(22, 101, 52)
+            doc.text((companyTotals.topBranchName || '-').substring(0, 16), c3X + 3.5, y + 11.5)
+            doc.setFontSize(6.5)
+            doc.setTextColor(...mutedText)
+            doc.text('Omset Tertinggi Periode Ini', c3X + 3.5, y + 15)
+
+            y += cardH + 7
+
+            // --- SEBARAN METODE BAYAR ---
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('SEBARAN METODE PEMBAYARAN', margin, y)
+            y += 4
+
+            if (paymentBreakdown && paymentBreakdown.length > 0) {
+                const totalPaid = paymentBreakdown.reduce((acc, cur) => acc + (cur.value || 0), 0)
+                let pX = margin
+                paymentBreakdown.forEach((pm) => {
+                    const pct = totalPaid > 0 ? ((pm.value / totalPaid) * 100).toFixed(1) : '0'
+                    const pText = `${pm.name}: ${formatCurrency(pm.value)} (${pct}%)`
+                    doc.setFont('helvetica', 'normal')
+                    doc.setFontSize(7.5)
+                    doc.setTextColor(...darkText)
+                    doc.setFillColor(245, 238, 230)
+                    const pWidth = (doc.getStringUnitWidth(pText) * 7.5 * 25.4) / 72 + 6
+                    if (pX + pWidth > margin + contentWidth) {
+                        pX = margin
+                        y += 6
+                    }
+                    doc.roundedRect(pX, y - 3.5, pWidth, 5, 1, 1, 'FD')
+                    doc.text(pText, pX + 3, y)
+                    pX += pWidth + 3
+                })
+                y += 8
+            }
+
+            // --- TABEL PERBANDINGAN PERFORMA CABANG ---
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8.5)
+            doc.setTextColor(...secondaryColor)
+            doc.text('RINCIAN PERFORMA & OMSET PER CABANG', margin, y)
+            y += 4
+
+            const bHeaders = ['Nama Cabang', 'Omset Treatment', 'Omset Produk', 'Kupon Terjual', 'Pemakaian Kupon', 'Total Omset', 'Trx']
+            const bWidths = [38, 26, 26, 24, 26, 28, 12]
+
+            const drawBranchHeader = () => {
+                doc.setFillColor(242, 216, 195)
+                doc.rect(margin, y, contentWidth, 6.5, 'F')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7)
+                doc.setTextColor(...secondaryColor)
+
+                let curX = margin
+                bHeaders.forEach((h, idx) => {
+                    const align = idx === 0 ? 'left' : 'right'
+                    const textX = align === 'right' ? curX + bWidths[idx] - 2 : curX + 2
+                    doc.text(h, textX, y + 4.2, { align })
+                    curX += bWidths[idx]
+                })
+                y += 6.5
+            }
+
+            drawBranchHeader()
+
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+
+            branchDailyComparison.forEach((b, idx) => {
+                if (y + 7 > pageHeight - 15) {
+                    addHeaderFooter(doc)
+                    doc.addPage()
+                    pageNum++
+                    y = 15
+                    drawBranchHeader()
+                }
+
+                if (idx % 2 === 1) {
+                    doc.setFillColor(250, 246, 240)
+                    doc.rect(margin, y, contentWidth, 5.8, 'F')
+                }
+
+                doc.setTextColor(...darkText)
+                let curX = margin
+
+                const rowData = [
+                    b.branchName || 'Cabang',
+                    Number(b.treatmentIncome || 0).toLocaleString('id-ID'),
+                    Number(b.productIncome || 0).toLocaleString('id-ID'),
+                    Number(b.couponSalesIncome || 0).toLocaleString('id-ID'),
+                    Number(b.couponUsedValue || 0).toLocaleString('id-ID'),
+                    Number(b.totalIncome || 0).toLocaleString('id-ID'),
+                    (b.transactionCount || 0).toString()
+                ]
+
+                rowData.forEach((val, colIdx) => {
+                    const align = colIdx === 0 ? 'left' : 'right'
+                    const textX = align === 'right' ? curX + bWidths[colIdx] - 2 : curX + 2
+                    if (colIdx === 5) doc.setFont('helvetica', 'bold')
+                    else doc.setFont('helvetica', 'normal')
+                    doc.text(val, textX, y + 4, { align })
+                    curX += bWidths[colIdx]
+                })
+
+                doc.setDrawColor(245, 238, 230)
+                doc.setLineWidth(0.2)
+                doc.line(margin, y + 5.8, margin + contentWidth, y + 5.8)
+
+                y += 5.8
+            })
+
+            y += 8
+
+            // --- TOP TREATMENT & TOP PRODUK (2 Columns side-by-side) ---
+            if (y + 40 > pageHeight - 15) {
+                addHeaderFooter(doc)
+                doc.addPage()
+                pageNum++
+                y = 15
+            }
+
+            const colW = 86
+            const colGap = 8
+
+            // Top Treatments Box
+            doc.setFillColor(254, 252, 250)
+            doc.roundedRect(margin, y, colW, 36, 2, 2, 'FD')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8)
+            doc.setTextColor(...secondaryColor)
+            doc.text('TOP TREATMENT TERLARIS', margin + 3.5, y + 5.5)
+
+            let tY = y + 10.5
+            (topTreatments.slice(0, 5) || []).forEach((t, idx) => {
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(6.8)
+                doc.setTextColor(...darkText)
+                doc.text(`${idx + 1}. ${(t.name || '-').substring(0, 24)}`, margin + 3.5, tY)
+                doc.setFont('helvetica', 'bold')
+                doc.text(`${t.count}x (${formatCurrency(t.revenue)})`, margin + colW - 3.5, tY, { align: 'right' })
+                tY += 4.8
+            })
+
+            // Top Products Box
+            const pBoxX = margin + colW + colGap
+            doc.setFillColor(254, 252, 250)
+            doc.roundedRect(pBoxX, y, colW, 36, 2, 2, 'FD')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8)
+            doc.setTextColor(...secondaryColor)
+            doc.text('TOP PRODUK TERLARIS', pBoxX + 3.5, y + 5.5)
+
+            let prY = y + 10.5
+            (topProducts.slice(0, 5) || []).forEach((p, idx) => {
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(6.8)
+                doc.setTextColor(...darkText)
+                doc.text(`${idx + 1}. ${(p.name || '-').substring(0, 24)}`, pBoxX + 3.5, prY)
+                doc.setFont('helvetica', 'bold')
+                doc.text(`${p.count}x (${formatCurrency(p.revenue)})`, pBoxX + colW - 3.5, prY, { align: 'right' })
+                prY += 4.8
+            })
+
+            addHeaderFooter(doc, pageNum === 1)
+
+            doc.save(`Executive_Summary_Omset_${startDate}_sd_${endDate}.pdf`)
+            toast.success('Laporan Eksekutif PDF berhasil diunduh!', { id: toastId })
+        } catch (err) {
+            console.error('Error generating Executive PDF:', err)
+            toast.error('Gagal membuat PDF: ' + err.message, { id: toastId })
+        }
     }
 
     const userBranchName = branches.find(b => b.id === (dbUser?.branch_id || selectedBranch))?.name || 'Cabang Klinik'
