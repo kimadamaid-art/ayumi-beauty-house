@@ -187,23 +187,64 @@ export default function TreatmentRecordDetailPage() {
             if (itemsData) setItems(itemsData)
 
             // 3. Fetch Photos and Generate Signed URLs
-            const { data: photosData } = await supabase
+            const { data: photosData, error: photosErr } = await supabase
                 .from('patient_photos')
                 .select('*')
                 .eq('treatment_record_id', id)
 
             if (photosData && photosData.length > 0) {
                 const urls = {}
-                for (const photo of photosData) {
-                    const { data: signedData, error: signedErr } = await supabase.storage
-                        .from('patient-photos')
-                        .createSignedUrl(photo.storage_path, 60 * 60) // valid for 1 hour
+                for (let i = 0; i < photosData.length; i++) {
+                    const photo = photosData[i]
+                    let photoUrl = null
 
-                    if (signedData && !signedErr) {
-                        const key = photo.caption || photo.storage_path.split('/').pop().split('.')[0]
-                        urls[key] = signedData.signedUrl
-                    } else {
-                        console.error('Failed to sign URL for:', photo.storage_path, signedErr)
+                    // 1. Coba Signed URL
+                    try {
+                        const { data: signedData, error: signedErr } = await supabase.storage
+                            .from('patient-photos')
+                            .createSignedUrl(photo.storage_path, 60 * 60) // valid 1 jam
+
+                        if (signedData?.signedUrl && !signedErr) {
+                            photoUrl = signedData.signedUrl
+                        }
+                    } catch (e) {
+                        console.error('Error creating signed URL for photo:', photo.storage_path, e)
+                    }
+
+                    // 2. Fallback ke Public URL jika Signed URL terkendala
+                    if (!photoUrl) {
+                        try {
+                            const { data: pubData } = supabase.storage
+                                .from('patient-photos')
+                                .getPublicUrl(photo.storage_path)
+                            if (pubData?.publicUrl) {
+                                photoUrl = pubData.publicUrl
+                            }
+                        } catch (e) {
+                            console.error('Error getting public URL for photo:', photo.storage_path, e)
+                        }
+                    }
+
+                    if (photoUrl) {
+                        const rawCaption = (photo.caption || '').toLowerCase()
+                        const fileName = (photo.storage_path.split('/').pop() || '').toLowerCase()
+                        const rawKey = rawCaption || fileName.split('.')[0] || `foto_${i + 1}`
+
+                        urls[rawKey] = photoUrl
+
+                        // Mapping cerdas ke slot standar UI (Depan, Samping Kiri, Samping Kanan)
+                        if (rawCaption.includes('depan') || fileName.includes('depan') || rawCaption.includes('front')) {
+                            urls['foto_depan'] = photoUrl
+                        } else if (rawCaption.includes('kiri') || fileName.includes('kiri') || rawCaption.includes('left')) {
+                            urls['foto_kiri'] = photoUrl
+                        } else if (rawCaption.includes('kanan') || fileName.includes('kanan') || rawCaption.includes('right')) {
+                            urls['foto_kanan'] = photoUrl
+                        } else {
+                            // Fallback berdasarkan urutan index jika caption tidak bernama standar
+                            if (i === 0 && !urls['foto_depan']) urls['foto_depan'] = photoUrl
+                            else if (i === 1 && !urls['foto_kiri']) urls['foto_kiri'] = photoUrl
+                            else if (i === 2 && !urls['foto_kanan']) urls['foto_kanan'] = photoUrl
+                        }
                     }
                 }
                 setPhotoUrls(prev => ({ ...prev, ...urls }))

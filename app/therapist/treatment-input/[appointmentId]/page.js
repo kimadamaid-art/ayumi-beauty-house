@@ -152,6 +152,52 @@ export default function TreatmentInputPage() {
                         commission_percent: item.commission_percent || 0
                     })))
                 }
+
+                // Fetch Existing Photos for this Record
+                const { data: existingPhotos } = await supabase
+                    .from('patient_photos')
+                    .select('*')
+                    .eq('treatment_record_id', existingRecord.id)
+
+                if (existingPhotos && existingPhotos.length > 0) {
+                    const previews = {}
+                    for (let i = 0; i < existingPhotos.length; i++) {
+                        const photo = existingPhotos[i]
+                        let photoUrl = null
+
+                        try {
+                            const { data: signedData } = await supabase.storage
+                                .from('patient-photos')
+                                .createSignedUrl(photo.storage_path, 60 * 60)
+                            if (signedData?.signedUrl) photoUrl = signedData.signedUrl
+                        } catch (e) {}
+
+                        if (!photoUrl) {
+                            try {
+                                const { data: pubData } = supabase.storage.from('patient-photos').getPublicUrl(photo.storage_path)
+                                if (pubData?.publicUrl) photoUrl = pubData.publicUrl
+                            } catch (e) {}
+                        }
+
+                        if (photoUrl) {
+                            const rawCaption = (photo.caption || '').toLowerCase()
+                            const fileName = (photo.storage_path.split('/').pop() || '').toLowerCase()
+
+                            if (rawCaption.includes('depan') || fileName.includes('depan') || rawCaption.includes('front')) {
+                                previews['foto_depan'] = photoUrl
+                            } else if (rawCaption.includes('kiri') || fileName.includes('kiri') || rawCaption.includes('left')) {
+                                previews['foto_kiri'] = photoUrl
+                            } else if (rawCaption.includes('kanan') || fileName.includes('kanan') || rawCaption.includes('right')) {
+                                previews['foto_kanan'] = photoUrl
+                            } else {
+                                if (i === 0 && !previews['foto_depan']) previews['foto_depan'] = photoUrl
+                                else if (i === 1 && !previews['foto_kiri']) previews['foto_kiri'] = photoUrl
+                                else if (i === 2 && !previews['foto_kanan']) previews['foto_kanan'] = photoUrl
+                            }
+                        }
+                    }
+                    setPhotoPreviews(prev => ({ ...prev, ...previews }))
+                }
             } else {
                 // Pre-fill complaints from appointment notes
                 setFormData(prev => ({
@@ -223,16 +269,31 @@ export default function TreatmentInputPage() {
     }
 
     const uploadPhotoSlot = async (file, slotKey, patientId, recordId) => {
+        const safePatientId = patientId || appointment?.patient_id || appointment?.patients?.id || 'patient'
+        const safeRecordId = recordId || 'record'
+        
         // Automatic client-side compression (WebP 1600px q80)
-        const compressed = await compressImageForMedical(file, 1600, 0.8)
-        const ext = compressed.name.split('.').pop() || 'webp'
-        const filePath = `${patientId}/${recordId}/${slotKey}.${ext}`
+        let uploadFile = file
+        try {
+            uploadFile = await compressImageForMedical(file, 1600, 0.8)
+        } catch (compErr) {
+            console.warn('Compression fallback to original file:', compErr)
+        }
+
+        const ext = (uploadFile.name && uploadFile.name.split('.').pop()) || 'webp'
+        const filePath = `${safePatientId}/${safeRecordId}/${slotKey}.${ext}`
+        
         const { error: uploadErr } = await supabase.storage
             .from('patient-photos')
-            .upload(filePath, compressed, { upsert: true })
-        if (uploadErr) throw new Error(`Gagal mengunggah foto ${slotKey}: ${uploadErr.message}`)
+            .upload(filePath, uploadFile, { upsert: true })
+
+        if (uploadErr) {
+            console.error(`Gagal upload foto ${slotKey}:`, uploadErr)
+            throw new Error(`Gagal mengunggah foto ${slotKey}: ${uploadErr.message}`)
+        }
+
         return {
-            patient_id: patientId,
+            patient_id: safePatientId !== 'patient' ? safePatientId : null,
             treatment_record_id: recordId,
             photo_type: 'treatment',
             storage_path: filePath,
@@ -381,14 +442,28 @@ export default function TreatmentInputPage() {
             // 3. Upload Photos
             const photoSlots = ['foto_depan', 'foto_kiri', 'foto_kanan']
             const photosToInsert = []
+            const targetPatientId = appointment?.patient_id || appointment?.patients?.id || null
+
             for (const slot of photoSlots) {
                 if (photoFiles[slot]) {
-                    const meta = await uploadPhotoSlot(photoFiles[slot], slot, appointment.patient_id, recordId)
-                    photosToInsert.push(meta)
+                    try {
+                        const meta = await uploadPhotoSlot(photoFiles[slot], slot, targetPatientId, recordId)
+                        photosToInsert.push(meta)
+                    } catch (photoErr) {
+                        console.error(`Gagal upload foto ${slot}:`, photoErr)
+                        toast.error(`Peringatan: ${photoErr.message}`)
+                    }
                 }
             }
+
             if (photosToInsert.length > 0) {
-                await supabase.from('patient_photos').insert(photosToInsert)
+                for (const p of photosToInsert) {
+                    await supabase.from('patient_photos').delete().eq('treatment_record_id', recordId).eq('caption', p.caption)
+                }
+                const { error: insertPhotoErr } = await supabase.from('patient_photos').insert(photosToInsert)
+                if (insertPhotoErr) {
+                    console.error('Error inserting patient_photos meta:', insertPhotoErr)
+                }
             }
 
             // 4. Update Appointment Status to completed
