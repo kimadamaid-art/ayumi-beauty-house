@@ -605,18 +605,18 @@ export default function TherapistDashboard() {
                 </div>
             </div>
 
-            {/* SECTION 2: SCHEDULE TIMELINE VIEW (IDENTICAL TO OWNER DESIGN) */}
-            <div className="card-ayumi p-4 md:p-6 shadow-sm border border-pink-100/50 space-y-6">
+            {/* SECTION 2: SCHEDULE TIMELINE VIEW (IDENTICAL COMPACT DESIGN) */}
+            <div className="card-ayumi p-3.5 sm:p-5 shadow-sm border border-pink-100/50 space-y-4">
                 {/* Filter Bar */}
-                <div className="flex flex-col md:flex-row gap-4 mb-6">
+                <div className="flex flex-col md:flex-row gap-2.5 mb-4">
                     <div className="flex-1 relative">
-                        <svg className="w-5 h-5 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <svg className="w-4 h-4 absolute left-3.5 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         <input 
                             type="text" 
                             placeholder="Cari nama pasien atau WhatsApp..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input-ayumi pl-11 py-2.5 bg-gray-50/50 focus:bg-white"
+                            className="input-ayumi pl-10 py-2 text-xs bg-gray-50/50 focus:bg-white"
                         />
                     </div>
                     <DateRangePicker 
@@ -626,12 +626,12 @@ export default function TherapistDashboard() {
                             setScheduleStartDate(range.startDate);
                             setScheduleEndDate(range.endDate);
                         }}
-                        inputClassName="text-xs font-semibold"
+                        inputClassName="text-xs font-semibold py-2"
                     />
                     <select 
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        className="input-ayumi bg-gray-50/50 focus:bg-white w-full md:w-auto text-xs"
+                        className="input-ayumi bg-gray-50/50 focus:bg-white w-full md:w-auto text-xs py-2"
                     >
                         <option value="">Semua Status</option>
                         <option value="scheduled">Scheduled</option>
@@ -642,16 +642,16 @@ export default function TherapistDashboard() {
                 </div>
 
                 {loading ? (
-                    <div className="text-center py-20">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary mx-auto mb-4"></div>
-                        <p className="text-gray-500 font-medium">Memuat jadwal...</p>
+                    <div className="text-center py-16">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ayumi-primary mx-auto mb-3"></div>
+                        <p className="text-gray-500 font-medium text-xs">Memuat jadwal...</p>
                     </div>
                 ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         {/* Section Header */}
-                        <div className="flex justify-between items-center bg-gray-50/80 p-2.5 rounded-xl border border-gray-100 mb-2">
-                            <div className="text-xs font-extrabold text-gray-500 flex items-center gap-1.5 pl-1">
-                                <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="flex justify-between items-center bg-gray-50/80 p-2 rounded-xl border border-gray-100 mb-2">
+                            <div className="text-[11px] font-extrabold text-gray-500 flex items-center gap-1.5 pl-1">
+                                <svg className="w-3.5 h-3.5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 Papan Jadwal Janji Temu Pasien
@@ -686,12 +686,12 @@ export default function TherapistDashboard() {
 
                             if (searchQuery && filteredAppointments.length === 0) {
                                 return (
-                                    <div className="py-16 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100">
-                                        <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mb-4 mx-auto">
-                                            <svg className="w-8 h-8 text-pink-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <div className="py-12 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100">
+                                        <div className="w-12 h-12 bg-pink-50 rounded-full flex items-center justify-center mb-3 mx-auto">
+                                            <svg className="w-6 h-6 text-pink-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                         </div>
-                                        <p className="text-gray-500 font-medium text-lg">Pasien "{searchQuery}" tidak ditemukan pada jadwal.</p>
-                                        <p className="text-sm text-gray-400 mt-1">Coba sesuaikan kata kunci pencarian Anda.</p>
+                                        <p className="text-gray-500 font-medium text-sm">Pasien "{searchQuery}" tidak ditemukan pada jadwal.</p>
+                                        <p className="text-xs text-gray-400 mt-1">Coba sesuaikan kata kunci pencarian Anda.</p>
                                     </div>
                                 )
                             }
@@ -703,17 +703,17 @@ export default function TherapistDashboard() {
 
                             if (sortedDates.length === 0) {
                                 return (
-                                    <div className="py-16 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100">
-                                        <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mb-4 mx-auto">
-                                            <svg className="w-8 h-8 text-pink-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <div className="py-12 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100">
+                                        <div className="w-12 h-12 bg-pink-50 rounded-full flex items-center justify-center mb-3 mx-auto">
+                                            <svg className="w-6 h-6 text-pink-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                         </div>
-                                        <p className="text-gray-500 font-medium text-lg">Silakan pilih tanggal untuk melihat jadwal temu.</p>
+                                        <p className="text-gray-500 font-medium text-sm">Silakan pilih tanggal untuk melihat jadwal temu.</p>
                                     </div>
                                 )
                             }
 
                             return (
-                                <div className="space-y-8">
+                                <div className="space-y-6">
                                     {sortedDates.map(dateStr => {
                                         const formattedDate = new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', {
                                             weekday: 'long',
@@ -727,42 +727,42 @@ export default function TherapistDashboard() {
                                         const totalTreatment = dayApts.length - totalInfus
 
                                         return (
-                                            <div key={dateStr} className="bg-white rounded-2xl border border-pink-100/60 p-4 sm:p-6 shadow-sm overflow-hidden">
+                                            <div key={dateStr} className="bg-white rounded-2xl border border-pink-100/60 p-3 sm:p-4.5 shadow-xs overflow-hidden">
                                                 {/* Date Section Header */}
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-100">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 mb-3 border-b border-gray-100">
                                                     <div className="flex items-center gap-2">
-                                                        <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                         </svg>
-                                                        <h3 className="font-black text-slate-800 text-base sm:text-lg">
+                                                        <h3 className="font-bold text-slate-800 text-sm sm:text-base">
                                                             {formattedDate}
                                                         </h3>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 text-xs font-bold">
-                                                        <span className="bg-sky-50 text-sky-700 px-3 py-1 rounded-full border border-sky-100 flex items-center gap-1.5">
-                                                            <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                                                    <div className="flex items-center gap-2 text-[11px] font-bold">
+                                                        <span className="bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full border border-sky-100 flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                                                             {totalTreatment} Treatment
                                                         </span>
-                                                        <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full border border-cyan-100 flex items-center gap-1.5">
-                                                            <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                                                        <span className="bg-cyan-50 text-cyan-700 px-2.5 py-0.5 rounded-full border border-cyan-100 flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
                                                             {totalInfus} Infus
                                                         </span>
                                                     </div>
                                                 </div>
 
                                                 {/* Scrollable Schedule Board Sheet */}
-                                                <div className="overflow-x-auto custom-scrollbar pb-2">
-                                                    <div className="min-w-[850px]">
+                                                <div className="overflow-x-auto custom-scrollbar pb-1.5">
+                                                    <div className="min-w-[780px]">
                                                         {/* Grid Column Headers */}
-                                                        <div className="flex items-center gap-4 pb-3 mb-2 border-b border-slate-100 text-xs font-black uppercase tracking-wider text-slate-500">
-                                                            <div className="w-16 flex-shrink-0 text-slate-400 font-black pl-1 text-[11px] uppercase tracking-wider">WAKTU</div>
-                                                            <div className="w-72 flex-shrink-0 flex items-center gap-2 text-cyan-800 bg-cyan-100/70 px-3.5 py-1.5 rounded-full border border-cyan-300 font-extrabold text-[11px] uppercase tracking-wider">
-                                                                <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                                                        <div className="flex items-center gap-3 pb-2 mb-1.5 border-b border-slate-100 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                                                            <div className="w-14 flex-shrink-0 text-slate-400 font-extrabold pl-1 text-[10px] uppercase tracking-wider">WAKTU</div>
+                                                            <div className="w-56 sm:w-60 flex-shrink-0 flex items-center gap-1.5 text-cyan-800 bg-cyan-100/70 px-3 py-1 rounded-full border border-cyan-300 font-bold text-[10px] uppercase tracking-wider">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
                                                                 LAYANAN INFUS
                                                             </div>
-                                                            <div className="flex-1 flex items-center gap-2 text-sky-800 bg-sky-100/70 px-3.5 py-1.5 rounded-full border border-sky-300 font-extrabold text-[11px] uppercase tracking-wider">
-                                                                <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                                                            <div className="flex-1 flex items-center gap-1.5 text-sky-800 bg-sky-100/70 px-3 py-1 rounded-full border border-sky-300 font-bold text-[10px] uppercase tracking-wider">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                                                                 LAYANAN TREATMENT
                                                             </div>
                                                         </div>
@@ -781,22 +781,22 @@ export default function TherapistDashboard() {
                                                                 const treatmentApts = hourApts.filter(a => !isInfusAppointment(a))
 
                                                                 return (
-                                                                    <div key={hourStr} className="flex items-stretch gap-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/30 transition-colors min-h-[58px]">
+                                                                    <div key={hourStr} className="flex items-stretch gap-3 py-2 border-b border-slate-100 hover:bg-slate-50/30 transition-colors min-h-[50px]">
                                                                         {/* Waktu (Far Left) */}
-                                                                        <div className="w-16 flex-shrink-0 pt-1.5">
-                                                                            <span className="text-xs font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/60 inline-block">
+                                                                        <div className="w-14 flex-shrink-0 pt-1">
+                                                                            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60 inline-block">
                                                                                 {hourStr}
                                                                             </span>
                                                                         </div>
 
                                                                         {/* Column 1: Infus (Left Column) */}
-                                                                        <div className="w-72 flex-shrink-0 border-l border-slate-100 pl-3 flex flex-col justify-center min-h-[48px]">
+                                                                        <div className="w-56 sm:w-60 flex-shrink-0 border-l border-slate-100 pl-2.5 flex flex-col justify-center min-h-[40px]">
                                                                             {infusApts.length === 0 ? (
-                                                                                <div className="w-full min-h-[42px] border border-dashed border-slate-200/80 rounded-xl flex items-center px-3 text-xs text-slate-400 font-medium">
+                                                                                <div className="w-full min-h-[36px] border border-dashed border-slate-200/80 rounded-lg flex items-center px-2.5 text-[11px] text-slate-400 font-medium">
                                                                                     <span className="opacity-60">- Kosong -</span>
                                                                                 </div>
                                                                             ) : (
-                                                                                <div className="flex flex-col gap-2 w-full">
+                                                                                <div className="flex flex-col gap-1.5 w-full">
                                                                                     {infusApts.map(apt => {
                                                                                         const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Infus'
                                                                                         const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
@@ -805,35 +805,35 @@ export default function TherapistDashboard() {
                                                                                         return (
                                                                                             <div 
                                                                                                 key={apt.id}
-                                                                                                className="bg-[#ebf9fb] border border-cyan-300 hover:border-cyan-400 text-slate-800 rounded-xl p-3 w-full shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                                                                                                className="bg-[#ebf9fb] border border-cyan-300 hover:border-cyan-400 text-slate-800 rounded-lg p-2.5 w-full shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
                                                                                             >
                                                                                                 <div>
                                                                                                     {/* Header: Time & Badges */}
-                                                                                                    <div className="flex justify-between items-center text-xs font-bold text-cyan-950 pb-1.5 mb-1.5 border-b border-cyan-200/70">
-                                                                                                        <span className="flex items-center gap-1.5 text-cyan-900 font-extrabold text-[11px]">
+                                                                                                    <div className="flex justify-between items-center text-[10.5px] font-bold text-cyan-950 pb-1 mb-1 border-b border-cyan-200/70">
+                                                                                                        <span className="flex items-center gap-1 text-cyan-900 font-bold text-[10.5px]">
                                                                                                             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-2xs"></span>
                                                                                                             {startTime} - {endTime}
                                                                                                         </span>
                                                                                                         {apt.therapist_id === dbUser?.id && (
-                                                                                                            <span className="text-[10px] font-black bg-cyan-200/80 text-cyan-800 px-1.5 py-0.2 rounded-md">
+                                                                                                            <span className="text-[9.5px] font-bold bg-cyan-200/80 text-cyan-800 px-1.5 py-0.2 rounded">
                                                                                                                 Tugas Anda
                                                                                                             </span>
                                                                                                         )}
                                                                                                     </div>
 
                                                                                                     {/* Customer Name */}
-                                                                                                    <div className="font-extrabold text-sm text-slate-900 tracking-tight truncate">
+                                                                                                    <div className="font-bold text-xs text-slate-900 tracking-tight truncate">
                                                                                                         {apt.patients?.full_name || 'Pasien'}
                                                                                                     </div>
 
                                                                                                     {/* Treatment list */}
-                                                                                                    <div className="text-[11px] text-cyan-950 font-semibold mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
+                                                                                                    <div className="text-[10px] text-cyan-950 font-medium mt-0.5 bg-white/80 px-1.5 py-0.5 rounded border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
                                                                                                         {treatmentsList}
                                                                                                     </div>
 
                                                                                                     {/* Therapist & Branch Info */}
                                                                                                     {(apt.therapist?.full_name || apt.branches?.name) && (
-                                                                                                        <div className="text-[10.5px] text-cyan-900/80 font-medium mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
+                                                                                                        <div className="text-[9.5px] text-cyan-900/80 font-medium mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
                                                                                                             {apt.branches?.name && <span>Cabang: <b className="font-bold text-slate-800">{apt.branches.name}</b></span>}
                                                                                                             {apt.therapist?.full_name && <span>• {apt.therapist.full_name.split(' ')[0]}</span>}
                                                                                                         </div>
@@ -841,7 +841,7 @@ export default function TherapistDashboard() {
                                                                                                 </div>
 
                                                                                                 {/* Footer: Actions */}
-                                                                                                <div className="mt-2.5 pt-2 border-t border-cyan-200/70 flex items-center justify-between gap-1">
+                                                                                                <div className="mt-2 pt-1.5 border-t border-cyan-200/70 flex items-center justify-between gap-1">
                                                                                                     <div className="flex items-center gap-1">
                                                                                                         {getArrivalStatusBadgeAndActions(apt)}
                                                                                                     </div>
@@ -851,7 +851,7 @@ export default function TherapistDashboard() {
                                                                                                             <button
                                                                                                                 type="button"
                                                                                                                 onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
-                                                                                                                className="text-[10px] font-bold text-slate-700 hover:text-ayumi-primary bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                                                                                                                className="text-[9.5px] font-bold text-slate-700 hover:text-ayumi-primary bg-white/80 hover:bg-white px-1.5 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
                                                                                                                 title="Lihat Rekam Medis"
                                                                                                             >
                                                                                                                 Medis
@@ -860,7 +860,7 @@ export default function TherapistDashboard() {
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[10.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2.5 py-1 rounded-md transition-all shadow-2xs cursor-pointer"
+                                                                                                                    className="text-[9.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
                                                                                                                     Input Treatment
@@ -877,13 +877,13 @@ export default function TherapistDashboard() {
                                                                         </div>
 
                                                                         {/* Column 2: Treatment (Strict Horizontal Row) */}
-                                                                        <div className="flex-1 border-l border-slate-100 pl-3 flex items-center min-h-[48px]">
+                                                                        <div className="flex-1 border-l border-slate-100 pl-2.5 flex items-center min-h-[40px]">
                                                                             {treatmentApts.length === 0 ? (
-                                                                                <div className="w-full min-h-[42px] border border-dashed border-slate-200/80 rounded-xl flex items-center px-3 text-xs text-slate-400 font-medium">
+                                                                                <div className="w-full min-h-[36px] border border-dashed border-slate-200/80 rounded-lg flex items-center px-2.5 text-[11px] text-slate-400 font-medium">
                                                                                     <span className="opacity-60">- Kosong -</span>
                                                                                 </div>
                                                                             ) : (
-                                                                                <div className="flex flex-row flex-nowrap items-stretch gap-3 py-0.5 w-full overflow-x-auto custom-scrollbar">
+                                                                                <div className="flex flex-row flex-nowrap items-stretch gap-2.5 py-0.5 w-full overflow-x-auto custom-scrollbar">
                                                                                     {treatmentApts.map(apt => {
                                                                                         const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Treatment'
                                                                                         const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
@@ -892,39 +892,39 @@ export default function TherapistDashboard() {
                                                                                         return (
                                                                                             <div 
                                                                                                 key={apt.id}
-                                                                                                className="bg-[#ebf6fe] border border-sky-300 hover:border-sky-400 text-slate-800 rounded-xl p-3 w-[270px] min-w-[270px] flex-shrink-0 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                                                                                                className="bg-[#ebf6fe] border border-sky-300 hover:border-sky-400 text-slate-800 rounded-lg p-2.5 w-[230px] min-w-[230px] flex-shrink-0 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
                                                                                             >
                                                                                                 <div>
                                                                                                     {/* Header: Time & Badges */}
-                                                                                                    <div className="flex justify-between items-center text-xs font-bold text-sky-950 pb-1.5 mb-1.5 border-b border-sky-200/70">
-                                                                                                        <span className="flex items-center gap-1.5 text-sky-900 font-extrabold text-[11px]">
+                                                                                                    <div className="flex justify-between items-center text-[10.5px] font-bold text-sky-950 pb-1 mb-1 border-b border-sky-200/70">
+                                                                                                        <span className="flex items-center gap-1 text-sky-900 font-bold text-[10.5px]">
                                                                                                             <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-2xs"></span>
                                                                                                             {startTime} - {endTime}
                                                                                                         </span>
                                                                                                         {apt.therapist_id === dbUser?.id ? (
-                                                                                                            <span className="text-[10px] font-black bg-sky-200/80 text-sky-800 px-1.5 py-0.2 rounded-md">
+                                                                                                            <span className="text-[9.5px] font-bold bg-sky-200/80 text-sky-800 px-1.5 py-0.2 rounded">
                                                                                                                 Pasien Anda
                                                                                                             </span>
                                                                                                         ) : !apt.therapist_id ? (
-                                                                                                            <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-md">
+                                                                                                            <span className="text-[9.5px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">
                                                                                                                 Tersedia
                                                                                                             </span>
                                                                                                         ) : null}
                                                                                                     </div>
 
                                                                                                     {/* Customer Name */}
-                                                                                                    <div className="font-extrabold text-sm text-slate-900 tracking-tight truncate">
+                                                                                                    <div className="font-bold text-xs text-slate-900 tracking-tight truncate">
                                                                                                         {apt.patients?.full_name || 'Pasien'}
                                                                                                     </div>
 
                                                                                                     {/* Treatment list */}
-                                                                                                    <div className="text-[11px] text-sky-950 font-semibold mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-sky-200/80 inline-block shadow-2xs truncate max-w-full">
+                                                                                                    <div className="text-[10px] text-sky-950 font-medium mt-0.5 bg-white/80 px-1.5 py-0.5 rounded border border-sky-200/80 inline-block shadow-2xs truncate max-w-full">
                                                                                                         {treatmentsList}
                                                                                                     </div>
 
                                                                                                     {/* Therapist & Branch Info */}
                                                                                                     {(apt.therapist?.full_name || apt.branches?.name) && (
-                                                                                                        <div className="text-[10.5px] text-sky-900/80 font-medium mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
+                                                                                                        <div className="text-[9.5px] text-sky-900/80 font-medium mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
                                                                                                             {apt.branches?.name && <span>Cabang: <b className="font-bold text-slate-800">{apt.branches.name}</b></span>}
                                                                                                             {apt.therapist?.full_name && <span>• {apt.therapist.full_name.split(' ')[0]}</span>}
                                                                                                         </div>
@@ -932,7 +932,7 @@ export default function TherapistDashboard() {
                                                                                                 </div>
 
                                                                                                 {/* Footer: Actions */}
-                                                                                                <div className="mt-2.5 pt-2 border-t border-sky-200/70 flex items-center justify-between gap-1">
+                                                                                                <div className="mt-2 pt-1.5 border-t border-sky-200/70 flex items-center justify-between gap-1">
                                                                                                     <div className="flex items-center gap-1">
                                                                                                         {getArrivalStatusBadgeAndActions(apt)}
                                                                                                     </div>
@@ -942,7 +942,7 @@ export default function TherapistDashboard() {
                                                                                                             <button
                                                                                                                 type="button"
                                                                                                                 onClick={() => setSelectedPatientIdForHistory(apt.patients.id)}
-                                                                                                                className="text-[10px] font-bold text-slate-700 hover:text-ayumi-primary bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                                                                                                                className="text-[9.5px] font-bold text-slate-700 hover:text-ayumi-primary bg-white/80 hover:bg-white px-1.5 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
                                                                                                                 title="Lihat Rekam Medis"
                                                                                                             >
                                                                                                                 Medis
@@ -951,7 +951,7 @@ export default function TherapistDashboard() {
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[10.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2.5 py-1 rounded-md transition-all shadow-2xs cursor-pointer"
+                                                                                                                    className="text-[9.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
                                                                                                                     Input Treatment
