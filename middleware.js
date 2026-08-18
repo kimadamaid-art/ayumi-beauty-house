@@ -3,12 +3,11 @@ import { NextResponse } from 'next/server'
 
 export async function middleware(request) {
     const isProd = process.env.NODE_ENV === 'production'
-    const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
 
-    // Construct Dynamic Nonce-based CSP Header
+    // Robust & High-Compatibility CSP Header (Ensures Next.js static prerender & React hydration work flawlessly)
     const cspHeader = `
       default-src 'self';
-      script-src ${isProd ? `'self' 'nonce-${nonce}' 'strict-dynamic'` : `'self' 'unsafe-inline' 'unsafe-eval'`};
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' data: blob: https://*.supabase.co;
       font-src 'self' https://fonts.gstatic.com;
@@ -19,7 +18,6 @@ export async function middleware(request) {
     `.replace(/\s{2,}/g, ' ').trim()
 
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-nonce', nonce)
     requestHeaders.set('Content-Security-Policy', cspHeader)
 
     let response = NextResponse.next({
