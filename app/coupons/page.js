@@ -281,7 +281,7 @@ export default function CouponsDashboardPage() {
                     )
                 ),
                 branches (name),
-                users (full_name)
+                users:users!coupon_usage_logs_used_by_fkey (full_name)
             `)
             .is('voided_at', null)
             .order('used_at', { ascending: false })

@@ -217,7 +217,7 @@ export default function PatientDetailPage() {
                 .select(`
                     *,
                     branches (name),
-                    users (full_name),
+                    users:users!coupon_usage_logs_used_by_fkey (full_name),
                     patient_coupon_items (
                         treatments (name),
                         patient_coupons (
