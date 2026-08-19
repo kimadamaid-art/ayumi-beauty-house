@@ -7,6 +7,8 @@ import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import BranchFilter from '@/components/ui/BranchFilter'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
+import { validatePatientData } from '@/lib/patientValidation'
+import { normalizeIndonesianPhone } from '@/lib/phoneNormalization'
 
 export default function PatientsPage() {
     const [patients, setPatients] = useState([])
@@ -196,7 +198,8 @@ export default function PatientsPage() {
                 } else {
                     data.forEach(p => {
                         if (p.whatsapp) {
-                            waSet.add(p.whatsapp.replace(/[^0-9]/g, ''))
+                            const norm = normalizeIndonesianPhone(p.whatsapp) || p.whatsapp.replace(/[^0-9]/g, '')
+                            waSet.add(norm)
                         }
                     })
                     if (data.length < fetchPageSize) {
@@ -224,15 +227,37 @@ export default function PatientsPage() {
                 const ws = wb.Sheets[wsname]
                 const data = XLSX.utils.sheet_to_json(ws)
                 
-                // Process and validate data
+                const seenInFileSet = new Set()
+                
+                // Process and validate data using centralized validation engine
                 const processedData = data.map((row, index) => {
-                    const wa = row.whatsapp ? String(row.whatsapp).replace(/[^0-9]/g, '') : ''
-                    const isDuplicate = wa && waSet.has(wa)
-                    
+                    const validation = validatePatientData(row)
+                    const normalizedWa = validation.cleanPayload?.whatsapp
+
+                    let isDuplicate = false
+                    let statusReason = ''
+
+                    if (normalizedWa) {
+                        if (waSet.has(normalizedWa) || seenInFileSet.has(normalizedWa)) {
+                            isDuplicate = true
+                            statusReason = 'Nomor WhatsApp sudah terdaftar / duplikat dalam berkas'
+                        } else {
+                            seenInFileSet.add(normalizedWa)
+                        }
+                    }
+
+                    if (!validation.isValid && !isDuplicate) {
+                        statusReason = Object.values(validation.errors).join('; ')
+                    }
+
+                    const isValid = validation.isValid && !isDuplicate
+
                     return {
                         ...row,
-                        _isValid: !!row.full_name && !!wa && !isDuplicate,
+                        _isValid: isValid,
                         _isDuplicate: isDuplicate,
+                        _errorReason: statusReason,
+                        _cleanPayload: validation.cleanPayload,
                         _rowNumber: index + 2 // considering header is row 1
                     }
                 })
@@ -256,33 +281,58 @@ export default function PatientsPage() {
         }
 
         setIsImporting(true)
+        let successCount = 0
+        let failedRows = []
+
         try {
-            // Get user to attach to created_by if needed
+            // Get user branch
             const { data: { user } } = await supabase.auth.getUser()
-            
-            // Default branch handling (if owner, maybe let it be null so it acts as Pusat, or get from user)
             const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user?.id).maybeSingle()
             const userBranchId = userData?.branch_id || null
 
-            const payload = validRows.map(row => ({
-                full_name: row.full_name,
-                whatsapp: String(row.whatsapp).replace(/[^0-9]/g, ''),
-                birth_date: row.birth_date || null,
-                gender: row.gender?.toLowerCase() || null,
-                address: row.address || null,
-                instagram: row.instagram || null,
-                skin_type: row.skin_type || null,
-                allergies: row.allergies || null,
-                medical_notes: row.medical_notes || null,
-                notes: row.notes || null,
-                branch_id: userBranchId
-            }))
+            // Chunk insert by 50
+            const CHUNK_SIZE = 50
+            for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
+                const chunk = validRows.slice(i, i + CHUNK_SIZE)
+                const payload = chunk.map(row => ({
+                    ...row._cleanPayload,
+                    branch_id: row.branch_id || userBranchId
+                }))
 
-            const { error } = await supabase.from('patients').insert(payload)
-            if (error) throw error
+                // Attempt batch insert
+                const { error: batchErr } = await supabase.from('patients').insert(payload)
 
-            const skipCount = importData.length - validRows.length
-            toast.success(`Berhasil import ${validRows.length} pasien, Skip ${skipCount} data tidak valid/duplikat.`)
+                if (batchErr) {
+                    // Fallback to row-by-row insertion for this chunk to isolate corrupt rows
+                    console.warn(`Chunk ${i / CHUNK_SIZE + 1} batch failed (${batchErr.message}), falling back to row-by-row:`)
+                    for (let j = 0; j < chunk.length; j++) {
+                        const singleRow = chunk[j]
+                        const singlePayload = {
+                            ...singleRow._cleanPayload,
+                            branch_id: singleRow.branch_id || userBranchId
+                        }
+                        const { error: singleErr } = await supabase.from('patients').insert([singlePayload])
+                        if (singleErr) {
+                            failedRows.push({
+                                rowNumber: singleRow._rowNumber,
+                                name: singleRow.full_name,
+                                reason: singleErr.message
+                            })
+                        } else {
+                            successCount++
+                        }
+                    }
+                } else {
+                    successCount += chunk.length
+                }
+            }
+
+            const skippedCount = importData.length - validRows.length
+            if (failedRows.length > 0) {
+                toast.error(`Import selesai: ${successCount} berhasil, ${failedRows.length} gagal di database, ${skippedCount} di-skip.`, { duration: 6000 })
+            } else {
+                toast.success(`Berhasil import ${successCount} pasien! (${skippedCount} di-skip).`)
+            }
             
             setShowImportModal(false)
             setImportData([])
@@ -574,38 +624,48 @@ export default function PatientsPage() {
                             </div>
                             
                             <div className="border rounded-xl overflow-hidden">
-                                <table className="whitespace-nowrap w-full text-left text-sm">
-                                    <thead className="bg-gray-100 text-gray-700">
+                                <table className="whitespace-nowrap w-full text-left text-xs">
+                                    <thead className="bg-gray-100 text-gray-700 font-bold">
                                         <tr>
                                             <th className="p-3">Status</th>
+                                            <th className="p-3">Baris</th>
                                             <th className="p-3">Nama</th>
                                             <th className="p-3">WhatsApp</th>
-                                            <th className="p-3">Tgl Lahir</th>
+                                            <th className="p-3">Keterangan / Validasi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {importData.slice(0, 5).map((row, idx) => (
-                                            <tr key={idx} className={!row._isValid ? 'bg-red-50' : 'bg-white'}>
+                                        {importData.slice(0, 10).map((row, idx) => (
+                                            <tr key={idx} className={!row._isValid ? (row._isDuplicate ? 'bg-amber-50/50' : 'bg-red-50/50') : 'bg-white'}>
                                                 <td className="p-3">
                                                     {row._isDuplicate ? (
-                                                        <span className="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">Skip (WA Duplikat)</span>
-                                                    ) : !row.full_name || !row.whatsapp ? (
-                                                        <span className="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">Skip (Data Tidak Lengkap)</span>
+                                                        <span className="text-amber-800 font-bold text-[10px] bg-amber-100 px-2 py-0.5 rounded">Duplikat</span>
+                                                    ) : !row._isValid ? (
+                                                        <span className="text-red-700 font-bold text-[10px] bg-red-100 px-2 py-0.5 rounded">Tidak Valid</span>
                                                     ) : (
-                                                        <span className="text-green-600 font-bold text-xs bg-green-100 px-2 py-1 rounded">Valid</span>
+                                                        <span className="text-green-700 font-bold text-[10px] bg-green-100 px-2 py-0.5 rounded">✓ Siap Impor</span>
                                                     )}
                                                 </td>
-                                                <td className="p-3 font-medium">{row.full_name || '-'}</td>
-                                                <td className="p-3">{row.whatsapp || '-'}</td>
-                                                <td className="p-3">{row.birth_date || '-'}</td>
+                                                <td className="p-3 font-mono text-gray-400">#{row._rowNumber}</td>
+                                                <td className="p-3 font-semibold text-gray-800">{row.full_name || '-'}</td>
+                                                <td className="p-3 font-mono">{row._cleanPayload?.whatsapp || row.whatsapp || '-'}</td>
+                                                <td className="p-3 text-gray-500 max-w-xs truncate">
+                                                    {row._errorReason ? (
+                                                        <span className={row._isDuplicate ? 'text-amber-700 font-medium' : 'text-red-600 font-medium'}>
+                                                            {row._errorReason}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-green-600">Format bersih (E.164)</span>
+                                                    )}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
                             
-                            {importData.length > 5 && (
-                                <p className="text-center text-xs text-gray-500 mt-3 font-medium italic">... dan {importData.length - 5} baris lainnya.</p>
+                            {importData.length > 10 && (
+                                <p className="text-center text-xs text-gray-500 mt-3 font-medium italic">... dan {importData.length - 10} baris lainnya.</p>
                             )}
                             
                             <div className="mt-6 bg-blue-50 border border-blue-100 p-4 rounded-xl">

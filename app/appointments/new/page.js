@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { usePatientSearch } from '@/hooks/usePatientSearch'
+import { validatePatientData } from '@/lib/patientValidation'
 
 export default function NewAppointmentPage() {
     return (
@@ -41,6 +42,7 @@ function NewAppointmentForm() {
     // Quick Add Patient Modal State
     const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false)
     const [isSavingPatient, setIsSavingPatient] = useState(false)
+    const [modalConflictPatient, setModalConflictPatient] = useState(null)
     const [newPatientData, setNewPatientData] = useState({
         full_name: '',
         whatsapp: '',
@@ -131,60 +133,56 @@ function NewAppointmentForm() {
     const handleNewPatientChange = (e) => {
         const { name, value } = e.target
         setNewPatientData(prev => ({ ...prev, [name]: value }))
+        if (modalConflictPatient) setModalConflictPatient(null)
     }
 
     // Save New Patient Modal
     const handleSaveNewPatient = async (e) => {
         e.preventDefault()
-        
-        if (!newPatientData.full_name.trim()) {
-            toast.error('Nama lengkap pasien wajib diisi.')
-            return
-        }
+        setModalConflictPatient(null)
 
-        if (!newPatientData.whatsapp.trim()) {
-            toast.error('Nomor WhatsApp pasien wajib diisi.')
+        // 1. Centralized Validation
+        const { isValid, errors, cleanPayload } = validatePatientData({
+            ...newPatientData,
+            branch_id: newPatientData.branch_id || formData.branch_id || (branches[0]?.id || null)
+        })
+
+        if (!isValid) {
+            const firstErr = Object.values(errors)[0]
+            toast.error(firstErr)
             return
         }
 
         setIsSavingPatient(true)
 
         try {
-            // Clean whatsapp input
-            let cleanWa = newPatientData.whatsapp.trim().replace(/[^0-9+]/g, '')
-            if (cleanWa.startsWith('+')) cleanWa = cleanWa.substring(1)
-
-            // Check existing whatsapp
+            // 2. Check existing normalized WhatsApp
             const { data: existingPt } = await supabase
                 .from('patients')
-                .select('id, full_name')
-                .eq('whatsapp', cleanWa)
+                .select('id, full_name, whatsapp, branch_id, branches(name)')
+                .eq('whatsapp', cleanPayload.whatsapp)
                 .maybeSingle()
 
             if (existingPt) {
-                toast.error(`Nomor WhatsApp ${cleanWa} sudah terdaftar atas nama ${existingPt.full_name}.`)
+                const { data: tr } = await supabase
+                    .from('treatment_records')
+                    .select('treatment_date')
+                    .eq('patient_id', existingPt.id)
+                    .order('treatment_date', { ascending: false })
+                    .limit(1)
+
+                setModalConflictPatient({
+                    ...existingPt,
+                    lastVisit: tr && tr.length > 0 ? tr[0].treatment_date : null
+                })
                 setIsSavingPatient(false)
                 return
             }
 
-            // Insert into Supabase patients table
-            const finalBirthDate = newPatientData.birth_date && newPatientData.birth_date.trim() !== '' ? newPatientData.birth_date : null
-            
-            const payload = {
-                branch_id: newPatientData.branch_id || formData.branch_id || (branches[0]?.id || null),
-                full_name: newPatientData.full_name.trim(),
-                whatsapp: cleanWa,
-                gender: newPatientData.gender || 'female',
-                birth_date: finalBirthDate,
-                address: newPatientData.address?.trim() || null,
-                skin_type: newPatientData.skin_type || 'normal',
-                allergies: newPatientData.allergies?.trim() || null,
-                medical_notes: newPatientData.medical_notes?.trim() || null
-            }
-
+            // 3. Insert into Supabase patients table with sanitized payload
             const { data: createdPatient, error: ptErr } = await supabase
                 .from('patients')
-                .insert([payload])
+                .insert([cleanPayload])
                 .select('id, full_name, whatsapp')
                 .single()
 
@@ -196,8 +194,9 @@ function NewAppointmentForm() {
             setFormData(prev => ({
                 ...prev,
                 patient_id: createdPatient.id,
-                branch_id: payload.branch_id || prev.branch_id
+                branch_id: cleanPayload.branch_id || prev.branch_id
             }))
+            setSelectedPatient(createdPatient)
             setPatientSearch(createdPatient.full_name)
 
             // Reset and close modal
@@ -212,11 +211,16 @@ function NewAppointmentForm() {
                 allergies: '',
                 medical_notes: ''
             })
+            setModalConflictPatient(null)
             setIsNewPatientModalOpen(false)
 
         } catch (err) {
             console.error('Error creating patient:', err)
-            toast.error('Gagal menambahkan pasien: ' + (err.message || 'Terjadi kesalahan'))
+            let msg = err.message
+            if (msg.includes('unique constraint') || msg.includes('23505')) {
+                msg = 'Nomor WhatsApp ini sudah terdaftar sebagai pasien'
+            }
+            toast.error('Gagal menambahkan pasien: ' + msg)
         } finally {
             setIsSavingPatient(false)
         }
@@ -522,6 +526,47 @@ function NewAppointmentForm() {
 
                         {/* Modal Form */}
                         <form onSubmit={handleSaveNewPatient} className="space-y-4">
+                            {modalConflictPatient && (
+                                <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl space-y-2 text-left animate-in fade-in duration-150">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="text-xl">⚠️</span>
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-xs text-amber-900">Nomor WhatsApp Sudah Terdaftar</h4>
+                                            <p className="text-xs text-amber-800 mt-0.5">
+                                                Nomor <span className="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">{modalConflictPatient.whatsapp}</span> sudah terdaftar atas nama <strong>{modalConflictPatient.full_name}</strong> ({modalConflictPatient.branches?.name || 'Pusat'}).
+                                                {modalConflictPatient.lastVisit ? ` Kunjungan terakhir: ${new Date(modalConflictPatient.lastVisit).toLocaleDateString('id-ID')}.` : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-2 border-t border-amber-200/80">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    patient_id: modalConflictPatient.id,
+                                                    branch_id: modalConflictPatient.branch_id || prev.branch_id
+                                                }))
+                                                setSelectedPatient(modalConflictPatient)
+                                                setPatientSearch(modalConflictPatient.full_name)
+                                                setModalConflictPatient(null)
+                                                setIsNewPatientModalOpen(false)
+                                            }}
+                                            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-2 px-3 rounded-xl transition-all shadow-sm cursor-pointer"
+                                        >
+                                            ✓ Pakai Pasien Ini Saja
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setModalConflictPatient(null)}
+                                            className="bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-300 transition-all cursor-pointer"
+                                        >
+                                            Ganti Nomor
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                                     Nama Lengkap Pasien <span className="text-red-500">*</span>

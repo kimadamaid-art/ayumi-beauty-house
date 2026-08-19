@@ -3,18 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
+import { normalizeIndonesianPhone } from '@/lib/phoneNormalization'
 
 /**
  * Custom hook for server-side patient search with debounce,
  * input escaping, request sequence tracking (race-condition safe),
- * and global multi-branch query capability.
+ * multi-format phone normalization, and global multi-branch query capability.
  * 
  * @param {Object} options
- * @param {number} [options.debounceMs=400]
+ * @param {number} [options.debounceMs=350]
  * @param {number} [options.minChars=2]
  * @param {number} [options.limit=20]
  */
-export function usePatientSearch({ debounceMs = 400, minChars = 2, limit = 20 } = {}) {
+export function usePatientSearch({ debounceMs = 350, minChars = 2, limit = 20 } = {}) {
     const [searchQuery, setSearchQuery] = useState('')
     const [results, setResults] = useState([])
     const [isSearching, setIsSearching] = useState(false)
@@ -38,13 +39,26 @@ export function usePatientSearch({ debounceMs = 400, minChars = 2, limit = 20 } 
 
         const timer = setTimeout(async () => {
             try {
-                const escaped = escapePostgrestFilter(trimmed)
-                
+                const escapedRaw = escapePostgrestFilter(trimmed)
+                const normalizedPhone = normalizeIndonesianPhone(trimmed)
+
+                const orClauses = [
+                    `full_name.ilike.${escapedRaw}`,
+                    `whatsapp.ilike.${escapedRaw}`
+                ]
+
+                if (normalizedPhone) {
+                    const escapedNormalized = escapePostgrestFilter(normalizedPhone)
+                    if (escapedNormalized !== escapedRaw) {
+                        orClauses.push(`whatsapp.ilike.${escapedNormalized}`)
+                    }
+                }
+
                 // Server-side query across all patients (no branch filtering)
                 const { data, error } = await supabase
                     .from('patients')
                     .select('id, full_name, whatsapp, branch_id, branches(name)')
-                    .or(`full_name.ilike.${escaped},whatsapp.ilike.${escaped}`)
+                    .or(orClauses.join(','))
                     .order('full_name', { ascending: true })
                     .limit(limit)
 

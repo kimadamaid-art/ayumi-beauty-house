@@ -7,6 +7,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import BranchFilter from '@/components/ui/BranchFilter'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 import { usePatientSearch } from '@/hooks/usePatientSearch'
+import { validatePatientData } from '@/lib/patientValidation'
 
 function PosPageContent() {
     const router = useRouter()
@@ -49,6 +50,7 @@ function PosPageContent() {
     const [quickAddForm, setQuickAddForm] = useState({ full_name: '', whatsapp: '' })
     const [isQuickAdding, setIsQuickAdding] = useState(false)
     const [quickAddError, setQuickAddError] = useState('')
+    const [quickAddConflict, setQuickAddConflict] = useState(null)
     const [selectedPatientDetails, setSelectedPatientDetails] = useState(null)
     const [isQuickAddInlineOpen, setIsQuickAddInlineOpen] = useState(false)
 
@@ -248,51 +250,73 @@ function PosPageContent() {
 
     async function handleQuickAddPatient(e) {
         e?.preventDefault()
-        if (!quickAddForm.full_name || !quickAddForm.whatsapp) {
-            setQuickAddError('Nama dan WA wajib diisi.')
+        setQuickAddError('')
+        setQuickAddConflict(null)
+
+        // 1. Validasi Pemilihan Cabang
+        if (!selectedBranch) {
+            setQuickAddError('Pilih cabang klinik terlebih dahulu di bagian atas sebelum mendaftarkan pasien baru.')
             return
         }
+
+        // 2. Centralized Validation
+        const { isValid, errors, cleanPayload } = validatePatientData({
+            full_name: quickAddForm.full_name,
+            whatsapp: quickAddForm.whatsapp,
+            branch_id: selectedBranch
+        })
+
+        if (!isValid) {
+            const firstErr = Object.values(errors)[0]
+            setQuickAddError(firstErr)
+            return
+        }
+
         setIsQuickAdding(true)
-        setQuickAddError('')
 
         try {
-            // 1. Validasi WhatsApp
+            // 3. Validasi WhatsApp Unik
             const { data: existingWa } = await supabase
                 .from('patients')
-                .select('id')
-                .eq('whatsapp', quickAddForm.whatsapp)
+                .select('id, full_name, whatsapp, branch_id, branches(name)')
+                .eq('whatsapp', cleanPayload.whatsapp)
                 .maybeSingle()
                 
             if (existingWa) {
-                setQuickAddError('Nomor WhatsApp ini sudah terdaftar.')
+                const { data: tr } = await supabase
+                    .from('treatment_records')
+                    .select('treatment_date')
+                    .eq('patient_id', existingWa.id)
+                    .order('treatment_date', { ascending: false })
+                    .limit(1)
+
+                setQuickAddConflict({
+                    ...existingWa,
+                    lastVisit: tr && tr.length > 0 ? tr[0].treatment_date : null
+                })
                 setIsQuickAdding(false)
                 return
             }
 
-            // 2. Warning Nama Duplikat
+            // 4. Warning Nama Duplikat jika ada nama persis
             const { data: existingNames } = await supabase
                 .from('patients')
                 .select('id, whatsapp')
-                .ilike('full_name', quickAddForm.full_name.trim())
+                .ilike('full_name', cleanPayload.full_name)
                 .limit(1)
 
             if (existingNames && existingNames.length > 0) {
-                const proceed = window.confirm(`PERINGATAN: Pasien dengan nama "${quickAddForm.full_name}" sudah terdaftar (WA: ${existingNames[0].whatsapp || '-'}).\n\nYakin ingin tetap menambahkan sebagai pasien baru?`)
+                const proceed = window.confirm(`PERINGATAN: Pasien dengan nama "${cleanPayload.full_name}" sudah terdaftar (WA: ${existingNames[0].whatsapp || '-'}).\n\nYakin ingin tetap menambahkan sebagai pasien baru?`)
                 if (!proceed) {
                     setIsQuickAdding(false)
                     return
                 }
             }
 
-            // 3. Insert dengan branch_id
+            // 5. Insert dengan branch_id & payload bersih
             const { data, error } = await supabase
                 .from('patients')
-                .insert([{
-                    full_name: quickAddForm.full_name,
-                    whatsapp: quickAddForm.whatsapp,
-                    branch_id: selectedBranch || null,
-                    is_active: true
-                }])
+                .insert([cleanPayload])
                 .select()
                 .single()
 
@@ -300,6 +324,7 @@ function PosPageContent() {
 
             handleSelectPatient(data)
             setQuickAddForm({ full_name: '', whatsapp: '' })
+            setQuickAddConflict(null)
             setIsQuickAddInlineOpen(false)
         } catch (err) {
             console.error(err)
@@ -1255,6 +1280,37 @@ function PosPageContent() {
                                 </button>
                             </div>
                             
+                            {quickAddConflict && (
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-left">
+                                    <p className="text-[11px] font-bold text-amber-900">⚠️ Nomor WhatsApp Sudah Terdaftar</p>
+                                    <p className="text-[11px] text-amber-800 leading-tight">
+                                        Nomor <span className="font-mono font-bold">{quickAddConflict.whatsapp}</span> sudah terdaftar atas nama <strong>{quickAddConflict.full_name}</strong> ({quickAddConflict.branches?.name || 'Pusat'}).
+                                        {quickAddConflict.lastVisit ? ` Kunjungan terakhir: ${new Date(quickAddConflict.lastVisit).toLocaleDateString('id-ID')}.` : ''}
+                                    </p>
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                handleSelectPatient(quickAddConflict)
+                                                setQuickAddConflict(null)
+                                                setQuickAddForm({ full_name: '', whatsapp: '' })
+                                                setIsQuickAddInlineOpen(false)
+                                            }}
+                                            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-all shadow-sm"
+                                        >
+                                            ✓ Pakai Pasien Ini Saja
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickAddConflict(null)}
+                                            className="bg-white hover:bg-gray-100 text-gray-600 text-[10px] font-bold py-1.5 px-2 rounded-lg border border-amber-300 transition-all"
+                                        >
+                                            Batal
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {quickAddError && (
                                 <p className="text-[11px] text-red-500 font-semibold">{quickAddError}</p>
                             )}

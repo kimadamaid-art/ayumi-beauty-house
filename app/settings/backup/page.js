@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
+import { normalizeIndonesianPhone } from '@/lib/phoneNormalization'
 
 export default function BackupRestorePage() {
     const router = useRouter()
@@ -146,7 +147,21 @@ export default function BackupRestorePage() {
                 // 1. Patients
                 toast.loading('Memulihkan data Pasien...', { id: toastId })
                 if (patients.length > 0) {
-                    const { error } = await supabase.from('patients').upsert(patients)
+                    const sanitizedPatients = patients.map(p => {
+                        const normWa = normalizeIndonesianPhone(p.whatsapp) || p.whatsapp
+                        return {
+                            ...p,
+                            full_name: (p.full_name || '').trim(),
+                            whatsapp: normWa,
+                            birth_date: p.birth_date && String(p.birth_date).trim() !== '' && p.birth_date !== '-' ? p.birth_date : null,
+                            address: p.address && String(p.address).trim() !== '' ? String(p.address).trim() : null,
+                            medical_notes: p.medical_notes && String(p.medical_notes).trim() !== '' ? String(p.medical_notes).trim() : null,
+                            allergies: p.allergies && String(p.allergies).trim() !== '' ? String(p.allergies).trim() : null,
+                            notes: p.notes && String(p.notes).trim() !== '' ? String(p.notes).trim() : null,
+                            instagram: p.instagram && String(p.instagram).trim() !== '' ? String(p.instagram).trim() : null
+                        }
+                    })
+                    const { error } = await supabase.from('patients').upsert(sanitizedPatients)
                     if (error) throw error
                 }
 
