@@ -186,7 +186,7 @@ export default function TransactionsPage() {
     // Summary calculations for the main view
     const mainSummary = useMemo(() => {
         let totalRevenue = 0
-        let totalTx = filteredTransactions.length
+        let totalTx = 0
         let treatmentQty = 0
         let productQty = 0
         let couponQty = 0
@@ -195,6 +195,10 @@ export default function TransactionsPage() {
         let couponRevenue = 0
 
         filteredTransactions.forEach(tx => {
+            // Pengecualian mutlak: Transaksi VOID (Batal) tidak dihitung ke seluruh KPI omzet & kuantitas
+            if (tx.payment_status === 'void') return
+
+            totalTx += 1
             totalRevenue += Number(tx.total || 0)
             tx.transaction_items?.forEach(item => {
                 const subtotal = Number(item.subtotal || 0)
@@ -285,51 +289,33 @@ export default function TransactionsPage() {
         setIsEditingTx(false)
     }
 
-    const handleDeleteTx = async (tx) => {
-        if (!window.confirm(`Apakah Anda yakin ingin menghapus transaksi ${tx.transaction_number}? Stok produk yang dibeli akan dikembalikan dan kupon yang dibeli akan dihapus.`)) {
+    const handleVoidTx = async (tx) => {
+        if (!tx) return
+        if (tx.payment_status === 'void') {
+            alert('Transaksi ini sudah berstatus VOID.')
+            return
+        }
+
+        const reason = window.prompt(`Konfirmasi Pembatalan Transaksi ${tx.transaction_number}:\nMasukkan alasan pembatalan transaksi secara jelas:`)
+        if (!reason || !reason.trim()) {
+            alert('Alasan pembatalan wajib diisi.')
             return
         }
 
         try {
-            // 1. Revert product stocks
-            const productItems = tx.transaction_items?.filter(item => item.item_type === 'product') || []
-            for (const item of productItems) {
-                const { data: stockData } = await supabase
-                    .from('product_stock')
-                    .select('id, quantity')
-                    .eq('product_id', item.product_id)
-                    .eq('branch_id', tx.branch_id)
-                    .maybeSingle()
+            const { data, error } = await supabase.rpc('void_transaction', {
+                p_transaction_id: tx.id,
+                p_reason: reason.trim()
+            })
 
-                if (stockData) {
-                    await supabase
-                        .from('product_stock')
-                        .update({ quantity: stockData.quantity + item.quantity })
-                        .eq('id', stockData.id)
-                }
-            }
+            if (error) throw error
 
-            // 2. Delete patient coupons (which cascades to patient_coupon_items)
-            await supabase
-                .from('patient_coupons')
-                .delete()
-                .eq('transaction_id', tx.id)
-
-            // 3. Delete transaction itself
-            const { error: deleteErr } = await supabase
-                .from('transactions')
-                .delete()
-                .eq('id', tx.id)
-
-            if (deleteErr) throw deleteErr
-
-            alert('Transaksi berhasil dihapus.')
+            alert(data?.message || 'Transaksi berhasil dibatalkan (VOID).')
             closeDetailModal()
             fetchTransactions()
-
         } catch (err) {
-            console.error('Error deleting transaction:', err)
-            alert('Gagal menghapus transaksi: ' + err.message)
+            console.error('Error voiding transaction:', err)
+            alert('Gagal membatalkan transaksi: ' + (err.message || err.error_description || err))
         }
     }
 
@@ -337,15 +323,12 @@ export default function TransactionsPage() {
         if (!selectedTx) return
 
         try {
-            // Convert local datetime input back to ISO string
-            const isoCreatedAt = new Date(editTxData.created_at).toISOString()
-
+            // Hanya update kolom yang diizinkan (payment_method & notes). created_at terkunci permanen!
             const { error: updateErr } = await supabase
                 .from('transactions')
                 .update({
                     payment_method: editTxData.payment_method,
-                    notes: editTxData.notes,
-                    created_at: isoCreatedAt
+                    notes: editTxData.notes
                 })
                 .eq('id', selectedTx.id)
 
@@ -2718,17 +2701,8 @@ export default function TransactionsPage() {
                             {/* Transaction Info Grid */}
                             <div className="grid grid-cols-2 gap-3 border-b border-dashed border-gray-200 pb-3">
                                 <div>
-                                    <span className="block text-[9px] text-gray-400 font-bold uppercase">Tanggal</span>
-                                    {isEditingTx ? (
-                                        <input
-                                            type="datetime-local"
-                                            value={editTxData.created_at}
-                                            onChange={(e) => setEditTxData(prev => ({ ...prev, created_at: e.target.value }))}
-                                            className="w-full p-1 border rounded text-[10px] focus:outline-none focus:border-ayumi-primary bg-white text-gray-800"
-                                        />
-                                    ) : (
-                                        <span>{formatDate(selectedTx.created_at)}</span>
-                                    )}
+                                    <span className="block text-[9px] text-gray-400 font-bold uppercase">Tanggal (Terkunci)</span>
+                                    <span className="text-gray-800 font-bold">{formatDate(selectedTx.created_at)}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Kasir</span>
@@ -2847,12 +2821,15 @@ export default function TransactionsPage() {
                                             >
                                                 Edit
                                             </button>
-                                            <button
-                                                onClick={() => handleDeleteTx(selectedTx)}
-                                                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-xs font-bold transition-all"
-                                            >
-                                                Hapus
-                                            </button>
+                                            {selectedTx?.payment_status !== 'void' && (
+                                                <button
+                                                    onClick={() => handleVoidTx(selectedTx)}
+                                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                                                    title="Batalkan Transaksi (VOID) & Kembalikan Stok/Kupon"
+                                                >
+                                                    Batalkan (Void)
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                     <button

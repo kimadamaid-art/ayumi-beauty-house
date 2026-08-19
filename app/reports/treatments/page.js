@@ -138,9 +138,11 @@ export default function TreatmentsReportPage() {
                         id,
                         created_at,
                         branch_id,
-                        patient_id
+                        patient_id,
+                        payment_status
                     )
                 `)
+                .eq('transactions.payment_status', 'paid')
                 .gte('transactions.created_at', new Date(`${sDate}T00:00:00`).toISOString())
                 .lte('transactions.created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
 

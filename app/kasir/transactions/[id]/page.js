@@ -414,6 +414,12 @@ export default function ReceiptPage() {
                     {transaction.branches?.phone && <p className="text-xs text-gray-400">{transaction.branches.phone}</p>}
                 </div>
 
+                {transaction.payment_status === 'void' && (
+                    <div className="mb-4 p-2.5 bg-red-100 text-red-800 border-2 border-red-500 rounded-lg text-center font-black text-xs uppercase tracking-widest">
+                        *** TRANSAKSI DIBATALKAN (VOID) ***
+                    </div>
+                )}
+
                 <div className="border-t border-dashed border-gray-300 py-4 mb-4">
                     <div className="flex justify-between text-xs mb-1">
                         <span className="text-gray-500">No. Transaksi</span>

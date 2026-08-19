@@ -625,9 +625,10 @@ export default function PatientDetailPage() {
 
                         {/* Summary Metrics */}
                         {(() => {
-                            const ltv = patientTransactions.reduce((sum, tx) => sum + Number(tx.total || 0), 0)
-                            const avgVisit = patientTransactions.length > 0 ? ltv / patientTransactions.length : 0
-                            const lastTx = patientTransactions[0] || null
+                            const validTxs = patientTransactions.filter(tx => tx.payment_status === 'paid')
+                            const ltv = validTxs.reduce((sum, tx) => sum + Number(tx.total || 0), 0)
+                            const avgVisit = validTxs.length > 0 ? ltv / validTxs.length : 0
+                            const lastTx = validTxs[0] || null
 
                             return (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">

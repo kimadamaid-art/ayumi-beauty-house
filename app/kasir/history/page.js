@@ -196,9 +196,16 @@ export default function TransactionsHistoryPage() {
                                             )}
                                         </td>
                                         <td className="p-4 text-gray-600 uppercase text-xs font-bold tracking-wider">
-                                            {trx.payment_method}
+                                            <div className="flex items-center gap-1.5">
+                                                <span>{trx.payment_method}</span>
+                                                {trx.payment_status === 'void' ? (
+                                                    <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-black">VOID</span>
+                                                ) : (
+                                                    <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black">LUNAS</span>
+                                                )}
+                                            </div>
                                         </td>
-                                        <td className="p-4 text-right  font-bold text-gray-800">
+                                        <td className={`p-4 text-right font-bold ${trx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                                             {trx.total.toLocaleString('id-ID')}
                                         </td>
                                         <td className="p-4">

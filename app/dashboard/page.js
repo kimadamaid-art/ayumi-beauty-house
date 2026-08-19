@@ -532,6 +532,7 @@ export default function Dashboard() {
 
             // Transactions Today
             let trxTodayQuery = supabase.from('transactions').select('total, payment_method')
+                .eq('payment_status', 'paid')
                 .gte('created_at', new Date(`${todayDateStr}T00:00:00`).toISOString())
                 .lte('created_at', new Date(`${todayDateStr}T23:59:59.999`).toISOString())
             trxTodayQuery = applyBranchFilter(trxTodayQuery)
@@ -541,6 +542,7 @@ export default function Dashboard() {
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
             sevenDaysAgo.setHours(0,0,0,0)
             let sparklineQuery = supabase.from('transactions').select('total, created_at')
+                .eq('payment_status', 'paid')
                 .gte('created_at', sevenDaysAgo.toISOString())
             sparklineQuery = applyBranchFilter(sparklineQuery)
 
@@ -665,6 +667,7 @@ export default function Dashboard() {
                 const { data: monthlyTrx } = await supabase
                     .from('transactions')
                     .select('total')
+                    .eq('payment_status', 'paid')
                     .eq('branch_id', activeBranchId)
                     .gte('created_at', startOfCurrentMonth)
                     .lte('created_at', endOfCurrentMonth)
@@ -704,6 +707,7 @@ export default function Dashboard() {
                             subtotal
                         )
                     `)
+                    .eq('payment_status', 'paid')
                     .eq('branch_id', activeBranchId)
                     .gte('created_at', startOfCurrentMonth)
                     .lte('created_at', endOfCurrentMonth)
