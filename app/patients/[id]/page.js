@@ -225,6 +225,7 @@ export default function PatientDetailPage() {
                         )
                     )
                 `)
+                .is('voided_at', null)
                 .eq('patient_id', id)
                 .order('used_at', { ascending: false })
 

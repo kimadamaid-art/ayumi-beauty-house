@@ -793,10 +793,11 @@ function PosPageContent() {
                         await supabase.from('coupon_usage_logs').insert([{
                             patient_coupon_item_id: cartItem.used_coupon_item_id,
                             patient_id: selectedPatient.id,
+                            transaction_id: trxData.id,
                             treatment_record_id: cartItem.treatment_record_id || null,
                             branch_id: selectedBranch,
                             used_by: dbUser?.id || null,
-                            notes: `Klaim Kasir (No. Tx: ${trxData.id?.substring(0, 8)})`
+                            notes: `Klaim Kasir (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
                         }])
 
                         const { data: currentCpItem } = await supabase

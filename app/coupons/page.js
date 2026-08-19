@@ -283,6 +283,7 @@ export default function CouponsDashboardPage() {
                 branches (name),
                 users (full_name)
             `)
+            .is('voided_at', null)
             .order('used_at', { ascending: false })
 
         if (histStartDate) query = query.gte('used_at', `${histStartDate}T00:00:00Z`)
