@@ -141,8 +141,46 @@ export default function TherapistDetailPage() {
         if (error) {
             console.error('Error fetching therapist detail report:', error)
         } else {
+            // Also fetch coupon usage logs to match proportional coupon value
+            const { data: cLogs } = await supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    id,
+                    treatment_record_id,
+                    patient_coupon_items(
+                        total_sessions,
+                        patient_coupons(
+                            coupon_packages(
+                                price
+                            )
+                        )
+                    )
+                `)
+
+            const couponMap = {}
+            if (cLogs) {
+                cLogs.forEach(cl => {
+                    if (cl.treatment_record_id && cl.patient_coupon_items) {
+                        const pkgPrice = Number(cl.patient_coupon_items.patient_coupons?.coupon_packages?.price || 0)
+                        const totalSessions = Number(cl.patient_coupon_items.total_sessions || 1)
+                        if (pkgPrice > 0 && totalSessions > 0) {
+                            couponMap[cl.treatment_record_id] = Math.round(pkgPrice / totalSessions)
+                        }
+                    }
+                })
+            }
+
+            const enhancedData = (data || []).map(r => {
+                const trId = r.treatment_records?.id
+                const proportionalCouponPrice = trId ? couponMap[trId] : null
+                return {
+                    ...r,
+                    proportional_coupon_price: proportionalCouponPrice
+                }
+            })
+
             // Sort treatment_records manually by date and time descending
-            const sortedData = (data || []).sort((a, b) => {
+            const sortedData = enhancedData.sort((a, b) => {
                 const dateA = new Date(`${a.treatment_records.treatment_date}T${a.treatment_records.treatment_time || '00:00:00'}`)
                 const dateB = new Date(`${b.treatment_records.treatment_date}T${b.treatment_records.treatment_time || '00:00:00'}`)
                 return dateB - dateA
@@ -163,10 +201,21 @@ export default function TherapistDetailPage() {
 
     // Key Stats Calculation
     const stats = useMemo(() => {
-        const totalIncome = treatmentRecords.reduce((acc, curr) => acc + Number(curr.price_at_time || 0), 0)
+        const totalIncome = treatmentRecords.reduce((acc, curr) => {
+            const p = Number(curr.price_at_time || 0)
+            return acc + (p > 0 ? p : Number(curr.proportional_coupon_price || 0))
+        }, 0)
+
         const totalCommission = treatmentRecords.reduce((acc, curr) => {
             const price = Number(curr.price_at_time || 0)
-            const basePrice = (price === 0 && Number(curr.original_price || 0) > 0) ? Number(curr.original_price) : price
+            let basePrice = price
+            if (price === 0) {
+                if (curr.proportional_coupon_price && curr.proportional_coupon_price > 0) {
+                    basePrice = curr.proportional_coupon_price
+                } else if (Number(curr.original_price || 0) > 0) {
+                    basePrice = Number(curr.original_price)
+                }
+            }
             const commPercent = Number(curr.commission_percent || 0)
             return acc + Math.round(basePrice * (commPercent / 100))
         }, 0)
@@ -434,16 +483,24 @@ export default function TherapistDetailPage() {
                 let currentX = margin
 
                 const price = Number(r.price_at_time || 0)
-                const basePrice = (price === 0 && Number(r.original_price || 0) > 0) ? Number(r.original_price) : price
+                let basePrice = price
+                if (price === 0) {
+                    if (r.proportional_coupon_price && r.proportional_coupon_price > 0) {
+                        basePrice = r.proportional_coupon_price
+                    } else if (Number(r.original_price || 0) > 0) {
+                        basePrice = Number(r.original_price)
+                    }
+                }
                 const commPercent = Number(r.commission_percent || 0)
                 const commAmount = Math.round(basePrice * (commPercent / 100))
 
+                const displayPrice = price > 0 ? price : (r.proportional_coupon_price || basePrice)
                 const rowData = [
                     (idx + 1).toString(),
                     r.treatment_records?.treatment_date || '-',
                     (r.treatment_records?.patients?.full_name || '-').substring(0, 22),
                     (r.treatments?.name || '-').substring(0, 26),
-                    Number(price).toLocaleString('id-ID'),
+                    (price === 0 ? '🎟️ ' : '') + Number(displayPrice).toLocaleString('id-ID'),
                     `${commPercent}%`,
                     Number(commAmount).toLocaleString('id-ID')
                 ]

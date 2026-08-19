@@ -40,6 +40,17 @@ export async function GET(request) {
             return NextResponse.json({ error: 'patientId is required' }, { status: 400 })
         }
 
+        // 2. Fetch caller role & branch_id
+        const { data: caller, error: callerError } = await supabase
+            .from('users')
+            .select('id, role, branch_id')
+            .eq('id', user.id)
+            .maybeSingle()
+
+        if (callerError || !caller) {
+            return NextResponse.json({ error: 'User profil tidak ditemukan' }, { status: 403 })
+        }
+
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
         if (!serviceRoleKey) {
             return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
@@ -51,7 +62,40 @@ export async function GET(request) {
             { auth: { autoRefreshToken: false, persistSession: false } }
         )
 
-        // 1. Fetch Patient Info (without whatsapp)
+        // 3. Clinical Authorization Check for Therapists
+        if (caller.role === 'therapist') {
+            // Check if therapist has an appointment or treatment record or patient is in same branch
+            const { data: apts } = await supabaseAdmin
+                .from('appointments')
+                .select('id')
+                .eq('patient_id', patientId)
+                .or(`therapist_id.eq.${user.id},branch_id.eq.${caller.branch_id}`)
+                .limit(1)
+
+            const { data: trs } = await supabaseAdmin
+                .from('treatment_records')
+                .select('id')
+                .eq('patient_id', patientId)
+                .or(`performed_by.eq.${user.id},branch_id.eq.${caller.branch_id}`)
+                .limit(1)
+
+            const { data: pt } = await supabaseAdmin
+                .from('patients')
+                .select('id')
+                .eq('id', patientId)
+                .eq('branch_id', caller.branch_id)
+                .limit(1)
+
+            const isAuthorized = (apts && apts.length > 0) || (trs && trs.length > 0) || (pt && pt.length > 0)
+            if (!isAuthorized) {
+                return NextResponse.json(
+                    { error: 'Akses Ditolak: Anda tidak memiliki wewenang atau penugasan atas pasien ini.' },
+                    { status: 403 }
+                )
+            }
+        }
+
+        // 4. Fetch Patient Info (without whatsapp)
         const { data: patient, error: pErr } = await supabaseAdmin
             .from('patients')
             .select('id, full_name, gender, birth_date, allergies, medical_notes, notes')

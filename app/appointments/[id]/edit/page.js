@@ -155,6 +155,12 @@ function EditAppointmentForm() {
         setIsSaving(true)
 
         try {
+            const isWorker = formData.therapist_id === 'worker'
+            let finalNotes = formData.notes || ''
+            if (isWorker && !finalNotes.includes('[INFUS - WORKER NAKES LUAR]')) {
+                finalNotes = `[INFUS - WORKER NAKES LUAR] ${finalNotes}`.trim()
+            }
+
             const { error: aptErr } = await supabase
                 .from('appointments')
                 .update({
@@ -163,14 +169,14 @@ function EditAppointmentForm() {
                     appointment_date: formData.appointment_date,
                     start_time: formData.start_time,
                     end_time: formData.end_time,
-                    therapist_id: formData.therapist_id || null,
-                    notes: formData.notes || null
+                    therapist_id: isWorker ? null : (formData.therapist_id || null),
+                    notes: finalNotes || null
                 })
                 .eq('id', id)
 
             if (aptErr) throw aptErr
 
-            toast.success('Jadwal temu berhasil diperbarui!')
+            toast.success(isWorker ? 'Jadwal temu Infus (Worker) berhasil diperbarui!' : 'Jadwal temu berhasil diperbarui!')
             router.push(`/appointments/${id}`)
             router.refresh()
 
@@ -286,7 +292,7 @@ function EditAppointmentForm() {
                     )}
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Terapis (Opsional)</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Terapis / Pelaksana (Opsional)</label>
                         <select
                             name="therapist_id"
                             value={formData.therapist_id}
@@ -294,10 +300,17 @@ function EditAppointmentForm() {
                             className="input-ayumi focus:bg-white"
                         >
                             <option value="">-- Belum ditentukan --</option>
+                            <option value="worker">💉 Worker (Nakes Luar - Sesi Infus)</option>
                             {therapists.map(t => (
                                 <option key={t.id} value={t.id}>{t.full_name}</option>
                             ))}
                         </select>
+                        {formData.therapist_id === 'worker' && (
+                            <p className="text-xs text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                Sesi Infus oleh Nakes Luar bebas dari pengisian rekam medis SOAP terapis.
+                            </p>
+                        )}
                     </div>
 
                     <div>

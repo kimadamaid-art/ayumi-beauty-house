@@ -255,7 +255,13 @@ function NewAppointmentForm() {
         setIsSaving(true)
 
         try {
-            // Insert Appointment (tanpa treatment — treatment diisi oleh terapis saat sesi)
+            const isWorker = formData.therapist_id === 'worker'
+            let finalNotes = formData.notes || ''
+            if (isWorker && !finalNotes.includes('[INFUS - WORKER NAKES LUAR]')) {
+                finalNotes = `[INFUS - WORKER NAKES LUAR] ${finalNotes}`.trim()
+            }
+
+            // Insert Appointment
             const { error: aptErr } = await supabase
                 .from('appointments')
                 .insert([{
@@ -264,14 +270,14 @@ function NewAppointmentForm() {
                     appointment_date: formData.appointment_date,
                     start_time: formData.start_time,
                     end_time: formData.end_time,
-                    therapist_id: formData.therapist_id || null,
+                    therapist_id: isWorker ? null : (formData.therapist_id || null),
                     status: 'scheduled',
-                    notes: formData.notes || null
+                    notes: finalNotes || null
                 }])
 
             if (aptErr) throw aptErr
 
-            toast.success('Jadwal temu berhasil dibuat!')
+            toast.success(isWorker ? 'Jadwal temu Infus (Worker) berhasil dibuat!' : 'Jadwal temu berhasil dibuat!')
             router.push('/appointments')
             router.refresh()
 
@@ -414,7 +420,7 @@ function NewAppointmentForm() {
                     )}
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Terapis (Opsional)</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Terapis / Pelaksana (Opsional)</label>
                         <select
                             name="therapist_id"
                             value={formData.therapist_id}
@@ -422,6 +428,7 @@ function NewAppointmentForm() {
                             className="input-ayumi focus:bg-white"
                         >
                             <option value="">-- Belum ditentukan --</option>
+                            <option value="worker">💉 Worker (Nakes Luar - Sesi Infus)</option>
                             {therapists
                                 .filter(t => !t.branch_id || !formData.branch_id || t.branch_id === formData.branch_id)
                                 .map(t => (
@@ -429,6 +436,12 @@ function NewAppointmentForm() {
                                 ))
                             }
                         </select>
+                        {formData.therapist_id === 'worker' && (
+                            <p className="text-xs text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                Sesi Infus oleh Nakes Luar bebas dari pengisian rekam medis SOAP terapis.
+                            </p>
+                        )}
                     </div>
 
                     <div>

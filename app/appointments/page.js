@@ -122,6 +122,43 @@ export default function AppointmentsPage() {
         return treatmentNames.includes('infus') || categoryNames.includes('infus') || notes.includes('infus')
     }
 
+    const isWorkerInfus = (apt) => {
+        if (!apt) return false
+        const notes = (apt.notes || '').toUpperCase()
+        return notes.includes('[INFUS - WORKER NAKES LUAR]') || (isInfusAppointment(apt) && !apt.therapist_id)
+    }
+
+    const handleCompleteWorkerInfus = async (aptId, e) => {
+        if (e) {
+            e.stopPropagation()
+            e.preventDefault()
+        }
+
+        if (!window.confirm('Selesaikan sesi Infus oleh Worker ini dan teruskan ke antrean Kasir?')) return
+
+        setLoading(true)
+        try {
+            const { error: updateErr } = await supabase
+                .from('appointments')
+                .update({
+                    status: 'completed',
+                    arrival_status: 'arrived',
+                    arrived_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', aptId)
+
+            if (updateErr) throw updateErr
+
+            toast.success('Sesi Infus Worker selesai! Pasien siap diproses di Kasir.')
+            fetchData()
+        } catch (err) {
+            console.error('Error completing worker infus:', err)
+            toast.error('Gagal menyelesaikan sesi: ' + err.message)
+            setLoading(false)
+        }
+    }
+
     const handleDeleteAppointment = async (aptId, e) => {
         if (e) {
             e.stopPropagation()
@@ -655,15 +692,15 @@ export default function AppointmentsPage() {
                                                                                                     {/* Treatment list */}
                                                                                                     <div className="text-[10px] text-cyan-950 font-medium mt-0.5 bg-white/80 px-1.5 py-0.5 rounded border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
                                                                                                         {treatmentsList}
-                                                                                                    </div>
-
-                                                                                                    {/* Therapist & Branch Info */}
-                                                                                                    {(apt.therapist?.full_name || apt.branches?.name) && (
                                                                                                         <div className="text-[9.5px] text-cyan-900/80 font-medium mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
                                                                                                             {apt.branches?.name && <span>Cabang: <b className="font-bold text-slate-800">{apt.branches.name}</b></span>}
-                                                                                                            {apt.therapist?.full_name && <span>• {apt.therapist.full_name.split(' ')[0]}</span>}
+                                                                                                            {apt.therapist?.full_name ? (
+                                                                                                                <span>• {apt.therapist.full_name.split(' ')[0]}</span>
+                                                                                                            ) : (
+                                                                                                                <span className="text-emerald-700 font-bold bg-emerald-100/80 px-1 py-0.2 rounded">• 💉 Worker (Nakes Luar)</span>
+                                                                                                            )}
                                                                                                         </div>
-                                                                                                    )}
+                                                                                                    </div>
                                                                                                 </div>
 
                                                                                                 {/* Footer: Arrival / Status & Actions */}
@@ -674,14 +711,25 @@ export default function AppointmentsPage() {
 
                                                                                                     <div className="flex items-center gap-1">
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
-                                                                                                            <Link href={`/therapist/treatment-input/${apt.id}`}>
+                                                                                                            isWorkerInfus(apt) ? (
                                                                                                                 <button
-                                                                                                                    className="text-[9.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer"
-                                                                                                                    title="Input Treatment & SOAP Medis"
+                                                                                                                    type="button"
+                                                                                                                    onClick={(e) => handleCompleteWorkerInfus(apt.id, e)}
+                                                                                                                    className="text-[9.5px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                                                                                                                    title="Selesai Tanpa SOAP & Siap Kasir"
                                                                                                                 >
-                                                                                                                    Input Treatment
+                                                                                                                    <span>✓ Selesai & Tagih</span>
                                                                                                                 </button>
-                                                                                                            </Link>
+                                                                                                            ) : (
+                                                                                                                <Link href={`/therapist/treatment-input/${apt.id}`}>
+                                                                                                                    <button
+                                                                                                                        className="text-[9.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer"
+                                                                                                                        title="Input Treatment & SOAP Medis"
+                                                                                                                    >
+                                                                                                                        Input Treatment
+                                                                                                                    </button>
+                                                                                                                </Link>
+                                                                                                            )
                                                                                                         )}
 
                                                                                                         <button

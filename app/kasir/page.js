@@ -715,7 +715,7 @@ function PosPageContent() {
 
         const hasDirectTreatment = cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id)
         if (hasDirectTreatment && !selectedTherapistId) {
-            alert('Silakan pilih terapis yang melakukan tindakan treatment!')
+            alert('Silakan pilih terapis / pelaksana tindakan!')
             return
         }
 
@@ -727,12 +727,15 @@ function PosPageContent() {
 
             // If it is a direct treatment checkout, create a parent treatment record first
             if (hasDirectTreatment) {
+                const isWorker = selectedTherapistId === 'worker'
                 const { data: newTr, error: trErr } = await supabase
                     .from('treatment_records')
                     .insert([{
                         patient_id: selectedPatient?.id || null,
                         branch_id: selectedBranch,
-                        performed_by: selectedTherapistId,
+                        performed_by: isWorker ? null : selectedTherapistId,
+                        complaints: isWorker ? '[INFUS - WORKER NAKES LUAR]' : null,
+                        result_notes: isWorker ? 'Sesi Infus dikerjakan oleh Worker Nakes Luar' : null,
                         treatment_date: new Date().toISOString().split('T')[0],
                         treatment_time: new Date().toLocaleTimeString('en-US', { hour12: false })
                     }])
@@ -1715,6 +1718,7 @@ function PosPageContent() {
                                     className="w-full input-ayumi text-xs font-bold bg-white focus:border-ayumi-primary"
                                 >
                                     <option value="">-- Pilih Terapis Tindakan --</option>
+                                    <option value="worker">💉 Worker (Nakes Luar - Tanpa Komisi Terapis)</option>
                                     {therapists.map(t => (
                                         <option key={t.id} value={t.id}>{t.full_name}</option>
                                     ))}
