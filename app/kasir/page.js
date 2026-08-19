@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import BranchFilter from '@/components/ui/BranchFilter'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
+import { usePatientSearch } from '@/hooks/usePatientSearch'
 
 function PosPageContent() {
     const router = useRouter()
@@ -21,15 +22,23 @@ function PosPageContent() {
     const [treatments, setTreatments] = useState([])
     const [products, setProducts] = useState([])
     const [coupons, setCoupons] = useState([])
-    const [patients, setPatients] = useState([])
     const [pendingBills, setPendingBills] = useState([])
     const [therapists, setTherapists] = useState([])
     const [selectedTherapistId, setSelectedTherapistId] = useState('')
     
+    // Patient Search Hook (server-side, debounce 350ms, limit 20, sequence tracked)
+    const {
+        searchQuery: searchPatientQuery,
+        setSearchQuery: setSearchPatientQuery,
+        results: patientSearchResults,
+        isSearching: isSearchingPatient,
+        hasSearched: hasSearchedPatient,
+        resetSearch: resetPatientSearch
+    } = usePatientSearch({ debounceMs: 350, limit: 20 })
+
     // UI State
     const [activeTab, setActiveTab] = useState('treatment') // 'treatment' | 'product' | 'coupon'
     const [searchQuery, setSearchQuery] = useState('')
-    const [searchPatientQuery, setSearchPatientQuery] = useState('')
     const [isPatientDropdownOpen, setIsPatientDropdownOpen] = useState(false)
     const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
     const [leftPanelTab, setLeftPanelTab] = useState('pending')
@@ -85,10 +94,6 @@ function PosPageContent() {
         const { data: cpData } = await supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true })
         if (cpData) setCoupons(cpData)
 
-        // Fetch Patients (ordered by most recent first)
-        const { data: patData } = await supabase.from('patients').select('id, full_name, whatsapp').order('created_at', { ascending: false }).limit(2000)
-        if (patData) setPatients(patData)
-
         // Fetch active therapists
         const { data: thData } = await supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name')
         if (thData) setTherapists(thData)
@@ -100,36 +105,6 @@ function PosPageContent() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchInitialData()
     }, [supabase])
-
-    // Live Server-side Search for Patient Autocomplete
-    useEffect(() => {
-        if (!searchPatientQuery || searchPatientQuery.trim().length < 2) return
-
-        const timer = setTimeout(async () => {
-            const query = searchPatientQuery.trim()
-            const { data: searchResults } = await supabase
-                .from('patients')
-                .select('id, full_name, whatsapp')
-                .or(`full_name.ilike.%${query}%,whatsapp.ilike.%${query}%`)
-                .order('full_name', { ascending: true })
-                .limit(20)
-
-            if (searchResults && searchResults.length > 0) {
-                setPatients(prev => {
-                    const existingIds = new Set(prev.map(p => p.id))
-                    const newPatients = [...prev]
-                    searchResults.forEach(sp => {
-                        if (!existingIds.has(sp.id)) {
-                            newPatients.push(sp)
-                        }
-                    })
-                    return newPatients
-                })
-            }
-        }, 200)
-
-        return () => clearTimeout(timer)
-    }, [searchPatientQuery, supabase])
 
     useEffect(() => {
         const loadAutoBill = async () => {
@@ -323,7 +298,6 @@ function PosPageContent() {
 
             if (error) throw error
 
-            setPatients(prev => [...prev, data].sort((a,b) => a.full_name.localeCompare(b.full_name)))
             handleSelectPatient(data)
             setQuickAddForm({ full_name: '', whatsapp: '' })
             setIsQuickAddInlineOpen(false)
@@ -849,16 +823,6 @@ function PosPageContent() {
         }
     }
 
-    const filteredPatients = patients.filter(p => {
-        if (!searchPatientQuery.trim()) return true
-        const qLower = searchPatientQuery.trim().toLowerCase()
-        const tokens = qLower.split(/\s+/).filter(Boolean)
-        const nameLower = (p.full_name || '').toLowerCase()
-        const waStr = p.whatsapp || ''
-        
-        return tokens.every(token => nameLower.includes(token) || waStr.includes(token))
-    }).slice(0, 10)
-
     // Additional UI state for collapsible add-item panel
     const [showAddItemPanel, setShowAddItemPanel] = useState(false)
 
@@ -1364,39 +1328,32 @@ function PosPageContent() {
                             </div>
                             {isPatientDropdownOpen && (
                                 <div className="absolute z-20 w-full mt-1.5 bg-white border border-gray-100 shadow-xl rounded-2xl max-h-64 overflow-y-auto custom-scrollbar divide-y divide-gray-50">
-                                    {filteredPatients.length > 0 ? (
-                                        <>
-                                            {filteredPatients.map(p => (
-                                                <div 
-                                                    key={p.id} 
-                                                    onClick={() => handleSelectPatient(p)}
-                                                    className="px-4.5 py-3 hover:bg-pink-50/40 cursor-pointer transition-colors flex items-center justify-between"
-                                                >
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-gray-800 text-sm truncate">{p.full_name}</p>
-                                                        <p className="text-xs text-gray-400  mt-0.5">{p.whatsapp || 'No HP tidak ada'}</p>
-                                                    </div>
-                                                    <span className="text-[10px] text-ayumi-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
-                                                </div>
-                                            ))}
+                                    {searchPatientQuery.trim().length < 2 ? (
+                                        <div className="p-3.5 text-center text-xs text-gray-400">
+                                            Ketik minimal 2 karakter untuk mencari pasien...
+                                        </div>
+                                    ) : isSearchingPatient ? (
+                                        <div className="p-4 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                                            <div className="w-3.5 h-3.5 border-2 border-ayumi-primary border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Mencari data pasien...</span>
+                                        </div>
+                                    ) : patientSearchResults.length > 0 ? (
+                                        patientSearchResults.map(p => (
                                             <div 
-                                                onClick={() => {
-                                                    setQuickAddForm({ full_name: searchPatientQuery, whatsapp: '' })
-                                                    setIsQuickAddInlineOpen(true)
-                                                    setIsPatientDropdownOpen(false)
-                                                }}
-                                                className="px-4.5 py-3 hover:bg-pink-50/80 cursor-pointer transition-colors flex items-center justify-between text-ayumi-primary bg-pink-50/30"
+                                                key={p.id} 
+                                                onClick={() => handleSelectPatient(p)}
+                                                className="px-4.5 py-3 hover:bg-pink-50/40 cursor-pointer transition-colors flex items-center justify-between group"
                                             >
-                                                <span className="font-bold text-xs flex items-center gap-1.5">
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                                    Tambah Pasien Baru: "{searchPatientQuery || '...'}"
-                                                </span>
-                                                <span className="text-[9px] bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider">Cepat</span>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-gray-800 text-sm truncate">{p.full_name}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{p.whatsapp || 'No HP tidak ada'}</p>
+                                                </div>
+                                                <span className="text-[10px] text-ayumi-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
                                             </div>
-                                        </>
-                                    ) : (
-                                        <div className="p-3">
-                                            <p className="px-3 py-2 text-xs text-gray-500 text-center">Pasien tidak ditemukan.</p>
+                                        ))
+                                    ) : !isSearchingPatient && hasSearchedPatient && patientSearchResults.length === 0 ? (
+                                        <div className="p-3.5 text-center">
+                                            <p className="text-xs text-gray-500 mb-2">Tidak ditemukan pasien dengan nama / WA "{searchPatientQuery}".</p>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -1404,13 +1361,13 @@ function PosPageContent() {
                                                     setIsQuickAddInlineOpen(true)
                                                     setIsPatientDropdownOpen(false)
                                                 }}
-                                                className="w-full mt-1.5 bg-pink-50 hover:bg-pink-100 text-ayumi-primary text-xs font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                                                className="w-full bg-pink-50 hover:bg-pink-100 text-ayumi-primary text-xs font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                                             >
                                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                                Tambah Pasien Baru
+                                                + Daftarkan "{searchPatientQuery}" Sebagai Pasien Baru
                                             </button>
                                         </div>
-                                    )}
+                                    ) : null}
                                 </div>
                             )}
                         </div>

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import { usePatientSearch } from '@/hooks/usePatientSearch'
 
 export default function NewAppointmentPage() {
     return (
@@ -23,11 +24,19 @@ function NewAppointmentForm() {
     const [error, setError] = useState('')
 
     // Data lists
-    const [patients, setPatients] = useState([])
     const [branches, setBranches] = useState([])
     const [therapists, setTherapists] = useState([])
     const [isOwner, setIsOwner] = useState(false)
-    const [patientSearch, setPatientSearch] = useState('')
+    
+    // Patient Search Hook (server-side, debounce 350ms, limit 20, sequence tracked)
+    const {
+        searchQuery: patientSearch,
+        setSearchQuery: setPatientSearch,
+        results: patientSearchResults,
+        isSearching: isSearchingPatient,
+        hasSearched: hasSearchedPatient,
+        resetSearch: resetPatientSearch
+    } = usePatientSearch({ debounceMs: 350, limit: 20 })
 
     // Quick Add Patient Modal State
     const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false)
@@ -87,10 +96,6 @@ function NewAppointmentForm() {
             }
         }
 
-        // Fetch Patients
-        const { data: ptData } = await supabase.from('patients').select('id, full_name, whatsapp').order('created_at', { ascending: false })
-        if (ptData) setPatients(ptData)
-
         // Fetch Branches
         let brQuery = supabase.from('branches').select('id, name').eq('is_active', true)
         if (!ownerFlag && userBranchId) {
@@ -117,16 +122,6 @@ function NewAppointmentForm() {
         }))
         setIsNewPatientModalOpen(true)
     }
-
-    // Filter patients based on search
-    const filteredPatients = patients.filter(pt => {
-        if (!patientSearch) return true
-        const search = patientSearch.toLowerCase()
-        return (
-            (pt.full_name && pt.full_name.toLowerCase().includes(search)) ||
-            (pt.whatsapp && pt.whatsapp.includes(search))
-        )
-    })
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -197,8 +192,7 @@ function NewAppointmentForm() {
 
             toast.success(`Pasien "${createdPatient.full_name}" berhasil didaftarkan!`)
 
-            // Update patients list and select the newly created patient
-            setPatients(prev => [createdPatient, ...prev])
+            // Select the newly created patient
             setFormData(prev => ({
                 ...prev,
                 patient_id: createdPatient.id,
@@ -322,82 +316,64 @@ function NewAppointmentForm() {
                     Informasi Jadwal
                 </h3>
 
-                {/* Cari Pasien & Tambah Pasien Baru Button */}
+                {/* Cari Pasien */}
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-bold text-gray-700">
-                            Cari / Pilih Pasien <span className="text-red-500">*</span>
-                        </label>
-                        <button 
-                            type="button" 
-                            onClick={() => openNewPatientModal()}
-                            className="text-xs font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                            <span className="text-sm font-black">+</span> Tambah Pasien Baru
-                        </button>
-                    </div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Cari / Pilih Pasien <span className="text-red-500">*</span>
+                    </label>
 
-                    <input
-                        type="text"
-                        placeholder="Ketik nama atau WhatsApp pasien..."
-                        value={patientSearch}
-                        onChange={(e) => {
-                            setPatientSearch(e.target.value)
-                            if (formData.patient_id) {
-                                setFormData(prev => ({ ...prev, patient_id: '' }))
-                            }
-                        }}
-                        className="input-ayumi bg-white mb-2"
-                    />
+                    {!formData.patient_id ? (
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Ketik nama atau WhatsApp pasien..."
+                                value={patientSearch}
+                                onChange={(e) => setPatientSearch(e.target.value)}
+                                className="input-ayumi bg-white mb-2 text-sm"
+                            />
 
-                    {!formData.patient_id && (
-                        <div className="max-h-48 overflow-y-auto bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
-                            {filteredPatients.length === 0 ? (
-                                <div className="p-4 text-center">
-                                    <p className="text-sm text-gray-500">Pasien tidak ditemukan.</p>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => openNewPatientModal(patientSearch)}
-                                        className="mt-2 text-xs font-bold text-ayumi-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
-                                    >
-                                        + Daftarkan "{patientSearch}" Sebagai Pasien Baru
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {filteredPatients.slice(0, 50).map(pt => (
+                            <div className="max-h-60 overflow-y-auto bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+                                {patientSearch.trim().length < 2 ? (
+                                    <div className="p-4 text-center text-xs text-gray-400">
+                                        Ketik minimal 2 karakter untuk mencari pasien...
+                                    </div>
+                                ) : isSearchingPatient ? (
+                                    <div className="p-4 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                                        <div className="w-3.5 h-3.5 border-2 border-ayumi-primary border-t-transparent rounded-full animate-spin"></div>
+                                        <span>Mencari data pasien...</span>
+                                    </div>
+                                ) : patientSearchResults.length > 0 ? (
+                                    patientSearchResults.map(pt => (
                                         <div 
                                             key={pt.id} 
                                             onClick={() => {
                                                 setFormData(prev => ({ ...prev, patient_id: pt.id }))
                                                 setPatientSearch(pt.full_name)
                                             }}
-                                            className="p-3 cursor-pointer transition-colors hover:bg-pink-50/50 flex items-center justify-between"
+                                            className="p-3 cursor-pointer transition-colors hover:bg-pink-50/50 flex items-center justify-between group"
                                         >
                                             <div>
                                                 <div className="font-bold text-gray-800 text-sm">{pt.full_name}</div>
-                                                <div className="text-xs text-gray-500">{pt.whatsapp}</div>
+                                                <div className="text-xs text-gray-500">{pt.whatsapp || 'No HP tidak ada'}</div>
                                             </div>
-                                            <span className="text-[11px] font-bold text-ayumi-primary opacity-0 hover:opacity-100">Pilih →</span>
+                                            <span className="text-[11px] font-bold text-ayumi-primary opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
                                         </div>
-                                    ))}
-
-                                    <div className="p-2.5 bg-pink-50/30 border-t border-pink-100 flex items-center justify-between text-xs">
-                                        <span className="text-gray-500">Pasien belum terdaftar?</span>
+                                    ))
+                                ) : !isSearchingPatient && hasSearchedPatient && patientSearchResults.length === 0 ? (
+                                    <div className="p-4 text-center">
+                                        <p className="text-sm text-gray-500 mb-2">Tidak ditemukan pasien dengan nama / WA "{patientSearch}".</p>
                                         <button 
                                             type="button" 
                                             onClick={() => openNewPatientModal(patientSearch)}
-                                            className="font-bold text-ayumi-primary hover:underline flex items-center gap-1 cursor-pointer"
+                                            className="text-xs font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-4 py-2 rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                         >
-                                            + Tambah Pasien Baru
+                                            <span className="text-sm font-black">+</span> Daftarkan "{patientSearch}" Sebagai Pasien Baru
                                         </button>
                                     </div>
-                                </>
-                            )}
+                                ) : null}
+                            </div>
                         </div>
-                    )}
-
-                    {formData.patient_id && (
+                    ) : (
                         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3.5 py-2.5 shadow-2xs">
                             <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
                             <div>
@@ -406,7 +382,7 @@ function NewAppointmentForm() {
                             </div>
                             <button 
                                 type="button" 
-                                onClick={() => { setFormData(prev => ({ ...prev, patient_id: '' })); setPatientSearch('') }} 
+                                onClick={() => { setFormData(prev => ({ ...prev, patient_id: '' })); resetPatientSearch() }} 
                                 className="ml-auto text-xs font-bold text-red-500 hover:text-red-700 bg-white/80 hover:bg-white px-2 py-1 rounded-md border border-red-200 transition-colors cursor-pointer"
                             >
                                 Ganti Pasien

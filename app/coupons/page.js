@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
+import { escapePostgrestFilter } from '@/lib/searchSanitizer'
 
 export default function CouponsDashboardPage() {
     const [activeTab, setActiveTab] = useState('master') // 'master', 'patients', 'usage', 'history'
@@ -135,23 +136,22 @@ export default function CouponsDashboardPage() {
         if (!userLoaded) return
         if (activeTab === 'usage' && usageSearchPatient.length >= 2) {
             const searchPts = async () => {
+                const escaped = escapePostgrestFilter(usageSearchPatient.trim())
                 let pQuery = supabase
                     .from('patients')
                     .select('id, full_name, whatsapp')
-                    .or(`full_name.ilike.%${usageSearchPatient}%,whatsapp.ilike.%${usageSearchPatient}%`)
-                    
-                if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
-                    pQuery = pQuery.eq('branch_id', dbUser.branch_id)
-                }
+                    .or(`full_name.ilike.${escaped},whatsapp.ilike.${escaped}`)
+                    .order('full_name', { ascending: true })
+                    .limit(20)
 
-                const { data } = await pQuery.limit(5)
+                const { data } = await pQuery
                 if (data) setUsagePatients(data)
             }
             searchPts()
         } else if (usageSearchPatient.length < 2) {
             setUsagePatients([])
         }
-    }, [usageSearchPatient, userLoaded, dbUser])
+    }, [usageSearchPatient, userLoaded])
 
     const selectPatientForUsage = async (patient) => {
         setUsageSelectedPatient(patient)

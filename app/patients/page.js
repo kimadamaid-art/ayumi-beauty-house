@@ -6,6 +6,7 @@ import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import BranchFilter from '@/components/ui/BranchFilter'
+import { escapePostgrestFilter } from '@/lib/searchSanitizer'
 
 export default function PatientsPage() {
     const [patients, setPatients] = useState([])
@@ -87,7 +88,8 @@ export default function PatientsPage() {
             }
 
             if (searchQuery.trim() !== '') {
-                query = query.or(`full_name.ilike.%${searchQuery}%,whatsapp.ilike.%${searchQuery}%`)
+                const escaped = escapePostgrestFilter(searchQuery.trim())
+                query = query.or(`full_name.ilike.${escaped},whatsapp.ilike.${escaped}`)
             }
 
             // Apply pagination range
