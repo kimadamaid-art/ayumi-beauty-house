@@ -9,6 +9,14 @@ ALTER TABLE public.coupon_usage_logs ADD COLUMN IF NOT EXISTS transaction_id UUI
 ALTER TABLE public.coupon_usage_logs ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ;
 ALTER TABLE public.coupon_usage_logs ADD COLUMN IF NOT EXISTS voided_by UUID REFERENCES public.users(id);
 
+-- Backfill 1x Jalan: Hubungkan data lama yang memiliki treatment_record_id ke transactions
+UPDATE public.coupon_usage_logs cul
+SET transaction_id = tx.id
+FROM public.transactions tx
+WHERE cul.transaction_id IS NULL
+  AND cul.treatment_record_id IS NOT NULL
+  AND tx.treatment_record_id = cul.treatment_record_id;
+
 -- 2. Timpa Fungsi & Trigger Immutability dengan Perbandingan Null-Safe (IS DISTINCT FROM)
 CREATE OR REPLACE FUNCTION public.protect_transaction_immutable()
 RETURNS TRIGGER
@@ -151,10 +159,10 @@ BEGIN
         WHERE cul.voided_at IS NULL 
           AND (
               cul.transaction_id = p_transaction_id
-              OR (cul.notes LIKE '%' || SUBSTRING(p_transaction_id::TEXT, 1, 8) || '%')
+              OR (cul.transaction_id IS NULL AND cul.notes LIKE '%' || SUBSTRING(p_transaction_id::TEXT, 1, 8) || '%')
           )
     LOOP
-        -- Kembalikan kuota sesi kupon
+        -- Kembalikan 1 sesi kuota kupon per entri log
         UPDATE public.patient_coupon_items
         SET used_sessions = GREATEST(0, used_sessions - 1),
             remaining_sessions = remaining_sessions + 1,
