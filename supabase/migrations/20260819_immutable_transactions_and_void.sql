@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Perbarui CHECK constraint payment_status pada transactions agar mengizinkan 'void'
+ALTER TABLE public.transactions DROP CONSTRAINT IF EXISTS transactions_payment_status_check;
+ALTER TABLE public.transactions ADD CONSTRAINT transactions_payment_status_check CHECK (payment_status IN ('paid', 'pending', 'unpaid', 'void', 'cancelled'));
+
 -- Aktifkan RLS pada audit_logs
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
