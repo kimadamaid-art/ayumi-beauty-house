@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
+import { getWhatsAppUrl } from '@/lib/whatsapp'
 
 export default function TreatmentRecordsPage() {
 
@@ -281,22 +282,16 @@ export default function TreatmentRecordsPage() {
                                                             </button>
                                                         </Link>
                                                     )}
-                                                    {r.patients?.whatsapp && (() => {
-                                                        let waNumber = r.patients.whatsapp.replace(/[^0-9]/g, '');
-                                                        if (waNumber.startsWith('0')) {
-                                                            waNumber = '62' + waNumber.substring(1);
-                                                        }
-                                                        return (
-                                                            <a 
-                                                                href={`https://wa.me/${waNumber}`} 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer" 
-                                                                className="text-xs bg-green-50 text-green-700 border border-transparent hover:border-green-600 hover:bg-green-100 px-3 py-2 rounded-lg font-bold transition-colors"
-                                                            >
-                                                                Chat WA
-                                                            </a>
-                                                        );
-                                                    })()}
+                                                    {r.patients?.whatsapp && (
+                                                        <a 
+                                                            href={getWhatsAppUrl(r.patients.whatsapp)} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="text-xs bg-green-50 text-green-700 border border-transparent hover:border-green-600 hover:bg-green-100 px-3 py-2 rounded-lg font-bold transition-colors"
+                                                        >
+                                                            Chat WA
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

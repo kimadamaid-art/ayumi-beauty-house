@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
+import { openWhatsApp } from '@/lib/whatsapp'
 
 // Helper to convert an image URL to a base64 string
 const getBase64ImageFromUrl = async (url) => {
@@ -584,13 +585,19 @@ export default function TreatmentRecordDetailPage() {
 
             // Open WhatsApp Web in a new tab
             let waNumber = record.patients?.whatsapp || ''
-            waNumber = waNumber.replace(/[^0-9]/g, '')
-            if (waNumber.startsWith('0')) {
-                waNumber = '62' + waNumber.substring(1)
+            if (!waNumber) {
+                const inputPhone = window.prompt(
+                    'Nomor WhatsApp pasien belum terdaftar.\nSilakan masukkan nomor WhatsApp tujuan (contoh: 08123456789):'
+                )
+                if (inputPhone && inputPhone.trim()) {
+                    waNumber = inputPhone.trim()
+                }
             }
 
-            const waUrl = `https://wa.me/${waNumber}`
-            window.open(waUrl, '_blank')
+            if (waNumber) {
+                const waMessage = `Halo kak *${patientName}*,\nBerikut kami lampirkan dokumen Rekam Medis (Medical Record) perawatan Anda di Ayumi Beauty House.`
+                openWhatsApp(waNumber, waMessage)
+            }
 
             alert(`PDF "${filename}" sudah terdownload.\nSilakan attach file PDF tersebut ke WhatsApp yang sudah terbuka.`)
 

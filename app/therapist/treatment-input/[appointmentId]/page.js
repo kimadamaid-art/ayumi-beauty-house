@@ -430,11 +430,27 @@ export default function TreatmentInputPage() {
                         .eq('id', itemId).single()
                     if (itemData) {
                         const newUsed = itemData.used_sessions + 1
-                        const newRemaining = itemData.remaining_sessions - 1
+                        const newRemaining = Math.max(0, itemData.remaining_sessions - 1)
                         const status = newRemaining <= 0 ? 'fully_used' : 'active'
                         await supabase.from('patient_coupon_items')
                             .update({ used_sessions: newUsed, remaining_sessions: newRemaining, status })
                             .eq('id', itemId)
+
+                        // Check if all items in parent coupon are fully used
+                        if (status === 'fully_used') {
+                            const { data: siblings } = await supabase
+                                .from('patient_coupon_items')
+                                .select('status, remaining_sessions')
+                                .eq('patient_coupon_id', itemData.patient_coupon_id)
+                            
+                            const allDone = siblings ? siblings.every(s => s.remaining_sessions === 0 || s.status === 'fully_used' || s.status === 'completed') : true
+                            if (allDone) {
+                                await supabase
+                                    .from('patient_coupons')
+                                    .update({ status: 'fully_used' })
+                                    .eq('id', itemData.patient_coupon_id)
+                            }
+                        }
                     }
                 }
             }

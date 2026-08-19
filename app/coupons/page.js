@@ -120,15 +120,20 @@ export default function CouponsDashboardPage() {
         setIsLoading(false)
     }
 
-    const filteredPatientCoupons = patientCoupons.filter(pc => {
+    const filteredPatientCoupons = patientCoupons.map(pc => {
+        const allItemsDone = pc.patient_coupon_items && pc.patient_coupon_items.length > 0 && pc.patient_coupon_items.every(i => i.remaining_sessions <= 0 || i.status === 'fully_used' || i.status === 'completed')
+        const isExpired = new Date(pc.expired_at) < new Date()
+        const computedStatus = allItemsDone ? 'fully_used' : (isExpired ? 'expired' : (pc.status || 'active'))
+        return { ...pc, computedStatus }
+    }).filter(pc => {
         const matchSearch = !pcSearchQuery || pc.patients?.full_name?.toLowerCase().includes(pcSearchQuery.toLowerCase()) || pc.patients?.whatsapp?.includes(pcSearchQuery)
-        const matchStatus = !pcStatusFilter || pc.status === pcStatusFilter
+        const matchStatus = !pcStatusFilter || pc.computedStatus === pcStatusFilter || pc.status === pcStatusFilter
         return matchSearch && matchStatus
     })
 
     useEffect(() => {
         if (!userLoaded) return
-        if (activeTab === 'usage' && usageSearchPatient.length >= 2 && !usageSelectedPatient) {
+        if (activeTab === 'usage' && usageSearchPatient.length >= 2) {
             const searchPts = async () => {
                 let pQuery = supabase
                     .from('patients')
@@ -166,10 +171,20 @@ export default function CouponsDashboardPage() {
                 )
             `)
             .eq('patient_id', patient.id)
-            .eq('status', 'active')
+            .neq('status', 'fully_used')
+            .neq('status', 'completed')
             .gt('expired_at', new Date().toISOString())
             
-        if (data) setUsageActiveCoupons(data)
+        if (data) {
+            // ONLY keep coupons that have at least one item with remaining sessions > 0
+            const validActiveCoupons = data.filter(coupon => {
+                const hasRemaining = coupon.patient_coupon_items?.some(item => 
+                    (item.remaining_sessions > 0) && item.status !== 'fully_used' && item.status !== 'completed'
+                )
+                return hasRemaining
+            })
+            setUsageActiveCoupons(validActiveCoupons)
+        }
         setIsLoading(false)
     }
 
@@ -189,7 +204,7 @@ export default function CouponsDashboardPage() {
             if (logError) throw logError
 
             // 2. Update patient_coupon_items (decrease remaining, increase used)
-            const newRemaining = usageSelectedCouponItem.item.remaining_sessions - 1
+            const newRemaining = Math.max(0, usageSelectedCouponItem.item.remaining_sessions - 1)
             const newUsed = usageSelectedCouponItem.item.used_sessions + 1
             const newItemStatus = newRemaining === 0 ? 'fully_used' : 'active'
 
@@ -206,10 +221,10 @@ export default function CouponsDashboardPage() {
             // 3. Check if all items in the coupon are fully used
             const { data: allItems } = await supabase
                 .from('patient_coupon_items')
-                .select('status')
+                .select('status, remaining_sessions')
                 .eq('patient_coupon_id', usageSelectedCouponItem.coupon.id)
             
-            const allFullyUsed = allItems.every(i => i.status === 'fully_used')
+            const allFullyUsed = allItems && allItems.every(i => i.remaining_sessions === 0 || i.status === 'fully_used' || i.status === 'completed')
             if (allFullyUsed) {
                 await supabase
                     .from('patient_coupons')
@@ -445,7 +460,8 @@ export default function CouponsDashboardPage() {
                                     <thead>
                                         <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                             <th className="p-4 font-semibold">Pasien</th>
-                                            <th className="p-4 font-semibold">Paket</th>
+                                            <th className="p-4 font-semibold">Paket Kupon</th>
+                                            <th className="p-4 font-semibold">Sisa Sesi</th>
                                             <th className="p-4 font-semibold">Tgl Beli</th>
                                             <th className="p-4 font-semibold">Expired</th>
                                             <th className="p-4 font-semibold text-center">Status</th>
@@ -454,9 +470,20 @@ export default function CouponsDashboardPage() {
                                     <tbody className="divide-y divide-gray-50 text-sm">
                                         {filteredPatientCoupons.map((pc) => {
                                             const isExpanded = expandedCouponId === pc.id
-                                            let badgeClass = "bg-gray-100 text-gray-700"
-                                            if (pc.status === 'active') badgeClass = "bg-green-100 text-green-700"
-                                            else if (pc.status === 'expired') badgeClass = "bg-red-100 text-red-700"
+                                            const currentStatus = pc.computedStatus || pc.status
+                                            let badgeClass = "bg-gray-100 text-gray-700 border border-gray-200"
+                                            let badgeLabel = "Fully Used"
+
+                                            if (currentStatus === 'active') {
+                                                badgeClass = "bg-green-100 text-green-700 border border-green-200"
+                                                badgeLabel = "Active"
+                                            } else if (currentStatus === 'expired') {
+                                                badgeClass = "bg-red-100 text-red-700 border border-red-200"
+                                                badgeLabel = "Expired"
+                                            } else if (currentStatus === 'fully_used' || currentStatus === 'completed') {
+                                                badgeClass = "bg-gray-100 text-gray-500 border border-gray-200"
+                                                badgeLabel = "Fully Used"
+                                            }
 
                                             return (
                                                 <React.Fragment key={pc.id}>
@@ -469,6 +496,31 @@ export default function CouponsDashboardPage() {
                                                             <div className="text-xs text-gray-500">{pc.patients?.whatsapp}</div>
                                                         </td>
                                                         <td className="p-4 font-semibold text-ayumi-primary">{pc.coupon_packages?.name}</td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col gap-1">
+                                                                {pc.patient_coupon_items?.map((item) => {
+                                                                    const remaining = item.remaining_sessions || 0
+                                                                    const total = item.total_sessions || 0
+                                                                    const isExhausted = remaining === 0
+                                                                    return (
+                                                                        <div key={item.id} className="flex items-center gap-1.5">
+                                                                            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black inline-flex items-center gap-1 ${
+                                                                                isExhausted 
+                                                                                    ? 'bg-gray-100 text-gray-400 line-through' 
+                                                                                    : 'bg-pink-50 text-ayumi-primary border border-pink-200/80 shadow-xs'
+                                                                            }`}>
+                                                                                {!isExhausted && '✨'} {remaining} / {total} Sesi
+                                                                            </span>
+                                                                            {pc.patient_coupon_items.length > 1 && (
+                                                                                <span className="text-[11px] text-gray-500 font-medium truncate max-w-[130px]">
+                                                                                    {item.treatments?.name}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </td>
                                                         <td className="p-4 text-gray-600">{formatDate(pc.purchased_at)}</td>
                                                         <td className="p-4 text-gray-600">
                                                             <div className="flex items-center gap-2">
@@ -477,19 +529,19 @@ export default function CouponsDashboardPage() {
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                                 </button>
                                                             </div>
-                                                            {new Date(pc.expired_at) < new Date() && pc.status === 'active' && (
+                                                            {new Date(pc.expired_at) < new Date() && currentStatus === 'active' && (
                                                                 <div className="text-xs text-red-500 font-bold mt-1">(Expired!)</div>
                                                             )}
                                                         </td>
                                                         <td className="p-4 text-center">
                                                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
-                                                                {pc.status.replace('_', ' ')}
+                                                                {badgeLabel}
                                                             </span>
                                                         </td>
                                                     </tr>
                                                     {isExpanded && (
                                                         <tr className="bg-gray-50">
-                                                            <td colSpan="5" className="p-4">
+                                                            <td colSpan="6" className="p-4">
                                                                 <div className="pl-4 border-l-2 border-pink-300 py-1">
                                                                     <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Detail Sesi Kupon</p>
                                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -529,44 +581,53 @@ export default function CouponsDashboardPage() {
                 <div className="flex flex-col lg:flex-row gap-6">
                     {/* Left Pane: Search & Select */}
                     <div className="w-full lg:w-1/3 space-y-4">
-                        <div className="card-ayumi p-5">
-                            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <div className="card-ayumi p-5 space-y-3.5">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 Cari Pasien
                             </h3>
-                            {!usageSelectedPatient ? (
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Ketik Nama atau No WA..."
-                                        value={usageSearchPatient}
-                                        onChange={(e) => setUsageSearchPatient(e.target.value)}
-                                        className="input-ayumi w-full bg-gray-50"
-                                    />
-                                    {usagePatients.length > 0 && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl max-h-60 overflow-y-auto">
-                                            {usagePatients.map(p => (
-                                                <div 
-                                                    key={p.id} 
-                                                    onClick={() => selectPatientForUsage(p)}
-                                                    className="px-4 py-3 hover:bg-pink-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors"
-                                                >
-                                                    <p className="font-bold text-gray-800">{p.full_name}</p>
-                                                    <p className="text-xs text-gray-500">{p.whatsapp}</p>
-                                                </div>
-                                            ))}
+                            
+                            {/* Always-visible Search Input */}
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Ketik Nama atau No WA..."
+                                    value={usageSearchPatient}
+                                    onChange={(e) => setUsageSearchPatient(e.target.value)}
+                                    className="input-ayumi w-full bg-gray-50 text-xs sm:text-sm"
+                                />
+                                {usagePatients.length > 0 && (
+                                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl max-h-60 overflow-y-auto">
+                                        {usagePatients.map(p => (
+                                            <div 
+                                                key={p.id} 
+                                                onClick={() => selectPatientForUsage(p)}
+                                                className="px-4 py-3 hover:bg-pink-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors"
+                                            >
+                                                <p className="font-bold text-gray-800">{p.full_name}</p>
+                                                <p className="text-xs text-gray-500">{p.whatsapp}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Selected Patient Card */}
+                            {usageSelectedPatient && (
+                                <div className="bg-pink-50/70 border border-pink-200/80 p-3.5 rounded-xl flex justify-between items-center shadow-xs animate-in fade-in duration-200">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-ayumi-primary bg-white px-2 py-0.5 rounded-md border border-pink-200">
+                                                Pasien Terpilih
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="bg-pink-50/50 border border-pink-100 p-4 rounded-xl flex justify-between items-center">
-                                    <div>
-                                        <p className="font-bold text-ayumi-primary">{usageSelectedPatient.full_name}</p>
-                                        <p className="text-xs text-gray-500">{usageSelectedPatient.whatsapp}</p>
+                                        <p className="font-bold text-gray-900 truncate">{usageSelectedPatient.full_name}</p>
+                                        <p className="text-xs text-gray-500">{usageSelectedPatient.whatsapp || 'Tidak ada no WA'}</p>
                                     </div>
                                     <button 
                                         onClick={() => { setUsageSelectedPatient(null); setUsageActiveCoupons([]); setUsageSelectedCouponItem(null); }}
-                                        className="text-gray-400 hover:text-red-500 bg-white p-1.5 rounded-full shadow-sm"
+                                        className="text-gray-400 hover:text-red-500 bg-white hover:bg-red-50 p-1.5 rounded-lg border border-gray-200 transition-colors cursor-pointer shrink-0 ml-2"
+                                        title="Batal pilih pasien ini"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>

@@ -144,22 +144,22 @@ export default function ClientLayout({ children }) {
                     onMenuToggle={() => setIsMobileMenuOpen(prev => !prev)}
                 />
                 <main className="flex-1 overflow-y-auto relative bg-ayumi-bg">
-                    <div className="px-4 md:px-8 py-4 md:py-8 space-y-6">
+                    <div className="px-3 md:px-6 py-3 md:py-5 space-y-4 max-w-[1600px] mx-auto w-full">
                         {pageMeta && (
-                            <div className="flex items-center gap-4 print-hide no-print">
+                            <div className="flex items-center gap-3.5 print-hide no-print">
                                 {pageMeta.backPath && (
                                     <Link href={pageMeta.backPath}>
-                                        <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2.5 rounded-full shadow-sm transition-all border border-pink-100/50 flex items-center justify-center cursor-pointer">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <button className="text-ayumi-secondary hover:text-ayumi-primary bg-white p-2 rounded-full shadow-sm transition-all border border-pink-100/50 flex items-center justify-center cursor-pointer">
+                                            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                                             </svg>
                                         </button>
                                     </Link>
                                 )}
-                                <div className="border-l-4 border-ayumi-primary pl-4 py-1">
-                                    <h1 className="text-2xl font-bold text-gray-800 leading-tight">{pageMeta.title}</h1>
+                                <div className="border-l-4 border-ayumi-primary pl-3.5 py-0.5">
+                                    <h1 className="text-xl font-bold text-gray-800 leading-tight">{pageMeta.title}</h1>
                                     {pageMeta.subtitle && (
-                                        <p className="text-sm text-gray-500 mt-1 font-medium">{pageMeta.subtitle}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5 font-medium">{pageMeta.subtitle}</p>
                                     )}
                                 </div>
                             </div>

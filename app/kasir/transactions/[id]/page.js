@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { openWhatsApp } from '@/lib/whatsapp'
 
 export default function ReceiptPage() {
     const { id } = useParams()
@@ -233,14 +234,15 @@ export default function ReceiptPage() {
     }
 
     const handleSendWA = () => {
-        if (!transaction.patients?.whatsapp) {
-            alert('Nomor WhatsApp pasien tidak ditemukan!')
-            return
-        }
-
-        let cleanPhone = transaction.patients.whatsapp.replace(/\D/g, '')
-        if (cleanPhone.startsWith('0')) {
-            cleanPhone = '62' + cleanPhone.slice(1)
+        let phone = transaction.patients?.whatsapp || ''
+        if (!phone) {
+            const inputPhone = window.prompt(
+                'Nomor WhatsApp pasien belum terdaftar.\nSilakan masukkan nomor WhatsApp tujuan (contoh: 08123456789):'
+            )
+            if (!inputPhone || !inputPhone.trim()) {
+                return
+            }
+            phone = inputPhone.trim()
         }
 
         const itemsText = transaction.transaction_items
@@ -259,13 +261,15 @@ export default function ReceiptPage() {
                 const discTag = discPct > 0 ? ` (-${discPct}%)` : ''
                 return `- ${i.name} (${i.quantity}x)${strikeStr}${discTag} : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`
             })
-            .join('%0A') || ''
+            .join('\n') || ''
 
-        const discountText = discountRupiah > 0 ? `%0A*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
+        const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
+        const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0.3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
+        const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
 
-        const text = `Halo *${transaction.patients?.full_name}*,%0A%0ATerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.%0ABerikut adalah rincian transaksi Anda:%0A%0ANo. Transaksi: *${transaction.transaction_number}*%0ATanggal: ${formatDate(transaction.created_at)}%0ACabang: ${transaction.branches?.name || 'Ayumi Clinic'}%0A%0A*Item:*%0A${itemsText}%0A%0A*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}%0A*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*%0A*Metode Pembayaran:* ${transaction.payment_method.toUpperCase()}%0AStatus: LUNAS%0A%0AHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
+        const text = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.\nBerikut adalah rincian transaksi Anda:\n\nNo. Transaksi: *${transaction.transaction_number}*\nTanggal: ${formatDate(transaction.created_at)}\nCabang: ${transaction.branches?.name || 'Ayumi Clinic'}\n\n*Item:*\n${itemsText}\n\n*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}\n*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${transaction.payment_method?.toUpperCase() || '-'}\nStatus: LUNAS\n\nHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
 
-        window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank')
+        openWhatsApp(phone, text)
     }
 
     if (isLoading) return <div className="p-5 md:p-8 text-center animate-pulse">Memuat struk transaksi...</div>
@@ -370,8 +374,8 @@ export default function ReceiptPage() {
                     </Link>
                     <button 
                         onClick={handleSendWA}
-                        disabled={!transaction.patients?.whatsapp}
-                        className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        title="Kirim Struk ke WhatsApp"
                     >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.993L2 22l5.233-1.371a9.946 9.946 0 004.787 1.226h.005c5.502 0 9.985-4.479 9.986-9.987 0-2.67-1.037-5.178-2.924-7.065A9.923 9.923 0 0012.012 2zm4.857 13.913c-.266.747-1.545 1.399-2.113 1.488-.517.081-1.19.122-1.921-.112-.733-.234-1.637-.621-2.738-1.096-1.83-.791-3.23-2.56-3.32-2.682-.092-.121-.75-.992-.75-1.884v-.001c0-.893.468-1.332.635-1.514.167-.182.365-.228.487-.228.121 0 .243.002.348.006.112.005.263-.042.412.316.152.366.52.1.626.471.106.371.076.66-.046.903-.121.243-.243.402-.365.548-.121.146-.248.304-.106.548.142.244.632 1.039 1.36 1.688.937.834 1.728 1.093 1.972 1.214.244.121.385.101.527-.061.142-.162.608-.71.77-1.016.162-.304.324-.254.548-.172.223.081 1.42.67 1.663.792.244.121.405.182.466.284.061.101.061.589-.203 1.337z"/></svg>
                         Kirim Struk WA

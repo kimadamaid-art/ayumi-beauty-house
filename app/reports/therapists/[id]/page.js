@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
+import { getWhatsAppUrl } from '@/lib/whatsapp'
 
 export default function TherapistDetailPage() {
     const params = useParams()
@@ -740,7 +741,7 @@ export default function TherapistDetailPage() {
                                                         </Link>
                                                         {waNumber && (
                                                             <a 
-                                                                href={`https://wa.me/${waNumber}`}
+                                                                href={getWhatsAppUrl(waNumber)}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="text-xs bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors font-bold border border-transparent hover:border-green-300 flex items-center gap-1.5"

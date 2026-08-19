@@ -739,9 +739,17 @@ export default function PatientDetailPage() {
                         ) : (
                             <div className="grid gap-6 md:grid-cols-2">
                                 {patientCoupons.map((coupon) => {
-                                    let badgeClass = "bg-gray-100 text-gray-700"
-                                    if (coupon.status === 'active') badgeClass = "bg-green-100 text-green-700"
-                                    else if (coupon.status === 'expired') badgeClass = "bg-red-100 text-red-700"
+                                    const allDone = coupon.patient_coupon_items && coupon.patient_coupon_items.length > 0 && coupon.patient_coupon_items.every(i => i.remaining_sessions <= 0 || i.status === 'fully_used' || i.status === 'completed')
+                                    const currentStatus = allDone ? 'fully_used' : (new Date(coupon.expired_at) < new Date() ? 'expired' : coupon.status)
+                                    let badgeClass = "bg-gray-100 text-gray-500 border border-gray-200"
+                                    let badgeLabel = "Fully Used"
+                                    if (currentStatus === 'active') {
+                                        badgeClass = "bg-green-100 text-green-700 border border-green-200"
+                                        badgeLabel = "Active"
+                                    } else if (currentStatus === 'expired') {
+                                        badgeClass = "bg-red-100 text-red-700 border border-red-200"
+                                        badgeLabel = "Expired"
+                                    }
                                     
                                     const daysUntilExpiry = Math.ceil((new Date(coupon.expired_at) - new Date()) / (1000 * 60 * 60 * 24))
                                     const isExpiringSoon = daysUntilExpiry <= 7 && daysUntilExpiry >= 0
@@ -763,7 +771,7 @@ export default function PatientDetailPage() {
                                                     </p>
                                                 </div>
                                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
-                                                    {coupon.status.replace('_', ' ')}
+                                                    {badgeLabel}
                                                 </span>
                                             </div>
                                             <div className="p-5 space-y-4">

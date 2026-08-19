@@ -406,7 +406,8 @@ function PosPageContent() {
                 id, treatment_time, treatment_date, branch_id, performed_by,
                 branches(name),
                 patients(id, full_name, whatsapp),
-                treatment_record_items(treatment_id, price_at_time, discount_percent, treatments(name, price))
+                treatment_record_items(treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
+                coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name))))
             `)
             .eq('treatment_date', todayStr)
             .order('treatment_time', { ascending: true })
@@ -443,28 +444,68 @@ function PosPageContent() {
             activeCoupons = await handleSelectPatient(bill.patients)
         }
         
+        // Fetch or check coupon usage logs already linked to this treatment record
+        let existingCouponLogs = bill.coupon_usage_logs || []
+        if (!bill.coupon_usage_logs || bill.coupon_usage_logs.length === 0) {
+            const { data: logs } = await supabase
+                .from('coupon_usage_logs')
+                .select('id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name)))')
+                .eq('treatment_record_id', bill.id)
+            if (logs && logs.length > 0) existingCouponLogs = logs
+        }
+        
         // Populate cart
-        const newCart = bill.treatment_record_items.map(item => {
-            const originalPrice = item.treatments?.price || item.price_at_time
-            const match = activeCoupons.find(c => c.treatment_id === item.treatment_id && c.remaining_sessions > 0)
-            const isUsingCoupon = Boolean(match)
-            const price = isUsingCoupon ? 0 : item.price_at_time
+        const newCart = (bill.treatment_record_items || []).map(item => {
+            const originalPrice = Number(item.treatments?.price) || Number(item.original_price) || Number(item.price_at_time) || 0
+            
+            // Check if therapist ALREADY deducted a coupon for this treatment record
+            const alreadyUsedLog = existingCouponLogs.find(log => 
+                log.patient_coupon_items?.treatment_id === item.treatment_id ||
+                log.patient_coupon_item_id === item.treatment_id
+            ) || (existingCouponLogs.length > 0 && (Number(item.price_at_time) === 0 || item.discount_percent === 100) ? existingCouponLogs[0] : null)
+
+            if (alreadyUsedLog) {
+                // Was already deducted by therapist/treatment record!
+                const cpItem = alreadyUsedLog.patient_coupon_items
+                const pkgName = cpItem?.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
+                return {
+                    id: item.treatment_id,
+                    item_type: 'treatment',
+                    name: item.treatments?.name || 'Treatment',
+                    price: 0,
+                    original_price: originalPrice,
+                    discount_percent: 100,
+                    quantity: 1,
+                    subtotal: 0,
+                    treatment_record_id: bill.id,
+                    commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
+                    is_using_coupon: true,
+                    coupon_already_deducted: true, // CRITICAL: Already deducted by therapist in medical record! Do NOT deduct again at checkout.
+                    used_coupon_item_id: alreadyUsedLog.patient_coupon_item_id,
+                    coupon_package_name: pkgName,
+                    remaining_sessions: cpItem?.remaining_sessions || 0
+                }
+            }
+
+            // If not deducted by therapist, retain price from treatment record
+            const price = Number(item.price_at_time || 0)
 
             return {
-                id: item.treatment_id, // For treatment
+                id: item.treatment_id,
                 item_type: 'treatment',
                 name: item.treatments?.name || 'Treatment',
                 price: price,
                 original_price: originalPrice,
-                discount_percent: isUsingCoupon ? 100 : (item.discount_percent || 0),
-                quantity: 1, // Usually 1 per item in treatment_records
+                discount_percent: item.discount_percent || 0,
+                quantity: 1,
                 subtotal: price,
-                treatment_record_id: bill.id, // Temporary flag to attach to transaction later
+                treatment_record_id: bill.id,
                 commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
-                is_using_coupon: isUsingCoupon,
-                used_coupon_item_id: match ? match.id : null,
-                coupon_package_name: match ? (match.patient_coupons?.coupon_packages?.name || 'Paket Kupon') : '',
-                remaining_sessions: match ? match.remaining_sessions : 0
+                is_using_coupon: false,
+                coupon_already_deducted: false,
+                used_coupon_item_id: null,
+                coupon_package_name: '',
+                remaining_sessions: 0
             }
         })
 
@@ -528,6 +569,7 @@ function PosPageContent() {
                     maxQuantity: type === 'product' ? item.quantity : null,
                     commission_percent: type === 'treatment' ? (item.commission_percent || 0) : 0,
                     is_using_coupon: isUsingCoupon,
+                    coupon_already_deducted: false, // direct pos addition, will deduct upon checkout
                     used_coupon_item_id: usedCouponItemId,
                     coupon_package_name: couponPackageName,
                     remaining_sessions: remainingSessions
@@ -547,6 +589,7 @@ function PosPageContent() {
                     return {
                         ...cartItem,
                         is_using_coupon: false,
+                        coupon_already_deducted: false,
                         used_coupon_item_id: null,
                         price: Math.round(normalPrice),
                         discount_percent: discPct
@@ -558,6 +601,7 @@ function PosPageContent() {
                         return {
                             ...cartItem,
                             is_using_coupon: true,
+                            coupon_already_deducted: false, // will deduct upon checkout
                             used_coupon_item_id: match.id,
                             coupon_package_name: match.patient_coupons?.coupon_packages?.name || 'Paket Kupon',
                             remaining_sessions: match.remaining_sessions,
@@ -740,13 +784,14 @@ function PosPageContent() {
                 throw new Error('Gagal mendapatkan data transaksi dari database.')
             }
 
-            // Deduct sessions for items using coupon
+            // Deduct sessions for items using coupon (ONLY if not already deducted by therapist/treatment record)
             for (const cartItem of cart) {
-                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && selectedPatient) {
+                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && selectedPatient) {
                     try {
                         await supabase.from('coupon_usage_logs').insert([{
                             patient_coupon_item_id: cartItem.used_coupon_item_id,
                             patient_id: selectedPatient.id,
+                            treatment_record_id: cartItem.treatment_record_id || null,
                             branch_id: selectedBranch,
                             used_by: dbUser?.id || null,
                             notes: `Klaim Kasir (No. Tx: ${trxData.id?.substring(0, 8)})`
@@ -761,7 +806,7 @@ function PosPageContent() {
                         if (currentCpItem) {
                             const newUsed = (currentCpItem.used_sessions || 0) + cartItem.quantity
                             const newRemaining = Math.max(0, (currentCpItem.remaining_sessions || 0) - cartItem.quantity)
-                            const newStatus = newRemaining === 0 ? 'completed' : 'active'
+                            const newStatus = newRemaining === 0 ? 'fully_used' : 'active'
 
                             await supabase
                                 .from('patient_coupon_items')
@@ -778,11 +823,11 @@ function PosPageContent() {
                                     .select('status')
                                     .eq('patient_coupon_id', currentCpItem.patient_coupon_id)
 
-                                const allDone = siblings ? siblings.every(s => s.status === 'completed') : true
+                                const allDone = siblings ? siblings.every(s => s.status === 'fully_used' || s.status === 'completed') : true
                                 if (allDone) {
                                     await supabase
                                         .from('patient_coupons')
-                                        .update({ status: 'completed' })
+                                        .update({ status: 'fully_used' })
                                         .eq('id', currentCpItem.patient_coupon_id)
                                 }
                             }
@@ -827,21 +872,21 @@ function PosPageContent() {
             {/* ═══════════════════════════════════════════════════ */}
             {/* LEFT PANE */}
             {/* ═══════════════════════════════════════════════════ */}
-            <div className="w-full lg:w-3/5 flex flex-col gap-4 overflow-y-auto custom-scrollbar pb-2">
+            <div className="w-full lg:w-3/5 flex flex-col gap-3 overflow-y-auto custom-scrollbar pb-2">
 
                 {/* ── Top bar: cabang + refresh ── */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="bg-white rounded-xl border border-gray-100 shadow-xs p-3 sm:p-3.5 flex flex-col sm:flex-row justify-between items-center gap-2.5">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-ayumi-primary to-rose-400 rounded-xl flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                        <div className="w-7 h-7 bg-gradient-to-br from-ayumi-primary to-rose-400 rounded-lg flex items-center justify-center">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Cabang Aktif</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none">Cabang Aktif</p>
                             {dbUser?.role === 'owner' ? (
                                 <select 
                                     value={selectedBranch}
                                     onChange={(e) => setSelectedBranch(e.target.value)}
-                                    className="text-sm font-bold text-ayumi-secondary bg-transparent border-none outline-none cursor-pointer"
+                                    className="text-xs sm:text-sm font-bold text-ayumi-secondary bg-transparent border-none outline-none cursor-pointer mt-0.5"
                                 >
                                     <option value="" disabled>-- Pilih Cabang --</option>
                                     {branches.map(b => (
@@ -849,13 +894,13 @@ function PosPageContent() {
                                     ))}
                                 </select>
                             ) : (
-                                <p className="text-sm font-bold text-ayumi-secondary">{branches.find(b => b.id === selectedBranch)?.name || 'Cabang'}</p>
+                                <p className="text-xs sm:text-sm font-bold text-ayumi-secondary mt-0.5">{branches.find(b => b.id === selectedBranch)?.name || 'Cabang'}</p>
                             )}
                         </div>
                     </div>
                     <button
                         onClick={() => fetchPendingBills(selectedBranch)}
-                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-ayumi-primary bg-gray-100 hover:bg-pink-50 px-3 py-2 rounded-xl transition-all"
+                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-ayumi-primary bg-gray-100 hover:bg-pink-50 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
                     >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         Refresh
@@ -863,13 +908,13 @@ function PosPageContent() {
                 </div>
 
                 {/* ── Left Pane Tabs (Pending Bills vs Catalog) ── */}
-                <div className="flex bg-white rounded-2xl border border-gray-100 p-1 shadow-sm">
+                <div className="flex bg-white rounded-xl border border-gray-100 p-1 shadow-xs">
                     <button
                         type="button"
                         onClick={() => setLeftPanelTab('pending')}
-                        className={`flex-1 py-3.5 rounded-xl text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
+                        className={`flex-1 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             leftPanelTab === 'pending'
-                                ? 'bg-gradient-to-r from-rose-50 to-pink-50 text-ayumi-primary shadow-sm border border-pink-100/50'
+                                ? 'bg-gradient-to-r from-rose-50 to-pink-50 text-ayumi-primary shadow-xs border border-pink-100/50'
                                 : 'text-gray-500 hover:text-gray-700'
                         }`}
                     >
@@ -884,9 +929,9 @@ function PosPageContent() {
                     <button
                         type="button"
                         onClick={() => setLeftPanelTab('catalog')}
-                        className={`flex-1 py-3.5 rounded-xl text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
+                        className={`flex-1 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             leftPanelTab === 'catalog'
-                                ? 'bg-gradient-to-r from-rose-50 to-pink-50 text-ayumi-primary shadow-sm border border-pink-100/50'
+                                ? 'bg-gradient-to-r from-rose-50 to-pink-50 text-ayumi-primary shadow-xs border border-pink-100/50'
                                 : 'text-gray-500 hover:text-gray-700'
                         }`}
                     >
@@ -897,10 +942,10 @@ function PosPageContent() {
 
                 {/* Left Panel Tab Content */}
                 {leftPanelTab === 'pending' ? (
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col">
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
-                            <h2 className="font-bold text-gray-800 text-sm">Daftar Tagihan Menunggu</h2>
-                            <span className="bg-rose-100 text-rose-600 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-xs overflow-hidden flex-1 flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+                            <h2 className="font-bold text-gray-800 text-xs sm:text-sm">Daftar Tagihan Menunggu</h2>
+                            <span className="bg-rose-100 text-rose-600 text-[11px] font-bold px-2 py-0.5 rounded-full">
                                 {pendingBills.length} Tagihan
                             </span>
                         </div>
@@ -992,11 +1037,11 @@ function PosPageContent() {
                     </div>
                 ) : (
                     /* ── Katalog Item (Grid POS) ── */
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col">
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-xs overflow-hidden flex-1 flex flex-col">
                         
                         {/* Subtabs catalog */}
-                        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-5 py-3 gap-3">
-                            <div className="flex bg-gray-100/80 border border-gray-200 p-1 rounded-2xl flex-1 max-w-md">
+                        <div className="flex flex-col sm:flex-row items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-2.5 gap-2.5">
+                            <div className="flex bg-gray-100/80 border border-gray-200 p-0.5 rounded-xl flex-1 max-w-md w-full">
                                 {[
                                     { key: 'treatment', label: 'Layanan Treatment' },
                                     { key: 'product', label: 'Produk Skincare' },
@@ -1006,9 +1051,9 @@ function PosPageContent() {
                                         key={tab.key}
                                         type="button"
                                         onClick={() => setActiveTab(tab.key)}
-                                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                             activeTab === tab.key 
-                                                ? 'bg-white text-ayumi-primary shadow-sm font-extrabold' 
+                                                ? 'bg-white text-ayumi-primary shadow-xs font-extrabold' 
                                                 : 'text-gray-500 hover:text-gray-800'
                                         }`}
                                     >
@@ -1018,89 +1063,89 @@ function PosPageContent() {
                             </div>
                             
                             {/* Search bar inside Catalog tab header */}
-                            <div className="relative w-48 sm:w-60 flex-shrink-0">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <div className="relative w-full sm:w-52 flex-shrink-0">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 </span>
                                 <input
                                     type="text"
                                     placeholder="Cari menu / item..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="input-ayumi pl-9 bg-white w-full text-xs py-2 border-gray-200 focus:border-pink-300 rounded-xl"
+                                    className="input-ayumi pl-8 bg-white w-full text-xs py-1.5 border-gray-200 focus:border-pink-300 rounded-lg"
                                 />
                             </div>
                         </div>
 
                         {/* Items list rendered as POS card grid */}
-                        <div className="p-4 sm:p-5 overflow-y-auto max-h-[60vh] custom-scrollbar flex-1 bg-gray-50/30">
+                        <div className="p-3 sm:p-4 overflow-y-auto max-h-[66vh] custom-scrollbar flex-1 bg-gray-50/30">
                             {!selectedBranch && activeTab === 'product' ? (
-                                <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-center my-auto">
-                                    <svg className="w-10 h-10 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
-                                    <p className="text-sm font-semibold">Pilih cabang terlebih dahulu untuk melihat stok produk</p>
+                                <div className="flex flex-col items-center justify-center py-16 text-gray-400 text-center my-auto">
+                                    <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                    <p className="text-xs font-semibold">Pilih cabang terlebih dahulu untuk melihat stok produk</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
                                     {activeTab === 'treatment' && treatments
                                         .filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
                                         .map(t => {
-                                            const hasDiscount = t.discount_percent > 0
-                                            const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
-                                            return (
-                                                <div
-                                                    key={t.id}
-                                                    onClick={() => addToCart(t, 'treatment')}
-                                                    className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group relative"
-                                                >
-                                                    <div className="space-y-1.5 mb-3">
-                                                        {hasDiscount && (
-                                                            <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-block">
-                                                                Diskon {t.discount_percent}%
-                                                            </span>
-                                                        )}
-                                                        <h4 className="font-bold text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
-                                                            {t.name}
-                                                        </h4>
-                                                    </div>
+                                             const hasDiscount = t.discount_percent > 0
+                                             const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
+                                             return (
+                                                 <div
+                                                     key={t.id}
+                                                     onClick={() => addToCart(t, 'treatment')}
+                                                     className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-pink-300 hover:shadow-sm transition-all cursor-pointer group relative"
+                                                 >
+                                                     <div className="space-y-1 mb-2">
+                                                         {hasDiscount && (
+                                                             <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded inline-block">
+                                                                 Diskon {t.discount_percent}%
+                                                             </span>
+                                                         )}
+                                                         <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
+                                                             {t.name}
+                                                         </h4>
+                                                     </div>
 
-                                                    <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto gap-2">
-                                                        <div className="flex flex-col min-w-0">
-                                                            {hasDiscount && (
-                                                                <span className="text-[10px] line-through text-gray-400 font-semibold whitespace-nowrap">
-                                                                    Rp {t.price.toLocaleString('id-ID')}
-                                                                </span>
-                                                            )}
-                                                            <span className="font-extrabold text-sm sm:text-base text-[#5c3316] whitespace-nowrap">
-                                                                Rp {price.toLocaleString('id-ID')}
-                                                            </span>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                addToCart(t, 'treatment')
-                                                            }}
-                                                            className="w-8 h-8 rounded-xl bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-sm border border-pink-200/80 transition-all shrink-0 shadow-sm"
-                                                            title="Tambah ke keranjang"
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })
+                                                     <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                         <div className="flex flex-col min-w-0">
+                                                             {hasDiscount && (
+                                                                 <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
+                                                                     Rp {t.price.toLocaleString('id-ID')}
+                                                                 </span>
+                                                             )}
+                                                             <span className="font-extrabold text-xs sm:text-sm text-[#5c3316] whitespace-nowrap">
+                                                                 Rp {price.toLocaleString('id-ID')}
+                                                             </span>
+                                                         </div>
+                                                         <button
+                                                             type="button"
+                                                             onClick={(e) => {
+                                                                 e.stopPropagation()
+                                                                 addToCart(t, 'treatment')
+                                                             }}
+                                                             className="w-7 h-7 rounded-lg bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-xs border border-pink-200/80 transition-all shrink-0 shadow-xs cursor-pointer"
+                                                             title="Tambah ke keranjang"
+                                                         >
+                                                             +
+                                                         </button>
+                                                     </div>
+                                                 </div>
+                                             )
+                                         })
                                     }
-                                    
+
                                     {activeTab === 'product' && products
                                         .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
                                         .map(p => (
                                             <div
                                                 key={p.id}
                                                 onClick={() => addToCart(p, 'product')}
-                                                className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group relative"
+                                                className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-amber-400 hover:shadow-sm transition-all cursor-pointer group relative"
                                             >
-                                                <div className="space-y-1.5 mb-3">
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border inline-block ${
+                                                <div className="space-y-1 mb-2">
+                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border inline-block ${
                                                         p.quantity > 5 
                                                             ? 'bg-amber-50 text-amber-800 border-amber-200' 
                                                             : p.quantity > 0 
@@ -1109,13 +1154,13 @@ function PosPageContent() {
                                                     }`}>
                                                         Stok: {p.quantity}
                                                     </span>
-                                                    <h4 className="font-bold text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-amber-900 transition-colors">
+                                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-amber-900 transition-colors">
                                                         {p.name}
                                                     </h4>
                                                 </div>
 
-                                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto gap-2">
-                                                    <span className="font-extrabold text-sm sm:text-base text-amber-900 whitespace-nowrap">
+                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                    <span className="font-extrabold text-xs sm:text-sm text-amber-900 whitespace-nowrap">
                                                         Rp {p.price.toLocaleString('id-ID')}
                                                     </span>
                                                     <button
@@ -1124,7 +1169,7 @@ function PosPageContent() {
                                                             e.stopPropagation()
                                                             addToCart(p, 'product')
                                                         }}
-                                                        className="w-8 h-8 rounded-xl bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white flex items-center justify-center font-black text-sm border border-amber-200/80 transition-all shrink-0 shadow-sm"
+                                                        className="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white flex items-center justify-center font-black text-xs border border-amber-200/80 transition-all shrink-0 shadow-xs cursor-pointer"
                                                         title="Tambah ke keranjang"
                                                     >
                                                         +
@@ -1140,19 +1185,19 @@ function PosPageContent() {
                                             <div
                                                 key={c.id}
                                                 onClick={() => addToCart(c, 'coupon')}
-                                                className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group relative"
+                                                className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-pink-300 hover:shadow-sm transition-all cursor-pointer group relative"
                                             >
-                                                <div className="space-y-1.5 mb-3">
-                                                    <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-block">
+                                                <div className="space-y-1 mb-2">
+                                                    <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded inline-block">
                                                         Paket Kupon
                                                     </span>
-                                                    <h4 className="font-bold text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
+                                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
                                                         {c.name}
                                                     </h4>
                                                 </div>
 
-                                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 mt-auto gap-2">
-                                                    <span className="font-extrabold text-sm sm:text-base text-ayumi-primary whitespace-nowrap">
+                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                    <span className="font-extrabold text-xs sm:text-sm text-[#5c3316] whitespace-nowrap">
                                                         Rp {c.price.toLocaleString('id-ID')}
                                                     </span>
                                                     <button
@@ -1161,7 +1206,7 @@ function PosPageContent() {
                                                             e.stopPropagation()
                                                             addToCart(c, 'coupon')
                                                         }}
-                                                        className="w-8 h-8 rounded-xl bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-sm border border-pink-200/80 transition-all shrink-0 shadow-sm"
+                                                        className="w-7 h-7 rounded-lg bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-xs border border-pink-200/80 transition-all shrink-0 shadow-xs cursor-pointer"
                                                         title="Tambah ke keranjang"
                                                     >
                                                         +

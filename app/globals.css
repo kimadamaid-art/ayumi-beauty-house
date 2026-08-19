@@ -47,6 +47,19 @@
   --font-sans: var(--font-plus-jakarta), sans-serif;
 }
 
+/* Global Zoom Out / High-Density SaaS Scaling */
+html {
+  font-size: 13.5px; /* Scales down rem typography, padding, buttons, and layout across all modules (~85% zoom) */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 1536px) {
+  html {
+    font-size: 14.5px; /* Slightly adjusted scale on ultra-wide / large monitors */
+  }
+}
+
 body {
   background-color: var(--color-ayumi-bg);
   color: var(--color-ayumi-text);

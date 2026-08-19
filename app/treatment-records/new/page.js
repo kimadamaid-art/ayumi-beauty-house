@@ -479,8 +479,11 @@ function AddRecordForm() {
                         
                         // Check if all items in parent coupon are fully used
                         if (status === 'fully_used') {
-                            const { data: siblings } = await supabase.from('patient_coupon_items').select('status').eq('patient_coupon_id', itemData.patient_coupon_id)
-                            if (siblings && siblings.every(s => s.status === 'fully_used')) {
+                            const { data: siblings } = await supabase
+                                .from('patient_coupon_items')
+                                .select('status, remaining_sessions')
+                                .eq('patient_coupon_id', itemData.patient_coupon_id)
+                            if (siblings && siblings.every(s => s.remaining_sessions === 0 || s.status === 'fully_used' || s.status === 'completed')) {
                                 await supabase.from('patient_coupons').update({ status: 'fully_used' }).eq('id', itemData.patient_coupon_id)
                             }
                         }

@@ -8,6 +8,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import BranchFilter from '@/components/ui/BranchFilter'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
+import { openWhatsApp } from '@/lib/whatsapp'
 
 export default function CRMPage() {
 
@@ -384,8 +385,7 @@ export default function CRMPage() {
     }
 
     const sendWhatsAppOnly = () => {
-        const encodedText = encodeURIComponent(waForm.message)
-        window.open(`https://wa.me/${waForm.whatsapp}?text=${encodedText}`, '_blank', 'noreferrer')
+        openWhatsApp(waForm.whatsapp, waForm.message)
     }
 
     const saveWaLogOnly = async () => {
@@ -480,8 +480,7 @@ export default function CRMPage() {
 
         // 1. Send WA if requested
         if (sendWa && formattedWa) {
-            const encodedText = encodeURIComponent(bulkForm.message)
-            window.open(`https://wa.me/${formattedWa}?text=${encodedText}`, '_blank', 'noreferrer')
+            openWhatsApp(formattedWa, bulkForm.message)
         }
 
         // 2. Save log

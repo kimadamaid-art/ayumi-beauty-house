@@ -9,6 +9,7 @@ import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
+import { openWhatsApp } from '@/lib/whatsapp'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -245,24 +246,25 @@ export default function TransactionsPage() {
     // WA Share Link creator
     const handleSendWA = (tx) => {
         if (!tx) return
-        const phoneRaw = tx.patients?.whatsapp || ''
+        let phoneRaw = tx.patients?.whatsapp || ''
         if (!phoneRaw) {
-            alert('Nomor WhatsApp pasien tidak terdaftar!')
-            return
-        }
-
-        let cleanPhone = phoneRaw.replace(/\D/g, '')
-        if (cleanPhone.startsWith('0')) {
-            cleanPhone = '62' + cleanPhone.slice(1)
+            const inputPhone = window.prompt(
+                'Nomor WhatsApp pasien belum terdaftar.\nSilakan masukkan nomor WhatsApp tujuan (contoh: 08123456789):'
+            )
+            if (!inputPhone || !inputPhone.trim()) {
+                return
+            }
+            phoneRaw = inputPhone.trim()
         }
 
         const itemsText = tx.transaction_items
             ?.map(i => `- ${i.name} (${i.quantity}x) : ${formatCurrency(i.subtotal)}`)
-            .join('%0A') || ''
+            .join('\n') || ''
 
-        const text = `Halo *${tx.patients?.full_name}*,%0A%0ATerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.%0ABerikut adalah rincian transaksi Anda:%0A%0ANo. Transaksi: *${tx.transaction_number}*%0ATanggal: ${formatDate(tx.created_at)}%0ACabang: ${tx.branches?.name || 'Ayumi Clinic'}%0A%0A*Item:*%0A${itemsText}%0A%0A*Subtotal:* ${formatCurrency(tx.subtotal)}%0A*Diskon:* ${formatCurrency(tx.discount)}%0A*Total Bayar:* *${formatCurrency(tx.total)}*%0A*Metode Pembayaran:* ${tx.payment_method.toUpperCase()}%0AStatus: LUNAS%0A%0AHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
+        const customerName = tx.patients?.full_name || 'Pelanggan Ayumi'
+        const text = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.\nBerikut adalah rincian transaksi Anda:\n\nNo. Transaksi: *${tx.transaction_number}*\nTanggal: ${formatDate(tx.created_at)}\nCabang: ${tx.branches?.name || 'Ayumi Clinic'}\n\n*Item:*\n${itemsText}\n\n*Subtotal:* ${formatCurrency(tx.subtotal)}\n*Diskon:* ${formatCurrency(tx.discount)}\n*Total Bayar:* *${formatCurrency(tx.total)}*\n*Metode Pembayaran:* ${tx.payment_method?.toUpperCase() || '-'}\nStatus: LUNAS\n\nHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
 
-        window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank')
+        openWhatsApp(phoneRaw, text)
     }
 
     // Detail Modal Renderer
