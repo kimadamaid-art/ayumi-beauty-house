@@ -300,15 +300,14 @@ function EditAppointmentForm() {
                             className="input-ayumi focus:bg-white"
                         >
                             <option value="">-- Belum ditentukan --</option>
-                            <option value="worker">💉 Worker (Nakes Luar - Sesi Infus)</option>
+                            <option value="worker">💉 Worker (Sesi Infus)</option>
                             {therapists.map(t => (
                                 <option key={t.id} value={t.id}>{t.full_name}</option>
                             ))}
                         </select>
                         {formData.therapist_id === 'worker' && (
-                            <p className="text-xs text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                Sesi Infus oleh Nakes Luar bebas dari pengisian rekam medis SOAP terapis.
+                            <p className="text-[11px] text-emerald-700 mt-1.5 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                                💡 Sesi Infus oleh Worker bebas dari pengisian rekam medis SOAP terapis.
                             </p>
                         )}
                     </div>

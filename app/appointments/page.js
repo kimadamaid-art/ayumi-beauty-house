@@ -697,7 +697,7 @@ export default function AppointmentsPage() {
                                                                                                             {apt.therapist?.full_name ? (
                                                                                                                 <span>• {apt.therapist.full_name.split(' ')[0]}</span>
                                                                                                             ) : (
-                                                                                                                <span className="text-emerald-700 font-bold bg-emerald-100/80 px-1 py-0.2 rounded">• 💉 Worker (Nakes Luar)</span>
+                                                                                                                <span className="text-emerald-700 font-bold bg-emerald-100/80 px-1 py-0.2 rounded">• 💉 Worker</span>
                                                                                                             )}
                                                                                                         </div>
                                                                                                     </div>

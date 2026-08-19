@@ -1719,7 +1719,7 @@ function PosPageContent() {
                                     className="w-full input-ayumi text-xs font-bold bg-white focus:border-ayumi-primary"
                                 >
                                     <option value="">-- Pilih Terapis Tindakan --</option>
-                                    <option value="worker">💉 Worker (Nakes Luar - Tanpa Komisi Terapis)</option>
+                                    <option value="worker">💉 Worker (Tanpa Komisi Terapis)</option>
                                     {therapists.map(t => (
                                         <option key={t.id} value={t.id}>{t.full_name}</option>
                                     ))}
