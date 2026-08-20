@@ -509,6 +509,7 @@ function PosPageContent() {
         })
 
         setCart(newCart)
+        setSelectedTherapistId(bill.performed_by || 'worker')
         setIsPendingModalOpen(false)
         setLeftPanelTab('catalog')
     }

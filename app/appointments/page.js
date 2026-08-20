@@ -150,6 +150,90 @@ export default function AppointmentsPage() {
 
         setLoading(true)
         try {
+            const apt = appointments.find(a => a.id === aptId)
+            if (!apt) throw new Error('Data jadwal temu tidak ditemukan.')
+
+            // 1. Check if a treatment_record already exists for this appointment
+            const { data: existingRec } = await supabase
+                .from('treatment_records')
+                .select('id')
+                .eq('appointment_id', aptId)
+                .maybeSingle()
+
+            let recordId = existingRec?.id
+
+            if (!recordId) {
+                // 2. Resolve treatments attached to this appointment
+                let treatmentsToBill = []
+                if (apt.appointment_treatments && apt.appointment_treatments.length > 0) {
+                    treatmentsToBill = apt.appointment_treatments.map(at => at.treatments).filter(Boolean)
+                }
+
+                // If no treatment attached directly, look up active Infus treatment
+                if (treatmentsToBill.length === 0) {
+                    const { data: infusList } = await supabase
+                        .from('treatments')
+                        .select('id, name, price, commission_percent')
+                        .ilike('name', '%infus%')
+                        .eq('is_active', true)
+                        .limit(1)
+
+                    if (infusList && infusList.length > 0) {
+                        treatmentsToBill = infusList
+                    } else {
+                        // Fallback: any active treatment
+                        const { data: fallbackList } = await supabase
+                            .from('treatments')
+                            .select('id, name, price, commission_percent')
+                            .eq('is_active', true)
+                            .limit(1)
+                        if (fallbackList && fallbackList.length > 0) treatmentsToBill = fallbackList
+                    }
+                }
+
+                // 3. Create treatment_record
+                const todayDate = apt.appointment_date || new Date().toISOString().split('T')[0]
+                const nowTime = apt.start_time || new Date().toTimeString().substring(0, 5)
+
+                const { data: createdRec, error: trErr } = await supabase
+                    .from('treatment_records')
+                    .insert([{
+                        patient_id: apt.patient_id,
+                        appointment_id: apt.id,
+                        branch_id: apt.branch_id,
+                        performed_by: null, // Worker (tanpa komisi terapis)
+                        treatment_date: todayDate,
+                        treatment_time: nowTime,
+                        complaints: '[INFUS - WORKER]',
+                        result_notes: 'Sesi Infus dikerjakan oleh Worker',
+                        created_by: dbUser?.id || null
+                    }])
+                    .select('id')
+                    .single()
+
+                if (trErr) throw trErr
+                recordId = createdRec.id
+
+                // 4. Insert treatment_record_items
+                if (treatmentsToBill.length > 0) {
+                    const itemsToInsert = treatmentsToBill.map(t => ({
+                        treatment_record_id: recordId,
+                        treatment_id: t.id,
+                        price_at_time: Number(t.price || 0),
+                        original_price: Number(t.price || 0),
+                        discount_percent: 0,
+                        commission_percent: 0 // Worker -> 0 komisi
+                    }))
+
+                    const { error: itemsErr } = await supabase
+                        .from('treatment_record_items')
+                        .insert(itemsToInsert)
+
+                    if (itemsErr) throw itemsErr
+                }
+            }
+
+            // 5. Update appointment status
             const { error: updateErr } = await supabase
                 .from('appointments')
                 .update({
@@ -162,7 +246,7 @@ export default function AppointmentsPage() {
 
             if (updateErr) throw updateErr
 
-            toast.success('Sesi Infus Worker selesai! Pasien siap diproses di Kasir.')
+            toast.success('Sesi Infus Worker selesai! Tagihan otomatis masuk ke antrean Kasir.')
             fetchData()
         } catch (err) {
             console.error('Error completing worker infus:', err)
