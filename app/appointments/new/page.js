@@ -328,9 +328,18 @@ function NewAppointmentForm() {
 
                 {/* Cari Pasien */}
                 <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                        Cari / Pilih Pasien <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-bold text-gray-700">
+                            Cari / Pilih Pasien <span className="text-red-500">*</span>
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => openNewPatientModal(patientSearch)}
+                            className="text-xs font-bold text-ayumi-primary hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                            <span className="text-sm font-black">+</span> Pasien Baru
+                        </button>
+                    </div>
 
                     {!formData.patient_id ? (
                         <div className="relative">

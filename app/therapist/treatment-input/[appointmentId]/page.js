@@ -25,6 +25,8 @@ export default function TreatmentInputPage() {
     // Master data
     const [treatmentsMaster, setTreatmentsMaster] = useState([])
     const [patientCoupons, setPatientCoupons] = useState([])
+    const [therapistsList, setTherapistsList] = useState([])
+    const [selectedPerformerId, setSelectedPerformerId] = useState('')
 
     // Treatment selection
     const [selectedTreatments, setSelectedTreatments] = useState([])
@@ -133,6 +135,14 @@ export default function TreatmentInputPage() {
 
             if (existingRecord) {
                 setExistingRecordId(existingRecord.id)
+                if (existingRecord.performed_by) {
+                    setSelectedPerformerId(existingRecord.performed_by)
+                } else if (aptData.therapist_id) {
+                    setSelectedPerformerId(aptData.therapist_id)
+                } else if (userData.role === 'therapist') {
+                    setSelectedPerformerId(userData.id)
+                }
+
                 setFormData({
                     complaints: existingRecord.complaints || aptData.notes || '',
                     skin_condition: existingRecord.skin_condition || '',
@@ -213,6 +223,20 @@ export default function TreatmentInputPage() {
         // Fetch Treatments Master
         const { data: trData } = await supabase.from('treatments').select('*').eq('is_active', true).order('name')
         if (trData) setTreatmentsMaster(trData)
+
+        // Fetch Therapists for performer selection if admin/owner
+        const { data: thList } = await supabase
+            .from('users')
+            .select('id, full_name, role, branch_id')
+            .eq('role', 'therapist')
+            .eq('is_active', true)
+            .order('full_name')
+        if (thList) {
+            setTherapistsList(thList)
+            if (!aptData?.therapist_id && userData.role !== 'therapist' && thList.length > 0) {
+                setSelectedPerformerId(prev => prev || thList[0].id)
+            }
+        }
         
         setLoading(false)
     }
@@ -308,8 +332,10 @@ export default function TreatmentInputPage() {
             toast.error('Pilih minimal 1 treatment yang dilakukan.')
             return
         }
-        if (!formData.result_notes) {
-            toast.error('Asesmen (Tindakan & Hasil) wajib diisi.')
+        const performer = dbUser.role === 'therapist' ? dbUser.id : (selectedPerformerId || appointment.therapist_id || null)
+
+        if (dbUser.role !== 'therapist' && !performer) {
+            toast.error('Silakan pilih terapis yang menangani tindakan terlebih dahulu.')
             return
         }
 
@@ -324,10 +350,12 @@ export default function TreatmentInputPage() {
                     .from('treatment_records')
                     .update({
                         patient_id: appointment.patient_id || appointment.patients?.id || null,
+                        performed_by: performer,
                         skin_condition: formData.skin_condition,
                         complaints: formData.complaints,
                         result_notes: formData.result_notes,
-                        recommendation: formData.recommendation
+                        recommendation: formData.recommendation,
+                        updated_by: dbUser.id
                     })
                     .eq('id', existingRecordId)
 
@@ -343,7 +371,7 @@ export default function TreatmentInputPage() {
                         patient_id: appointment.patient_id || appointment.patients?.id || null,
                         appointment_id: appointment.id,
                         branch_id: appointment.branch_id,
-                        performed_by: dbUser.id,
+                        performed_by: performer,
                         treatment_date: new Date().toISOString().split('T')[0],
                         treatment_time: new Date().toTimeString().substring(0, 5),
                         skin_condition: formData.skin_condition,
@@ -569,6 +597,41 @@ export default function TreatmentInputPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+
+                {/* ─── PEMILIHAN TERAPIS PELAKSANA (KHUSUS OWNER / ADMIN) ─── */}
+                {dbUser?.role !== 'therapist' ? (
+                    <div className="card-ayumi p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                        <div>
+                            <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider">
+                                Terapis yang Menangani Tindakan (Penerima Komisi) <span className="text-red-500">*</span>
+                            </label>
+                            <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                                Pilih nama terapis pelaksana agar komisi tindakan tercatat dengan tepat ke terapis bersangkutan.
+                            </p>
+                        </div>
+                        <div className="w-full md:w-72">
+                            <select
+                                value={selectedPerformerId}
+                                onChange={(e) => setSelectedPerformerId(e.target.value)}
+                                required
+                                className="input-ayumi bg-white text-sm font-bold border-amber-300 focus:ring-amber-400"
+                            >
+                                <option value="">-- Pilih Terapis Pelaksana --</option>
+                                {therapistsList
+                                    .filter(t => !t.branch_id || !appointment?.branch_id || t.branch_id === appointment.branch_id)
+                                    .map(t => (
+                                        <option key={t.id} value={t.id}>{t.full_name}</option>
+                                    ))
+                                }
+                            </select>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-pink-50 border border-pink-100 rounded-2xl px-4 py-2.5 flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Terapis Pelaksana:</span>
+                        <span className="text-sm font-extrabold text-ayumi-primary">👩‍⚕️ {dbUser.full_name}</span>
+                    </div>
+                )}
 
                 {/* ─── SECTION 1: CATATAN SOAP ─── */}
                 <div className="card-ayumi p-4 md:p-6 space-y-5">

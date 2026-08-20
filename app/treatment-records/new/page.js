@@ -96,7 +96,7 @@ function AddRecordForm() {
             const { data: pts } = await supabase.from('patients').select('id, full_name, whatsapp')
             if (pts) setPatients(pts)
 
-            const { data: usrs } = await supabase.from('users').select('id, full_name, role')
+            const { data: usrs } = await supabase.from('users').select('id, full_name, role, branch_id').eq('role', 'therapist').eq('is_active', true).order('full_name')
             if (usrs) setProviders(usrs)
 
             const { data: trts } = await supabase.from('treatments').select('*').eq('is_active', true)
