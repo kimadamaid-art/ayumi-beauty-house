@@ -182,13 +182,23 @@ export default function ReceiptPage() {
             })
 
             chunks.push(divider)
-            chunks.push(line(`Subtotal: Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}`))
+            const subtotalVal = Number(transaction.subtotal || 0)
+            const discountRupiah = Number(transaction.discount || 0)
+            let percentLabel = ''
+            if (discountRupiah > 0 && subtotalVal > 0) {
+                const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
+                if (calcPct > 0 && calcPct <= 100) {
+                    percentLabel = ` (${calcPct}%)`
+                }
+            }
+
+            chunks.push(line(`Subtotal: Rp ${subtotalVal.toLocaleString('id-ID')}`))
 
             if (discountRupiah > 0) {
                 chunks.push(line(`Diskon${percentLabel} : -Rp ${discountRupiah.toLocaleString('id-ID')}`))
             }
 
-            const netTotal = Math.max(0, Number(transaction.subtotal) - Number(transaction.discount))
+            const netTotal = Math.max(0, subtotalVal - discountRupiah)
             const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
             if (qrisFee > 0) {
                 chunks.push(line(`QRIS(0.3%): +Rp ${qrisFee.toLocaleString('id-ID')}`))
@@ -263,6 +273,18 @@ export default function ReceiptPage() {
             })
             .join('\n') || ''
 
+        const subtotalVal = Number(transaction.subtotal || 0)
+        const discountRupiah = Number(transaction.discount || 0)
+        let percentLabel = ''
+        if (discountRupiah > 0 && subtotalVal > 0) {
+            const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
+            if (calcPct > 0 && calcPct <= 100) {
+                percentLabel = ` (${calcPct}%)`
+            }
+        }
+        const netTotal = Math.max(0, subtotalVal - discountRupiah)
+        const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
+
         const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
         const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0.3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
         const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
@@ -289,21 +311,12 @@ export default function ReceiptPage() {
 
     const subtotalVal = Number(transaction.subtotal || 0)
     const totalVal = Number(transaction.total || 0)
-    const discountVal = Number(transaction.discount || 0)
+    const discountRupiah = Number(transaction.discount || 0)
     
-    // Hitung diskon secara akurat:
-    // Jika discount_type === 'percent': discountVal adalah angka persen (misal 5%), discountRupiah = subtotal * 5%
-    // Jika discount_type === 'nominal' / default: discountVal adalah nominal rupiah (misal Rp 5.150), persen = (5150 / 103000) * 100 = 5%
-    let discountRupiah = 0
+    // Hitung label persentase diskon secara otomatis dari nilai rupiah terhadap subtotal
     let percentLabel = ''
-
-    if (transaction.discount_type === 'percent') {
-        const pct = discountVal
-        discountRupiah = Math.round(subtotalVal * (pct / 100))
-        percentLabel = ` (${pct}%)`
-    } else if (discountVal > 0) {
-        discountRupiah = discountVal
-        const calcPct = subtotalVal > 0 ? Math.round((discountVal / subtotalVal) * 100) : 0
+    if (discountRupiah > 0 && subtotalVal > 0) {
+        const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
         if (calcPct > 0 && calcPct <= 100) {
             percentLabel = ` (${calcPct}%)`
         }
