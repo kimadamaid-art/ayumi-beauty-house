@@ -106,9 +106,11 @@ export default function TreatmentRecordsPage() {
                 treatment_date,
                 treatment_time,
                 branch_id,
+                performed_by,
                 branches(name),
                 patients!inner(full_name, whatsapp),
-                users:users!treatment_records_performed_by_fkey(full_name)
+                users:users!treatment_records_performed_by_fkey(full_name),
+                transactions(id, transaction_number, payment_status, total)
             `)
             .order('treatment_date', { ascending: false })
             .order('treatment_time', { ascending: false })
@@ -245,60 +247,101 @@ export default function TreatmentRecordsPage() {
                                     <th className="px-6 py-4">Waktu & Cabang</th>
                                     <th className="px-6 py-4">Pasien</th>
                                     <th className="px-6 py-4">Ditangani Oleh</th>
+                                    <th className="px-6 py-4">Status Tagihan</th>
                                     <th className="px-6 py-4 text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredRecords.length > 0 ? (
-                                    filteredRecords.map((r) => (
-                                        <tr key={r.id} className="bg-white border-b border-gray-50 hover:bg-ayumi-table-hover transition-colors">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-gray-800">
-                                                    {new Date(r.treatment_date).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
-                                                </div>
-                                                <div className="text-xs text-gray-500 font-semibold mt-1">
-                                                    {r.treatment_time?.substring(0,5) || '-'} • {r.branches?.name || 'Pusat'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-gray-800">{r.patients?.full_name}</div>
-                                                <div className="text-xs text-gray-500">{r.patients?.whatsapp}</div>
-                                            </td>
-                                             <td className="px-6 py-4 font-extrabold text-gray-800 text-sm">
-                                                 {r.therapist?.full_name || r.users?.full_name || '-'}
-                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Link href={`/treatment-records/${r.id}`}>
-                                                        <button className="text-xs bg-pink-50 text-ayumi-primary border border-transparent hover:border-ayumi-primary hover:bg-pink-100 px-3 py-2 rounded-lg font-bold transition-colors">
-                                                            Lihat Detail
-                                                        </button>
-                                                    </Link>
-                                                    {(isOwner || userRole === 'admin') && (
-                                                        <Link href={`/kasir?pendingRecordId=${r.id}`}>
-                                                            <button className="text-xs bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-3 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1">
-                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                                                                Kasir
+                                    filteredRecords.map((r) => {
+                                        const paidTx = r.transactions?.find(t => t.payment_status === 'paid')
+
+                                        return (
+                                            <tr key={r.id} className="bg-white border-b border-gray-50 hover:bg-ayumi-table-hover transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-gray-800">
+                                                        {new Date(r.treatment_date).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 font-semibold mt-1">
+                                                        {r.treatment_time?.substring(0,5) || '-'} • {r.branches?.name || 'Pusat'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-gray-800">{r.patients?.full_name}</div>
+                                                    <div className="text-xs text-gray-500">{r.patients?.whatsapp || '-'}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {r.users?.full_name ? (
+                                                        <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                            {r.users.full_name}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md text-[11px] border border-emerald-200">
+                                                            Worker
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {paidTx ? (
+                                                        <div>
+                                                            <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                                Lunas
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-400 block font-semibold mt-0.5">{paidTx.transaction_number}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border border-amber-200">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                            Belum Dibayar
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <Link href={`/treatment-records/${r.id}`}>
+                                                            <button className="text-xs bg-pink-50 text-ayumi-primary border border-transparent hover:border-ayumi-primary hover:bg-pink-100 px-3 py-1.5 rounded-lg font-bold transition-colors">
+                                                                Lihat Detail
                                                             </button>
                                                         </Link>
-                                                    )}
-                                                    {r.patients?.whatsapp && (
-                                                        <a 
-                                                            href={getWhatsAppUrl(r.patients.whatsapp)} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer" 
-                                                            className="text-xs bg-green-50 text-green-700 border border-transparent hover:border-green-600 hover:bg-green-100 px-3 py-2 rounded-lg font-bold transition-colors"
-                                                        >
-                                                            Chat WA
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+
+                                                        {(isOwner || userRole === 'admin') && (
+                                                            paidTx ? (
+                                                                <Link href={`/kasir/transactions/${paidTx.id}`}>
+                                                                    <button className="text-xs bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1">
+                                                                        <svg className="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                                        Lihat Struk
+                                                                    </button>
+                                                                </Link>
+                                                            ) : (
+                                                                <Link href={`/kasir?pendingRecordId=${r.id}`}>
+                                                                    <button className="text-xs bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-3 py-1.5 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1">
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                                                        Bayar di Kasir
+                                                                    </button>
+                                                                </Link>
+                                                            )
+                                                        )}
+
+                                                        {r.patients?.whatsapp && (
+                                                            <a 
+                                                                href={getWhatsAppUrl(r.patients.whatsapp)} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer" 
+                                                                className="text-xs bg-green-50 text-green-700 border border-transparent hover:border-green-600 hover:bg-green-100 px-3 py-1.5 rounded-lg font-bold transition-colors"
+                                                            >
+                                                                Chat WA
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
                                 ) : (
                                     <tr>
-                                        <td colSpan="4" className="px-6 py-12 text-center flex flex-col items-center border-none">
+                                        <td colSpan="5" className="px-6 py-12 text-center flex flex-col items-center border-none">
                                             <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mb-4 mx-auto">
                                                 <svg className="w-8 h-8 text-pink-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                             </div>
