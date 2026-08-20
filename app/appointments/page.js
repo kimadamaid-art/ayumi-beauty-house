@@ -125,7 +125,19 @@ export default function AppointmentsPage() {
     const isWorkerInfus = (apt) => {
         if (!apt) return false
         const notes = (apt.notes || '').toUpperCase()
-        return notes.includes('[INFUS - WORKER NAKES LUAR]') || (isInfusAppointment(apt) && !apt.therapist_id)
+        return notes.includes('[INFUS - WORKER') || (isInfusAppointment(apt) && !apt.therapist_id)
+    }
+
+    const getCleanTreatmentTitle = (apt, fallback = 'Treatment') => {
+        const directTreatments = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ')
+        if (directTreatments) return directTreatments
+        if (apt.notes) {
+            const cleanNotes = apt.notes.replace(/\[INFUS\s*-\s*WORKER(\s*NAKES\s*LUAR)?\]\s*/gi, '').trim()
+            if (cleanNotes) return cleanNotes
+            if (isWorkerInfus(apt)) return 'Infus (Worker)'
+            return apt.notes
+        }
+        return fallback
     }
 
     const handleCompleteWorkerInfus = async (aptId, e) => {
@@ -661,7 +673,7 @@ export default function AppointmentsPage() {
                                                                             ) : (
                                                                                 <div className="flex flex-col gap-1.5 w-full">
                                                                                     {infusApts.map(apt => {
-                                                                                        const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Infus'
+                                                                                        const treatmentsList = getCleanTreatmentTitle(apt, 'Infus')
                                                                                         const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
                                                                                         const endTime = apt.end_time ? apt.end_time.substring(0, 5) : ''
 
@@ -764,7 +776,7 @@ export default function AppointmentsPage() {
                                                                             ) : (
                                                                                 <div className="flex flex-row flex-nowrap items-stretch gap-2.5 py-0.5 w-full overflow-x-auto custom-scrollbar">
                                                                                     {treatmentApts.map(apt => {
-                                                                                        const treatmentsList = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ') || apt.notes || 'Treatment'
+                                                                                        const treatmentsList = getCleanTreatmentTitle(apt, 'Treatment')
                                                                                         const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
                                                                                         const endTime = apt.end_time ? apt.end_time.substring(0, 5) : ''
 

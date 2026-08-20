@@ -157,8 +157,8 @@ function EditAppointmentForm() {
         try {
             const isWorker = formData.therapist_id === 'worker'
             let finalNotes = formData.notes || ''
-            if (isWorker && !finalNotes.includes('[INFUS - WORKER NAKES LUAR]')) {
-                finalNotes = `[INFUS - WORKER NAKES LUAR] ${finalNotes}`.trim()
+            if (isWorker && !finalNotes.includes('[INFUS - WORKER]')) {
+                finalNotes = `[INFUS - WORKER] ${finalNotes}`.trim()
             }
 
             const { error: aptErr } = await supabase

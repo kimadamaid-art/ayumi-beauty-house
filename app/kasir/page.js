@@ -734,8 +734,8 @@ function PosPageContent() {
                         patient_id: selectedPatient?.id || null,
                         branch_id: selectedBranch,
                         performed_by: isWorker ? null : selectedTherapistId,
-                        complaints: isWorker ? '[INFUS - WORKER NAKES LUAR]' : null,
-                        result_notes: isWorker ? 'Sesi Infus dikerjakan oleh Worker Nakes Luar' : null,
+                        complaints: isWorker ? '[INFUS - WORKER]' : null,
+                        result_notes: isWorker ? 'Sesi Infus dikerjakan oleh Worker' : null,
                         treatment_date: new Date().toISOString().split('T')[0],
                         treatment_time: new Date().toLocaleTimeString('en-US', { hour12: false })
                     }])
