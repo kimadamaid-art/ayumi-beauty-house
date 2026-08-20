@@ -150,6 +150,7 @@ export default function AppointmentsPage() {
 
         setLoading(true)
         try {
+            const { data: { user } } = await supabase.auth.getUser()
             const apt = appointments.find(a => a.id === aptId)
             if (!apt) throw new Error('Data jadwal temu tidak ditemukan.')
 
@@ -206,7 +207,7 @@ export default function AppointmentsPage() {
                         treatment_time: nowTime,
                         complaints: '[INFUS - WORKER]',
                         result_notes: 'Sesi Infus dikerjakan oleh Worker',
-                        created_by: dbUser?.id || null
+                        created_by: user?.id || null
                     }])
                     .select('id')
                     .single()
