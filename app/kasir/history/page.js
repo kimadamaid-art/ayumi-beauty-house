@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
@@ -81,8 +81,16 @@ export default function TransactionsHistoryPage() {
         }
     }, [dbUser, startDate, endDate, selectedBranch, paymentMethod])
 
+    // Single derived state: ONLY transactions with payment_status === 'paid' for financial calculations
+    const validTransactions = useMemo(
+        () => transactions.filter(tx => tx.payment_status === 'paid'),
+        [transactions]
+    )
 
-    const totalIncome = transactions.reduce((sum, trx) => sum + trx.total, 0)
+    const totalIncome = useMemo(
+        () => validTransactions.reduce((sum, trx) => sum + Number(trx.total || 0), 0),
+        [validTransactions]
+    )
 
     const formatDate = (isoString) => {
         const date = new Date(isoString)

@@ -160,7 +160,36 @@ export default function TransactionsPage() {
         }
     }, [isMounted, filterBranch, dbUser])
 
-    // Get current transactions list based on main tab filter & parameters
+    // Single derived state: ONLY transactions with payment_status === 'paid' for all financial & quantity calculations
+    const validTransactions = useMemo(
+        () => transactions.filter(tx => tx.payment_status === 'paid'),
+        [transactions]
+    )
+
+    // Get filtered valid transactions for Main Tab KPI & summary calculations
+    const filteredValidTransactions = useMemo(() => {
+        return validTransactions.filter(tx => {
+            // 1. Branch Filter
+            if (filterBranch && tx.branch_id !== filterBranch) return false
+
+            // 2. Payment Method Filter
+            if (filterPaymentMethod && tx.payment_method !== filterPaymentMethod) return false
+
+            // 3. Transaction Type Filter
+            if (filterTxType) {
+                const hasType = tx.transaction_items?.some(item => item.item_type === filterTxType)
+                if (!hasType) return false
+            }
+
+            // 4. Period Date Filter
+            const txDate = new Date(tx.created_at)
+            const start = new Date(customStartDate + 'T00:00:00')
+            const end = new Date(customEndDate + 'T23:59:59')
+            return txDate >= start && txDate <= end
+        })
+    }, [validTransactions, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
+
+    // Get current raw transactions list based on main tab filter & parameters (for Table listing so VOID rows remain visible)
     const filteredTransactions = useMemo(() => {
         return transactions.filter(tx => {
             // 1. Branch Filter
@@ -183,7 +212,7 @@ export default function TransactionsPage() {
         })
     }, [transactions, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
 
-    // Summary calculations for the main view
+    // Summary calculations for the main view (derived strictly from validTransactions)
     const mainSummary = useMemo(() => {
         let totalRevenue = 0
         let totalTx = 0
@@ -194,10 +223,7 @@ export default function TransactionsPage() {
         let productRevenue = 0
         let couponRevenue = 0
 
-        filteredTransactions.forEach(tx => {
-            // Pengecualian mutlak: Transaksi VOID (Batal) tidak dihitung ke seluruh KPI omzet & kuantitas
-            if (tx.payment_status === 'void') return
-
+        filteredValidTransactions.forEach(tx => {
             totalTx += 1
             totalRevenue += Number(tx.total || 0)
             tx.transaction_items?.forEach(item => {
@@ -228,7 +254,7 @@ export default function TransactionsPage() {
             productRevenue,
             couponRevenue
         }
-    }, [filteredTransactions])
+    }, [filteredValidTransactions])
 
     // Formatter helpers
     const formatCurrency = (val) => {
@@ -354,10 +380,11 @@ export default function TransactionsPage() {
         const todayStr = new Date().toISOString().split('T')[0]
         const branchName = branches.find(b => b.id === filterBranch)?.name || 'Semua_Cabang'
 
-        // Sheet 1: Summary
+        // Sheet 1: Summary (dihitung khusus transaksi lunas)
+        const validDataset = dataset.filter(tx => tx.payment_status === 'paid')
         let totalRevenue = 0
         let tQty = 0, pQty = 0, cQty = 0
-        dataset.forEach(tx => {
+        validDataset.forEach(tx => {
             totalRevenue += Number(tx.total || 0)
             tx.transaction_items?.forEach(item => {
                 if (item.item_type === 'treatment') tQty += item.quantity || 0
@@ -645,14 +672,15 @@ export default function TransactionsPage() {
             y += 8
 
             // --- 2. PERHITUNGAN RINGKASAN METRIK ---
+            const validDataset = dataset.filter(tx => tx.payment_status === 'paid')
             let totalRevenue = 0
-            let totalTxCount = dataset.length
+            let totalTxCount = validDataset.length
             let treatmentQty = 0
             let productQty = 0
             let couponQty = 0
             const paymentBreakdown = { cash: 0, transfer: 0, qris: 0, debit: 0, credit: 0 }
 
-            dataset.forEach(tx => {
+            validDataset.forEach(tx => {
                 totalRevenue += Number(tx.total || 0)
                 const method = tx.payment_method?.toLowerCase()
                 if (paymentBreakdown[method] !== undefined) {
@@ -1182,7 +1210,7 @@ export default function TransactionsPage() {
         const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
         const end = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999)
 
-        const txList = transactions.filter(tx => {
+        const txList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate <= end
@@ -1227,7 +1255,7 @@ export default function TransactionsPage() {
             typeBreakdown,
             activeHours
         }
-    }, [transactions, dailyReportDate, filterBranch])
+    }, [validTransactions, dailyReportDate, filterBranch])
 
 
     // ==========================================
@@ -1243,13 +1271,13 @@ export default function TransactionsPage() {
         prevStart.setDate(prevStart.getDate() - 7)
         const prevEnd = new Date(start)
 
-        const txList = transactions.filter(tx => {
+        const txList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate < end
         })
 
-        const prevTxList = transactions.filter(tx => {
+        const prevTxList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= prevStart && txDate < prevEnd
@@ -1322,7 +1350,7 @@ export default function TransactionsPage() {
             growthPercent,
             branchBreakdown: Object.values(branchBreakdown)
         }
-    }, [transactions, weeklyReportStart, filterBranch])
+    }, [validTransactions, weeklyReportStart, filterBranch])
 
 
     // ==========================================
@@ -1335,13 +1363,13 @@ export default function TransactionsPage() {
         const prevStart = new Date(monthlyReportYear, monthlyReportMonth - 1, 1)
         const prevEnd = new Date(monthlyReportYear, monthlyReportMonth, 0, 23, 59, 59, 999)
 
-        const txList = transactions.filter(tx => {
+        const txList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate <= end
         })
 
-        const prevTxList = transactions.filter(tx => {
+        const prevTxList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= prevStart && txDate <= prevEnd
@@ -1437,7 +1465,7 @@ export default function TransactionsPage() {
             branchBreakdown: Object.values(branchesMap),
             pieData
         }
-    }, [transactions, monthlyReportMonth, monthlyReportYear, filterBranch])
+    }, [validTransactions, monthlyReportMonth, monthlyReportYear, filterBranch])
 
 
     // ==========================================
@@ -1450,13 +1478,13 @@ export default function TransactionsPage() {
         const prevStart = new Date(yearlyReportYear - 1, 0, 1)
         const prevEnd = new Date(yearlyReportYear - 1, 11, 31, 23, 59, 59, 999)
 
-        const txList = transactions.filter(tx => {
+        const txList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate <= end
         })
 
-        const prevTxList = transactions.filter(tx => {
+        const prevTxList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= prevStart && txDate <= prevEnd
@@ -1540,7 +1568,7 @@ export default function TransactionsPage() {
             topCoupon,
             branchPivotList
         }
-    }, [transactions, yearlyReportYear, filterBranch])
+    }, [validTransactions, yearlyReportYear, filterBranch])
 
 
     // ==========================================
@@ -1552,7 +1580,7 @@ export default function TransactionsPage() {
         const start = new Date(customTabStart + 'T00:00:00')
         const end = new Date(customTabEnd + 'T23:59:59')
 
-        const txList = transactions.filter(tx => {
+        const txList = validTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             
             // Branch filter

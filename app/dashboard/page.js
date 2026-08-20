@@ -159,6 +159,7 @@ export default function Dashboard() {
                         discount_percent
                     )
                 `)
+                .eq('payment_status', 'paid')
                 .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
                 .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
 
@@ -179,6 +180,7 @@ export default function Dashboard() {
                             subtotal
                         )
                     `)
+                    .eq('payment_status', 'paid')
                     .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
                     .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
                 rangeTrx = fallback.data
@@ -330,6 +332,7 @@ export default function Dashboard() {
             const { data: monthlyTrx } = await supabase
                 .from('transactions')
                 .select('id, branch_id, total')
+                .eq('payment_status', 'paid')
                 .gte('created_at', startOfMonth)
                 .lte('created_at', endOfMonth)
 
