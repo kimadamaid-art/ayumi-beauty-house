@@ -63,8 +63,10 @@ export default function TreatmentsReportPage() {
     const [sortField, setSortField] = useState('count') // 'name' | 'category' | 'count' | 'uniquePatients' | 'revenue' | 'avgPrice'
     const [sortDirection, setSortDirection] = useState('desc') // 'asc' | 'desc'
 
-    // Colors for Donut Chart
-    const COLORS = ['#B5588A', '#06B6D4', '#EAB308', '#10B981', '#6366F1', '#EC4899', '#8B5CF6', '#F97316']
+    // Curated vibrant modern palettes
+    const TREATMENT_BAR_COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#06B6D4', '#0EA5E9', '#10B981', '#F59E0B', '#F97316', '#3B82F6']
+    const PRODUCT_BAR_COLORS = ['#06B6D4', '#0EA5E9', '#3B82F6', '#6366F1', '#10B981', '#14B8A6', '#F59E0B', '#EC4899', '#8B5CF6', '#F97316']
+    const CATEGORY_COLORS = ['#6366F1', '#EC4899', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6', '#3B82F6', '#14B8A6', '#F97316', '#E11D48']
 
     useEffect(() => {
         checkAccessAndFetchInitialData()
@@ -549,9 +551,19 @@ export default function TreatmentsReportPage() {
                                 <BarChart data={top10ChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                                     <XAxis type="number" tick={{ fontSize: 11, fontWeight: 600 }} />
-                                    <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} />
+                                    <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fontWeight: 700, fill: '#1e293b' }} />
                                     <RechartsTooltip formatter={(val) => [val + (activeTab === 'treatments' ? ' Sesi' : ' Unit'), 'Jumlah']} />
-                                    <Bar dataKey="count" fill={activeTab === 'treatments' ? '#B5588A' : '#06B6D4'} radius={[0, 6, 6, 0]} maxBarSize={24} />
+                                    <Bar dataKey="count" radius={[0, 8, 8, 0]} maxBarSize={22}>
+                                        {top10ChartData.map((entry, index) => {
+                                            const palette = activeTab === 'treatments' ? TREATMENT_BAR_COLORS : PRODUCT_BAR_COLORS
+                                            return (
+                                                <Cell 
+                                                    key={`bar-${index}`} 
+                                                    fill={palette[index % palette.length]} 
+                                                />
+                                            )
+                                        })}
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         )}
@@ -575,13 +587,18 @@ export default function TreatmentsReportPage() {
                                         data={categoryChartData}
                                         cx="50%"
                                         cy="50%"
-                                        innerRadius={50}
-                                        outerRadius={80}
+                                        innerRadius={52}
+                                        outerRadius={82}
                                         paddingAngle={4}
                                         dataKey="value"
                                     >
                                         {categoryChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} 
+                                                stroke="#ffffff"
+                                                strokeWidth={2}
+                                            />
                                         ))}
                                     </Pie>
                                     <RechartsTooltip formatter={(val) => ['Rp ' + Number(val).toLocaleString('id-ID'), 'Omset']} />

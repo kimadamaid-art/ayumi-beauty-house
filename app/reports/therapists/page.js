@@ -831,7 +831,7 @@ export default function TherapistsReportPage() {
                                             <XAxis type="number" tickFormatter={(v) => `Rp ${v >= 1000000 ? (v/1000000) + 'M' : v}`} stroke="#8c7d73" fontSize={10} />
                                             <YAxis dataKey="name" type="category" stroke="#8c7d73" width={90} fontSize={10} fontStyle="bold" />
                                             <RechartsTooltip formatter={(v) => 'Rp ' + v.toLocaleString('id-ID')} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                            <Bar dataKey="revenue" fill="#D46221" radius={[0, 4, 4, 0]} />
+                                            <Bar dataKey="revenue" fill="#6366F1" radius={[0, 6, 6, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -851,7 +851,7 @@ export default function TherapistsReportPage() {
                                             <XAxis type="number" stroke="#8c7d73" fontSize={10} />
                                             <YAxis dataKey="name" type="category" stroke="#8c7d73" width={90} fontSize={10} fontStyle="bold" />
                                             <RechartsTooltip formatter={(v) => v + ' Sesi'} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                            <Bar dataKey="treatmentCount" fill="#4E2A12" radius={[0, 4, 4, 0]} />
+                                            <Bar dataKey="treatmentCount" fill="#EC4899" radius={[0, 6, 6, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>

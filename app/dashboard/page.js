@@ -1361,7 +1361,7 @@ export default function Dashboard() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={sparklineData}>
                                         <RechartsTooltip formatter={(value) => 'Rp ' + (typeof value === 'number' ? value.toLocaleString('id-ID') : value)} contentStyle={{ fontSize: '9px', padding: '3px' }} />
-                                        <Line type="monotone" dataKey="total" stroke="#B5588A" strokeWidth={2} dot={false} />
+                                        <Line type="monotone" dataKey="total" stroke="#EC4899" strokeWidth={2.5} dot={false} />
                                     </LineChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -1448,7 +1448,7 @@ export default function Dashboard() {
                                             align="center"
                                             wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '12px', color: '#0f172a' }} 
                                         />
-                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#B5588A" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#EC4899" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                         <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                         <Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                         <Bar dataKey="couponUsedValue" name="Pemakaian Kupon" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
@@ -1475,7 +1475,7 @@ export default function Dashboard() {
                                         <div className="space-y-1.5 pt-0.5">
                                             <div className="flex justify-between items-center text-xs">
                                                 <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#B5588A] shrink-0"></span>
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#EC4899] shrink-0"></span>
                                                     Treatment:
                                                 </span>
                                                 <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.treatmentIncome.toLocaleString('id-ID')}</strong>
