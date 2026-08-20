@@ -793,7 +793,7 @@ export default function AppointmentsPage() {
                                                                                                     </div>
 
                                                                                                     <div className="text-[10px] font-bold text-cyan-900 bg-cyan-50/70 border border-cyan-100 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
-                                                                                                        💉 {treatmentsList}
+                                                                                                        {treatmentsList}
                                                                                                     </div>
 
                                                                                                     <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
@@ -822,7 +822,7 @@ export default function AppointmentsPage() {
                                                                                                                 className="text-[10px] font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1"
                                                                                                                 title="Selesaikan Sesi & Pilih Paket Infus"
                                                                                                             >
-                                                                                                                <span>✓ Selesai & Tagih</span>
+                                                                                                                <span>Selesai & Tagih</span>
                                                                                                             </button>
                                                                                                         )}
 
@@ -887,7 +887,7 @@ export default function AppointmentsPage() {
                                                                                                     </div>
 
                                                                                                     <div className="text-[10px] font-bold text-sky-900 bg-sky-50/70 border border-sky-100 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
-                                                                                                        💆‍♀️ {treatmentsList}
+                                                                                                        {treatmentsList}
                                                                                                     </div>
 
                                                                                                     <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
@@ -974,9 +974,9 @@ export default function AppointmentsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-cyan-100 animate-in fade-in zoom-in-95 duration-150 space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center font-bold text-sm">
-                                    💉
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center font-bold">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 9.172V5L8 4z" /></svg>
                                 </div>
                                 <div>
                                     <h3 className="font-extrabold text-sm text-slate-800">Selesaikan Sesi Infus</h3>
@@ -1001,8 +1001,8 @@ export default function AppointmentsPage() {
                                     Cabang: <b>{selectedInfusApt.branches?.name || '-'}</b> • Jam: <b>{selectedInfusApt.start_time?.substring(0, 5)} WIB</b>
                                 </div>
                             </div>
-                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg">
-                                💉 Worker
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                Worker
                             </span>
                         </div>
 
@@ -1047,9 +1047,7 @@ export default function AppointmentsPage() {
                                 {isSubmittingInfus ? (
                                     <span>Memproses...</span>
                                 ) : (
-                                    <>
-                                        <span>✓ Selesai & Kirim Kasir</span>
-                                    </>
+                                    <span>Selesai & Kirim Kasir</span>
                                 )}
                             </button>
                         </div>

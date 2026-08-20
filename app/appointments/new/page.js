@@ -457,7 +457,7 @@ function NewAppointmentForm() {
                             className="input-ayumi focus:bg-white"
                         >
                             <option value="">-- Belum ditentukan --</option>
-                            <option value="worker">💉 Worker (Sesi Infus)</option>
+                            <option value="worker">Worker (Sesi Infus)</option>
                             {therapists
                                 .filter(t => !t.branch_id || !formData.branch_id || t.branch_id === formData.branch_id)
                                 .map(t => (
@@ -468,7 +468,7 @@ function NewAppointmentForm() {
                         {formData.therapist_id === 'worker' && (
                             <div className="mt-2 space-y-2">
                                 <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                                    💡 Sesi Infus oleh Worker bebas dari pengisian rekam medis SOAP terapis.
+                                    Sesi Infus oleh Worker bebas dari pengisian rekam medis SOAP terapis.
                                 </p>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">
