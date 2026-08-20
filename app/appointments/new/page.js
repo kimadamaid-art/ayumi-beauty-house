@@ -27,6 +27,8 @@ function NewAppointmentForm() {
     // Data lists
     const [branches, setBranches] = useState([])
     const [therapists, setTherapists] = useState([])
+    const [infusTreatments, setInfusTreatments] = useState([])
+    const [selectedInfusTreatmentId, setSelectedInfusTreatmentId] = useState('')
     const [isOwner, setIsOwner] = useState(false)
     
     // Patient Search Hook (server-side, debounce 350ms, limit 20, sequence tracked)
@@ -113,6 +115,15 @@ function NewAppointmentForm() {
         // Fetch Therapists
         const { data: trpData } = await supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').order('full_name')
         if (trpData) setTherapists(trpData)
+
+        // Fetch Infus Treatments
+        const { data: infData } = await supabase
+            .from('treatments')
+            .select('id, name, price')
+            .ilike('name', '%infus%')
+            .eq('is_active', true)
+            .order('price', { ascending: true })
+        if (infData) setInfusTreatments(infData)
     }
 
     // Open Modal with prefilled search name if available
@@ -262,7 +273,7 @@ function NewAppointmentForm() {
             }
 
             // Insert Appointment
-            const { error: aptErr } = await supabase
+            const { data: createdApt, error: aptErr } = await supabase
                 .from('appointments')
                 .insert([{
                     patient_id: formData.patient_id,
@@ -274,8 +285,17 @@ function NewAppointmentForm() {
                     status: 'scheduled',
                     notes: finalNotes || null
                 }])
+                .select('id')
+                .single()
 
             if (aptErr) throw aptErr
+
+            if (isWorker && selectedInfusTreatmentId && createdApt?.id) {
+                await supabase.from('appointment_treatments').insert([{
+                    appointment_id: createdApt.id,
+                    treatment_id: selectedInfusTreatmentId
+                }])
+            }
 
             toast.success(isWorker ? 'Jadwal temu Infus (Worker) berhasil dibuat!' : 'Jadwal temu berhasil dibuat!')
             router.push('/appointments')
@@ -446,9 +466,28 @@ function NewAppointmentForm() {
                             }
                         </select>
                         {formData.therapist_id === 'worker' && (
-                            <p className="text-[11px] text-emerald-700 mt-1.5 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                                💡 Sesi Infus oleh Worker bebas dari pengisian rekam medis SOAP terapis.
-                            </p>
+                            <div className="mt-2 space-y-2">
+                                <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                                    💡 Sesi Infus oleh Worker bebas dari pengisian rekam medis SOAP terapis.
+                                </p>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                                        Pilih Paket / Jenis Infus (Opsional)
+                                    </label>
+                                    <select
+                                        value={selectedInfusTreatmentId}
+                                        onChange={(e) => setSelectedInfusTreatmentId(e.target.value)}
+                                        className="input-ayumi focus:bg-white text-xs"
+                                    >
+                                        <option value="">-- Pilih Jenis Infus (Bisa ditentukan nanti saat selesai) --</option>
+                                        {infusTreatments.map(t => (
+                                            <option key={t.id} value={t.id}>
+                                                {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
                         )}
                     </div>
 

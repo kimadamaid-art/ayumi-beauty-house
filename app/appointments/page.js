@@ -26,6 +26,13 @@ export default function AppointmentsPage() {
     const [isOwner, setIsOwner] = useState(false)
     const SCHEDULE_HOURS = ['08.00', '09.00', '10.00', '11.00', '12.00', '13.00', '14.00', '15.00', '16.00', '17.00', '18.00', '19.00', '20.00']
 
+    // Infus Completion Modal
+    const [isInfusModalOpen, setIsInfusModalOpen] = useState(false)
+    const [selectedInfusApt, setSelectedInfusApt] = useState(null)
+    const [infusTreatmentsList, setInfusTreatmentsList] = useState([])
+    const [selectedInfusTreatmentId, setSelectedInfusTreatmentId] = useState('')
+    const [isSubmittingInfus, setIsSubmittingInfus] = useState(false)
+
     useEffect(() => {
         fetchData()
 
@@ -110,6 +117,18 @@ export default function AppointmentsPage() {
         if (aptData) {
             setAppointments(aptData)
         }
+
+        // Fetch active Infus treatments
+        const { data: infData } = await supabase
+            .from('treatments')
+            .select('id, name, price, commission_percent')
+            .ilike('name', '%infus%')
+            .eq('is_active', true)
+            .order('price', { ascending: true })
+        if (infData) {
+            setInfusTreatmentsList(infData)
+        }
+
         setLoading(false)
     }
 
@@ -140,19 +159,35 @@ export default function AppointmentsPage() {
         return fallback
     }
 
-    const handleCompleteWorkerInfus = async (aptId, e) => {
+    const handleOpenInfusModal = (apt, e) => {
         if (e) {
             e.stopPropagation()
             e.preventDefault()
         }
+        setSelectedInfusApt(apt)
+        const directTreatmentId = apt.appointment_treatments?.[0]?.treatments?.id
+        if (directTreatmentId) {
+            setSelectedInfusTreatmentId(directTreatmentId)
+        } else if (infusTreatmentsList.length > 0) {
+            setSelectedInfusTreatmentId(infusTreatmentsList[0].id)
+        }
+        setIsInfusModalOpen(true)
+    }
 
-        if (!window.confirm('Selesaikan sesi Infus oleh Worker ini dan teruskan ke antrean Kasir?')) return
+    const handleConfirmInfusComplete = async () => {
+        if (!selectedInfusApt) return
+        if (!selectedInfusTreatmentId) {
+            toast.error('Silakan pilih jenis infus yang dilakukan.')
+            return
+        }
 
-        setLoading(true)
+        setIsSubmittingInfus(true)
         try {
             const { data: { user } } = await supabase.auth.getUser()
-            const apt = appointments.find(a => a.id === aptId)
-            if (!apt) throw new Error('Data jadwal temu tidak ditemukan.')
+            const apt = selectedInfusApt
+            const aptId = apt.id
+
+            const chosenTreatment = infusTreatmentsList.find(t => t.id === selectedInfusTreatmentId) || infusTreatmentsList[0]
 
             // 1. Check if a treatment_record already exists for this appointment
             const { data: existingRec } = await supabase
@@ -164,35 +199,6 @@ export default function AppointmentsPage() {
             let recordId = existingRec?.id
 
             if (!recordId) {
-                // 2. Resolve treatments attached to this appointment
-                let treatmentsToBill = []
-                if (apt.appointment_treatments && apt.appointment_treatments.length > 0) {
-                    treatmentsToBill = apt.appointment_treatments.map(at => at.treatments).filter(Boolean)
-                }
-
-                // If no treatment attached directly, look up active Infus treatment
-                if (treatmentsToBill.length === 0) {
-                    const { data: infusList } = await supabase
-                        .from('treatments')
-                        .select('id, name, price, commission_percent')
-                        .ilike('name', '%infus%')
-                        .eq('is_active', true)
-                        .limit(1)
-
-                    if (infusList && infusList.length > 0) {
-                        treatmentsToBill = infusList
-                    } else {
-                        // Fallback: any active treatment
-                        const { data: fallbackList } = await supabase
-                            .from('treatments')
-                            .select('id, name, price, commission_percent')
-                            .eq('is_active', true)
-                            .limit(1)
-                        if (fallbackList && fallbackList.length > 0) treatmentsToBill = fallbackList
-                    }
-                }
-
-                // 3. Create treatment_record
                 const todayDate = apt.appointment_date || new Date().toISOString().split('T')[0]
                 const nowTime = apt.start_time || new Date().toTimeString().substring(0, 5)
 
@@ -206,7 +212,7 @@ export default function AppointmentsPage() {
                         treatment_date: todayDate,
                         treatment_time: nowTime,
                         complaints: '[INFUS - WORKER]',
-                        result_notes: 'Sesi Infus dikerjakan oleh Worker',
+                        result_notes: `Sesi ${chosenTreatment?.name || 'Infus'} dikerjakan oleh Worker`,
                         created_by: user?.id || null
                     }])
                     .select('id')
@@ -215,26 +221,23 @@ export default function AppointmentsPage() {
                 if (trErr) throw trErr
                 recordId = createdRec.id
 
-                // 4. Insert treatment_record_items
-                if (treatmentsToBill.length > 0) {
-                    const itemsToInsert = treatmentsToBill.map(t => ({
-                        treatment_record_id: recordId,
-                        treatment_id: t.id,
-                        price_at_time: Number(t.price || 0),
-                        original_price: Number(t.price || 0),
-                        discount_percent: 0,
-                        commission_percent: 0 // Worker -> 0 komisi
-                    }))
-
-                    const { error: itemsErr } = await supabase
+                if (chosenTreatment) {
+                    const { error: itemErr } = await supabase
                         .from('treatment_record_items')
-                        .insert(itemsToInsert)
+                        .insert([{
+                            treatment_record_id: recordId,
+                            treatment_id: chosenTreatment.id,
+                            price_at_time: Number(chosenTreatment.price || 0),
+                            original_price: Number(chosenTreatment.price || 0),
+                            discount_percent: 0,
+                            commission_percent: 0 // Worker -> 0 komisi
+                        }])
 
-                    if (itemsErr) throw itemsErr
+                    if (itemErr) throw itemErr
                 }
             }
 
-            // 5. Update appointment status
+            // 2. Update appointment status
             const { error: updateErr } = await supabase
                 .from('appointments')
                 .update({
@@ -247,12 +250,15 @@ export default function AppointmentsPage() {
 
             if (updateErr) throw updateErr
 
-            toast.success('Sesi Infus Worker selesai! Tagihan otomatis masuk ke antrean Kasir.')
+            toast.success(`Sesi Infus (${chosenTreatment?.name || ''}) selesai! Tagihan otomatis masuk ke antrean Kasir.`)
+            setIsInfusModalOpen(false)
+            setSelectedInfusApt(null)
             fetchData()
         } catch (err) {
             console.error('Error completing worker infus:', err)
             toast.error('Gagal menyelesaikan sesi: ' + err.message)
-            setLoading(false)
+        } finally {
+            setIsSubmittingInfus(false)
         }
     }
 
@@ -745,18 +751,18 @@ export default function AppointmentsPage() {
                                                                         </div>
 
                                                                         {/* Column 1: Infus (Left Column) */}
-                                                                        <div className="w-56 sm:w-60 flex-shrink-0 border-l border-slate-100 pl-2.5 flex flex-col justify-center min-h-[40px]">
+                                                                        <div className="w-64 sm:w-72 flex-shrink-0 border-l border-slate-100 pl-3 flex flex-col justify-center min-h-[44px]">
                                                                             {infusApts.length === 0 ? (
                                                                                 <Link 
                                                                                     href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}&notes=Infus`} 
-                                                                                    className="w-full min-h-[36px] border border-dashed border-slate-200/80 hover:border-cyan-300 hover:bg-cyan-50/40 rounded-lg transition-all flex items-center px-2.5 text-[11px] text-slate-400 hover:text-cyan-700 font-semibold gap-1.5 group cursor-pointer"
+                                                                                    className="w-full min-h-[38px] border border-dashed border-cyan-200 hover:border-cyan-400 hover:bg-cyan-50/50 rounded-xl transition-all flex items-center px-3 text-[11px] text-slate-400 hover:text-cyan-700 font-bold gap-2 group cursor-pointer"
                                                                                     title={`Tambah Infus Jam ${hourStr.replace('.', ':')}`}
                                                                                 >
-                                                                                    <span className="w-4 h-4 rounded-full bg-slate-100 group-hover:bg-cyan-100 text-slate-400 group-hover:text-cyan-700 flex items-center justify-center font-bold text-[10px] transition-colors">+</span>
-                                                                                    <span className="opacity-70 group-hover:opacity-100 transition-opacity">Tambah Infus</span>
+                                                                                    <span className="w-4 h-4 rounded-full bg-cyan-50 group-hover:bg-cyan-100 text-cyan-600 flex items-center justify-center font-black text-[10px] transition-colors">+</span>
+                                                                                    <span className="opacity-75 group-hover:opacity-100">Tambah Infus</span>
                                                                                 </Link>
                                                                             ) : (
-                                                                                <div className="flex flex-col gap-1.5 w-full">
+                                                                                <div className="flex flex-col gap-2 w-full">
                                                                                     {infusApts.map(apt => {
                                                                                         const treatmentsList = getCleanTreatmentTitle(apt, 'Infus')
                                                                                         const startTime = apt.start_time ? apt.start_time.substring(0, 5) : ''
@@ -765,73 +771,64 @@ export default function AppointmentsPage() {
                                                                                         return (
                                                                                             <div 
                                                                                                 key={apt.id}
-                                                                                                className="bg-[#ebf9fb] border border-cyan-300 hover:border-cyan-400 text-slate-800 rounded-lg p-2.5 w-full shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                                                                                                className="bg-gradient-to-br from-cyan-50/80 via-white to-white border border-cyan-200/90 hover:border-cyan-400 text-slate-800 rounded-xl p-3 w-full shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-2"
                                                                                             >
-                                                                                                <div>
-                                                                                                    {/* Header: Time & Ubah Link */}
-                                                                                                    <div className="flex justify-between items-center text-[10.5px] font-bold text-cyan-950 pb-1 mb-1 border-b border-cyan-200/70">
-                                                                                                        <span className="flex items-center gap-1 text-cyan-900 font-bold text-[10.5px]">
-                                                                                                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-2xs"></span>
-                                                                                                            {startTime} - {endTime}
+                                                                                                {/* Top Header: Time & Ubah Link */}
+                                                                                                <div className="flex justify-between items-center pb-1.5 border-b border-cyan-100">
+                                                                                                    <span className="inline-flex items-center gap-1 bg-white text-cyan-950 font-bold text-[10px] px-2 py-0.5 rounded-md border border-cyan-100 shadow-2xs">
+                                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+                                                                                                        {startTime} - {endTime}
+                                                                                                    </span>
+                                                                                                    <Link href={`/appointments/${apt.id}`}>
+                                                                                                        <span className="text-cyan-700 hover:text-cyan-900 font-bold text-[10px] cursor-pointer hover:underline bg-white px-2 py-0.5 rounded-md border border-cyan-200/80 transition-colors shadow-2xs">
+                                                                                                            Ubah
                                                                                                         </span>
-                                                                                                        <Link href={`/appointments/${apt.id}`}>
-                                                                                                            <span className="text-cyan-700 hover:text-cyan-900 flex items-center gap-0.5 font-bold text-[10px] cursor-pointer hover:underline bg-white/80 hover:bg-white px-1.5 py-0.2 rounded border border-cyan-200 transition-colors">
-                                                                                                                Ubah
-                                                                                                                </span>
-                                                                                                        </Link>
-                                                                                                    </div>
+                                                                                                    </Link>
+                                                                                                </div>
 
-                                                                                                    {/* Customer Name */}
-                                                                                                    <div className="font-bold text-xs text-slate-900 tracking-tight truncate">
+                                                                                                {/* Patient & Service Details */}
+                                                                                                <div className="space-y-1">
+                                                                                                    <div className="font-extrabold text-xs text-slate-900 tracking-tight truncate">
                                                                                                         {apt.patients?.full_name || 'Pasien'}
                                                                                                     </div>
 
-                                                                                                    {/* Treatment list */}
-                                                                                                    <div className="text-[10px] text-cyan-950 font-medium mt-0.5 bg-white/80 px-1.5 py-0.5 rounded border border-cyan-200/80 inline-block shadow-2xs truncate max-w-full">
-                                                                                                        {treatmentsList}
-                                                                                                        <div className="text-[9.5px] text-cyan-900/80 font-medium mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
-                                                                                                            {apt.branches?.name && <span>Cabang: <b className="font-bold text-slate-800">{apt.branches.name}</b></span>}
-                                                                                                            {apt.therapist?.full_name ? (
-                                                                                                                <span>• {apt.therapist.full_name.split(' ')[0]}</span>
-                                                                                                            ) : (
-                                                                                                                <span className="text-emerald-700 font-bold bg-emerald-100/80 px-1 py-0.2 rounded">• 💉 Worker</span>
-                                                                                                            )}
-                                                                                                        </div>
+                                                                                                    <div className="text-[10px] font-bold text-cyan-900 bg-cyan-50/70 border border-cyan-100 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
+                                                                                                        💉 {treatmentsList}
+                                                                                                    </div>
+
+                                                                                                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                                                                                        {apt.branches?.name && (
+                                                                                                            <span className="text-[9.5px] font-semibold text-slate-500 bg-slate-100/80 px-1.5 py-0.2 rounded">
+                                                                                                                {apt.branches.name}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                        <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70">
+                                                                                                            • Worker
+                                                                                                        </span>
                                                                                                     </div>
                                                                                                 </div>
 
-                                                                                                {/* Footer: Arrival / Status & Actions */}
-                                                                                                <div className="mt-2 pt-1.5 border-t border-cyan-200/70 flex items-center justify-between gap-1">
+                                                                                                {/* Footer: Status & Actions */}
+                                                                                                <div className="pt-1.5 border-t border-cyan-100 flex items-center justify-between gap-1.5">
                                                                                                     <div className="flex items-center gap-1">
                                                                                                         {getArrivalStatusBadgeAndActions(apt) || getStatusBadge(apt)}
                                                                                                     </div>
 
                                                                                                     <div className="flex items-center gap-1">
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
-                                                                                                            isWorkerInfus(apt) ? (
-                                                                                                                <button
-                                                                                                                    type="button"
-                                                                                                                    onClick={(e) => handleCompleteWorkerInfus(apt.id, e)}
-                                                                                                                    className="text-[9.5px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer flex items-center gap-1"
-                                                                                                                    title="Selesai Tanpa SOAP & Siap Kasir"
-                                                                                                                >
-                                                                                                                    <span>✓ Selesai & Tagih</span>
-                                                                                                                </button>
-                                                                                                            ) : (
-                                                                                                                <Link href={`/therapist/treatment-input/${apt.id}`}>
-                                                                                                                    <button
-                                                                                                                        className="text-[9.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer"
-                                                                                                                        title="Input Treatment & SOAP Medis"
-                                                                                                                    >
-                                                                                                                        Input Treatment
-                                                                                                                    </button>
-                                                                                                                </Link>
-                                                                                                            )
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={(e) => handleOpenInfusModal(apt, e)}
+                                                                                                                className="text-[10px] font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                                                                                                                title="Selesaikan Sesi & Pilih Paket Infus"
+                                                                                                            >
+                                                                                                                <span>✓ Selesai & Tagih</span>
+                                                                                                            </button>
                                                                                                         )}
 
                                                                                                         <button
                                                                                                             onClick={(e) => handleDeleteAppointment(apt.id, e)}
-                                                                                                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors cursor-pointer"
+                                                                                                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition-colors cursor-pointer"
                                                                                                             title="Hapus Jadwal"
                                                                                                         >
                                                                                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -848,15 +845,15 @@ export default function AppointmentsPage() {
                                                                         </div>
 
                                                                         {/* Column 2: Treatment (Strict Horizontal Row) */}
-                                                                        <div className="flex-1 border-l border-slate-100 pl-2.5 flex items-center min-h-[40px]">
+                                                                        <div className="flex-1 border-l border-slate-100 pl-3 flex items-center min-h-[44px]">
                                                                             {treatmentApts.length === 0 ? (
                                                                                 <Link 
                                                                                     href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
-                                                                                    className="w-full min-h-[36px] border border-dashed border-slate-200/80 hover:border-sky-300 hover:bg-sky-50/40 rounded-lg transition-all flex items-center px-2.5 text-[11px] text-slate-400 hover:text-sky-700 font-semibold gap-1.5 group cursor-pointer"
+                                                                                    className="w-full min-h-[38px] border border-dashed border-sky-200 hover:border-sky-400 hover:bg-sky-50/50 rounded-xl transition-all flex items-center px-3 text-[11px] text-slate-400 hover:text-sky-700 font-bold gap-2 group cursor-pointer"
                                                                                     title={`Tambah Treatment Jam ${hourStr.replace('.', ':')}`}
                                                                                 >
-                                                                                    <span className="w-4 h-4 rounded-full bg-slate-100 group-hover:bg-sky-100 text-slate-400 group-hover:text-sky-700 flex items-center justify-center font-bold text-[10px] transition-colors">+</span>
-                                                                                    <span className="opacity-70 group-hover:opacity-100 transition-opacity">Tambah Jadwal Treatment</span>
+                                                                                    <span className="w-4 h-4 rounded-full bg-sky-50 group-hover:bg-sky-100 text-sky-600 flex items-center justify-center font-black text-[10px] transition-colors">+</span>
+                                                                                    <span className="opacity-75 group-hover:opacity-100">Tambah Jadwal Treatment</span>
                                                                                 </Link>
                                                                             ) : (
                                                                                 <div className="flex flex-row flex-nowrap items-stretch gap-2.5 py-0.5 w-full overflow-x-auto custom-scrollbar">
@@ -868,43 +865,51 @@ export default function AppointmentsPage() {
                                                                                         return (
                                                                                             <div 
                                                                                                 key={apt.id}
-                                                                                                className="bg-[#ebf6fe] border border-sky-300 hover:border-sky-400 text-slate-800 rounded-lg p-2.5 w-[230px] min-w-[230px] flex-shrink-0 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                                                                                                className="bg-gradient-to-br from-sky-50/80 via-white to-white border border-sky-200/90 hover:border-sky-400 text-slate-800 rounded-xl p-3 w-[240px] min-w-[240px] flex-shrink-0 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-2"
                                                                                             >
-                                                                                                <div>
-                                                                                                    {/* Header: Time & Ubah Link */}
-                                                                                                    <div className="flex justify-between items-center text-[10.5px] font-bold text-sky-950 pb-1 mb-1 border-b border-sky-200/70">
-                                                                                                        <span className="flex items-center gap-1 text-sky-900 font-bold text-[10.5px]">
-                                                                                                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-2xs"></span>
-                                                                                                            {startTime} - {endTime}
+                                                                                                {/* Top Header: Time & Ubah Link */}
+                                                                                                <div className="flex justify-between items-center pb-1.5 border-b border-sky-100">
+                                                                                                    <span className="inline-flex items-center gap-1 bg-white text-sky-950 font-bold text-[10px] px-2 py-0.5 rounded-md border border-sky-100 shadow-2xs">
+                                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                                                                                                        {startTime} - {endTime}
+                                                                                                    </span>
+                                                                                                    <Link href={`/appointments/${apt.id}`}>
+                                                                                                        <span className="text-sky-700 hover:text-sky-900 font-bold text-[10px] cursor-pointer hover:underline bg-white px-2 py-0.5 rounded-md border border-sky-200/80 transition-colors shadow-2xs">
+                                                                                                            Ubah
                                                                                                         </span>
-                                                                                                        <Link href={`/appointments/${apt.id}`}>
-                                                                                                            <span className="text-sky-700 hover:text-sky-900 flex items-center gap-0.5 font-bold text-[10px] cursor-pointer hover:underline bg-white/80 hover:bg-white px-1.5 py-0.2 rounded border border-sky-200 transition-colors">
-                                                                                                                Ubah
-                                                                                                            </span>
-                                                                                                        </Link>
-                                                                                                    </div>
+                                                                                                    </Link>
+                                                                                                </div>
 
-                                                                                                    {/* Customer Name */}
-                                                                                                    <div className="font-bold text-xs text-slate-900 tracking-tight truncate">
+                                                                                                {/* Patient & Service Details */}
+                                                                                                <div className="space-y-1">
+                                                                                                    <div className="font-extrabold text-xs text-slate-900 tracking-tight truncate">
                                                                                                         {apt.patients?.full_name || 'Pasien'}
                                                                                                     </div>
 
-                                                                                                    {/* Treatment list */}
-                                                                                                    <div className="text-[10px] text-sky-950 font-medium mt-0.5 bg-white/80 px-1.5 py-0.5 rounded border border-sky-200/80 inline-block shadow-2xs truncate max-w-full">
-                                                                                                        {treatmentsList}
+                                                                                                    <div className="text-[10px] font-bold text-sky-900 bg-sky-50/70 border border-sky-100 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
+                                                                                                        💆‍♀️ {treatmentsList}
                                                                                                     </div>
 
-                                                                                                    {/* Therapist & Branch Info */}
-                                                                                                    {(apt.therapist?.full_name || apt.branches?.name) && (
-                                                                                                        <div className="text-[9.5px] text-sky-900/80 font-medium mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 truncate">
-                                                                                                            {apt.branches?.name && <span>Cabang: <b className="font-bold text-slate-800">{apt.branches.name}</b></span>}
-                                                                                                            {apt.therapist?.full_name && <span>• {apt.therapist.full_name.split(' ')[0]}</span>}
-                                                                                                        </div>
-                                                                                                    )}
+                                                                                                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                                                                                        {apt.branches?.name && (
+                                                                                                            <span className="text-[9.5px] font-semibold text-slate-500 bg-slate-100/80 px-1.5 py-0.2 rounded">
+                                                                                                                {apt.branches.name}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                        {apt.therapist?.full_name ? (
+                                                                                                            <span className="text-[9.5px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200/70">
+                                                                                                                • {apt.therapist.full_name.split(' ')[0]}
+                                                                                                            </span>
+                                                                                                        ) : (
+                                                                                                            <span className="text-[9.5px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.2 rounded">
+                                                                                                                • Terapis Kosong
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
                                                                                                 </div>
 
-                                                                                                {/* Footer: Arrival / Status & Actions */}
-                                                                                                <div className="mt-2 pt-1.5 border-t border-sky-200/70 flex items-center justify-between gap-1">
+                                                                                                {/* Footer: Status & Actions */}
+                                                                                                <div className="pt-1.5 border-t border-sky-100 flex items-center justify-between gap-1.5">
                                                                                                     <div className="flex items-center gap-1">
                                                                                                         {getArrivalStatusBadgeAndActions(apt) || getStatusBadge(apt)}
                                                                                                     </div>
@@ -913,17 +918,17 @@ export default function AppointmentsPage() {
                                                                                                         {apt.status !== 'completed' && apt.status !== 'cancelled' && (
                                                                                                             <Link href={`/therapist/treatment-input/${apt.id}`}>
                                                                                                                 <button
-                                                                                                                    className="text-[9.5px] font-bold text-white bg-ayumi-primary hover:bg-[#9a4b75] px-2 py-0.5 rounded transition-all shadow-2xs cursor-pointer"
+                                                                                                                    className="text-[10px] font-extrabold text-white bg-gradient-to-r from-ayumi-primary to-pink-600 hover:from-pink-700 hover:to-pink-800 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1"
                                                                                                                     title="Input Treatment & SOAP Medis"
                                                                                                                 >
-                                                                                                                    Input Treatment
+                                                                                                                    <span>Input SOAP</span>
                                                                                                                 </button>
                                                                                                             </Link>
                                                                                                         )}
 
                                                                                                         <button
                                                                                                             onClick={(e) => handleDeleteAppointment(apt.id, e)}
-                                                                                                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors cursor-pointer"
+                                                                                                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition-colors cursor-pointer"
                                                                                                             title="Hapus Jadwal"
                                                                                                         >
                                                                                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -939,10 +944,10 @@ export default function AppointmentsPage() {
                                                                                     {/* Compact Ghost Add Slot next to existing patient cards */}
                                                                                     <Link 
                                                                                         href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
-                                                                                        className="w-[85px] min-w-[85px] self-stretch min-h-[90px] border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/20 hover:bg-sky-50/60 rounded-lg flex flex-col items-center justify-center text-sky-600 hover:text-sky-700 transition-all text-[10.5px] font-bold gap-1 cursor-pointer group shadow-2xs flex-shrink-0"
+                                                                                        className="w-[80px] min-w-[80px] self-stretch min-h-[90px] border border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/20 hover:bg-sky-50/60 rounded-xl flex flex-col items-center justify-center text-sky-600 hover:text-sky-700 transition-all text-[10px] font-bold gap-1 cursor-pointer group shadow-2xs flex-shrink-0"
                                                                                         title={`Tambah Jadwal Jam ${hourStr.replace('.', ':')}`}
                                                                                     >
-                                                                                        <span className="w-5 h-5 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center transition-colors text-sky-700 font-bold text-[10px]">+</span>
+                                                                                        <span className="w-5 h-5 rounded-full bg-sky-100 group-hover:bg-sky-200 flex items-center justify-center transition-colors text-sky-700 font-black text-[11px]">+</span>
                                                                                         <span className="text-[10px] text-sky-700 font-bold group-hover:underline">Tambah</span>
                                                                                     </Link>
                                                                                 </div>
@@ -963,6 +968,94 @@ export default function AppointmentsPage() {
                     </div>
                 )}
             </div>
+
+            {/* ─── MODAL SELESAIKAN SESI INFUS (PILIH PAKET INFUS) ─── */}
+            {isInfusModalOpen && selectedInfusApt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-cyan-100 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center font-bold text-sm">
+                                    💉
+                                </div>
+                                <div>
+                                    <h3 className="font-extrabold text-sm text-slate-800">Selesaikan Sesi Infus</h3>
+                                    <p className="text-[11px] text-slate-400">Pilih paket infus untuk diteruskan ke Kasir</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setIsInfusModalOpen(false); setSelectedInfusApt(null) }}
+                                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        {/* Patient Summary */}
+                        <div className="bg-cyan-50/70 border border-cyan-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+                            <div>
+                                <span className="text-[10px] font-bold text-cyan-800 uppercase tracking-wider block">Pasien:</span>
+                                <span className="text-sm font-extrabold text-cyan-950">{selectedInfusApt.patients?.full_name || 'Pasien'}</span>
+                                <div className="text-[10.5px] text-cyan-700 mt-0.5">
+                                    Cabang: <b>{selectedInfusApt.branches?.name || '-'}</b> • Jam: <b>{selectedInfusApt.start_time?.substring(0, 5)} WIB</b>
+                                </div>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg">
+                                💉 Worker
+                            </span>
+                        </div>
+
+                        {/* Infus Treatment Selector */}
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-slate-700">
+                                Paket / Jenis Infus yang Dikerjakan <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={selectedInfusTreatmentId}
+                                onChange={(e) => setSelectedInfusTreatmentId(e.target.value)}
+                                className="input-ayumi bg-white text-xs font-bold text-slate-800 border-cyan-300 focus:ring-cyan-400"
+                            >
+                                <option value="" disabled>-- Pilih Jenis Infus --</option>
+                                {infusTreatmentsList.map(t => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[10.5px] text-slate-400 leading-relaxed">
+                                Tagihan dengan harga paket di atas akan langsung otomatis masuk ke antrean Kasir.
+                            </p>
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => { setIsInfusModalOpen(false); setSelectedInfusApt(null) }}
+                                disabled={isSubmittingInfus}
+                                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmInfusComplete}
+                                disabled={isSubmittingInfus}
+                                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md transition-all flex items-center gap-1.5"
+                            >
+                                {isSubmittingInfus ? (
+                                    <span>Memproses...</span>
+                                ) : (
+                                    <>
+                                        <span>✓ Selesai & Kirim Kasir</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
