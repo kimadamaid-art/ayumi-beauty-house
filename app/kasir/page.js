@@ -1181,10 +1181,7 @@ function PosPageContent() {
                                                 onClick={() => addToCart(c, 'coupon')}
                                                 className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-pink-300 hover:shadow-sm transition-all cursor-pointer group relative"
                                             >
-                                                <div className="space-y-1 mb-2">
-                                                    <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded inline-block">
-                                                        Paket Kupon
-                                                    </span>
+                                                <div className="mb-2">
                                                     <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
                                                         {c.name}
                                                     </h4>
