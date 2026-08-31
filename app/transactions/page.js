@@ -1976,7 +1976,7 @@ export default function TransactionsPage() {
                         {/* Breakdown tables */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Payment method breakdown */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Metode Pembayaran</h4>
                                 <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead>
@@ -1999,7 +1999,7 @@ export default function TransactionsPage() {
                             </div>
 
                             {/* Item Type breakdown */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Tipe Produk / Layanan</h4>
                                 <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead>
@@ -2183,7 +2183,7 @@ export default function TransactionsPage() {
 
                         {/* Branch Breakdown for Owner & Admin */}
                         {(!dbUser || dbUser.role === 'owner') && (
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
                                 <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Pendapatan per Cabang</h4>
                                 <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead>
@@ -2391,7 +2391,7 @@ export default function TransactionsPage() {
                         </div>
 
                         {/* Branch breakdown table */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
                             <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown per Cabang Bulan Ini</h4>
                             <table className="whitespace-nowrap w-full text-left text-xs">
                                 <thead>

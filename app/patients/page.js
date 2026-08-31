@@ -623,7 +623,7 @@ export default function PatientsPage() {
                                 </button>
                             </div>
                             
-                            <div className="border rounded-xl overflow-hidden">
+                            <div className="border rounded-xl overflow-x-auto">
                                 <table className="whitespace-nowrap w-full text-left text-xs">
                                     <thead className="bg-gray-100 text-gray-700 font-bold">
                                         <tr>
