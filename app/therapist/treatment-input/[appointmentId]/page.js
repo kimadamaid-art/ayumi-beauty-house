@@ -68,6 +68,9 @@ export default function TreatmentInputPage() {
                 .select('id')
                 .eq('patient_id', appointment.patient_id)
                 .eq('status', 'active')
+                // Status 'active' tidak pernah berubah sendiri saat masa berlaku habis,
+                // jadi tanggal kedaluwarsa harus diperiksa terpisah agar kupon lewat tempo tidak bisa ditukar.
+                .gt('expired_at', new Date().toISOString())
 
             const activeCouponIds = pcData?.map(pc => pc.id) || []
             if (activeCouponIds.length === 0) return

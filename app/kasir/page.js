@@ -203,6 +203,9 @@ function PosPageContent() {
             .select('id')
             .eq('patient_id', patient.id)
             .eq('status', 'active')
+            // Status 'active' tidak pernah berubah sendiri saat masa berlaku habis,
+            // jadi tanggal kedaluwarsa harus diperiksa terpisah agar kupon lewat tempo tidak bisa ditukar.
+            .gt('expired_at', new Date().toISOString())
 
         const activeCouponIds = pcData?.map(pc => pc.id) || []
         let activeCouponItems = []

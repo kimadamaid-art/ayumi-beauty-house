@@ -223,6 +223,9 @@ function AddRecordForm() {
                     .select('id')
                     .eq('patient_id', formData.patient_id)
                     .eq('status', 'active')
+                    // Status 'active' tidak pernah berubah sendiri saat masa berlaku habis,
+                    // jadi tanggal kedaluwarsa harus diperiksa terpisah agar kupon lewat tempo tidak bisa ditukar.
+                    .gt('expired_at', new Date().toISOString())
 
                 const activeCouponIds = pcData?.map(pc => pc.id) || []
                 
@@ -470,7 +473,7 @@ function AddRecordForm() {
                     const { data: itemData } = await supabase.from('patient_coupon_items').select('used_sessions, remaining_sessions, total_sessions, patient_coupon_id').eq('id', itemId).single()
                     if (itemData) {
                         const newUsed = itemData.used_sessions + 1
-                        const newRemaining = itemData.remaining_sessions - 1
+                        const newRemaining = Math.max(0, itemData.remaining_sessions - 1)
                         const status = newRemaining <= 0 ? 'fully_used' : 'active'
                         
                         await supabase.from('patient_coupon_items')
