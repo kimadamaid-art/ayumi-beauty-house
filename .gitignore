@@ -42,3 +42,6 @@ next-env.d.ts
 
 # scratch / temporary work files (testing scripts, debug tools, one-off migrations)
 /scratch/
+.claude/
+supabase/.temp/
+
