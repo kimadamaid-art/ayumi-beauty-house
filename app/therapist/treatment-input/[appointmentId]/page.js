@@ -24,7 +24,6 @@ export default function TreatmentInputPage() {
 
     // Master data
     const [treatmentsMaster, setTreatmentsMaster] = useState([])
-    const [patientCoupons, setPatientCoupons] = useState([])
     const [therapistsList, setTherapistsList] = useState([])
     const [selectedPerformerId, setSelectedPerformerId] = useState('')
 
@@ -32,7 +31,6 @@ export default function TreatmentInputPage() {
     const [selectedTreatments, setSelectedTreatments] = useState([])
     const [treatmentSearch, setTreatmentSearch] = useState('')
     const [isTreatmentDropdownOpen, setIsTreatmentDropdownOpen] = useState(false)
-    const [isCouponModalOpen, setIsCouponModalOpen] = useState(false)
 
     // SOAP Form
     const [formData, setFormData] = useState({
@@ -59,37 +57,9 @@ export default function TreatmentInputPage() {
         fetchData()
     }, [appointmentId])
 
-    // Fetch patient coupons when appointment is loaded
-    useEffect(() => {
-        const fetchCoupons = async () => {
-            if (!appointment?.patient_id) return
-            const { data: pcData } = await supabase
-                .from('patient_coupons')
-                .select('id')
-                .eq('patient_id', appointment.patient_id)
-                .eq('status', 'active')
-                // Status 'active' tidak pernah berubah sendiri saat masa berlaku habis,
-                // jadi tanggal kedaluwarsa harus diperiksa terpisah agar kupon lewat tempo tidak bisa ditukar.
-                .gt('expired_at', new Date().toISOString())
-
-            const activeCouponIds = pcData?.map(pc => pc.id) || []
-            if (activeCouponIds.length === 0) return
-
-            const { data } = await supabase
-                .from('patient_coupon_items')
-                .select(`
-                    id, patient_coupon_id, treatment_id, total_sessions, used_sessions, remaining_sessions, status,
-                    treatments(name),
-                    patient_coupons(status, coupon_packages(name))
-                `)
-                .eq('status', 'active')
-                .in('patient_coupon_id', activeCouponIds)
-                .gt('remaining_sessions', 0)
-
-            if (data) setPatientCoupons(data)
-        }
-        fetchCoupons()
-    }, [appointment?.patient_id])
+    // Kupon sengaja tidak ditangani di sini. Terapis hanya mencatat tindakan yang
+    // dikerjakan; penukaran kupon dan pemotongan sisa sesi dilakukan admin di kasir,
+    // supaya sisa sesi hanya berubah di satu tempat dan tidak terpotong dua kali.
 
     const fetchData = async () => {
         setLoading(true)
@@ -264,7 +234,7 @@ export default function TreatmentInputPage() {
         setPhotoPreviews(prev => ({ ...prev, [slot]: URL.createObjectURL(file) }))
     }
 
-    const handleAddTreatment = (treatmentId, couponItem = null) => {
+    const handleAddTreatment = (treatmentId) => {
         if (!treatmentId) return
         const t = treatmentsMaster.find(x => x.id === treatmentId)
         if (!t) return
@@ -272,7 +242,7 @@ export default function TreatmentInputPage() {
 
         const discountVal = t.discount_percent || 0
         const originalPrice = t.price || 0
-        const priceAtTime = couponItem ? 0 : (discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice)
+        const priceAtTime = discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice
 
         setSelectedTreatments(prev => [
             ...prev,
@@ -281,11 +251,9 @@ export default function TreatmentInputPage() {
                 name: t.name,
                 price_at_time: Math.round(priceAtTime),
                 original_price: originalPrice,
-                discount_percent: couponItem ? 0 : discountVal,
+                discount_percent: discountVal,
                 followup_days: t.followup_days || 0,
-                notes: couponItem ? `(Pakai Kupon: ${couponItem.patient_coupons?.coupon_packages?.name})` : '',
-                used_coupon_item_id: couponItem ? couponItem.id : null,
-                used_patient_coupon_id: couponItem ? couponItem.patient_coupon_id : null,
+                notes: '',
                 commission_percent: t.commission_percent || 0
             }
         ])
@@ -390,11 +358,9 @@ export default function TreatmentInputPage() {
                 recordId = recordData.id
             }
 
-            // 2. Insert Treatment Record Items + Followup Queue + Coupon Logs
+            // 2. Insert Treatment Record Items + Followup Queue
             const itemsToInsert = []
             const queuesToInsert = []
-            const couponLogsToInsert = []
-            const couponsToUpdate = []
 
             selectedTreatments.forEach((t, index) => {
                 itemsToInsert.push({
@@ -407,18 +373,6 @@ export default function TreatmentInputPage() {
                     sort_order: index + 1,
                     commission_percent: t.commission_percent || 0
                 })
-
-                if (t.used_coupon_item_id) {
-                    couponLogsToInsert.push({
-                        patient_coupon_item_id: t.used_coupon_item_id,
-                        patient_id: appointment.patient_id,
-                        treatment_record_id: recordId,
-                        branch_id: appointment.branch_id,
-                        used_by: dbUser.id,
-                        notes: 'Dipakai pada ' + new Date().toLocaleDateString('id-ID')
-                    })
-                    couponsToUpdate.push(t.used_coupon_item_id)
-                }
 
                 // Auto-schedule follow-up bertahap: 2 minggu, 3 minggu & 1 bulan
                 const baseDateStr = appointment.appointment_date || new Date().toISOString().split('T')[0]
@@ -450,39 +404,6 @@ export default function TreatmentInputPage() {
                 const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
                 if (queueErr) {
                     console.warn('Followup queue note:', queueErr.message || queueErr)
-                }
-            }
-
-            if (couponLogsToInsert.length > 0) {
-                await supabase.from('coupon_usage_logs').insert(couponLogsToInsert)
-                for (const itemId of couponsToUpdate) {
-                    const { data: itemData } = await supabase.from('patient_coupon_items')
-                        .select('used_sessions, remaining_sessions, patient_coupon_id')
-                        .eq('id', itemId).single()
-                    if (itemData) {
-                        const newUsed = itemData.used_sessions + 1
-                        const newRemaining = Math.max(0, itemData.remaining_sessions - 1)
-                        const status = newRemaining <= 0 ? 'fully_used' : 'active'
-                        await supabase.from('patient_coupon_items')
-                            .update({ used_sessions: newUsed, remaining_sessions: newRemaining, status })
-                            .eq('id', itemId)
-
-                        // Check if all items in parent coupon are fully used
-                        if (status === 'fully_used') {
-                            const { data: siblings } = await supabase
-                                .from('patient_coupon_items')
-                                .select('status, remaining_sessions')
-                                .eq('patient_coupon_id', itemData.patient_coupon_id)
-                            
-                            const allDone = siblings ? siblings.every(s => s.remaining_sessions === 0 || s.status === 'fully_used' || s.status === 'completed') : true
-                            if (allDone) {
-                                await supabase
-                                    .from('patient_coupons')
-                                    .update({ status: 'fully_used' })
-                                    .eq('id', itemData.patient_coupon_id)
-                            }
-                        }
-                    }
                 }
             }
 
@@ -711,16 +632,6 @@ export default function TreatmentInputPage() {
                             Tindakan Treatment *
                         </h2>
                         <div className="flex items-center gap-2">
-                            {patientCoupons.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCouponModalOpen(true)}
-                                    className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-bold rounded-xl px-3 py-2 text-xs shadow-md flex items-center gap-1.5"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>
-                                    Kupon ({patientCoupons.length})
-                                </button>
-                            )}
                             <div className="relative">
                                 <button
                                     type="button"
@@ -954,45 +865,6 @@ export default function TreatmentInputPage() {
                     </button>
                 </div>
             </form>
-
-            {/* Modal Pilih Kupon */}
-            {isCouponModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-4 md:p-6 w-full max-w-lg shadow-xl">
-                        <div className="flex justify-between items-center mb-5">
-                            <h3 className="text-xl font-bold text-ayumi-secondary">Pilih Kupon Pasien</h3>
-                            <button type="button" onClick={() => setIsCouponModalOpen(false)} className="text-gray-400 hover:text-red-500 p-1">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                            {patientCoupons.map(couponItem => {
-                                const isSelected = selectedTreatments.some(x => x.used_coupon_item_id === couponItem.id)
-                                return (
-                                    <div key={couponItem.id} className={`border rounded-2xl p-4 flex justify-between items-center transition-colors ${isSelected ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-pink-200 bg-pink-50/30'}`}>
-                                        <div>
-                                            <div className="text-xs font-bold text-gray-500 mb-0.5">{couponItem.patient_coupons?.coupon_packages?.name}</div>
-                                            <div className="font-bold text-ayumi-secondary">{couponItem.treatments?.name}</div>
-                                            <div className="text-xs  font-bold text-ayumi-primary mt-1">Sisa Kuota: {couponItem.remaining_sessions}x</div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            disabled={isSelected}
-                                            onClick={() => {
-                                                handleAddTreatment(couponItem.treatment_id, couponItem)
-                                                setIsCouponModalOpen(false)
-                                            }}
-                                            className="bg-ayumi-primary hover:bg-ayumi-secondary text-white font-bold px-4 py-2 rounded-xl text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                        >
-                                            {isSelected ? 'Terpilih' : 'Gunakan'}
-                                        </button>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Patient History Modal */}
             <TherapistPatientHistoryModal
