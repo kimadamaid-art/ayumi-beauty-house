@@ -55,11 +55,12 @@ function PosPageContent() {
     const [isQuickAddInlineOpen, setIsQuickAddInlineOpen] = useState(false)
 
     // Cart State
-    const [cart, setCart] = useState([]) // { id, item_type, name, price, quantity, maxQuantity (for products) }
+    const [cart, setCart] = useState([]) // { id, item_type, name, price, quantity, maxQuantity (for products), therapist_id }
     const [selectedPatient, setSelectedPatient] = useState(null)
     const [discountType, setDiscountType] = useState('nominal') // 'nominal' | 'percent'
     const [discountValue, setDiscountValue] = useState(0)
     const [paymentMethod, setPaymentMethod] = useState('cash')
+    const [splitAmounts, setSplitAmounts] = useState({ cash: '', transfer: '', qris: '', debit: '', credit: '' })
     const [notes, setNotes] = useState('')
     const [isProcessing, setIsProcessing] = useState(false)
 
@@ -688,6 +689,15 @@ function PosPageContent() {
         }))
     }
 
+    const handleCartItemTherapistChange = (id, therapistId) => {
+        setCart(prev => prev.map(x => {
+            if (x.id === id && x.item_type === 'treatment') {
+                return { ...x, therapist_id: therapistId }
+            }
+            return x
+        }))
+    }
+
     // --- Totals ---
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     let discountAmount = 0
@@ -717,10 +727,53 @@ function PosPageContent() {
             return
         }
 
-        const hasDirectTreatment = cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id)
-        if (hasDirectTreatment && !selectedTherapistId) {
-            alert('Silakan pilih terapis / pelaksana tindakan!')
-            return
+        // Validasi wajib terapis per item treatment
+        const treatmentItems = cart.filter(item => item.item_type === 'treatment')
+        for (const tItem of treatmentItems) {
+            const thId = tItem.therapist_id || selectedTherapistId
+            if (!thId) {
+                alert(`Silakan pilih terapis untuk tindakan "${tItem.name}"! Setiap tindakan perawatan wajib memiliki terapis/pelaksana.`)
+                return
+            }
+        }
+
+        // Validasi Split Payment
+        let finalPaymentMethod = paymentMethod
+        let finalNotes = notes || ''
+
+        if (paymentMethod === 'split') {
+            const cashVal = Number(splitAmounts.cash) || 0
+            const transferVal = Number(splitAmounts.transfer) || 0
+            const qrisVal = Number(splitAmounts.qris) || 0
+            const debitVal = Number(splitAmounts.debit) || 0
+            const creditVal = Number(splitAmounts.credit) || 0
+            const splitSum = cashVal + transferVal + qrisVal + debitVal + creditVal
+
+            if (splitSum !== total) {
+                alert(`Total rincian split payment (Rp ${splitSum.toLocaleString('id-ID')}) belum sesuai dengan total tagihan (Rp ${total.toLocaleString('id-ID')}). Selisih: Rp ${Math.abs(total - splitSum).toLocaleString('id-ID')}`)
+                return
+            }
+
+            const pairs = []
+            if (cashVal > 0) pairs.push(`cash=${cashVal}`)
+            if (transferVal > 0) pairs.push(`transfer=${transferVal}`)
+            if (qrisVal > 0) pairs.push(`qris=${qrisVal}`)
+            if (debitVal > 0) pairs.push(`debit=${debitVal}`)
+            if (creditVal > 0) pairs.push(`credit=${creditVal}`)
+
+            const splitTag = `[SPLIT:${pairs.join(';')}]`
+            finalNotes = finalNotes ? `${splitTag} | ${finalNotes}` : splitTag
+
+            // Gunakan metode dengan nominal terbesar untuk memenuhi constraint database
+            const methodEntries = [
+                { m: 'cash', amt: cashVal },
+                { m: 'transfer', amt: transferVal },
+                { m: 'qris', amt: qrisVal },
+                { m: 'debit', amt: debitVal },
+                { m: 'credit', amt: creditVal }
+            ]
+            methodEntries.sort((a, b) => b.amt - a.amt)
+            finalPaymentMethod = methodEntries[0]?.m || 'cash'
         }
 
         setIsProcessing(true)
@@ -729,25 +782,61 @@ function PosPageContent() {
             // Extract treatment_record_id if we loaded from pending bills
             let treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
 
-            // If it is a direct treatment checkout, create a parent treatment record first
+            // If it is a direct treatment checkout, create parent treatment records grouped by therapist
+            const hasDirectTreatment = cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id)
             if (hasDirectTreatment) {
-                const isWorker = selectedTherapistId === 'worker'
-                const { data: newTr, error: trErr } = await supabase
-                    .from('treatment_records')
-                    .insert([{
-                        patient_id: selectedPatient?.id || null,
-                        branch_id: selectedBranch,
-                        performed_by: isWorker ? null : selectedTherapistId,
-                        complaints: isWorker ? '[INFUS - WORKER]' : null,
-                        result_notes: isWorker ? 'Sesi Infus dikerjakan oleh Worker' : null,
-                        treatment_date: new Date().toISOString().split('T')[0],
-                        treatment_time: new Date().toLocaleTimeString('en-US', { hour12: false })
-                    }])
-                    .select()
-                    .single()
+                const thGroups = new Map()
+                treatmentItems.forEach(tItem => {
+                    if (tItem.treatment_record_id) return
+                    const thId = tItem.therapist_id || selectedTherapistId
+                    const isWorker = thId === 'worker'
+                    const key = isWorker ? 'worker' : thId
+                    if (!thGroups.has(key)) {
+                        thGroups.set(key, {
+                            performed_by: isWorker ? null : thId,
+                            isWorker,
+                            items: []
+                        })
+                    }
+                    thGroups.get(key).items.push(tItem)
+                })
 
-                if (trErr) throw trErr
-                treatmentRecordId = newTr.id
+                const todayDateStr = new Date().toISOString().split('T')[0]
+                const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false })
+
+                for (const [key, group] of thGroups.entries()) {
+                    const { data: newTr, error: trErr } = await supabase
+                        .from('treatment_records')
+                        .insert([{
+                            patient_id: selectedPatient?.id || null,
+                            branch_id: selectedBranch,
+                            performed_by: group.performed_by,
+                            complaints: group.isWorker ? '[INFUS - WORKER]' : null,
+                            result_notes: group.isWorker ? 'Sesi Infus dikerjakan oleh Worker' : 'Tindakan Kasir Langsung',
+                            treatment_date: todayDateStr,
+                            treatment_time: timeStr
+                        }])
+                        .select()
+                        .single()
+
+                    if (trErr) throw trErr
+                    if (!treatmentRecordId) treatmentRecordId = newTr.id
+
+                    // Simpan rincian treatment_record_items untuk kelompok terapis ini
+                    if (newTr?.id) {
+                        const trItemPayloads = group.items.map((it, sIdx) => ({
+                            treatment_record_id: newTr.id,
+                            treatment_id: it.id,
+                            price_at_time: it.price,
+                            original_price: it.original_price || it.price,
+                            discount_percent: it.discount_percent || 0,
+                            commission_percent: it.commission_percent || 5,
+                            notes: it.name,
+                            sort_order: sIdx + 1
+                        }))
+                        await supabase.from('treatment_record_items').insert(trItemPayloads)
+                    }
+                }
             }
 
             // Prepare items payload for RPC
@@ -777,9 +866,9 @@ function PosPageContent() {
                     p_discount: actualDiscountAmount,
                     p_discount_type: discountType,
                     p_total: total,
-                    p_payment_method: paymentMethod,
+                    p_payment_method: finalPaymentMethod,
                     p_payment_status: 'paid',
-                    p_notes: notes,
+                    p_notes: finalNotes,
                     p_created_by: dbUser?.id,
                     p_items: itemsPayload
                 })
@@ -1501,6 +1590,26 @@ function PosPageContent() {
                                                     )}
                                                 </div>
                                             )}
+
+                                            {/* Selector Terapis Per Item Treatment */}
+                                            {item.item_type === 'treatment' && (
+                                                <div className="mt-2.5 pt-2 border-t border-dashed border-gray-100 flex items-center justify-between gap-2">
+                                                    <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                                                        <span>👩‍⚕️</span> Terapis:
+                                                    </span>
+                                                    <select
+                                                        value={item.therapist_id || (selectedTherapistId || '')}
+                                                        onChange={(e) => handleCartItemTherapistChange(item.id, e.target.value)}
+                                                        className="text-xs font-bold bg-pink-50/50 hover:bg-pink-50 border border-pink-200/80 rounded-lg px-2 py-1 focus:bg-white text-gray-800 flex-1 max-w-[200px]"
+                                                    >
+                                                        <option value="">-- Pilih Terapis --</option>
+                                                        <option value="worker">💉 Worker (Tanpa Komisi)</option>
+                                                        {therapists.map(t => (
+                                                            <option key={t.id} value={t.id}>{t.full_name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
                                         <button 
                                             type="button"
@@ -1711,13 +1820,14 @@ function PosPageContent() {
 
                         <div>
                             <label className="block text-[10px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">Metode Pembayaran</label>
-                            <div className="grid grid-cols-5 gap-1.5">
+                            <div className="grid grid-cols-6 gap-1.5">
                                 {[
                                     { id: 'cash', label: 'Cash', icon: '💵' },
                                     { id: 'transfer', label: 'Bank', icon: '🏦' },
                                     { id: 'qris', label: 'QRIS (+0.3%)', icon: '📱' },
                                     { id: 'debit', label: 'Debit', icon: '💳' },
-                                    { id: 'credit', label: 'Kredit', icon: '💳' }
+                                    { id: 'credit', label: 'Kredit', icon: '💳' },
+                                    { id: 'split', label: 'Split', icon: '🔀' }
                                 ].map(pm => (
                                     <button
                                         key={pm.id}
@@ -1734,6 +1844,86 @@ function PosPageContent() {
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Split Payment Inputs UI */}
+                            {paymentMethod === 'split' && (
+                                <div className="mt-3 p-3.5 bg-pink-50/40 border border-pink-200/80 rounded-2xl space-y-2.5 animate-fadeIn">
+                                    <div className="flex items-center justify-between pb-2 border-b border-pink-100">
+                                        <span className="text-xs font-black text-ayumi-secondary flex items-center gap-1.5">
+                                            <span>🔀</span> Rincian Split Payment
+                                        </span>
+                                        {(() => {
+                                            const cVal = Number(splitAmounts.cash) || 0
+                                            const tVal = Number(splitAmounts.transfer) || 0
+                                            const qVal = Number(splitAmounts.qris) || 0
+                                            const dVal = Number(splitAmounts.debit) || 0
+                                            const crVal = Number(splitAmounts.credit) || 0
+                                            const currentSum = cVal + tVal + qVal + dVal + crVal
+                                            const diff = total - currentSum
+
+                                            if (diff === 0) {
+                                                return <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓ Pas (Rp {currentSum.toLocaleString('id-ID')})</span>
+                                            } else {
+                                                return <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">Kurang: Rp {diff.toLocaleString('id-ID')}</span>
+                                            }
+                                        })()}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div className="bg-white p-2 rounded-xl border border-gray-200">
+                                            <label className="text-[9px] font-black uppercase text-gray-500 block mb-0.5">💵 Cash (Tunai)</label>
+                                            <div className="flex items-center">
+                                                <span className="text-gray-400 font-bold text-[10px] mr-1">Rp</span>
+                                                <input 
+                                                    type="number"
+                                                    value={splitAmounts.cash}
+                                                    placeholder="0"
+                                                    onChange={(e) => setSplitAmounts(prev => ({ ...prev, cash: e.target.value }))}
+                                                    className="w-full font-black text-gray-800 p-0 border-none outline-none focus:ring-0 text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-2 rounded-xl border border-gray-200">
+                                            <label className="text-[9px] font-black uppercase text-gray-500 block mb-0.5">🏦 Transfer Bank</label>
+                                            <div className="flex items-center">
+                                                <span className="text-gray-400 font-bold text-[10px] mr-1">Rp</span>
+                                                <input 
+                                                    type="number"
+                                                    value={splitAmounts.transfer}
+                                                    placeholder="0"
+                                                    onChange={(e) => setSplitAmounts(prev => ({ ...prev, transfer: e.target.value }))}
+                                                    className="w-full font-black text-gray-800 p-0 border-none outline-none focus:ring-0 text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-2 rounded-xl border border-gray-200">
+                                            <label className="text-[9px] font-black uppercase text-gray-500 block mb-0.5">📱 QRIS</label>
+                                            <div className="flex items-center">
+                                                <span className="text-gray-400 font-bold text-[10px] mr-1">Rp</span>
+                                                <input 
+                                                    type="number"
+                                                    value={splitAmounts.qris}
+                                                    placeholder="0"
+                                                    onChange={(e) => setSplitAmounts(prev => ({ ...prev, qris: e.target.value }))}
+                                                    className="w-full font-black text-gray-800 p-0 border-none outline-none focus:ring-0 text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-2 rounded-xl border border-gray-200">
+                                            <label className="text-[9px] font-black uppercase text-gray-500 block mb-0.5">💳 Debit / EDC</label>
+                                            <div className="flex items-center">
+                                                <span className="text-gray-400 font-bold text-[10px] mr-1">Rp</span>
+                                                <input 
+                                                    type="number"
+                                                    value={splitAmounts.debit}
+                                                    placeholder="0"
+                                                    onChange={(e) => setSplitAmounts(prev => ({ ...prev, debit: e.target.value }))}
+                                                    className="w-full font-black text-gray-800 p-0 border-none outline-none focus:ring-0 text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <button 

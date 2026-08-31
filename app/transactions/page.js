@@ -10,6 +10,7 @@ import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
+import { parsePaymentSplits } from '@/lib/paymentUtils'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -682,10 +683,12 @@ export default function TransactionsPage() {
 
             validDataset.forEach(tx => {
                 totalRevenue += Number(tx.total || 0)
-                const method = tx.payment_method?.toLowerCase()
-                if (paymentBreakdown[method] !== undefined) {
-                    paymentBreakdown[method] += Number(tx.total || 0)
-                }
+                const splits = parsePaymentSplits(tx)
+                Object.entries(splits).forEach(([m, amt]) => {
+                    if (paymentBreakdown[m] !== undefined) {
+                        paymentBreakdown[m] += amt
+                    }
+                })
                 tx.transaction_items?.forEach(i => {
                     if (i.item_type === 'treatment') treatmentQty += i.quantity
                     if (i.item_type === 'product') productQty += i.quantity
@@ -1225,11 +1228,13 @@ export default function TransactionsPage() {
 
         txList.forEach(tx => {
             revenue += Number(tx.total || 0)
-            const method = tx.payment_method?.toLowerCase()
-            if (payMethods[method]) {
-                payMethods[method].count++
-                payMethods[method].total += Number(tx.total || 0)
-            }
+            const splits = parsePaymentSplits(tx)
+            Object.entries(splits).forEach(([m, amt]) => {
+                if (payMethods[m] && amt > 0) {
+                    payMethods[m].count++
+                    payMethods[m].total += amt
+                }
+            })
 
             const h = new Date(tx.created_at).getHours()
             hourlyBins[h].transaksi++
@@ -1396,11 +1401,13 @@ export default function TransactionsPage() {
             const val = Number(tx.total || 0)
             revenue += val
 
-            // Map payment method
-            const method = tx.payment_method?.toLowerCase()
-            if (payMethods[method] !== undefined) {
-                payMethods[method] += val
-            }
+            // Map payment method (support split payments)
+            const splits = parsePaymentSplits(tx)
+            Object.entries(splits).forEach(([m, amt]) => {
+                if (payMethods[m] !== undefined) {
+                    payMethods[m] += amt
+                }
+            })
 
             // Map weekly bins
             const day = new Date(tx.created_at).getDate()

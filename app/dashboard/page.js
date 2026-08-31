@@ -9,6 +9,7 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import DateRangePicker from '../../components/DateRangePicker'
 import BranchFilter from '@/components/ui/BranchFilter'
 import StatCard from '@/components/ui/StatCard'
+import { parsePaymentSplits } from '@/lib/paymentUtils'
 import { 
     LineChart, 
     Line, 
@@ -217,9 +218,12 @@ export default function Dashboard() {
                         branchObj.transactionCount += 1
                         totalTxCountRange += 1
 
-                        // Payment method count (based on actual paid amount)
-                        const pMethod = (tx.payment_method || 'CASH').toUpperCase()
-                        methodMap[pMethod] = (methodMap[pMethod] || 0) + Number(tx.total || 0)
+                        // Payment method count (based on actual paid amount, supporting split payments)
+                        const splits = parsePaymentSplits(tx)
+                        Object.entries(splits).forEach(([m, amt]) => {
+                            const pMethod = m.toUpperCase()
+                            methodMap[pMethod] = (methodMap[pMethod] || 0) + amt
+                        })
                         
                         let txTreatment = 0
                         let txProduct = 0
@@ -534,7 +538,7 @@ export default function Dashboard() {
             tableFuQuery = applyBranchFilter(tableFuQuery)
 
             // Transactions Today
-            let trxTodayQuery = supabase.from('transactions').select('total, payment_method')
+            let trxTodayQuery = supabase.from('transactions').select('total, payment_method, notes')
                 .eq('payment_status', 'paid')
                 .gte('created_at', new Date(`${todayDateStr}T00:00:00`).toISOString())
                 .lte('created_at', new Date(`${todayDateStr}T23:59:59.999`).toISOString())
@@ -596,10 +600,12 @@ export default function Dashboard() {
                 trxTodayResult.data.forEach(tx => {
                     if (tx) {
                         todayIncome += Number(tx.total || 0)
-                        const m = tx.payment_method
-                        if (m) {
-                            methodCounts[m] = (methodCounts[m] || 0) + 1
-                        }
+                        const splits = parsePaymentSplits(tx)
+                        Object.entries(splits).forEach(([m, amt]) => {
+                            if (amt > 0) {
+                                methodCounts[m] = (methodCounts[m] || 0) + 1
+                            }
+                        })
                     }
                 })
             }

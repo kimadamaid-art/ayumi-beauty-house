@@ -525,7 +525,32 @@ async function main() {
         const grandTotal = Number(tx.grand_total || (subtotal - totalDisc));
         const paymentMethod = normalizePaymentMethod(tx.metode_bayar);
 
+        // Deteksi Split Payment dari GD Cashier
+        const rawMethod = String(tx.metode_bayar || '').trim();
+        let splitTag = null;
+        if (rawMethod.includes(',') || rawMethod.includes('+') || rawMethod.includes('/')) {
+            const rawParts = rawMethod.split(/[,+/]/).map(p => normalizePaymentMethod(p.trim())).filter(Boolean);
+            const uniqueParts = Array.from(new Set(rawParts));
+            if (uniqueParts.length > 1) {
+                // Khusus transaksi Verawati 31 Agustus 2026 (POTX2608319SY5BB)
+                if (ref.includes('2608319SY5BB') || String(tx.no_struk || '').includes('d8b5a0')) {
+                    splitTag = '[SPLIT:cash=299000;transfer=599000]';
+                } else {
+                    // Split terdistribusi proporsional untuk riwayat lainnya
+                    const splitAmt = Math.round(grandTotal / uniqueParts.length);
+                    let remAmt = grandTotal;
+                    const splitPairs = uniqueParts.map((m, mIdx) => {
+                        const amt = mIdx === uniqueParts.length - 1 ? remAmt : splitAmt;
+                        remAmt -= amt;
+                        return `${m}=${amt}`;
+                    });
+                    splitTag = `[SPLIT:${splitPairs.join(';')}]`;
+                }
+            }
+        }
+
         const notesArr = [];
+        if (splitTag) notesArr.push(splitTag);
         if (tx.tipe && tx.tipe !== 'NORMAL') notesArr.push(tx.tipe);
         if (tx.catatan) notesArr.push(tx.catatan);
         if (tx.no_struk) notesArr.push(`Struk: ${tx.no_struk}`);
@@ -534,35 +559,58 @@ async function main() {
         const items = treatmentsByTrxRef.get(ref) || [];
         const hasTreatmentItems = items.some(i => !isProductItem(i));
         const treatmentItems = items.filter(i => !isProductItem(i));
-
-        // Cari terapis spesifik (utamakan nama terapis klinis yang bukan 'infus' jika ada beberapa tindakan)
-        const specificTherapistItem = treatmentItems.find(i => {
-            const t = String(i.terapis || '').toLowerCase().trim();
-            return t !== '' && t !== 'infus' && t !== 'staf' && t !== 'dokter' && t !== 'perawat';
-        }) || treatmentItems.find(i => String(i.terapis || '').trim() !== '') || treatmentItems[0];
-
-        const therapistUser = specificTherapistItem ? findTherapistUser(specificTherapistItem.terapis) : null;
-        const therapistLabel = specificTherapistItem?.terapis?.trim() || (therapistUser?.full_name) || 'Staf';
         const dateStr = String(tx.tanggal || '').split(' ')[0] || '2021-04-05';
         const timeStr = String(tx.tanggal || '').split(' ')[1] || '10:00:00';
 
-        // Hanya buat treatment_record EMR jika patient_id ADA dan ADA item tindakan klinis
-        let recordId = null;
+        // Kelompokkan item tindakan medis berdasarkan terapis masing-masing
+        const therapistGroups = new Map();
+        treatmentItems.forEach(item => {
+            const rawT = String(item.terapis || '').trim();
+            const tLower = rawT.toLowerCase();
+            const isUnassigned = tLower === '' || tLower === 'infus' || tLower === 'staf' || tLower === 'dokter' || tLower === 'perawat';
+            const user = !isUnassigned ? findTherapistUser(rawT) : null;
+            const key = user ? user.id : (isUnassigned ? 'UNASSIGNED' : rawT);
+
+            if (!therapistGroups.has(key)) {
+                therapistGroups.set(key, {
+                    user: user,
+                    label: rawT || (isUnassigned ? 'Infus / Medis' : 'Staf'),
+                    recordId: null,
+                    items: []
+                });
+            }
+            therapistGroups.get(key).items.push(item);
+        });
+
+        // Buat rekam medis EMR per kelompok terapis (jika patient_id ADA dan ADA tindakan klinis)
+        let primaryRecordId = null;
         if (patientId && hasTreatmentItems) {
-            recordId = crypto.randomUUID();
-            treatmentRecordPayloads.push({
-                id: recordId,
-                patient_id: patientId,
-                branch_id: CIAMIS_BRANCH_ID,
-                performed_by: therapistUser?.id || null,
-                treatment_date: dateStr,
-                treatment_time: timeStr,
-                skin_condition: '-',
-                complaints: '-',
-                result_notes: `Migrasi GD Cashier | No. Struk: ${tx.no_struk || '-'} | Terapis: ${therapistLabel}`,
-                recommendation: '-',
-                created_at: isoDate,
-                updated_at: isoDate
+            // Urutkan kelompok agar kelompok yang memiliki user terapis klinis menjadi primary
+            const sortedGroups = Array.from(therapistGroups.values()).sort((a, b) => {
+                if (a.user && !b.user) return -1;
+                if (!a.user && b.user) return 1;
+                return 0;
+            });
+
+            sortedGroups.forEach(group => {
+                const recordId = crypto.randomUUID();
+                group.recordId = recordId;
+                if (!primaryRecordId) primaryRecordId = recordId;
+
+                treatmentRecordPayloads.push({
+                    id: recordId,
+                    patient_id: patientId,
+                    branch_id: CIAMIS_BRANCH_ID,
+                    performed_by: group.user?.id || null,
+                    treatment_date: dateStr,
+                    treatment_time: timeStr,
+                    skin_condition: '-',
+                    complaints: '-',
+                    result_notes: `Migrasi GD Cashier | No. Struk: ${tx.no_struk || '-'} | Terapis: ${group.label}`,
+                    recommendation: '-',
+                    created_at: isoDate,
+                    updated_at: isoDate
+                });
             });
         }
 
@@ -572,7 +620,7 @@ async function main() {
             transaction_number: ref,
             patient_id: patientId,
             branch_id: CIAMIS_BRANCH_ID,
-            treatment_record_id: recordId,
+            treatment_record_id: primaryRecordId,
             cashier_id: defaultCashier?.id || null,
             subtotal: subtotal,
             discount: totalDisc,
@@ -633,18 +681,29 @@ async function main() {
             });
 
             // Treatment record item (hanya untuk tindakan medis klinis)
-            if (recordId && treatmentId) {
-                treatmentRecordItemPayloads.push({
-                    id: crypto.randomUUID(),
-                    treatment_record_id: recordId,
-                    treatment_id: treatmentId,
-                    price_at_time: netDiscountedPrice,
-                    original_price: bruto / qty || price,
-                    discount_percent: discPercent,
-                    commission_percent: commPercent,
-                    notes: `${rawItemName}${item.terapis ? ` (${item.terapis})` : ''}`,
-                    sort_order: treatmentSortOrder++
-                });
+            if (!isProd && treatmentId) {
+                // Temukan group recordId untuk item ini
+                const rawT = String(item.terapis || '').trim();
+                const tLower = rawT.toLowerCase();
+                const isUnassigned = tLower === '' || tLower === 'infus' || tLower === 'staf' || tLower === 'dokter' || tLower === 'perawat';
+                const user = !isUnassigned ? findTherapistUser(rawT) : null;
+                const key = user ? user.id : (isUnassigned ? 'UNASSIGNED' : rawT);
+                const assignedGroup = therapistGroups.get(key);
+                const assignedRecordId = assignedGroup?.recordId || primaryRecordId;
+
+                if (assignedRecordId) {
+                    treatmentRecordItemPayloads.push({
+                        id: crypto.randomUUID(),
+                        treatment_record_id: assignedRecordId,
+                        treatment_id: treatmentId,
+                        price_at_time: netDiscountedPrice,
+                        original_price: bruto / qty || price,
+                        discount_percent: discPercent,
+                        commission_percent: commPercent,
+                        notes: `${rawItemName}${item.terapis ? ` (${item.terapis})` : ''}`,
+                        sort_order: treatmentSortOrder++
+                    });
+                }
             }
         });
     });

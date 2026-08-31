@@ -245,6 +245,11 @@ export default function TherapistsReportPage() {
         return result.sort((a, b) => b.revenue - a.revenue)
     }, [treatmentItems, therapists])
 
+    // Unassigned Treatments (Worker / Infus / Tanpa Terapis)
+    const unassignedTreatments = useMemo(() => {
+        return treatmentItems.filter(item => !item.treatment_records?.performed_by)
+    }, [treatmentItems])
+
     // Summary Card Stats
     const summaryStats = useMemo(() => {
         const totalRevenue = therapistMetrics.reduce((acc, curr) => acc + curr.revenue, 0)
@@ -258,13 +263,17 @@ export default function TherapistsReportPage() {
         // Average treatments per therapist
         const avgTreatments = therapistMetrics.length > 0 ? Math.round(totalTreatments / therapistMetrics.length * 10) / 10 : 0
 
+        const unassignedRevenue = unassignedTreatments.reduce((acc, curr) => acc + Number(curr.price_at_time || 0), 0)
+
         return {
             totalRevenue,
             totalCommission,
             bestTherapist,
-            avgTreatments
+            avgTreatments,
+            unassignedCount: unassignedTreatments.length,
+            unassignedRevenue
         }
-    }, [therapistMetrics])
+    }, [therapistMetrics, unassignedTreatments])
 
     // Handle Dropdown Therapist Select -> Redirect to details page
     const handleTherapistFilterChange = (e) => {
@@ -740,10 +749,45 @@ export default function TherapistsReportPage() {
                         </div>
                     </div>
 
+                    {/* Banner Penanda Tindakan Tanpa Terapis / Medis */}
+                    {unassignedTreatments.length > 0 && (
+                        <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 md:p-5 shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">⚠️</span>
+                                    <div>
+                                        <h4 className="font-extrabold text-xs sm:text-sm text-amber-950 uppercase tracking-wide">
+                                            Penanda: {unassignedTreatments.length} Tindakan Tanpa Terapis (Worker / Infus Medis)
+                                        </h4>
+                                        <p className="text-[11px] text-amber-800 mt-0.5">
+                                            Tindakan ini masuk dalam omset treatment klinik tetapi tidak dialokasikan ke komisi terapis tertentu.
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-black text-amber-900 bg-amber-200/70 border border-amber-300/80 px-3 py-1.5 rounded-xl self-start sm:self-auto shadow-2xs">
+                                    Total: Rp {summaryStats.unassignedRevenue.toLocaleString('id-ID')}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-3 pt-3 border-t border-amber-200/60 text-xs">
+                                {unassignedTreatments.map((it, idx) => (
+                                    <div key={idx} className="bg-white/95 p-3 rounded-xl border border-amber-200/70 shadow-2xs flex items-center justify-between">
+                                        <div className="min-w-0 pr-2">
+                                            <p className="font-extrabold text-gray-800 text-xs truncate">{it.treatments?.name || it.notes || 'Tindakan'}</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5">{it.treatment_records?.treatment_date || '-'} {it.notes ? `• ${it.notes}` : ''}</p>
+                                        </div>
+                                        <span className="font-black text-amber-900 whitespace-nowrap text-xs">
+                                            Rp {Number(it.price_at_time || 0).toLocaleString('id-ID')}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Rankings Table */}
                     <div className="card-ayumi overflow-hidden">
                         <div className="p-4 md:p-6 border-b border-gray-100 bg-white">
-                            <h2 className="text-lg font-bold text-ayumi-secondary">Ranking Terapis Bulan Ini</h2>
+                            <h2 className="text-lg font-bold text-ayumi-secondary">Ranking Terapis Periode Ini</h2>
                             <p className="text-xs text-ayumi-text-muted mt-1">Daftar terapis terurut berdasarkan kontribusi pendapatan terbesar.</p>
                         </div>
 
