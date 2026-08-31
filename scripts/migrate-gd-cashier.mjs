@@ -255,13 +255,19 @@ async function main() {
         
         for (const u of dbUsers || []) {
             const uClean = u.full_name.toLowerCase().trim().replace(/\s+/g, ' ');
-            if (uClean.includes(clean) || clean.includes(uClean)) return u;
-            if (clean.startsWith('asti') && uClean.includes('asti')) return u;
-            if (clean.startsWith('raika') && uClean.includes('raika')) return u;
-            if (clean.includes('nisa') && uClean.includes('nisa')) return u;
+            if (uClean === clean || uClean.includes(clean) || clean.includes(uClean)) return u;
+            if (clean.includes('asti') && uClean.includes('asti')) return u;
+            if (clean.includes('raika') && uClean.includes('raika')) return u;
+            if ((clean.includes('nisa') || clean.includes('anisa')) && uClean.includes('nisa')) return u;
             if (clean.includes('elsa') && uClean.includes('elsa')) return u;
-            if (clean.includes('pransiska') && uClean.includes('fransiska')) return u;
-            if (clean.includes('indri') && uClean.includes('indri')) return u;
+            if ((clean.includes('pransiska') || clean.includes('fransiska')) && uClean.includes('fransiska')) return u;
+            if ((clean.includes('indri') || clean.includes('indria')) && uClean.includes('indri')) return u;
+            if (clean.includes('rana') && uClean.includes('rana')) return u;
+            if (clean.includes('fani') && uClean.includes('fani')) return u;
+            if (clean.includes('ayu') && uClean.includes('ayu')) return u;
+            if (clean.includes('memey') && uClean.includes('memey')) return u;
+            if (clean.includes('lilis') && uClean.includes('lilis')) return u;
+            if (clean.includes('della') && uClean.includes('della')) return u;
         }
         return null;
     }
@@ -527,8 +533,16 @@ async function main() {
 
         const items = treatmentsByTrxRef.get(ref) || [];
         const hasTreatmentItems = items.some(i => !isProductItem(i));
-        const firstTreatmentItem = items.find(i => !isProductItem(i));
-        const therapistUser = firstTreatmentItem ? findTherapistUser(firstTreatmentItem.terapis) : null;
+        const treatmentItems = items.filter(i => !isProductItem(i));
+
+        // Cari terapis spesifik (utamakan nama terapis klinis yang bukan 'infus' jika ada beberapa tindakan)
+        const specificTherapistItem = treatmentItems.find(i => {
+            const t = String(i.terapis || '').toLowerCase().trim();
+            return t !== '' && t !== 'infus' && t !== 'staf' && t !== 'dokter' && t !== 'perawat';
+        }) || treatmentItems.find(i => String(i.terapis || '').trim() !== '') || treatmentItems[0];
+
+        const therapistUser = specificTherapistItem ? findTherapistUser(specificTherapistItem.terapis) : null;
+        const therapistLabel = specificTherapistItem?.terapis?.trim() || (therapistUser?.full_name) || 'Staf';
         const dateStr = String(tx.tanggal || '').split(' ')[0] || '2021-04-05';
         const timeStr = String(tx.tanggal || '').split(' ')[1] || '10:00:00';
 
@@ -545,7 +559,7 @@ async function main() {
                 treatment_time: timeStr,
                 skin_condition: '-',
                 complaints: '-',
-                result_notes: `Migrasi GD Cashier | No. Struk: ${tx.no_struk || '-'} | Terapis: ${firstTreatmentItem?.terapis || 'Staf'}`,
+                result_notes: `Migrasi GD Cashier | No. Struk: ${tx.no_struk || '-'} | Terapis: ${therapistLabel}`,
                 recommendation: '-',
                 created_at: isoDate,
                 updated_at: isoDate
@@ -599,6 +613,7 @@ async function main() {
             const discNominal = Number(item.diskon || 0);
             const discPercent = bruto > 0 ? Math.round((discNominal / bruto) * 100) : 0;
             const commPercent = itemType === 'treatment' ? (treatmentMap.get(cleanName)?.commission_percent || 5) : 0;
+            const netDiscountedPrice = bruto > 0 && discNominal > 0 ? Math.round(itemSubtotal / qty) : price;
 
             // Transaction item
             transactionItemPayloads.push({
@@ -623,7 +638,7 @@ async function main() {
                     id: crypto.randomUUID(),
                     treatment_record_id: recordId,
                     treatment_id: treatmentId,
-                    price_at_time: price,
+                    price_at_time: netDiscountedPrice,
                     original_price: bruto / qty || price,
                     discount_percent: discPercent,
                     commission_percent: commPercent,
