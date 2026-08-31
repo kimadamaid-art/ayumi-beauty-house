@@ -130,8 +130,18 @@ export default function TherapistsReportPage() {
                     patient_coupon_items(
                         total_sessions,
                         patient_coupons(
+                            package_id,
+                            transaction_id,
                             coupon_packages(
                                 price
+                            ),
+                            transactions(
+                                total,
+                                transaction_items(
+                                    item_type,
+                                    price,
+                                    subtotal
+                                )
                             )
                         )
                     )
@@ -141,10 +151,14 @@ export default function TherapistsReportPage() {
             if (cLogs) {
                 cLogs.forEach(cl => {
                     if (cl.treatment_record_id && cl.patient_coupon_items) {
-                        const pkgPrice = Number(cl.patient_coupon_items.patient_coupons?.coupon_packages?.price || 0)
+                        const pCoupons = cl.patient_coupon_items.patient_coupons
+                        const couponTxItem = pCoupons?.transactions?.transaction_items?.find(ti => ti.item_type === 'coupon')
+                        const purchasePrice = couponTxItem && Number(couponTxItem.subtotal || 0) > 0
+                            ? Number(couponTxItem.subtotal)
+                            : Number(pCoupons?.coupon_packages?.price || 0)
                         const totalSessions = Number(cl.patient_coupon_items.total_sessions || 1)
-                        if (pkgPrice > 0 && totalSessions > 0) {
-                            couponMap[cl.treatment_record_id] = Math.round(pkgPrice / totalSessions)
+                        if (purchasePrice > 0 && totalSessions > 0) {
+                            couponMap[cl.treatment_record_id] = Math.round(purchasePrice / totalSessions)
                         }
                     }
                 })
