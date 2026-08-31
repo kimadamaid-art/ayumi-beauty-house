@@ -790,59 +790,40 @@ function PosPageContent() {
                 throw new Error('Gagal mendapatkan data transaksi dari database.')
             }
 
-            // Deduct sessions for items using coupon (ONLY if not already deducted by therapist/treatment record)
+            // Potong sesi kupon lewat redeem_coupon_session. Fungsi itu mengunci baris
+            // sesinya sebelum membaca, memeriksa masa berlaku dan sisa sesi, lalu
+            // mencatat pemakaian dalam satu transaksi database -- pemotongan dan
+            // pencatatannya tersimpan bersama atau gagal bersama.
+            // Item yang kuponnya sudah dipotong di rekam medis dilewati.
+            const failedCoupons = []
+
             for (const cartItem of cart) {
                 if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && selectedPatient) {
-                    try {
-                        await supabase.from('coupon_usage_logs').insert([{
-                            patient_coupon_item_id: cartItem.used_coupon_item_id,
-                            patient_id: selectedPatient.id,
-                            transaction_id: trxData.id,
-                            treatment_record_id: cartItem.treatment_record_id || null,
-                            branch_id: selectedBranch,
-                            used_by: dbUser?.id || null,
-                            notes: `Klaim Kasir (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
-                        }])
+                    const { error: redeemErr } = await supabase.rpc('redeem_coupon_session', {
+                        p_coupon_item_id: cartItem.used_coupon_item_id,
+                        p_patient_id: selectedPatient.id,
+                        p_quantity: cartItem.quantity,
+                        p_transaction_id: trxData.id,
+                        p_treatment_record_id: cartItem.treatment_record_id || null,
+                        p_branch_id: selectedBranch,
+                        p_notes: `Klaim Kasir (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
+                    })
 
-                        const { data: currentCpItem } = await supabase
-                            .from('patient_coupon_items')
-                            .select('used_sessions, remaining_sessions, total_sessions, patient_coupon_id')
-                            .eq('id', cartItem.used_coupon_item_id)
-                            .single()
-
-                        if (currentCpItem) {
-                            const newUsed = (currentCpItem.used_sessions || 0) + cartItem.quantity
-                            const newRemaining = Math.max(0, (currentCpItem.remaining_sessions || 0) - cartItem.quantity)
-                            const newStatus = newRemaining === 0 ? 'fully_used' : 'active'
-
-                            await supabase
-                                .from('patient_coupon_items')
-                                .update({
-                                    used_sessions: newUsed,
-                                    remaining_sessions: newRemaining,
-                                    status: newStatus
-                                })
-                                .eq('id', cartItem.used_coupon_item_id)
-
-                            if (newRemaining === 0) {
-                                const { data: siblings } = await supabase
-                                    .from('patient_coupon_items')
-                                    .select('status')
-                                    .eq('patient_coupon_id', currentCpItem.patient_coupon_id)
-
-                                const allDone = siblings ? siblings.every(s => s.status === 'fully_used' || s.status === 'completed') : true
-                                if (allDone) {
-                                    await supabase
-                                        .from('patient_coupons')
-                                        .update({ status: 'fully_used' })
-                                        .eq('id', currentCpItem.patient_coupon_id)
-                                }
-                            }
-                        }
-                    } catch (cpErr) {
-                        console.error('Error updating coupon deduction:', cpErr)
+                    if (redeemErr) {
+                        console.error('Gagal memotong sesi kupon:', redeemErr)
+                        failedCoupons.push(`${cartItem.name}: ${redeemErr.message}`)
                     }
                 }
+            }
+
+            // Pembayaran sudah tersimpan, jadi kegagalan di sini tidak boleh lewat diam-diam:
+            // kasir harus tahu sesi mana yang belum terpotong agar bisa dibetulkan manual.
+            if (failedCoupons.length > 0) {
+                alert(
+                    'PERHATIAN: Pembayaran sudah tersimpan, tetapi sesi kupon berikut GAGAL dipotong:\n\n' +
+                    failedCoupons.join('\n') +
+                    '\n\nSisa sesi kupon pelanggan ini perlu diperiksa dan dibetulkan manual.'
+                )
             }
 
             // Navigate to Receipt page
