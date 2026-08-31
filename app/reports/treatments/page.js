@@ -136,6 +136,15 @@ export default function TreatmentsReportPage() {
                     name,
                     quantity,
                     subtotal,
+                    treatments (
+                        name,
+                        category_id,
+                        treatment_categories (id, name)
+                    ),
+                    products (
+                        name,
+                        price
+                    ),
                     transactions!inner(
                         id,
                         created_at,
@@ -154,38 +163,13 @@ export default function TreatmentsReportPage() {
                 trxQuery = trxQuery.eq('transactions.branch_id', effectiveBranch)
             }
 
-            // 2. Fetch Treatment Record Items
-            let recQuery = supabase
-                .from('treatment_record_items')
-                .select(`
-                    id,
-                    price_at_time,
-                    treatment_id,
-                    treatments(
-                        name,
-                        category_id,
-                        treatment_categories(id, name)
-                    ),
-                    treatment_records!inner(
-                        id,
-                        treatment_date,
-                        branch_id,
-                        patient_id
-                    )
-                `)
-                .gte('treatment_records.treatment_date', sDate)
-                .lte('treatment_records.treatment_date', eDate)
+            const { data: trxData, error: trxErr } = await trxQuery
+            if (trxErr) console.error('Error fetching transaction items:', trxErr)
 
-            if (effectiveBranch && effectiveBranch !== 'all') {
-                recQuery = recQuery.eq('treatment_records.branch_id', effectiveBranch)
-            }
-
-            const [trxRes, recRes] = await Promise.all([trxQuery, recQuery])
-
-            setRawTransactionItems(trxRes.data || [])
-            setRawTreatmentRecordItems(recRes.data || [])
+            setRawTransactionItems(trxData || [])
+            setRawTreatmentRecordItems([])
         } catch (err) {
-            console.error('Error fetching combined report data:', err)
+            console.error('Error fetching report data:', err)
         } finally {
             setIsLoading(false)
         }
@@ -195,54 +179,31 @@ export default function TreatmentsReportPage() {
     const processedTreatmentMetrics = useMemo(() => {
         const groups = {}
 
-        // Combine from POS transaction items (treatment)
         rawTransactionItems.forEach(item => {
             if (item.item_type === 'treatment') {
-                const tName = item.name || 'Treatment'
+                const tName = item.treatments?.name || item.name || 'Treatment'
+                const catName = item.treatments?.treatment_categories?.name || 'Perawatan Utama'
                 const qty = Number(item.quantity || 1)
                 const amt = Number(item.subtotal || 0)
                 const pId = item.transactions?.patient_id
 
                 if (!groups[tName]) {
                     groups[tName] = {
-                        id: item.treatment_id || item.product_id || tName,
+                        id: item.treatment_id || tName,
                         name: tName,
-                        categoryName: 'Perawatan Utama',
+                        categoryName: catName,
                         count: 0,
                         revenue: 0,
                         patients: new Set()
                     }
+                } else if (groups[tName].categoryName === 'Perawatan Utama' && catName !== 'Perawatan Utama') {
+                    groups[tName].categoryName = catName
                 }
 
                 groups[tName].count += qty
                 groups[tName].revenue += amt
                 if (pId) groups[tName].patients.add(pId)
             }
-        })
-
-        // Combine from Treatment Records if any
-        rawTreatmentRecordItems.forEach(item => {
-            const tName = item.treatments?.name || 'Treatment'
-            const catName = item.treatments?.treatment_categories?.name || 'Perawatan Utama'
-            const price = Number(item.price_at_time || 0)
-            const pId = item.treatment_records?.patient_id
-
-            if (!groups[tName]) {
-                groups[tName] = {
-                    id: item.treatment_id || tName,
-                    name: tName,
-                    categoryName: catName,
-                    count: 0,
-                    revenue: 0,
-                    patients: new Set()
-                }
-            } else if (groups[tName].categoryName === 'Perawatan Utama') {
-                groups[tName].categoryName = catName
-            }
-
-            groups[tName].count += 1
-            groups[tName].revenue += price
-            if (pId) groups[tName].patients.add(pId)
         })
 
         let list = Object.values(groups).map(g => ({
@@ -281,7 +242,7 @@ export default function TreatmentsReportPage() {
         })
 
         return list
-    }, [rawTransactionItems, rawTreatmentRecordItems, selectedCategory, searchTerm, sortField, sortDirection])
+    }, [rawTransactionItems, selectedCategory, searchTerm, sortField, sortDirection])
 
     // Process Product Metrics
     const processedProductMetrics = useMemo(() => {
@@ -289,14 +250,14 @@ export default function TreatmentsReportPage() {
 
         rawTransactionItems.forEach(item => {
             if (item.item_type === 'product') {
-                const pName = item.name || 'Skincare Product'
+                const pName = item.products?.name || item.name || 'Skincare Product'
                 const qty = Number(item.quantity || 1)
                 const amt = Number(item.subtotal || 0)
                 const patientId = item.transactions?.patient_id
 
                 if (!groups[pName]) {
                     groups[pName] = {
-                        id: item.product_id || item.treatment_id || pName,
+                        id: item.product_id || pName,
                         name: pName,
                         categoryName: 'Produk Skincare',
                         count: 0,
