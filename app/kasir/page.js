@@ -1060,6 +1060,31 @@ function PosPageContent() {
         return result
     }, [searchQuery, treatments, categories])
 
+    // Categorized coupons grouped with Option 1 Section Headers (No numbers)
+    const groupedCouponCategories = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim()
+        const filteredCoupons = coupons.filter(c => !q || c.name.toLowerCase().includes(q))
+
+        const categoryMap = {}
+        filteredCoupons.forEach(c => {
+            const cat = getItemCategory(c, 'coupon')
+            if (!categoryMap[cat]) categoryMap[cat] = []
+            categoryMap[cat].push(c)
+        })
+
+        const result = []
+        Object.keys(categoryMap).forEach(catName => {
+            if (categoryMap[catName].length > 0) {
+                result.push({
+                    name: catName,
+                    items: categoryMap[catName]
+                })
+            }
+        })
+
+        return result
+    }, [searchQuery, coupons])
+
     const toggleCartItemCoupon = (itemId) => {
         setCart(prev => prev.map(cartItem => {
             if (cartItem.id === itemId && cartItem.item_type === 'treatment') {
@@ -1987,56 +2012,84 @@ function PosPageContent() {
                                             </div>
                                         )}
 
-                                        {/* 3. KUPON (Grid Biasa - Ayumi Harmony) */}
-                                        {showCoupons && filteredCoupons.length > 0 && (
-                                            <div className="space-y-2">
+                                        {/* 3. KUPON (Berkategori dengan Option 1 Banner Elegan Ivory & Terracotta) */}
+                                        {showCoupons && (
+                                            <div className="space-y-6">
                                                 {showAll && (
-                                                    <h3 className="font-black text-xs text-[#4E2A12] tracking-wider uppercase px-1">
-                                                        Paket Kupon ({filteredCoupons.length})
-                                                    </h3>
+                                                    <div className="flex items-center gap-2 pb-1 border-b border-[#F2D8C3]">
+                                                        <h2 className="font-black text-xs sm:text-sm text-[#4E2A12] tracking-wider uppercase px-1">
+                                                            Katalog Paket Kupon ({filteredCoupons.length})
+                                                        </h2>
+                                                    </div>
                                                 )}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
-                                                    {filteredCoupons.map(c => (
-                                                        <div
-                                                            key={`cp-${c.id}`}
-                                                            onClick={() => addToCart(c, 'coupon')}
-                                                            className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
-                                                        >
-                                                            <div className="space-y-1.5 mb-2">
-                                                                <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                    <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
-                                                                        Paket Kupon
+                                                {groupedCouponCategories.length === 0 ? (
+                                                    <div className="py-8 text-center text-xs text-gray-400">
+                                                        Tidak ada paket kupon ditemukan.
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-6">
+                                                        {groupedCouponCategories.map(group => (
+                                                            <div key={group.name} className="space-y-3">
+                                                                {/* Option 1 Banner Header (No numbers) */}
+                                                                <div className="flex items-center justify-between bg-[#FAF1E8] border border-[#F2D8C3] border-l-4 border-l-[#D46221] px-4 py-2.5 rounded-xl shadow-2xs">
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        <span className="w-2.5 h-2.5 rounded-full bg-[#D46221]"></span>
+                                                                        <h3 className="font-black text-xs sm:text-sm text-[#4E2A12] tracking-wider uppercase">
+                                                                            {group.name}
+                                                                        </h3>
+                                                                    </div>
+                                                                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white text-[#B5531B] border border-[#F2D8C3] shadow-2xs">
+                                                                        {group.items.length} Paket
                                                                     </span>
-                                                                    {c.category && (
-                                                                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
-                                                                            {c.category}
-                                                                        </span>
-                                                                    )}
                                                                 </div>
-                                                                <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
-                                                                    {c.name}
-                                                                </h4>
-                                                            </div>
 
-                                                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                                <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
-                                                                    Rp {c.price.toLocaleString('id-ID')}
-                                                                </span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation()
-                                                                        addToCart(c, 'coupon')
-                                                                    }}
-                                                                    className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-                                                                    title="Tambah ke keranjang"
-                                                                >
-                                                                    +
-                                                                </button>
+                                                                {/* 3-Column Card Grid */}
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+                                                                    {group.items.map(c => (
+                                                                        <div
+                                                                            key={`cp-${c.id}`}
+                                                                            onClick={() => addToCart(c, 'coupon')}
+                                                                            className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                                        >
+                                                                            <div className="space-y-1.5 mb-2">
+                                                                                <div className="flex items-center justify-between gap-1 flex-wrap">
+                                                                                    <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
+                                                                                        Paket Kupon
+                                                                                    </span>
+                                                                                    {c.category && (
+                                                                                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                                                                            {c.category}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
+                                                                                    {c.name}
+                                                                                </h4>
+                                                                            </div>
+
+                                                                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                                                <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
+                                                                                    Rp {c.price.toLocaleString('id-ID')}
+                                                                                </span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation()
+                                                                                        addToCart(c, 'coupon')
+                                                                                    }}
+                                                                                    className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                                    title="Tambah ke keranjang"
+                                                                                >
+                                                                                    +
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
