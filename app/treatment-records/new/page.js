@@ -854,7 +854,9 @@ function AddRecordForm() {
                                 <div key={slot.key} className="border-2 border-dashed border-gray-200 rounded-2xl p-4 text-center bg-gray-50/70 hover:bg-white transition-all relative flex flex-col justify-center items-center min-h-[190px]">
                                     {photoPreviews[slot.key] ? (
                                         <div className="w-full relative group">
-                                            <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-36 object-cover rounded-xl shadow-sm" />
+                                            <div className="w-full h-48 sm:h-52 bg-gray-950/5 rounded-xl overflow-hidden flex items-center justify-center border border-gray-100 shadow-inner">
+                                                <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-full object-contain" />
+                                            </div>
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
                                                 <button
                                                     type="button"

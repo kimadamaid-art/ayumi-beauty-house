@@ -828,12 +828,14 @@ export default function TreatmentRecordDetailPage() {
                                     { key: 'foto_kiri', label: 'Samping Kiri' },
                                     { key: 'foto_kanan', label: 'Samping Kanan' }
                                 ].map(slot => (
-                                    <div key={slot.key} className="bg-gray-50 rounded-xl p-3 border border-gray-100 text-center">
+                                    <div key={slot.key} className="bg-gray-50 rounded-xl p-3 border border-gray-100 text-center flex flex-col items-center">
                                         <span className="text-xs font-bold text-gray-500 block mb-2">{slot.label}</span>
                                         {photoUrls[slot.key] ? (
-                                            <img src={photoUrls[slot.key]} alt={slot.label} className="w-full h-32 object-cover rounded-lg shadow-sm" />
+                                            <div className="w-full h-48 sm:h-56 bg-gray-950/5 rounded-lg overflow-hidden flex items-center justify-center border border-gray-100 shadow-inner">
+                                                <img src={photoUrls[slot.key]} alt={slot.label} className="w-full h-full object-contain" />
+                                            </div>
                                         ) : (
-                                            <div className="h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs font-semibold">Tidak ada foto</div>
+                                            <div className="w-full h-48 sm:h-56 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs font-semibold">Tidak ada foto</div>
                                         )}
                                     </div>
                                 ))}

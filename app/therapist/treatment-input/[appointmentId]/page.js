@@ -1005,10 +1005,12 @@ export default function TreatmentInputPage() {
                             { key: 'foto_kiri', label: 'Foto Samping Kiri' },
                             { key: 'foto_kanan', label: 'Foto Samping Kanan' }
                         ].map(slot => (
-                            <div key={slot.key} className="relative border-2 border-dashed border-gray-200 rounded-2xl flex flex-col justify-center items-center min-h-[180px] bg-gray-50/70 hover:bg-white transition-all p-3">
+                            <div key={slot.key} className="relative border-2 border-dashed border-gray-200 rounded-2xl flex flex-col justify-center items-center min-h-[190px] bg-gray-50/70 hover:bg-white transition-all p-3">
                                 {photoPreviews[slot.key] ? (
                                     <div className="w-full relative group">
-                                        <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-36 object-cover rounded-xl shadow-xs" />
+                                        <div className="w-full h-48 sm:h-52 bg-gray-950/5 rounded-xl overflow-hidden flex items-center justify-center border border-gray-100 shadow-inner">
+                                            <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-full object-contain" />
+                                        </div>
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
                                             <button
                                                 type="button"
