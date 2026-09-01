@@ -8,6 +8,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { supabase } from '@/lib/supabaseClient'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
+import { notifyTherapistReady } from '@/lib/notifications'
 
 export default function TherapistDashboard() {
     const router = useRouter()
@@ -288,29 +289,14 @@ export default function TherapistDashboard() {
 
             if (aptErr) throw aptErr
 
-            const { data: activeAdmins } = await supabase
-                .from('users')
-                .select('id, role, branch_id')
-                .eq('role', 'admin')
-                .eq('is_active', true)
+            // Kirim notifikasi realtime ke seluruh Admin cabang & Owner
+            await notifyTherapistReady({
+                supabase,
+                appointment: apt,
+                therapistUser: dbUser
+            })
 
-            const recipients = activeAdmins?.filter(u => 
-                u.id !== dbUser.id && (!u.branch_id || u.branch_id === apt.branch_id)
-            ) || []
-
-            if (recipients.length > 0) {
-                const notificationsToInsert = recipients.map(adm => ({
-                    recipient_id: adm.id,
-                    sender_id: dbUser.id,
-                    appointment_id: apt.id,
-                    type: 'therapist_ready',
-                    title: 'Terapis Siap',
-                    message: `Terapis ${dbUser.full_name} sudah siap menangani pasien ${apt.patients?.full_name || ''}. Silakan persilakan pasien masuk.`
-                }))
-                await supabase.from('notifications').insert(notificationsToInsert)
-            }
-
-            toast.success('Status berhasil diperbarui! Kasir/Admin telah diberi tahu.')
+            toast.success('Status berhasil diperbarui! Admin / Kasir telah diberi tahu.')
             fetchAppointments()
         } catch (err) {
             toast.error('Gagal update status: ' + err.message)

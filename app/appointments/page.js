@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
+import { notifyPatientArrived } from '@/lib/notifications'
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([])
@@ -389,34 +390,14 @@ export default function AppointmentsPage() {
                 return
             }
 
-            // 2. Insert notification if therapist is assigned
-            if (apt.therapist_id) {
-                // Fetch appointment treatments
-                const { data: apptTreatments } = await supabase
-                    .from('appointment_treatments')
-                    .select('treatments(name)')
-                    .eq('appointment_id', apt.id)
-                
-                const treatmentNames = apptTreatments?.map(t => t.treatments?.name).join(', ') || 'Treatment'
-                const startHour = apt.start_time ? apt.start_time.substring(0, 5) : ''
-
-                const { error: notifErr } = await supabase
-                    .from('notifications')
-                    .insert([{
-                        recipient_id: apt.therapist_id,
-                        sender_id: user.id,
-                        appointment_id: apt.id,
-                        type: 'patient_arrived',
-                        title: 'Pasien Sudah Datang 🙋‍♀️',
-                        message: `Pasien ${apt.patients?.full_name || ''} telah tiba di lokasi untuk ${treatmentNames} (${startHour}). Silakan persiapkan ruangan & perawatan.`
-                    }])
-                
-                if (notifErr) {
-                    console.error('Gagal membuat notifikasi:', notifErr.message)
-                }
-            }
+            // 2. Kirim notifikasi realtime ke terapis yang ditugaskan (atau seluruh terapis aktif di cabang tersebut)
+            await notifyPatientArrived({
+                supabase,
+                appointment: apt,
+                senderId: user.id
+            })
             
-            toast.success('Status kedatangan pasien diperbarui!')
+            toast.success('Status kedatangan pasien diperbarui! Terapis telah diberi tahu.')
             fetchData()
         }
 
