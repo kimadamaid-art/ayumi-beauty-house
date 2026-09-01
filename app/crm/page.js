@@ -206,7 +206,7 @@ export default function CRMPage() {
         }
 
         // 3. Fetch Treatment Records for Dormant
-        let trQuery = supabase.from('treatment_records').select('patient_id, treatment_date, branch_id, patients!inner(full_name, whatsapp)')
+        let trQuery = supabase.from('treatment_records').select('id, patient_id, treatment_date, branch_id, patients!inner(full_name, whatsapp)')
         const { data: trData } = await trQuery
         if (trData) {
             const latestRecords = {}
@@ -215,6 +215,7 @@ export default function CRMPage() {
                 const d = new Date(r.treatment_date)
                 if (!latestRecords[r.patient_id] || d > latestRecords[r.patient_id].date) {
                     latestRecords[r.patient_id] = {
+                        treatment_record_id: r.id,
                         patient_id: r.patient_id,
                         full_name: r.patients.full_name,
                         whatsapp: r.patients.whatsapp,
@@ -862,11 +863,41 @@ export default function CRMPage() {
                                                     return (
                                                         <tr key={q.id} className="hover:bg-pink-50/20 transition-colors">
                                                             <td className="p-4">
-                                                                <div className="font-bold text-gray-900">{q.patients?.full_name}</div>
+                                                                {q.treatment_record_id ? (
+                                                                    <Link 
+                                                                        href={`/treatment-records/${q.treatment_record_id}`}
+                                                                        className="font-bold text-gray-900 hover:text-ayumi-primary hover:underline inline-flex items-center gap-1 group"
+                                                                        title="Klik untuk melihat detail riwayat treatment terakhir"
+                                                                    >
+                                                                        <span>{q.patients?.full_name}</span>
+                                                                        <span className="text-[10px] text-gray-400 group-hover:text-ayumi-primary group-hover:translate-x-0.5 transition-all">↗</span>
+                                                                    </Link>
+                                                                ) : q.patient_id ? (
+                                                                    <Link 
+                                                                        href={`/patients/${q.patient_id}`}
+                                                                        className="font-bold text-gray-900 hover:text-ayumi-primary hover:underline inline-flex items-center gap-1 group"
+                                                                        title="Klik untuk melihat profil & riwayat pasien"
+                                                                    >
+                                                                        <span>{q.patients?.full_name}</span>
+                                                                        <span className="text-[10px] text-gray-400 group-hover:text-ayumi-primary group-hover:translate-x-0.5 transition-all">↗</span>
+                                                                    </Link>
+                                                                ) : (
+                                                                    <div className="font-bold text-gray-900">{q.patients?.full_name}</div>
+                                                                )}
                                                                 <div className="text-xs text-gray-400 mt-0.5">{q.patients?.whatsapp || 'No WA -'}</div>
                                                             </td>
                                                             <td className="p-4 text-xs font-semibold text-gray-600">
-                                                                {q.treatment_records?.treatment_date || '-'}
+                                                                {q.treatment_record_id ? (
+                                                                    <Link 
+                                                                        href={`/treatment-records/${q.treatment_record_id}`}
+                                                                        className="hover:text-ayumi-primary hover:underline font-semibold"
+                                                                        title="Buka detail rekam medis"
+                                                                    >
+                                                                        {q.treatment_records?.treatment_date || '-'}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span>{q.treatment_records?.treatment_date || '-'}</span>
+                                                                )}
                                                             </td>
                                                             <td className="p-4 text-xs font-semibold text-gray-700">
                                                                 <div className="font-bold">{q.scheduled_date || '-'}</div>
@@ -1007,7 +1038,14 @@ export default function CRMPage() {
                                                                 {new Date(pt.birth_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}
                                                             </span>
                                                         </div>
-                                                        <h4 className="font-bold text-gray-800 text-lg">{pt.full_name}</h4>
+                                                        <Link 
+                                                            href={`/patients/${pt.id}`}
+                                                            className="font-bold text-gray-800 text-lg hover:text-ayumi-primary hover:underline inline-flex items-center gap-1 group"
+                                                            title="Klik untuk melihat profil pasien"
+                                                        >
+                                                            <span>{pt.full_name}</span>
+                                                            <span className="text-xs text-gray-400 group-hover:text-ayumi-primary transition-colors">↗</span>
+                                                        </Link>
                                                         <p className="text-sm text-ayumi-primary font-medium">Ulang tahun ke-{pt.age}</p>
                                                     </div>
                                                     <button
@@ -1086,7 +1124,7 @@ export default function CRMPage() {
                                                         <tr key={d.patient_id} className="border-b border-gray-50 hover:bg-ayumi-table-hover">
                                                             <td className="p-4">
                                                                 <input 
-                                                                    type="checkbox"
+                                                                    type="checkbox" 
                                                                     checked={selectedDormantIds.includes(d.patient_id)}
                                                                     onChange={(e) => {
                                                                         if (e.target.checked) {
@@ -1099,11 +1137,41 @@ export default function CRMPage() {
                                                                 />
                                                             </td>
                                                             <td className="p-4">
-                                                                <div className="font-bold text-gray-800">{d.full_name}</div>
+                                                                {d.treatment_record_id ? (
+                                                                    <Link 
+                                                                        href={`/treatment-records/${d.treatment_record_id}`}
+                                                                        className="font-bold text-gray-800 hover:text-ayumi-primary hover:underline inline-flex items-center gap-1 group"
+                                                                        title="Klik untuk melihat riwayat treatment terakhir"
+                                                                    >
+                                                                        <span>{d.full_name}</span>
+                                                                        <span className="text-[10px] text-gray-400 group-hover:text-ayumi-primary transition-colors">↗</span>
+                                                                    </Link>
+                                                                ) : d.patient_id ? (
+                                                                    <Link 
+                                                                        href={`/patients/${d.patient_id}`}
+                                                                        className="font-bold text-gray-800 hover:text-ayumi-primary hover:underline inline-flex items-center gap-1 group"
+                                                                        title="Klik untuk melihat profil pasien"
+                                                                    >
+                                                                        <span>{d.full_name}</span>
+                                                                        <span className="text-[10px] text-gray-400 group-hover:text-ayumi-primary transition-colors">↗</span>
+                                                                    </Link>
+                                                                ) : (
+                                                                    <div className="font-bold text-gray-800">{d.full_name}</div>
+                                                                )}
                                                                 <div className="text-sm text-gray-500">{d.whatsapp}</div>
                                                             </td>
                                                             <td className="p-4 text-sm text-gray-600">
-                                                                {new Date(d.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                                {d.treatment_record_id ? (
+                                                                    <Link 
+                                                                        href={`/treatment-records/${d.treatment_record_id}`}
+                                                                        className="hover:text-ayumi-primary hover:underline font-medium"
+                                                                        title="Klik untuk melihat riwayat rekam medis terakhir"
+                                                                    >
+                                                                        {new Date(d.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span>{new Date(d.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                                                )}
                                                             </td>
                                                             <td className="p-4">
                                                                 <span className="text-red-600 font-bold">{d.diffDays} Hari</span>
