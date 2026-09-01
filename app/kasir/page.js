@@ -1446,7 +1446,7 @@ function PosPageContent() {
                         
                         {/* Subtabs catalog & Universal Search Bar */}
                         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-gray-100 bg-gray-50/60 p-3 sm:px-4 sm:py-3 gap-3">
-                            {/* Tabs with Distinct Highlights */}
+                            {/* Tabs with Distinct Clean Highlights */}
                             <div className="flex bg-gray-200/70 p-1 rounded-xl gap-1 overflow-x-auto custom-scrollbar shrink-0">
                                 {(() => {
                                     const filteredTreatments = treatments.filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -1458,33 +1458,29 @@ function PosPageContent() {
                                         ...(searchQuery.trim() ? [{
                                             key: 'all',
                                             label: 'Semua',
-                                            icon: '✨',
                                             count: totalMatches,
-                                            activeStyle: 'bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-sm ring-1 ring-black/10',
+                                            activeStyle: 'bg-slate-900 text-white shadow-xs font-black',
                                             inactiveHover: 'hover:text-slate-900 hover:bg-white/60'
                                         }] : []),
                                         {
                                             key: 'treatment',
                                             label: 'Treatment',
-                                            icon: '💆‍♀️',
                                             count: searchQuery.trim() ? filteredTreatments.length : treatments.length,
-                                            activeStyle: 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm ring-1 ring-pink-600/20',
+                                            activeStyle: 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-xs font-black',
                                             inactiveHover: 'hover:text-pink-600 hover:bg-pink-50/60'
                                         },
                                         {
                                             key: 'product',
                                             label: 'Produk',
-                                            icon: '🧴',
                                             count: searchQuery.trim() ? filteredProducts.length : products.length,
-                                            activeStyle: 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/20',
+                                            activeStyle: 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs font-black',
                                             inactiveHover: 'hover:text-teal-700 hover:bg-emerald-50/60'
                                         },
                                         {
                                             key: 'coupon',
                                             label: 'Paket Kupon',
-                                            icon: '🎟️',
                                             count: searchQuery.trim() ? filteredCoupons.length : coupons.length,
-                                            activeStyle: 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm ring-1 ring-purple-600/20',
+                                            activeStyle: 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs font-black',
                                             inactiveHover: 'hover:text-purple-700 hover:bg-purple-50/60'
                                         },
                                     ]
@@ -1502,12 +1498,11 @@ function PosPageContent() {
                                                         : `text-gray-600 ${tab.inactiveHover}`
                                                 }`}
                                             >
-                                                <span>{tab.icon}</span>
                                                 <span>{tab.label}</span>
                                                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                                                     isActive 
                                                         ? 'bg-white/25 text-white' 
-                                                        : 'bg-gray-300/60 text-gray-700'
+                                                        : 'bg-gray-300/70 text-gray-700'
                                                 }`}>
                                                     {tab.count}
                                                 </span>
@@ -1570,13 +1565,15 @@ function PosPageContent() {
                                 if (q && totalMatches === 0) {
                                     return (
                                         <div className="flex flex-col items-center justify-center py-16 text-gray-400 text-center my-auto space-y-2">
-                                            <div className="text-3xl">🔍</div>
+                                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                            </div>
                                             <p className="text-sm font-bold text-gray-700">Tidak ada item ditemukan</p>
                                             <p className="text-xs text-gray-400">Tidak ditemukan treatment, produk, atau kupon dengan kata kunci &quot;{searchQuery}&quot;.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => setSearchQuery('')}
-                                                className="mt-2 text-xs bg-pink-50 hover:bg-pink-100 text-ayumi-primary font-bold px-3 py-1.5 rounded-lg transition-colors border border-pink-200"
+                                                className="mt-2 text-xs bg-pink-50 hover:bg-pink-100 text-ayumi-primary font-bold px-3 py-1.5 rounded-lg transition-colors border border-pink-200 cursor-pointer"
                                             >
                                                 Reset Pencarian
                                             </button>
@@ -1600,7 +1597,7 @@ function PosPageContent() {
                                         {q && currentTabEmpty && totalMatches > 0 && (
                                             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs animate-fade-in">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-lg">💡</span>
+                                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
                                                     <div className="text-xs text-amber-900 font-medium">
                                                         Tidak ada hasil di tab ini, namun ditemukan <strong className="font-extrabold text-amber-950">{totalMatches} item</strong> di kategori lain untuk &quot;{searchQuery}&quot;:
                                                     </div>
@@ -1657,8 +1654,8 @@ function PosPageContent() {
                                                     >
                                                         <div className="space-y-1.5 mb-2">
                                                             <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                                                                    <span>💆‍♀️</span> Treatment
+                                                                <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
+                                                                    Treatment
                                                                 </span>
                                                                 {hasDiscount && (
                                                                     <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
@@ -1707,8 +1704,8 @@ function PosPageContent() {
                                                 >
                                                     <div className="space-y-1.5 mb-2">
                                                         <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                                                                <span>🧴</span> Produk
+                                                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
+                                                                Produk
                                                             </span>
                                                             <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${
                                                                 p.quantity > 5 
@@ -1753,8 +1750,8 @@ function PosPageContent() {
                                                 >
                                                     <div className="space-y-1.5 mb-2">
                                                         <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                            <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                                                                <span>🎟️</span> Paket Kupon
+                                                            <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
+                                                                Paket Kupon
                                                             </span>
                                                             {c.category && (
                                                                 <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
