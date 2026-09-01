@@ -273,24 +273,24 @@ function EditRecordForm() {
     const uploadPhotoSlot = async (file, slotKey, patientId, recordId) => {
         // Automatic client-side compression (WebP 1600px q80)
         const compressed = await compressImageForMedical(file, 1600, 0.8)
-        const ext = compressed.name.split('.').pop() || 'webp'
-        const filePath = `${patientId}/${recordId}/${slotKey}.${ext}`
+        const fd = new FormData()
+        fd.append('file', compressed)
+        fd.append('patientId', patientId)
+        fd.append('recordId', recordId)
+        fd.append('slotKey', slotKey)
+        fd.append('photoType', 'before')
 
-        const { error: uploadErr } = await supabase.storage
-            .from('patient-photos')
-            .upload(filePath, compressed, { upsert: true })
+        const res = await fetch('/api/patient-photos/upload', {
+            method: 'POST',
+            body: fd
+        })
 
-        if (uploadErr) {
-            throw new Error(`Gagal mengunggah foto slot ${slotKey}: ${uploadErr.message}`)
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+            throw new Error(json.error || `Gagal mengunggah foto slot ${slotKey}`)
         }
 
-        return {
-            patient_id: patientId,
-            treatment_record_id: recordId,
-            photo_type: 'before',
-            storage_path: filePath,
-            caption: slotKey
-        }
+        return json.photo
     }
 
     const handleSave = async (e) => {
@@ -377,21 +377,12 @@ function EditRecordForm() {
                 if (queueErr) console.warn('Followup queue note:', queueErr.message || queueErr)
             }
 
-            // 4. Upload Photos if updated
+            // 4. Upload Photos if updated (via Server API)
             const photoSlots = ['foto_depan', 'foto_kiri', 'foto_kanan']
-            const photosToInsert = []
             for (const slot of photoSlots) {
                 if (photoFiles[slot]) {
-                    // Delete old photo entry from DB first to prevent duplicates
-                    await supabase.from('patient_photos').delete().eq('treatment_record_id', id).eq('caption', slot)
-                    const meta = await uploadPhotoSlot(photoFiles[slot], slot, formData.patient_id, id)
-                    photosToInsert.push(meta)
+                    await uploadPhotoSlot(photoFiles[slot], slot, formData.patient_id, id)
                 }
-            }
-
-            if (photosToInsert.length > 0) {
-                const { error: photoErr } = await supabase.from('patient_photos').insert(photosToInsert)
-                if (photoErr) throw photoErr
             }
 
             toast.success('Rekam medis berhasil diperbarui!')

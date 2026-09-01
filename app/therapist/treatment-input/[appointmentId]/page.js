@@ -402,36 +402,34 @@ export default function TreatmentInputPage() {
     }
 
     const uploadPhotoSlot = async (file, slotKey, patientId, recordId) => {
-        const safePatientId = patientId || appointment?.patient_id || appointment?.patients?.id || 'patient'
-        const safeRecordId = recordId || 'record'
-        
-        // Automatic client-side compression (WebP 1600px q80)
         let uploadFile = file
-        try {
-            uploadFile = await compressImageForMedical(file, 1600, 0.8)
-        } catch (compErr) {
-            console.warn('Compression fallback to original file:', compErr)
+        if (typeof compressImageForMedical === 'function') {
+            try {
+                uploadFile = await compressImageForMedical(file, 1600, 0.8)
+            } catch (compErr) {
+                console.warn('Compression fallback to original file:', compErr)
+            }
         }
 
-        const ext = (uploadFile.name && uploadFile.name.split('.').pop()) || 'webp'
-        const filePath = `${safePatientId}/${safeRecordId}/${slotKey}.${ext}`
-        
-        const { error: uploadErr } = await supabase.storage
-            .from('patient-photos')
-            .upload(filePath, uploadFile, { upsert: true })
+        const safePatientId = patientId || 'patient'
+        const fd = new FormData()
+        fd.append('file', uploadFile)
+        fd.append('patientId', safePatientId)
+        fd.append('recordId', recordId)
+        fd.append('slotKey', slotKey)
+        fd.append('photoType', 'before')
 
-        if (uploadErr) {
-            console.error(`Gagal upload foto ${slotKey}:`, uploadErr)
-            throw new Error(`Gagal mengunggah foto ${slotKey}: ${uploadErr.message}`)
+        const res = await fetch('/api/patient-photos/upload', {
+            method: 'POST',
+            body: fd
+        })
+
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+            throw new Error(json.error || `Gagal mengunggah foto ${slotKey}`)
         }
 
-        return {
-            patient_id: safePatientId !== 'patient' ? safePatientId : null,
-            treatment_record_id: recordId,
-            photo_type: 'before',
-            storage_path: filePath,
-            caption: slotKey
-        }
+        return json.photo
     }
 
     const handleSubmit = async (e) => {
@@ -545,30 +543,18 @@ export default function TreatmentInputPage() {
                 }
             }
 
-            // 3. Upload Photos
+            // 3. Upload Photos (via Server API)
             const photoSlots = ['foto_depan', 'foto_kiri', 'foto_kanan']
-            const photosToInsert = []
             const targetPatientId = appointment?.patient_id || appointment?.patients?.id || null
 
             for (const slot of photoSlots) {
                 if (photoFiles[slot]) {
                     try {
-                        const meta = await uploadPhotoSlot(photoFiles[slot], slot, targetPatientId, recordId)
-                        photosToInsert.push(meta)
+                        await uploadPhotoSlot(photoFiles[slot], slot, targetPatientId, recordId)
                     } catch (photoErr) {
                         console.error(`Gagal upload foto ${slot}:`, photoErr)
                         toast.error(`Peringatan: ${photoErr.message}`)
                     }
-                }
-            }
-
-            if (photosToInsert.length > 0) {
-                for (const p of photosToInsert) {
-                    await supabase.from('patient_photos').delete().eq('treatment_record_id', recordId).eq('caption', p.caption)
-                }
-                const { error: insertPhotoErr } = await supabase.from('patient_photos').insert(photosToInsert)
-                if (insertPhotoErr) {
-                    console.error('Error inserting patient_photos meta:', insertPhotoErr)
                 }
             }
 
