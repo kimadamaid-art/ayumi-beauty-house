@@ -39,7 +39,7 @@ function NewAppointmentForm() {
         isSearching: isSearchingPatient,
         hasSearched: hasSearchedPatient,
         resetSearch: resetPatientSearch
-    } = usePatientSearch({ debounceMs: 350, limit: 20 })
+    } = usePatientSearch({ debounceMs: 150, limit: 50 })
 
     // Quick Add Patient Modal State
     const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false)

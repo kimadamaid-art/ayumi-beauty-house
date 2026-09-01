@@ -93,7 +93,7 @@ function AddRecordForm() {
             setIsCheckingAccess(false)
 
             // 3. Fetch Master Data
-            const { data: pts } = await supabase.from('patients').select('id, full_name, whatsapp')
+            const { data: pts } = await supabase.from('patients').select('id, full_name, whatsapp').order('full_name', { ascending: true })
             if (pts) setPatients(pts)
 
             const { data: usrs } = await supabase.from('users').select('id, full_name, role, branch_id').eq('role', 'therapist').eq('is_active', true).order('full_name')

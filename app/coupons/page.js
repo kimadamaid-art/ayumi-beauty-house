@@ -136,16 +136,38 @@ export default function CouponsDashboardPage() {
         if (!userLoaded) return
         if (activeTab === 'usage' && usageSearchPatient.length >= 2) {
             const searchPts = async () => {
-                const escaped = escapePostgrestFilter(usageSearchPatient.trim())
-                let pQuery = supabase
+                const queryStr = usageSearchPatient.trim()
+                const escaped = escapePostgrestFilter(queryStr)
+                const { data } = await supabase
                     .from('patients')
                     .select('id, full_name, whatsapp')
                     .or(`full_name.ilike.${escaped},whatsapp.ilike.${escaped}`)
                     .order('full_name', { ascending: true })
-                    .limit(20)
+                    .limit(100)
 
-                const { data } = await pQuery
-                if (data) setUsagePatients(data)
+                if (data) {
+                    const q = queryStr.toLowerCase()
+                    const cleanDigits = queryStr.replace(/\D/g, '')
+
+                    const getRankScore = (name, wa) => {
+                        const lowerName = (name || '').toLowerCase()
+                        const rawWa = (wa || '').replace(/\D/g, '')
+                        if (lowerName === q || (cleanDigits.length >= 6 && rawWa.includes(cleanDigits))) return 0
+                        if (lowerName.startsWith(q)) return 1
+                        const words = lowerName.split(/\s+/)
+                        if (words.some(w => w.startsWith(q))) return 2
+                        return 3
+                    }
+
+                    const sorted = data.slice().sort((a, b) => {
+                        const scoreA = getRankScore(a.full_name, a.whatsapp)
+                        const scoreB = getRankScore(b.full_name, b.whatsapp)
+                        if (scoreA !== scoreB) return scoreA - scoreB
+                        return (a.full_name || '').localeCompare(b.full_name || '')
+                    })
+
+                    setUsagePatients(sorted.slice(0, 30))
+                }
             }
             searchPts()
         } else if (usageSearchPatient.length < 2) {

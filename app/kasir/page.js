@@ -35,7 +35,7 @@ function PosPageContent() {
         isSearching: isSearchingPatient,
         hasSearched: hasSearchedPatient,
         resetSearch: resetPatientSearch
-    } = usePatientSearch({ debounceMs: 350, limit: 20 })
+    } = usePatientSearch({ debounceMs: 150, limit: 50 })
 
     // UI State
     const [activeTab, setActiveTab] = useState('treatment') // 'treatment' | 'product' | 'coupon'

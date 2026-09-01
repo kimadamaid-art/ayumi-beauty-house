@@ -15,7 +15,7 @@ import { normalizeIndonesianPhone } from '@/lib/phoneNormalization'
  * @param {number} [options.minChars=2]
  * @param {number} [options.limit=20]
  */
-export function usePatientSearch({ debounceMs = 350, minChars = 2, limit = 20 } = {}) {
+export function usePatientSearch({ debounceMs = 150, minChars = 2, limit = 50 } = {}) {
     const [searchQuery, setSearchQuery] = useState('')
     const [results, setResults] = useState([])
     const [isSearching, setIsSearching] = useState(false)
@@ -54,13 +54,13 @@ export function usePatientSearch({ debounceMs = 350, minChars = 2, limit = 20 } 
                     }
                 }
 
-                // Server-side query across all patients (no branch filtering)
+                // Server-side query across all patients (fetch up to 150 records for smart ranking)
                 const { data, error } = await supabase
                     .from('patients')
                     .select('id, full_name, whatsapp, branch_id, branches(name)')
                     .or(orClauses.join(','))
                     .order('full_name', { ascending: true })
-                    .limit(limit)
+                    .limit(150)
 
                 // Only update state if this is still the latest active request
                 if (requestId === latestRequestIdRef.current) {
@@ -68,7 +68,33 @@ export function usePatientSearch({ debounceMs = 350, minChars = 2, limit = 20 } 
                         console.error('Patient search error:', error)
                         setResults([])
                     } else {
-                        setResults(data || [])
+                        // Smart Ranking: Prioritaskan nama yang sama persis, diawali kata pencarian, lalu kata kedua
+                        const q = trimmed.toLowerCase()
+                        const cleanDigits = trimmed.replace(/\D/g, '')
+
+                        const getRankScore = (name, wa) => {
+                            const lowerName = (name || '').toLowerCase()
+                            const rawWa = (wa || '').replace(/\D/g, '')
+
+                            // 0: Cocok persis nama atau nomor WA
+                            if (lowerName === q || (cleanDigits.length >= 6 && rawWa.includes(cleanDigits))) return 0
+                            // 1: Nama depan diawali kata pencarian (cth: "Yanti Maryanti")
+                            if (lowerName.startsWith(q)) return 1
+                            // 2: Salah satu kata diawali kata pencarian (cth: "Puji Yanti", "Enung Yanti")
+                            const words = lowerName.split(/\s+/)
+                            if (words.some(w => w.startsWith(q))) return 2
+                            // 3: Substring di tengah kata (cth: "Damayanti", "Nurliyanti")
+                            return 3
+                        }
+
+                        const sorted = (data || []).slice().sort((a, b) => {
+                            const scoreA = getRankScore(a.full_name, a.whatsapp)
+                            const scoreB = getRankScore(b.full_name, b.whatsapp)
+                            if (scoreA !== scoreB) return scoreA - scoreB
+                            return (a.full_name || '').localeCompare(b.full_name || '')
+                        })
+
+                        setResults(sorted.slice(0, limit))
                     }
                     setIsSearching(false)
                     setHasSearched(true)
