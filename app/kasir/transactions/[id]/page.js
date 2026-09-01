@@ -482,36 +482,72 @@ export default function ReceiptPage() {
             `}</style>
 
             {/* Header Actions - hidden on print */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 print-hide bg-white p-4 rounded-2xl border border-pink-100/50 shadow-sm">
-                <Link href="/kasir" className="text-gray-500 hover:text-ayumi-primary flex items-center gap-2 text-sm font-semibold transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                    Kembali ke POS
-                </Link>
-                <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-3 mb-6 print-hide bg-white p-3.5 rounded-2xl border border-pink-100/50 shadow-sm">
+                <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
+                    <Link 
+                        href="/kasir" 
+                        className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                        title="Kembali ke Kasir untuk Transaksi Baru"
+                    >
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                        <span>Transaksi Baru</span>
+                    </Link>
+                    <Link 
+                        href="/transactions" 
+                        className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                        title="Lihat Riwayat Transaksi"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                        <span>Riwayat</span>
+                    </Link>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
                     {!transaction.treatment_record_id && transaction.patient_id && transaction.transaction_items?.some(i => i.item_type === 'treatment') && (
-                        <Link href={`/treatment-records/new?transactionId=${transaction.id}`} className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-ayumi-primary rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            Buat Rekam Medis
+                        <Link 
+                            href={`/treatment-records/new?transactionId=${transaction.id}`} 
+                            className="px-3 py-2 bg-pink-50 hover:bg-pink-100 text-ayumi-primary border border-pink-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                            title="Buat Rekam Medis"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            <span>Rekam Medis</span>
                         </Link>
                     )}
                     {transaction.treatment_record_id && (
-                        <Link href={`/treatment-records/${transaction.treatment_record_id}`} className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-ayumi-primary rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            Kirim Rekam Medis (WA)
+                        <Link 
+                            href={`/treatment-records/${transaction.treatment_record_id}`} 
+                            className="px-3 py-2 bg-pink-50 hover:bg-pink-100 text-ayumi-primary border border-pink-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                            title="Lihat Rekam Medis"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            <span>Rekam Medis</span>
                         </Link>
                     )}
-                    <Link href="/kasir" className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-colors shadow-sm">
-                        Transaksi Baru
-                    </Link>
-                    <Link href="/transactions" className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-bold transition-colors shadow-sm">
-                        Riwayat Transaksi
-                    </Link>
-                    
+
+                    <button 
+                        onClick={handlePrintBluetooth}
+                        disabled={isBluetoothPrinting}
+                        className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                        title="Cetak Langsung via Bluetooth Thermal Printer"
+                    >
+                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        <span>{isBluetoothPrinting ? 'Mencetak...' : 'Print Bluetooth'}</span>
+                    </button>
+
+                    <button 
+                        onClick={handlePrint}
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        title="Cetak atau Simpan sebagai PDF"
+                    >
+                        <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        <span>Cetak / PDF</span>
+                    </button>
+
                     {/* Tombol Utama: Kirim Foto Struk WA */}
                     <button 
                         onClick={() => handleSendReceiptImage('wa_image')}
                         disabled={isGeneratingImage}
-                        className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+                        className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
                         title="Salin Foto Struk ke Clipboard & Buka WhatsApp"
                     >
                         {isGeneratingImage ? (
@@ -519,46 +555,7 @@ export default function ReceiptPage() {
                         ) : (
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         )}
-                        📸 Kirim Foto Struk WA
-                    </button>
-
-                    {/* Tombol Unduh Foto Struk */}
-                    <button 
-                        onClick={() => handleSendReceiptImage('download')}
-                        disabled={isGeneratingImage}
-                        className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                        title="Unduh Gambar Struk dalam format PNG"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Unduh Foto Struk
-                    </button>
-
-                    {/* Tombol Kirim Teks WA Biasa */}
-                    <button 
-                        onClick={handleSendWA}
-                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                        title="Kirim Struk format Teks Rincian ke WhatsApp"
-                    >
-                        <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.993L2 22l5.233-1.371a9.946 9.946 0 004.787 1.226h.005c5.502 0 9.985-4.479 9.986-9.987 0-2.67-1.037-5.178-2.924-7.065A9.923 9.923 0 0012.012 2zm4.857 13.913c-.266.747-1.545 1.399-2.113 1.488-.517.081-1.19.122-1.921-.112-.733-.234-1.637-.621-2.738-1.096-1.83-.791-3.23-2.56-3.32-2.682-.092-.121-.75-.992-.75-1.884v-.001c0-.893.468-1.332.635-1.514.167-.182.365-.228.487-.228.121 0 .243.002.348.006.112.005.263-.042.412.316.152.366.52.1.626.471.106.371.076.66-.046.903-.121.243-.243.402-.365.548-.121.146-.248.304-.106.548.142.244.632 1.039 1.36 1.688.937.834 1.728 1.093 1.972 1.214.244.121.385.101.527-.061.142-.162.608-.71.77-1.016.162-.304.324-.254.548-.172.223.081 1.42.67 1.663.792.244.121.405.182.466.284.061.101.061.589-.203 1.337z"/></svg>
-                        Kirim WA (Teks)
-                    </button>
-
-                    <button 
-                        onClick={handlePrintBluetooth}
-                        disabled={isBluetoothPrinting}
-                        className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
-                        title="Cetak Langsung via Bluetooth Thermal Printer (ESC/POS)"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                        {isBluetoothPrinting ? 'Mencetak...' : 'Print Bluetooth'}
-                    </button>
-                    <button 
-                        onClick={handlePrint}
-                        className="px-3 py-2 bg-ayumi-primary hover:bg-ayumi-secondary text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-                        title="Cetak/Simpan PDF lewat Dialog Browser"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        Simpan PDF / Print
+                        <span>Kirim Foto Struk (WA)</span>
                     </button>
                 </div>
             </div>
