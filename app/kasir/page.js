@@ -595,52 +595,60 @@ function PosPageContent() {
     }
 
     const loadPendingBillToCart = async (bill) => {
-        let activeCoupons = []
+        try {
+            if (!bill) return
 
-        // Select patient and fetch active coupons
-        if (bill.patients) {
-            activeCoupons = await handleSelectPatient(bill.patients)
-        }
-        
-        // Fetch or check coupon usage logs already linked to this treatment record
-        let existingCouponLogs = bill.coupon_usage_logs || []
-        if (!bill.coupon_usage_logs || bill.coupon_usage_logs.length === 0) {
-            const { data: logs } = await supabase
-                .from('coupon_usage_logs')
-                .select('id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name)))')
-                .eq('treatment_record_id', bill.id)
-            if (logs && logs.length > 0) existingCouponLogs = logs
-        }
-        
-        let newPackageItem = null
-        const processedTreatments = []
+            if (bill.branch_id && bill.branch_id !== selectedBranch) {
+                setSelectedBranch(bill.branch_id)
+            }
 
-        for (const item of (bill.treatment_record_items || [])) {
-            const originalPrice = Number(item.treatments?.price) || Number(item.original_price) || Number(item.price_at_time) || 0
-            const rawNotes = item.notes || ''
+            let activeCoupons = []
 
-            const matchNewPkg = rawNotes.match(/\[KUPON_BARU:([^:]+):([^:]+):([^\]]+)\]/)
-            const matchOldPkg = rawNotes.match(/\[KUPON_LAMA:([^:]+):([^\]]+)\]/)
+            // Select patient and fetch active coupons
+            if (bill.patients) {
+                activeCoupons = await handleSelectPatient(bill.patients)
+            }
+            
+            // Fetch or check coupon usage logs already linked to this treatment record
+            let existingCouponLogs = bill.coupon_usage_logs || []
+            if (!bill.coupon_usage_logs || bill.coupon_usage_logs.length === 0) {
+                const { data: logs } = await supabase
+                    .from('coupon_usage_logs')
+                    .select('id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name)))')
+                    .eq('treatment_record_id', bill.id)
+                if (logs && logs.length > 0) existingCouponLogs = logs
+            }
+            
+            let newPackageItem = null
+            const processedTreatments = []
 
-            if (matchNewPkg) {
-                const [, pkgId, pkgName, pkgPrice] = matchNewPkg
-                const fallbackPkg = couponPackages.find(p => p.id === pkgId || p.name?.toLowerCase() === pkgName?.toLowerCase())
-                const parsedPrice = Number(pkgPrice) || Number(fallbackPkg?.price) || 0
+            for (const item of (bill.treatment_record_items || [])) {
+                const originalPrice = Number(item.treatments?.price) || Number(item.original_price) || Number(item.price_at_time) || 0
+                const rawNotes = item.notes || ''
 
-                if (!newPackageItem) {
-                    newPackageItem = {
-                        id: pkgId || fallbackPkg?.id || 'new-coupon',
-                        item_type: 'coupon',
-                        name: `Paket Kupon: ${pkgName || fallbackPkg?.name || 'Paket'}`,
-                        price: parsedPrice,
-                        original_price: parsedPrice,
-                        discount_percent: 0,
-                        quantity: 1,
-                        subtotal: parsedPrice,
-                        commission_percent: 0,
-                        is_new_coupon_package: true
+                const matchNewPkg = rawNotes.match(/\[KUPON_BARU:([^:]+):([^:]+):([^\]]+)\]/)
+                const matchOldPkg = rawNotes.match(/\[KUPON_LAMA:([^:]+):([^\]]+)\]/)
+
+                if (matchNewPkg) {
+                    const [, pkgId, pkgName, pkgPrice] = matchNewPkg
+                    const fallbackPkg = (coupons || []).find(p => p.id === pkgId || p.name?.toLowerCase() === pkgName?.toLowerCase())
+                    const parsedPrice = Number(pkgPrice) || Number(fallbackPkg?.price) || 0
+
+                    if (!newPackageItem) {
+                        newPackageItem = {
+                            id: pkgId || fallbackPkg?.id || 'new-coupon',
+                            item_type: 'coupon',
+                            name: `Paket Kupon: ${pkgName || fallbackPkg?.name || 'Paket'}`,
+                            price: parsedPrice,
+                            original_price: parsedPrice,
+                            discount_percent: 0,
+                            quantity: 1,
+                            subtotal: parsedPrice,
+                            commission_percent: 0,
+                            treatment_record_id: bill.id,
+                            is_new_coupon_package: true
+                        }
                     }
-                }
 
                 processedTreatments.push({
                     id: item.treatment_id,
@@ -754,7 +762,12 @@ function PosPageContent() {
         setSelectedTherapistId(bill.performed_by || 'worker')
         setIsPendingModalOpen(false)
         setLeftPanelTab('catalog')
+        toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dimuat ke keranjang!`)
+    } catch (err) {
+        console.error('Error loading pending bill to cart:', err)
+        toast.error('Gagal memuat tagihan: ' + (err.message || 'Terjadi kesalahan'))
     }
+}
 
 
     // --- Cart Actions ---
