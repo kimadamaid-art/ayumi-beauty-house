@@ -1015,6 +1015,51 @@ function PosPageContent() {
         return result
     }, [searchQuery, products, categories])
 
+    // Categorized treatments grouped with Option 1 Section Headers (No numbers)
+    const groupedTreatmentCategories = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim()
+        const filteredTreatments = treatments.filter(t => !q || t.name.toLowerCase().includes(q))
+
+        const dbCategoryNames = (categories || []).map(c => c.name)
+        const treatmentCategoryOrder = [
+            ...dbCategoryNames.filter(c => !['YUFADERMA ACNE', 'YUFADERMA BRIGHT', 'Ayumi Produk', 'Dekoratif'].includes(c)),
+            ...DEFAULT_CATEGORY_ORDER
+        ]
+
+        const categoryMap = {}
+        filteredTreatments.forEach(t => {
+            const cat = getItemCategory(t, 'treatment')
+            if (!categoryMap[cat]) categoryMap[cat] = []
+            categoryMap[cat].push(t)
+        })
+
+        const result = []
+        const seen = new Set()
+
+        treatmentCategoryOrder.forEach(catName => {
+            if (!seen.has(catName) && categoryMap[catName] && categoryMap[catName].length > 0) {
+                seen.add(catName)
+                result.push({
+                    name: catName,
+                    items: categoryMap[catName]
+                })
+            }
+        })
+
+        // Catch any remaining categories
+        Object.keys(categoryMap).forEach(catName => {
+            if (!seen.has(catName) && categoryMap[catName].length > 0) {
+                seen.add(catName)
+                result.push({
+                    name: catName,
+                    items: categoryMap[catName]
+                })
+            }
+        })
+
+        return result
+    }, [searchQuery, treatments, categories])
+
     const toggleCartItemCoupon = (itemId) => {
         setCart(prev => prev.map(cartItem => {
             if (cartItem.id === itemId && cartItem.item_type === 'treatment') {
@@ -1823,67 +1868,95 @@ function PosPageContent() {
                                             </div>
                                         )}
 
-                                        {/* 1. TREATMENTS (Grid Biasa - Ayumi Harmony) */}
-                                        {showTreatments && filteredTreatments.length > 0 && (
-                                            <div className="space-y-2">
+                                        {/* 1. TREATMENTS (Berkategori dengan Option 1 Banner Elegan Ivory & Terracotta) */}
+                                        {showTreatments && (
+                                            <div className="space-y-6">
                                                 {showAll && (
-                                                    <h3 className="font-black text-xs text-[#4E2A12] tracking-wider uppercase px-1">
-                                                        Treatment Perawatan ({filteredTreatments.length})
-                                                    </h3>
+                                                    <div className="flex items-center gap-2 pb-1 border-b border-[#F2D8C3]">
+                                                        <h2 className="font-black text-xs sm:text-sm text-[#4E2A12] tracking-wider uppercase px-1">
+                                                            Katalog Treatment Perawatan ({filteredTreatments.length})
+                                                        </h2>
+                                                    </div>
                                                 )}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
-                                                    {filteredTreatments.map(t => {
-                                                        const hasDiscount = t.discount_percent > 0
-                                                        const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
-                                                        return (
-                                                            <div
-                                                                key={`tr-${t.id}`}
-                                                                onClick={() => addToCart(t, 'treatment')}
-                                                                className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
-                                                            >
-                                                                <div className="space-y-1.5 mb-2">
-                                                                    <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                        <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
-                                                                            Treatment
-                                                                        </span>
-                                                                        {hasDiscount && (
-                                                                            <span className="bg-[#D46221] text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
-                                                                                Diskon {t.discount_percent}%
-                                                                            </span>
-                                                                        )}
+                                                {groupedTreatmentCategories.length === 0 ? (
+                                                    <div className="py-8 text-center text-xs text-gray-400">
+                                                        Tidak ada treatment ditemukan.
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-6">
+                                                        {groupedTreatmentCategories.map(group => (
+                                                            <div key={group.name} className="space-y-3">
+                                                                {/* Option 1 Banner Header (No numbers) */}
+                                                                <div className="flex items-center justify-between bg-[#FAF1E8] border border-[#F2D8C3] border-l-4 border-l-[#D46221] px-4 py-2.5 rounded-xl shadow-2xs">
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        <span className="w-2 h-2 rounded-full bg-[#D46221]"></span>
+                                                                        <h3 className="font-black text-xs sm:text-sm text-[#4E2A12] tracking-wider uppercase">
+                                                                            {group.name}
+                                                                        </h3>
                                                                     </div>
-                                                                    <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
-                                                                        {t.name}
-                                                                    </h4>
+                                                                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white text-[#B5531B] border border-[#F2D8C3] shadow-2xs">
+                                                                        {group.items.length} Item
+                                                                    </span>
                                                                 </div>
 
-                                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                                    <div className="flex flex-col min-w-0">
-                                                                        {hasDiscount && (
-                                                                            <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
-                                                                                Rp {t.price.toLocaleString('id-ID')}
-                                                                            </span>
-                                                                        )}
-                                                                        <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
-                                                                            Rp {price.toLocaleString('id-ID')}
-                                                                        </span>
-                                                                    </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            addToCart(t, 'treatment')
-                                                                        }}
-                                                                        className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-                                                                        title="Tambah ke keranjang"
-                                                                    >
-                                                                        +
-                                                                    </button>
+                                                                {/* 3-Column Card Grid */}
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+                                                                    {group.items.map(t => {
+                                                                        const hasDiscount = t.discount_percent > 0
+                                                                        const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
+                                                                        return (
+                                                                            <div
+                                                                                key={`tr-${t.id}`}
+                                                                                onClick={() => addToCart(t, 'treatment')}
+                                                                                className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                                            >
+                                                                                <div className="space-y-1.5 mb-2">
+                                                                                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                                                                                        <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
+                                                                                            Treatment
+                                                                                        </span>
+                                                                                        {hasDiscount && (
+                                                                                            <span className="bg-[#D46221] text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
+                                                                                                Diskon {t.discount_percent}%
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
+                                                                                        {t.name}
+                                                                                    </h4>
+                                                                                </div>
+
+                                                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                                                    <div className="flex flex-col min-w-0">
+                                                                                        {hasDiscount && (
+                                                                                            <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
+                                                                                                Rp {t.price.toLocaleString('id-ID')}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
+                                                                                            Rp {price.toLocaleString('id-ID')}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            addToCart(t, 'treatment')
+                                                                                        }}
+                                                                                        className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                                        title="Tambah ke keranjang"
+                                                                                    >
+                                                                                        +
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )
+                                                                    })}
                                                                 </div>
                                                             </div>
-                                                        )
-                                                    })}
-                                                </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
