@@ -205,8 +205,11 @@ export default function TherapistDashboard() {
                             transaction_id,
                             coupon_packages(price),
                             transactions(
+                                id,
                                 total,
-                                transaction_items(item_type, price, subtotal)
+                                subtotal,
+                                discount,
+                                transaction_items(id, item_type, price, subtotal, discount_percent)
                             )
                         )
                     )

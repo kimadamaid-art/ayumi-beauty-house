@@ -158,11 +158,16 @@ export default function TherapistDetailPage() {
                                 price
                             ),
                             transactions(
+                                id,
                                 total,
+                                subtotal,
+                                discount,
                                 transaction_items(
+                                    id,
                                     item_type,
                                     price,
-                                    subtotal
+                                    subtotal,
+                                    discount_percent
                                 )
                             )
                         )
@@ -754,20 +759,38 @@ export default function TherapistDetailPage() {
                                                         {r.treatment_records?.branches?.name || 'Pusat'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-black text-gray-800 ">
-                                                    Rp {Number(r.price_at_time || 0).toLocaleString('id-ID')}
+                                                <td className="px-6 py-4 text-right">
+                                                    {(() => {
+                                                        const basePrice = getCommissionBasePrice(r)
+                                                        const isCoupon = Number(r.price_at_time || 0) === 0 && basePrice > 0
+                                                        return (
+                                                            <div>
+                                                                <span className="font-black text-gray-800">
+                                                                    Rp {Number(r.price_at_time || 0).toLocaleString('id-ID')}
+                                                                </span>
+                                                                {isCoupon && (
+                                                                    <span className="block text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 mt-1">
+                                                                        Basis Kupon: Rp {basePrice.toLocaleString('id-ID')}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-4 text-right ">
                                                     {(() => {
                                                         const commPercent = Number(r.commission_percent || 0)
                                                         const commAmount = calculateTherapistCommission(r)
+                                                        const basePrice = getCommissionBasePrice(r)
                                                         return commAmount > 0 ? (
-                                                            <div className="flex flex-col items-end">
-                                                                <span className="font-bold text-emerald-600">Rp {commAmount.toLocaleString('id-ID')}</span>
-                                                                <span className="text-[10px] text-gray-400 mt-0.5">{commPercent}%</span>
-                                                            </div>
+                                                             <div className="flex flex-col items-end">
+                                                                 <span className="font-bold text-emerald-600">Rp {commAmount.toLocaleString('id-ID')}</span>
+                                                                 <span className="text-[10px] text-gray-400 mt-0.5">
+                                                                     {commPercent}% {Number(r.price_at_time || 0) === 0 && basePrice > 0 ? `(dari Rp ${basePrice.toLocaleString('id-ID')})` : ''}
+                                                                 </span>
+                                                             </div>
                                                         ) : (
-                                                            <span className="text-gray-400">Rp 0</span>
+                                                             <span className="text-gray-400">Rp 0</span>
                                                         )
                                                     })()}
                                                 </td>

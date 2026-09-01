@@ -129,15 +129,15 @@ export async function GET(request) {
             .order('treatment_time', { ascending: false })
 
         // 3. Fetch Patient Photos
-        const { data: photos } = await supabaseAdmin
+        const { data: rawPhotos } = await supabaseAdmin
             .from('patient_photos')
             .select(`
                 id,
-                photo_url,
+                storage_path,
                 photo_type,
-                angle,
                 caption,
                 created_at,
+                treatment_record_id,
                 treatment_records (
                     treatment_date,
                     branches (name)
@@ -145,6 +145,38 @@ export async function GET(request) {
             `)
             .eq('patient_id', patientId)
             .order('created_at', { ascending: false })
+
+        // Generate signed URLs for photos
+        const photos = await Promise.all((rawPhotos || []).map(async (p) => {
+            let fullUrl = null
+            if (p.storage_path) {
+                try {
+                    const { data: signedData } = await supabaseAdmin.storage
+                        .from('patient-photos')
+                        .createSignedUrl(p.storage_path, 60 * 60)
+                    if (signedData?.signedUrl) fullUrl = signedData.signedUrl
+                } catch (e) {}
+
+                if (!fullUrl) {
+                    try {
+                        const { data: pubData } = supabaseAdmin.storage
+                            .from('patient-photos')
+                            .getPublicUrl(p.storage_path)
+                        if (pubData?.publicUrl) fullUrl = pubData.publicUrl
+                    } catch (e) {}
+                }
+            }
+            return {
+                ...p,
+                fullUrl: fullUrl || p.storage_path
+            }
+        }))
+
+        // Attach photos to corresponding treatment records
+        const recordsWithPhotos = (records || []).map(rec => ({
+            ...rec,
+            photos: photos.filter(p => p.treatment_record_id === rec.id)
+        }))
 
         // 4. Fetch Active Coupons
         const { data: coupons } = await supabaseAdmin
@@ -169,7 +201,7 @@ export async function GET(request) {
 
         return NextResponse.json({
             patient,
-            records: records || [],
+            records: recordsWithPhotos || [],
             photos: photos || [],
             coupons: coupons || []
         })

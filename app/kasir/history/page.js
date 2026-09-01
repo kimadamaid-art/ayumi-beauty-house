@@ -199,7 +199,18 @@ export default function TransactionsHistoryPage() {
                                         </td>
                                         <td className="p-4">
                                             {trx.patients?.full_name ? (
-                                                <span className="font-semibold text-ayumi-primary">{trx.patients.full_name}</span>
+                                                trx.patient_id ? (
+                                                    <Link
+                                                        href={`/patients/${trx.patient_id}`}
+                                                        className="font-bold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group"
+                                                        title="Buka Profil & Riwayat Pasien"
+                                                    >
+                                                        <span>{trx.patients.full_name}</span>
+                                                        <span className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
+                                                    </Link>
+                                                ) : (
+                                                    <span className="font-semibold text-ayumi-primary">{trx.patients.full_name}</span>
+                                                )
                                             ) : (
                                                 <span className="text-gray-400 italic">Walk-in</span>
                                             )}

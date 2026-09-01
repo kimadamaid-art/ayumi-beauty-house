@@ -137,11 +137,16 @@ export default function TherapistsReportPage() {
                                 price
                             ),
                             transactions(
+                                id,
                                 total,
+                                subtotal,
+                                discount,
                                 transaction_items(
+                                    id,
                                     item_type,
                                     price,
-                                    subtotal
+                                    subtotal,
+                                    discount_percent
                                 )
                             )
                         )

@@ -1442,183 +1442,353 @@ function PosPageContent() {
                     </div>
                 ) : (
                     /* ── Katalog Item (Grid POS) ── */
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-xs overflow-hidden flex-1 flex flex-col">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden flex-1 flex flex-col">
                         
-                        {/* Subtabs catalog */}
-                        <div className="flex flex-col sm:flex-row items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-2.5 gap-2.5">
-                            <div className="flex bg-gray-100/80 border border-gray-200 p-0.5 rounded-xl flex-1 max-w-md w-full">
-                                {[
-                                    { key: 'treatment', label: 'Layanan Treatment' },
-                                    { key: 'product', label: 'Produk Skincare' },
-                                    { key: 'coupon', label: 'Paket Kupon' },
-                                ].map(tab => (
-                                    <button
-                                        key={tab.key}
-                                        type="button"
-                                        onClick={() => setActiveTab(tab.key)}
-                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                            activeTab === tab.key 
-                                                ? 'bg-white text-ayumi-primary shadow-xs font-extrabold' 
-                                                : 'text-gray-500 hover:text-gray-800'
-                                        }`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
+                        {/* Subtabs catalog & Universal Search Bar */}
+                        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-gray-100 bg-gray-50/60 p-3 sm:px-4 sm:py-3 gap-3">
+                            {/* Tabs with Distinct Highlights */}
+                            <div className="flex bg-gray-200/70 p-1 rounded-xl gap-1 overflow-x-auto custom-scrollbar shrink-0">
+                                {(() => {
+                                    const filteredTreatments = treatments.filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    const filteredProducts = products.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    const filteredCoupons = coupons.filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    const totalMatches = filteredTreatments.length + filteredProducts.length + filteredCoupons.length
+
+                                    const tabs = [
+                                        ...(searchQuery.trim() ? [{
+                                            key: 'all',
+                                            label: 'Semua',
+                                            icon: '✨',
+                                            count: totalMatches,
+                                            activeStyle: 'bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-sm ring-1 ring-black/10',
+                                            inactiveHover: 'hover:text-slate-900 hover:bg-white/60'
+                                        }] : []),
+                                        {
+                                            key: 'treatment',
+                                            label: 'Treatment',
+                                            icon: '💆‍♀️',
+                                            count: searchQuery.trim() ? filteredTreatments.length : treatments.length,
+                                            activeStyle: 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm ring-1 ring-pink-600/20',
+                                            inactiveHover: 'hover:text-pink-600 hover:bg-pink-50/60'
+                                        },
+                                        {
+                                            key: 'product',
+                                            label: 'Produk',
+                                            icon: '🧴',
+                                            count: searchQuery.trim() ? filteredProducts.length : products.length,
+                                            activeStyle: 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/20',
+                                            inactiveHover: 'hover:text-teal-700 hover:bg-emerald-50/60'
+                                        },
+                                        {
+                                            key: 'coupon',
+                                            label: 'Paket Kupon',
+                                            icon: '🎟️',
+                                            count: searchQuery.trim() ? filteredCoupons.length : coupons.length,
+                                            activeStyle: 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm ring-1 ring-purple-600/20',
+                                            inactiveHover: 'hover:text-purple-700 hover:bg-purple-50/60'
+                                        },
+                                    ]
+
+                                    return tabs.map(tab => {
+                                        const isActive = activeTab === tab.key
+                                        return (
+                                            <button
+                                                key={tab.key}
+                                                type="button"
+                                                onClick={() => setActiveTab(tab.key)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                                                    isActive 
+                                                        ? tab.activeStyle 
+                                                        : `text-gray-600 ${tab.inactiveHover}`
+                                                }`}
+                                            >
+                                                <span>{tab.icon}</span>
+                                                <span>{tab.label}</span>
+                                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                                                    isActive 
+                                                        ? 'bg-white/25 text-white' 
+                                                        : 'bg-gray-300/60 text-gray-700'
+                                                }`}>
+                                                    {tab.count}
+                                                </span>
+                                            </button>
+                                        )
+                                    })
+                                })()}
                             </div>
                             
-                            {/* Search bar inside Catalog tab header */}
-                            <div className="relative w-full sm:w-52 flex-shrink-0">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            {/* Search bar - Wider & Responsive with Clear Button */}
+                            <div className="relative flex-1 max-w-full md:max-w-md w-full">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                                    <svg className="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 </span>
                                 <input
                                     type="text"
-                                    placeholder="Cari menu / item..."
+                                    placeholder="Cari treatment, produk skincare, kupon..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="input-ayumi pl-8 bg-white w-full text-xs py-1.5 border-gray-200 focus:border-pink-300 rounded-lg"
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value)
+                                        if (e.target.value && activeTab !== 'all' && activeTab !== 'treatment' && activeTab !== 'product' && activeTab !== 'coupon') {
+                                            setActiveTab('all')
+                                        }
+                                    }}
+                                    className="input-ayumi pl-9.5 pr-8 bg-white w-full text-xs sm:text-sm py-2 border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-100 rounded-xl shadow-2xs font-medium"
                                 />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                        title="Hapus pencarian"
+                                    >
+                                        <svg className="w-4 h-4 bg-gray-100 hover:bg-gray-200 rounded-full p-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
                         {/* Items list rendered as POS card grid */}
                         <div className="p-3 sm:p-4 overflow-y-auto max-h-[66vh] custom-scrollbar flex-1 bg-gray-50/30">
-                            {!selectedBranch && activeTab === 'product' ? (
-                                <div className="flex flex-col items-center justify-center py-16 text-gray-400 text-center my-auto">
-                                    <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
-                                    <p className="text-xs font-semibold">Pilih cabang terlebih dahulu untuk melihat stok produk</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
-                                    {activeTab === 'treatment' && treatments
-                                        .filter(t => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                        .map(t => {
-                                             const hasDiscount = t.discount_percent > 0
-                                             const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
-                                             return (
-                                                 <div
-                                                     key={t.id}
-                                                     onClick={() => addToCart(t, 'treatment')}
-                                                     className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-pink-300 hover:shadow-sm transition-all cursor-pointer group relative"
-                                                 >
-                                                     <div className="space-y-1 mb-2">
-                                                         {hasDiscount && (
-                                                             <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-extrabold px-1.5 py-0.5 rounded inline-block">
-                                                                 Diskon {t.discount_percent}%
-                                                             </span>
-                                                         )}
-                                                         <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
-                                                             {t.name}
-                                                         </h4>
-                                                     </div>
+                            {(() => {
+                                const q = searchQuery.toLowerCase().trim()
+                                const filteredTreatments = treatments.filter(t => !q || t.name.toLowerCase().includes(q))
+                                const filteredProducts = products.filter(p => !q || p.name.toLowerCase().includes(q))
+                                const filteredCoupons = coupons.filter(c => !q || c.name.toLowerCase().includes(q))
+                                const totalMatches = filteredTreatments.length + filteredProducts.length + filteredCoupons.length
 
-                                                     <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                         <div className="flex flex-col min-w-0">
-                                                             {hasDiscount && (
-                                                                 <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
-                                                                     Rp {t.price.toLocaleString('id-ID')}
-                                                                 </span>
-                                                             )}
-                                                             <span className="font-extrabold text-xs sm:text-sm text-[#5c3316] whitespace-nowrap">
-                                                                 Rp {price.toLocaleString('id-ID')}
-                                                             </span>
-                                                         </div>
-                                                         <button
-                                                             type="button"
-                                                             onClick={(e) => {
-                                                                 e.stopPropagation()
-                                                                 addToCart(t, 'treatment')
-                                                             }}
-                                                             className="w-7 h-7 rounded-lg bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-xs border border-pink-200/80 transition-all shrink-0 shadow-xs cursor-pointer"
-                                                             title="Tambah ke keranjang"
-                                                         >
-                                                             +
-                                                         </button>
-                                                     </div>
-                                                 </div>
-                                             )
-                                         })
-                                    }
+                                // Branch not selected warning for products
+                                if (!selectedBranch && activeTab === 'product') {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center py-16 text-gray-400 text-center my-auto">
+                                            <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                                            <p className="text-xs font-semibold">Pilih cabang terlebih dahulu untuk melihat stok produk</p>
+                                        </div>
+                                    )
+                                }
 
-                                    {activeTab === 'product' && products
-                                        .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                        .map(p => (
-                                            <div
-                                                key={p.id}
-                                                onClick={() => addToCart(p, 'product')}
-                                                className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-amber-400 hover:shadow-sm transition-all cursor-pointer group relative"
+                                // If search query active and no matches at all
+                                if (q && totalMatches === 0) {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center py-16 text-gray-400 text-center my-auto space-y-2">
+                                            <div className="text-3xl">🔍</div>
+                                            <p className="text-sm font-bold text-gray-700">Tidak ada item ditemukan</p>
+                                            <p className="text-xs text-gray-400">Tidak ditemukan treatment, produk, atau kupon dengan kata kunci &quot;{searchQuery}&quot;.</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSearchQuery('')}
+                                                className="mt-2 text-xs bg-pink-50 hover:bg-pink-100 text-ayumi-primary font-bold px-3 py-1.5 rounded-lg transition-colors border border-pink-200"
                                             >
-                                                <div className="space-y-1 mb-2">
-                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border inline-block ${
-                                                        p.quantity > 5 
-                                                            ? 'bg-amber-50 text-amber-800 border-amber-200' 
-                                                            : p.quantity > 0 
-                                                                ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                                                                : 'bg-gray-100 text-gray-500 border-gray-200'
-                                                    }`}>
-                                                        Stok: {p.quantity}
-                                                    </span>
-                                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-amber-900 transition-colors">
-                                                        {p.name}
-                                                    </h4>
-                                                </div>
+                                                Reset Pencarian
+                                            </button>
+                                        </div>
+                                    )
+                                }
 
-                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                    <span className="font-extrabold text-xs sm:text-sm text-amber-900 whitespace-nowrap">
-                                                        Rp {p.price.toLocaleString('id-ID')}
-                                                    </span>
+                                const showAll = activeTab === 'all'
+                                const showTreatments = showAll || activeTab === 'treatment'
+                                const showProducts = showAll || activeTab === 'product'
+                                const showCoupons = showAll || activeTab === 'coupon'
+
+                                // Notice when user is on a specific tab with 0 results but other tabs have matches
+                                const currentTabEmpty = (activeTab === 'treatment' && filteredTreatments.length === 0) ||
+                                                        (activeTab === 'product' && filteredProducts.length === 0) ||
+                                                        (activeTab === 'coupon' && filteredCoupons.length === 0)
+
+                                return (
+                                    <div className="space-y-4">
+                                        {/* Cross-category Match Notification */}
+                                        {q && currentTabEmpty && totalMatches > 0 && (
+                                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs animate-fade-in">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">💡</span>
+                                                    <div className="text-xs text-amber-900 font-medium">
+                                                        Tidak ada hasil di tab ini, namun ditemukan <strong className="font-extrabold text-amber-950">{totalMatches} item</strong> di kategori lain untuk &quot;{searchQuery}&quot;:
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
                                                     <button
                                                         type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            addToCart(p, 'product')
-                                                        }}
-                                                        className="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-800 hover:text-white flex items-center justify-center font-black text-xs border border-amber-200/80 transition-all shrink-0 shadow-xs cursor-pointer"
-                                                        title="Tambah ke keranjang"
+                                                        onClick={() => setActiveTab('all')}
+                                                        className="text-xs bg-slate-900 hover:bg-black text-white px-2.5 py-1 rounded-lg font-bold transition-colors shadow-2xs cursor-pointer"
                                                     >
-                                                        +
+                                                        Lihat Semua ({totalMatches})
                                                     </button>
+                                                    {filteredTreatments.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveTab('treatment')}
+                                                            className="text-xs bg-pink-100 hover:bg-pink-200 text-pink-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                                                        >
+                                                            Treatment ({filteredTreatments.length})
+                                                        </button>
+                                                    )}
+                                                    {filteredProducts.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveTab('product')}
+                                                            className="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                                                        >
+                                                            Produk ({filteredProducts.length})
+                                                        </button>
+                                                    )}
+                                                    {filteredCoupons.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActiveTab('coupon')}
+                                                            className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                                                        >
+                                                            Kupon ({filteredCoupons.length})
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
-                                        ))
-                                    }
+                                        )}
 
-                                    {activeTab === 'coupon' && coupons
-                                        .filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                        .map(c => (
-                                            <div
-                                                key={c.id}
-                                                onClick={() => addToCart(c, 'coupon')}
-                                                className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between hover:border-pink-300 hover:shadow-sm transition-all cursor-pointer group relative"
-                                            >
-                                                <div className="mb-2">
-                                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-ayumi-primary transition-colors">
-                                                        {c.name}
-                                                    </h4>
-                                                </div>
-
-                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                    <span className="font-extrabold text-xs sm:text-sm text-[#5c3316] whitespace-nowrap">
-                                                        Rp {c.price.toLocaleString('id-ID')}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            addToCart(c, 'coupon')
-                                                        }}
-                                                        className="w-7 h-7 rounded-lg bg-pink-50 hover:bg-ayumi-primary text-ayumi-primary hover:text-white flex items-center justify-center font-black text-xs border border-pink-200/80 transition-all shrink-0 shadow-xs cursor-pointer"
-                                                        title="Tambah ke keranjang"
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+                                            {/* 1. TREATMENTS */}
+                                            {showTreatments && filteredTreatments.map(t => {
+                                                const hasDiscount = t.discount_percent > 0
+                                                const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
+                                                return (
+                                                    <div
+                                                        key={`tr-${t.id}`}
+                                                        onClick={() => addToCart(t, 'treatment')}
+                                                        className="bg-white p-3 rounded-2xl border border-pink-100 shadow-2xs flex flex-col justify-between hover:border-pink-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
                                                     >
-                                                        +
-                                                    </button>
+                                                        <div className="space-y-1.5 mb-2">
+                                                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                                                                <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                                                    <span>💆‍♀️</span> Treatment
+                                                                </span>
+                                                                {hasDiscount && (
+                                                                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
+                                                                        Diskon {t.discount_percent}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-pink-600 transition-colors">
+                                                                {t.name}
+                                                            </h4>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                            <div className="flex flex-col min-w-0">
+                                                                {hasDiscount && (
+                                                                    <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
+                                                                        Rp {t.price.toLocaleString('id-ID')}
+                                                                    </span>
+                                                                )}
+                                                                <span className="font-black text-xs sm:text-sm text-pink-700 whitespace-nowrap">
+                                                                    Rp {price.toLocaleString('id-ID')}
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    addToCart(t, 'treatment')
+                                                                }}
+                                                                className="w-7 h-7 rounded-xl bg-pink-500 hover:bg-pink-600 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                title="Tambah ke keranjang"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+
+                                            {/* 2. PRODUCTS */}
+                                            {showProducts && filteredProducts.map(p => (
+                                                <div
+                                                    key={`pr-${p.id}`}
+                                                    onClick={() => addToCart(p, 'product')}
+                                                    className="bg-white p-3 rounded-2xl border border-emerald-100 shadow-2xs flex flex-col justify-between hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                >
+                                                    <div className="space-y-1.5 mb-2">
+                                                        <div className="flex items-center justify-between gap-1 flex-wrap">
+                                                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                                                <span>🧴</span> Produk
+                                                            </span>
+                                                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${
+                                                                p.quantity > 5 
+                                                                    ? 'bg-teal-50 text-teal-800 border-teal-200' 
+                                                                    : p.quantity > 0 
+                                                                        ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse' 
+                                                                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                                                            }`}>
+                                                                Stok: {p.quantity}
+                                                            </span>
+                                                        </div>
+                                                        <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-emerald-700 transition-colors">
+                                                            {p.name}
+                                                        </h4>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                        <span className="font-black text-xs sm:text-sm text-emerald-800 whitespace-nowrap">
+                                                            Rp {p.price.toLocaleString('id-ID')}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                addToCart(p, 'product')
+                                                            }}
+                                                            className="w-7 h-7 rounded-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                            title="Tambah ke keranjang"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
-                                    }
-                                </div>
-                            )}
+                                            ))}
+
+                                            {/* 3. COUPONS */}
+                                            {showCoupons && filteredCoupons.map(c => (
+                                                <div
+                                                    key={`cp-${c.id}`}
+                                                    onClick={() => addToCart(c, 'coupon')}
+                                                    className="bg-white p-3 rounded-2xl border border-purple-100 shadow-2xs flex flex-col justify-between hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                >
+                                                    <div className="space-y-1.5 mb-2">
+                                                        <div className="flex items-center justify-between gap-1 flex-wrap">
+                                                            <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                                                <span>🎟️</span> Paket Kupon
+                                                            </span>
+                                                            {c.category && (
+                                                                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                                                    {c.category}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-purple-700 transition-colors">
+                                                            {c.name}
+                                                        </h4>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                        <span className="font-black text-xs sm:text-sm text-purple-900 whitespace-nowrap">
+                                                            Rp {c.price.toLocaleString('id-ID')}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                addToCart(c, 'coupon')
+                                                            }}
+                                                            className="w-7 h-7 rounded-xl bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                            title="Tambah ke keranjang"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            })()}
                         </div>
                     </div>
                 )}

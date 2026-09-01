@@ -1899,7 +1899,19 @@ export default function TransactionsPage() {
                                                     <td className="p-4 font-bold text-gray-800 text-xs">{tx.transaction_number}</td>
                                                     <td className="p-4 text-gray-600 text-xs">{formatDate(tx.created_at)}</td>
                                                     <td className="p-4">
-                                                        <span className="font-bold text-gray-800">{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                        {tx.patient_id ? (
+                                                            <Link 
+                                                                href={`/patients/${tx.patient_id}`}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="font-extrabold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group/p text-sm"
+                                                                title="Buka Rekam Medis & Riwayat Pasien"
+                                                            >
+                                                                <span>{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                                <span className="text-[11px] text-ayumi-primary group-hover/p:translate-x-0.5 group-hover/p:-translate-y-0.5 transition-transform">↗</span>
+                                                            </Link>
+                                                        ) : (
+                                                            <span className="font-extrabold text-gray-800 text-sm">{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                        )}
                                                     </td>
                                                     <td className="p-4 text-gray-500 font-semibold text-xs">{tx.branches?.name || '-'}</td>
                                                     <td className="p-4 text-gray-600 text-xs font-semibold">{summaryStr}</td>
@@ -2770,11 +2782,24 @@ export default function TransactionsPage() {
                             </div>
 
                             {/* Patient Info */}
-                            <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100">
-                                <span className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Informasi Pasien</span>
-                                <p className="font-extrabold text-gray-800 text-sm">{selectedTx.patients?.full_name || 'Walk-in Customer'}</p>
-                                {selectedTx.patients?.whatsapp && (
-                                    <p className="text-[10px] text-gray-500 mt-0.5">WhatsApp: {selectedTx.patients.whatsapp}</p>
+                            <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100 flex items-center justify-between gap-2">
+                                <div>
+                                    <span className="block text-[9px] text-gray-400 font-bold uppercase mb-0.5">Informasi Pasien</span>
+                                    <p className="font-extrabold text-gray-800 text-sm">{selectedTx.patients?.full_name || 'Walk-in Customer'}</p>
+                                    {selectedTx.patients?.whatsapp && (
+                                        <p className="text-[10px] text-gray-500 mt-0.5">WhatsApp: {selectedTx.patients.whatsapp}</p>
+                                    )}
+                                </div>
+                                {selectedTx.patient_id && (
+                                    <Link
+                                        href={`/patients/${selectedTx.patient_id}`}
+                                        className="px-3.5 py-2 bg-pink-50 hover:bg-pink-100 text-ayumi-primary text-xs font-extrabold rounded-xl transition-colors border border-pink-200 shrink-0 flex items-center gap-1.5 shadow-2xs hover:shadow-xs"
+                                        title="Buka Rekam Medis & Riwayat Lengkap Pasien"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                        <span>Buka Riwayat Pasien</span>
+                                        <span>↗</span>
+                                    </Link>
                                 )}
                             </div>
 

@@ -28,7 +28,7 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
 
                 if (data.photos) {
                     const photosWithUrls = data.photos.map(p => {
-                        let fullUrl = p.photo_url || p.image_url
+                        let fullUrl = p.fullUrl || p.photo_url || p.image_url || p.storage_path
                         if (fullUrl && !fullUrl.startsWith('http')) {
                             const { data: pubUrl } = supabase.storage.from('patient-photos').getPublicUrl(fullUrl)
                             fullUrl = pubUrl?.publicUrl || fullUrl
@@ -61,6 +61,14 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
             age--
         }
         return age
+    }
+
+    const formatPhotoLabel = (caption, storagePath) => {
+        const raw = (caption || storagePath || '').toLowerCase()
+        if (raw.includes('depan') || raw.includes('front')) return 'Foto Depan'
+        if (raw.includes('kiri') || raw.includes('left')) return 'Foto Samping Kiri'
+        if (raw.includes('kanan') || raw.includes('right')) return 'Foto Samping Kanan'
+        return caption || 'Foto Dokumentasi'
     }
 
     return (
@@ -160,78 +168,108 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                             <p className="text-xs text-gray-400 mt-1">Pasien ini belum memiliki catatan rekam medis sebelumnya.</p>
                                         </div>
                                     ) : (
-                                        records.map((r, idx) => (
-                                            <div key={r.id} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs hover:border-pink-200 transition-all">
-                                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 mb-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-6 h-6 rounded-full bg-pink-100 text-ayumi-primary text-xs font-extrabold flex items-center justify-center">
-                                                            {idx + 1}
-                                                        </span>
-                                                        <div className="font-extrabold text-gray-900 text-sm">
-                                                            {new Date(r.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                                        </div>
-                                                        {r.treatment_time && (
-                                                            <span className="text-xs font-semibold text-gray-400">
-                                                                • {r.treatment_time}
+                                        records.map((r, idx) => {
+                                            const performerName = r.performer?.full_name || r.users?.full_name
+                                            return (
+                                                <div key={r.id} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs hover:border-pink-200 transition-all space-y-3">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-6 h-6 rounded-full bg-pink-100 text-ayumi-primary text-xs font-extrabold flex items-center justify-center">
+                                                                {idx + 1}
                                                             </span>
+                                                            <div className="font-extrabold text-gray-900 text-sm">
+                                                                {new Date(r.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                                            </div>
+                                                            {r.treatment_time && (
+                                                                <span className="text-xs font-semibold text-gray-400">
+                                                                    • {r.treatment_time.substring(0, 5)} WIB
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 font-medium">
+                                                            Cabang: <strong className="text-gray-700">{r.branches?.name || '-'}</strong>
+                                                            {performerName && (
+                                                                <span className="ml-2 pl-2 border-l border-gray-200">
+                                                                    Terapis: <strong className="text-ayumi-primary">{performerName}</strong>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Treatments Done */}
+                                                    <div>
+                                                        <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tindakan Treatment</div>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {r.treatment_record_items?.map(it => (
+                                                                <span key={it.id} className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-extrabold rounded-lg border border-purple-100">
+                                                                    {it.treatments?.name || 'Treatment'}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* SOAP Details Grid */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/70 p-3.5 rounded-xl border border-gray-100 text-xs">
+                                                        {r.complaints && (
+                                                            <div>
+                                                                <span className="font-bold text-gray-700 block mb-0.5">🗣️ Keluhan (S):</span>
+                                                                <p className="text-gray-600 leading-relaxed">{r.complaints}</p>
+                                                            </div>
+                                                        )}
+                                                        {r.skin_condition && (
+                                                            <div>
+                                                                <span className="font-bold text-gray-700 block mb-0.5">🔍 Kondisi Kulit (O):</span>
+                                                                <p className="text-gray-600 leading-relaxed">{r.skin_condition}</p>
+                                                            </div>
+                                                        )}
+                                                        {r.result_notes && (
+                                                            <div>
+                                                                <span className="font-bold text-gray-700 block mb-0.5">📝 Catatan Tindakan (A):</span>
+                                                                <p className="text-gray-600 leading-relaxed">{r.result_notes}</p>
+                                                            </div>
+                                                        )}
+                                                        {r.recommendation && (
+                                                            <div>
+                                                                <span className="font-bold text-gray-700 block mb-0.5">💡 Rekomendasi/Homecare (P):</span>
+                                                                <p className="text-gray-600 leading-relaxed">{r.recommendation}</p>
+                                                            </div>
+                                                        )}
+                                                        {!r.complaints && !r.skin_condition && !r.result_notes && !r.recommendation && (
+                                                            <div className="col-span-2 text-gray-400 italic">
+                                                                Tidak ada catatan SOAP tertulis pada sesi ini.
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <div className="text-xs text-gray-500 font-medium">
-                                                        Cabang: <strong className="text-gray-700">{r.branches?.name || '-'}</strong>
-                                                        {r.users?.full_name && (
-                                                            <span className="ml-2 pl-2 border-l border-gray-200">
-                                                                Terapis: <strong className="text-ayumi-primary">{r.users.full_name}</strong>
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
 
-                                                {/* Treatments Done */}
-                                                <div className="mb-3">
-                                                    <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tindakan Treatment</div>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {r.treatment_record_items?.map(it => (
-                                                            <span key={it.id} className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-extrabold rounded-lg border border-purple-100">
-                                                                {it.treatments?.name || 'Treatment'}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                {/* SOAP Details Grid */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/70 p-3.5 rounded-xl border border-gray-100 text-xs">
-                                                    {r.complaints && (
-                                                        <div>
-                                                            <span className="font-bold text-gray-700 block mb-0.5">🗣️ Keluhan (S):</span>
-                                                            <p className="text-gray-600 leading-relaxed">{r.complaints}</p>
-                                                        </div>
-                                                    )}
-                                                    {r.skin_condition && (
-                                                        <div>
-                                                            <span className="font-bold text-gray-700 block mb-0.5">🔍 Kondisi Kulit (O):</span>
-                                                            <p className="text-gray-600 leading-relaxed">{r.skin_condition}</p>
-                                                        </div>
-                                                    )}
-                                                    {r.result_notes && (
-                                                        <div>
-                                                            <span className="font-bold text-gray-700 block mb-0.5">📝 Catatan Tindakan (A):</span>
-                                                            <p className="text-gray-600 leading-relaxed">{r.result_notes}</p>
-                                                        </div>
-                                                    )}
-                                                    {r.recommendation && (
-                                                        <div>
-                                                            <span className="font-bold text-gray-700 block mb-0.5">💡 Rekomendasi/Homecare (P):</span>
-                                                            <p className="text-gray-600 leading-relaxed">{r.recommendation}</p>
-                                                        </div>
-                                                    )}
-                                                    {!r.complaints && !r.skin_condition && !r.result_notes && !r.recommendation && (
-                                                        <div className="col-span-2 text-gray-400 italic">
-                                                            Tidak ada catatan SOAP tertulis pada sesi ini.
+                                                    {/* Foto Dokumentasi Sesi Ini jika ada */}
+                                                    {r.photos && r.photos.length > 0 && (
+                                                        <div className="pt-1">
+                                                            <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1">
+                                                                <span>📸</span> Foto Sesi Ini ({r.photos.length})
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {r.photos.map(p => (
+                                                                    <div
+                                                                        key={p.id}
+                                                                        onClick={() => setSelectedPhotoZoom(p.fullUrl)}
+                                                                        className="relative w-20 h-20 rounded-xl overflow-hidden border border-pink-200 cursor-pointer group shadow-2xs hover:scale-105 transition-transform"
+                                                                    >
+                                                                        <img
+                                                                            src={p.fullUrl}
+                                                                            alt={p.caption || 'Foto'}
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold text-center p-1">
+                                                                            {formatPhotoLabel(p.caption, p.storage_path)}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
-                                            </div>
-                                        ))
+                                            )
+                                        })
                                     )}
                                 </div>
                             )}
@@ -256,7 +294,7 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                                     <div className="relative aspect-square overflow-hidden bg-gray-100">
                                                         <img 
                                                             src={photo.fullUrl} 
-                                                            alt={photo.photo_slot || 'Dokumentasi Pasien'} 
+                                                            alt={photo.caption || 'Dokumentasi Pasien'} 
                                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                         />
                                                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
@@ -266,10 +304,14 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                                     </div>
                                                     <div className="p-2 text-center bg-white">
                                                         <span className="text-[10px] font-extrabold text-gray-700 uppercase block truncate">
-                                                            {photo.photo_slot ? photo.photo_slot.replace('_', ' ') : 'Dokumentasi'}
+                                                            {formatPhotoLabel(photo.caption, photo.storage_path)}
                                                         </span>
                                                         <span className="text-[9px] text-gray-400 block mt-0.5">
-                                                            {new Date(photo.created_at).toLocaleDateString('id-ID')}
+                                                            {photo.treatment_records?.treatment_date 
+                                                                ? new Date(photo.treatment_records.treatment_date + 'T00:00:00').toLocaleDateString('id-ID')
+                                                                : new Date(photo.created_at).toLocaleDateString('id-ID')
+                                                            }
+                                                            {photo.treatment_records?.branches?.name && ` • ${photo.treatment_records.branches.name}`}
                                                         </span>
                                                     </div>
                                                 </div>

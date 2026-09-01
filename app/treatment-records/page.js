@@ -306,8 +306,19 @@ export default function TreatmentRecordsPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="font-bold text-gray-800">{r.patients?.full_name}</div>
-                                                    <div className="text-xs text-gray-500">{r.patients?.whatsapp || '-'}</div>
+                                                    {r.patient_id ? (
+                                                        <Link 
+                                                            href={`/patients/${r.patient_id}`}
+                                                            className="font-extrabold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group text-sm"
+                                                            title="Buka Rekam Medis & Riwayat Lengkap Pasien"
+                                                        >
+                                                            <span>{r.patients?.full_name || 'Pasien'}</span>
+                                                            <span className="text-[11px] text-ayumi-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">↗</span>
+                                                        </Link>
+                                                    ) : (
+                                                        <div className="font-extrabold text-gray-800 text-sm">{r.patients?.full_name || 'Pasien'}</div>
+                                                    )}
+                                                    <div className="text-xs text-gray-500 font-medium mt-0.5">{r.patients?.whatsapp || '-'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-wrap items-center gap-1.5">
@@ -335,13 +346,26 @@ export default function TreatmentRecordsPage() {
                                                         </div>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border border-amber-200">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                                            Belum Dibayar
+                                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                             Belum Dibayar
                                                         </span>
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-center gap-2">
+                                                        {r.patient_id && (
+                                                            <Link href={`/patients/${r.patient_id}`}>
+                                                                <button 
+                                                                    type="button" 
+                                                                    className="text-xs bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 hover:border-purple-300 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                                                    title="Buka Rekam Medis & Riwayat Lengkap Pasien"
+                                                                >
+                                                                    <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                                                    Riwayat Pasien
+                                                                </button>
+                                                            </Link>
+                                                        )}
+
                                                         <Link href={`/treatment-records/${r.id}`}>
                                                             <button className="text-xs bg-pink-50 text-ayumi-primary border border-transparent hover:border-ayumi-primary hover:bg-pink-100 px-3 py-1.5 rounded-lg font-bold transition-colors">
                                                                 Lihat Detail

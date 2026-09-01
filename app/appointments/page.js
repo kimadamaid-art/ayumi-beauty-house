@@ -770,7 +770,17 @@ export default function AppointmentsPage() {
                                                                                                 {/* Patient & Service Details */}
                                                                                                 <div className="space-y-1">
                                                                                                     <div className="font-extrabold text-xs text-slate-900 tracking-tight truncate">
-                                                                                                        {apt.patients?.full_name || 'Pasien'}
+                                                                                                        {apt.patient_id ? (
+                                                                                                            <Link
+                                                                                                                href={`/patients/${apt.patient_id}`}
+                                                                                                                className="hover:text-cyan-700 hover:underline transition-colors"
+                                                                                                                title="Buka Rekam Medis & Profil Pasien"
+                                                                                                            >
+                                                                                                                {apt.patients?.full_name || 'Pasien'}
+                                                                                                            </Link>
+                                                                                                        ) : (
+                                                                                                            apt.patients?.full_name || 'Pasien'
+                                                                                                        )}
                                                                                                     </div>
 
                                                                                                     <div className="text-[10px] font-bold text-cyan-900 bg-cyan-50/70 border border-cyan-100 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
@@ -864,7 +874,17 @@ export default function AppointmentsPage() {
                                                                                                 {/* Patient & Service Details */}
                                                                                                 <div className="space-y-1">
                                                                                                     <div className="font-extrabold text-xs text-slate-900 tracking-tight truncate">
-                                                                                                        {apt.patients?.full_name || 'Pasien'}
+                                                                                                        {apt.patient_id ? (
+                                                                                                            <Link
+                                                                                                                href={`/patients/${apt.patient_id}`}
+                                                                                                                className="hover:text-sky-700 hover:underline transition-colors"
+                                                                                                                title="Buka Rekam Medis & Profil Pasien"
+                                                                                                            >
+                                                                                                                {apt.patients?.full_name || 'Pasien'}
+                                                                                                            </Link>
+                                                                                                        ) : (
+                                                                                                            apt.patients?.full_name || 'Pasien'
+                                                                                                        )}
                                                                                                     </div>
 
                                                                                                     <div className="text-[10px] font-bold text-sky-900 bg-sky-50/70 border border-sky-100 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
