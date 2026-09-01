@@ -457,21 +457,66 @@ function PosPageContent() {
             if (logs && logs.length > 0) existingCouponLogs = logs
         }
         
-        // Populate cart
-        const newCart = (bill.treatment_record_items || []).map(item => {
+        let newPackageItem = null
+        const processedTreatments = []
+
+        for (const item of (bill.treatment_record_items || [])) {
             const originalPrice = Number(item.treatments?.price) || Number(item.original_price) || Number(item.price_at_time) || 0
-            
-            // Check if therapist ALREADY deducted a coupon for this treatment record
+            const rawNotes = item.notes || ''
+
+            const matchNewPkg = rawNotes.match(/\[KUPON_BARU:([^:]+):([^:]+):([^\]]+)\]/)
+            const matchOldPkg = rawNotes.match(/\[KUPON_LAMA:([^:]+):([^\]]+)\]/)
+
+            if (matchNewPkg) {
+                const [, pkgId, pkgName, pkgPrice] = matchNewPkg
+                if (!newPackageItem) {
+                    newPackageItem = {
+                        id: pkgId,
+                        item_type: 'coupon',
+                        name: `Paket Kupon: ${pkgName}`,
+                        price: Number(pkgPrice) || 0,
+                        original_price: Number(pkgPrice) || 0,
+                        discount_percent: 0,
+                        quantity: 1,
+                        subtotal: Number(pkgPrice) || 0,
+                        commission_percent: 0,
+                        is_new_coupon_package: true
+                    }
+                }
+
+                processedTreatments.push({
+                    id: item.treatment_id,
+                    item_type: 'treatment',
+                    name: `${item.treatments?.name || 'Treatment'} (Sesi 1 dari Paket ${pkgName})`,
+                    price: 0,
+                    original_price: originalPrice,
+                    discount_percent: 100,
+                    quantity: 1,
+                    subtotal: 0,
+                    treatment_record_id: bill.id,
+                    therapist_id: bill.performed_by || null,
+                    commission_percent: item.commission_percent || item.treatments?.commission_percent || 5,
+                    is_using_coupon: true,
+                    is_first_session_of_new_coupon: true,
+                    new_coupon_package_id: pkgId,
+                    coupon_already_deducted: false,
+                    used_coupon_item_id: null,
+                    coupon_package_name: pkgName,
+                    remaining_sessions: 0
+                })
+                continue
+            }
+
+            // Check if explicitly marked as old coupon or already deducted
             const alreadyUsedLog = existingCouponLogs.find(log => 
                 log.patient_coupon_items?.treatment_id === item.treatment_id ||
                 log.patient_coupon_item_id === item.treatment_id
             ) || (existingCouponLogs.length > 0 && (Number(item.price_at_time) === 0 || item.discount_percent === 100) ? existingCouponLogs[0] : null)
 
             if (alreadyUsedLog) {
-                // Was already deducted by therapist/treatment record!
                 const cpItem = alreadyUsedLog.patient_coupon_items
                 const pkgName = cpItem?.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
-                return {
+                processedTreatments.push({
                     id: item.treatment_id,
                     item_type: 'treatment',
                     name: item.treatments?.name || 'Treatment',
@@ -481,19 +526,52 @@ function PosPageContent() {
                     quantity: 1,
                     subtotal: 0,
                     treatment_record_id: bill.id,
+                    therapist_id: bill.performed_by || null,
                     commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
                     is_using_coupon: true,
-                    coupon_already_deducted: true, // CRITICAL: Already deducted by therapist in medical record! Do NOT deduct again at checkout.
+                    coupon_already_deducted: true,
                     used_coupon_item_id: alreadyUsedLog.patient_coupon_item_id,
                     coupon_package_name: pkgName,
                     remaining_sessions: cpItem?.remaining_sessions || 0
-                }
+                })
+                continue
             }
 
-            // If not deducted by therapist, retain price from treatment record
-            const price = Number(item.price_at_time || 0)
+            // Check if matchOldPkg or active coupon available in activeCoupons
+            let matchedCouponItem = null
+            if (matchOldPkg) {
+                const [, couponItemId] = matchOldPkg
+                matchedCouponItem = activeCoupons.find(c => c.id === couponItemId)
+            } else if (activeCoupons.length > 0) {
+                matchedCouponItem = activeCoupons.find(c => c.treatment_id === item.treatment_id && c.remaining_sessions > 0)
+            }
 
-            return {
+            if (matchedCouponItem) {
+                const pkgName = matchedCouponItem.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
+                processedTreatments.push({
+                    id: item.treatment_id,
+                    item_type: 'treatment',
+                    name: item.treatments?.name || 'Treatment',
+                    price: 0,
+                    original_price: originalPrice,
+                    discount_percent: 100,
+                    quantity: 1,
+                    subtotal: 0,
+                    treatment_record_id: bill.id,
+                    therapist_id: bill.performed_by || null,
+                    commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
+                    is_using_coupon: true,
+                    coupon_already_deducted: false,
+                    used_coupon_item_id: matchedCouponItem.id,
+                    coupon_package_name: pkgName,
+                    remaining_sessions: matchedCouponItem.remaining_sessions
+                })
+                continue
+            }
+
+            // Otherwise regular treatment price
+            const price = Number(item.price_at_time || 0)
+            processedTreatments.push({
                 id: item.treatment_id,
                 item_type: 'treatment',
                 name: item.treatments?.name || 'Treatment',
@@ -503,16 +581,18 @@ function PosPageContent() {
                 quantity: 1,
                 subtotal: price,
                 treatment_record_id: bill.id,
+                therapist_id: bill.performed_by || null,
                 commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
                 is_using_coupon: false,
                 coupon_already_deducted: false,
                 used_coupon_item_id: null,
                 coupon_package_name: '',
                 remaining_sessions: 0
-            }
-        })
+            })
+        }
 
-        setCart(newCart)
+        const finalCart = newPackageItem ? [newPackageItem, ...processedTreatments] : processedTreatments
+        setCart(finalCart)
         setSelectedTherapistId(bill.performed_by || 'worker')
         setIsPendingModalOpen(false)
         setLeftPanelTab('catalog')
@@ -879,21 +959,70 @@ function PosPageContent() {
                 throw new Error('Gagal mendapatkan data transaksi dari database.')
             }
 
-            // Potong sesi kupon lewat redeem_coupon_session. Fungsi itu mengunci baris
-            // sesinya sebelum membaca, memeriksa masa berlaku dan sisa sesi, lalu
-            // mencatat pemakaian dalam satu transaksi database -- pemotongan dan
-            // pencatatannya tersimpan bersama atau gagal bersama.
-            // Item yang kuponnya sudah dipotong di rekam medis dilewati.
+            // Potong sesi kupon lewat redeem_coupon_session.
             const failedCoupons = []
 
+            // 1. Sesi pertama dari pembelian paket kupon baru (jika ada tindakan hari ini dari paket baru)
+            const firstSessionItems = cart.filter(item => item.is_first_session_of_new_coupon)
+            for (const fsItem of firstSessionItems) {
+                if (selectedPatient) {
+                    try {
+                        const { data: newCouponItem } = await supabase
+                            .from('patient_coupon_items')
+                            .select('id, total_sessions, used_sessions, remaining_sessions, patient_coupons!inner(transaction_id)')
+                            .eq('patient_coupons.transaction_id', trxData.id)
+                            .eq('treatment_id', fsItem.id)
+                            .maybeSingle()
+
+                        if (newCouponItem) {
+                            const { error: fsRedeemErr } = await supabase.rpc('redeem_coupon_session', {
+                                p_coupon_item_id: newCouponItem.id,
+                                p_patient_id: selectedPatient.id,
+                                p_quantity: 1,
+                                p_transaction_id: trxData.id,
+                                p_treatment_record_id: fsItem.treatment_record_id || treatmentRecordId || null,
+                                p_branch_id: selectedBranch,
+                                p_notes: `Sesi 1 digunakan langsung saat pembelian paket (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
+                            })
+
+                            if (fsRedeemErr) {
+                                console.warn('Fallback update sesi 1 kupon baru:', fsRedeemErr)
+                                await supabase
+                                    .from('patient_coupon_items')
+                                    .update({
+                                        used_sessions: 1,
+                                        remaining_sessions: Math.max(0, newCouponItem.total_sessions - 1)
+                                    })
+                                    .eq('id', newCouponItem.id)
+
+                                await supabase
+                                    .from('coupon_usage_logs')
+                                    .insert([{
+                                        patient_coupon_item_id: newCouponItem.id,
+                                        patient_id: selectedPatient.id,
+                                        transaction_id: trxData.id,
+                                        treatment_record_id: fsItem.treatment_record_id || treatmentRecordId || null,
+                                        branch_id: selectedBranch,
+                                        used_by: dbUser?.id,
+                                        notes: 'Sesi 1 digunakan langsung saat pembelian paket di kasir'
+                                    }])
+                            }
+                        }
+                    } catch (fsErr) {
+                        console.error('Error memotong sesi 1 paket baru:', fsErr)
+                    }
+                }
+            }
+
+            // 2. Potong sesi kupon aktif lama
             for (const cartItem of cart) {
-                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && selectedPatient) {
+                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && !cartItem.is_first_session_of_new_coupon && selectedPatient) {
                     const { error: redeemErr } = await supabase.rpc('redeem_coupon_session', {
                         p_coupon_item_id: cartItem.used_coupon_item_id,
                         p_patient_id: selectedPatient.id,
                         p_quantity: cartItem.quantity,
                         p_transaction_id: trxData.id,
-                        p_treatment_record_id: cartItem.treatment_record_id || null,
+                        p_treatment_record_id: cartItem.treatment_record_id || treatmentRecordId || null,
                         p_branch_id: selectedBranch,
                         p_notes: `Klaim Kasir (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
                     })

@@ -25,13 +25,17 @@ export default function TreatmentInputPage() {
 
     // Master data
     const [treatmentsMaster, setTreatmentsMaster] = useState([])
+    const [couponPackagesMaster, setCouponPackagesMaster] = useState([])
+    const [patientActiveCoupons, setPatientActiveCoupons] = useState([])
     const [therapistsList, setTherapistsList] = useState([])
     const [selectedPerformerId, setSelectedPerformerId] = useState('')
 
-    // Treatment selection
+    // Treatment & Package selection
     const [selectedTreatments, setSelectedTreatments] = useState([])
     const [treatmentSearch, setTreatmentSearch] = useState('')
+    const [packageSearch, setPackageSearch] = useState('')
     const [isTreatmentDropdownOpen, setIsTreatmentDropdownOpen] = useState(false)
+    const [isPackageDropdownOpen, setIsPackageDropdownOpen] = useState(false)
 
     // SOAP Form
     const [formData, setFormData] = useState({
@@ -198,6 +202,46 @@ export default function TreatmentInputPage() {
         const { data: trData } = await supabase.from('treatments').select('*').eq('is_active', true).order('name')
         if (trData) setTreatmentsMaster(trData)
 
+        // Fetch Patient Active Coupons if patient exists
+        const patientId = aptData?.patient_id || aptData?.patients?.id
+        if (patientId) {
+            const { data: pcData } = await supabase
+                .from('patient_coupons')
+                .select(`
+                    id, package_id, expired_at, status,
+                    coupon_packages (id, name, price),
+                    patient_coupon_items (
+                        id, treatment_id, total_sessions, used_sessions, remaining_sessions, status,
+                        treatments (id, name, price, commission_percent, followup_days)
+                    )
+                `)
+                .eq('patient_id', patientId)
+                .neq('status', 'fully_used')
+                .neq('status', 'completed')
+                .gt('expired_at', new Date().toISOString())
+
+            if (pcData) {
+                const validCoupons = pcData.filter(c => 
+                    c.patient_coupon_items?.some(it => it.remaining_sessions > 0 && it.status !== 'fully_used')
+                )
+                setPatientActiveCoupons(validCoupons)
+            }
+        }
+
+        // Fetch Coupon Packages Master with items
+        const { data: cpData } = await supabase
+            .from('coupon_packages')
+            .select(`
+                id, name, price, category,
+                coupon_package_items (
+                    id, treatment_id, quantity, price_per_item,
+                    treatments (id, name, price, commission_percent, followup_days)
+                )
+            `)
+            .eq('is_active', true)
+            .order('name')
+        if (cpData) setCouponPackagesMaster(cpData)
+
         // Fetch Therapists for performer selection if admin/owner
         const { data: thList } = await supabase
             .from('users')
@@ -239,7 +283,10 @@ export default function TreatmentInputPage() {
         if (!treatmentId) return
         const t = treatmentsMaster.find(x => x.id === treatmentId)
         if (!t) return
-        if (selectedTreatments.some(x => x.treatment_id === t.id)) return
+        if (selectedTreatments.some(x => x.treatment_id === t.id && !x.is_new_package && !x.is_existing_coupon)) {
+            toast.error('Treatment ini sudah ada di daftar.')
+            return
+        }
 
         const discountVal = t.discount_percent || 0
         const originalPrice = t.price || 0
@@ -255,9 +302,99 @@ export default function TreatmentInputPage() {
                 discount_percent: discountVal,
                 followup_days: t.followup_days || 0,
                 notes: '',
-                commission_percent: t.commission_percent || 0
+                commission_percent: t.commission_percent || 0,
+                mode: 'regular'
             }
         ])
+    }
+
+    const handleAddPackage = (pkg) => {
+        if (!pkg) return
+        const firstItem = pkg.coupon_package_items?.[0]
+        if (!firstItem) {
+            toast.error('Paket kupon ini belum memiliki rincian tindakan.')
+            return
+        }
+
+        const t = firstItem.treatments || treatmentsMaster.find(x => x.id === firstItem.treatment_id)
+        if (!t) {
+            toast.error('Tindakan dalam paket kupon tidak ditemukan.')
+            return
+        }
+
+        const originalPrice = t.price || 0
+        setSelectedTreatments(prev => {
+            // Remove previous new_package item if any to prevent duplicate package purchase in single session
+            const filtered = prev.filter(x => !x.is_new_package)
+            return [
+                ...filtered,
+                {
+                    treatment_id: t.id,
+                    name: `${t.name} (Sesi 1 dari Paket ${pkg.name})`,
+                    price_at_time: 0,
+                    original_price: originalPrice,
+                    discount_percent: 100,
+                    followup_days: t.followup_days || 14,
+                    notes: `[KUPON_BARU:${pkg.id}:${pkg.name}:${pkg.price}] Sesi 1/${firstItem.quantity} - Beli Paket ${pkg.name}`,
+                    commission_percent: t.commission_percent || 5,
+                    is_new_package: true,
+                    package_id: pkg.id,
+                    package_name: pkg.name,
+                    package_price: pkg.price,
+                    package_total_sessions: firstItem.quantity
+                }
+            ]
+        })
+
+        // Auto update recommendation note
+        setFormData(prev => {
+            const recommendationText = `Ambil Paket Kupon: ${pkg.name} (Total ${firstItem.quantity} Sesi)`
+            if (prev.recommendation && prev.recommendation.includes(pkg.name)) return prev
+            return {
+                ...prev,
+                recommendation: prev.recommendation ? `${prev.recommendation}\n${recommendationText}` : recommendationText
+            }
+        })
+
+        toast.success(`Paket ${pkg.name} dipilih! Sesi 1 akan otomatis terpotong saat pembayaran kasir.`)
+    }
+
+    const handleUseActiveCoupon = (coupon, item) => {
+        if (!item || item.remaining_sessions <= 0) {
+            toast.error('Sisa sesi kupon ini sudah habis.')
+            return
+        }
+
+        const t = item.treatments || treatmentsMaster.find(x => x.id === item.treatment_id)
+        if (!t) {
+            toast.error('Tindakan dalam kupon tidak ditemukan.')
+            return
+        }
+
+        if (selectedTreatments.some(x => x.treatment_id === t.id && x.used_coupon_item_id === item.id)) {
+            toast.error('Kupon ini sudah dimasukkan ke tindakan.')
+            return
+        }
+
+        setSelectedTreatments(prev => [
+            ...prev,
+            {
+                treatment_id: t.id,
+                name: `${t.name} (Klaim Kupon: ${coupon.coupon_packages?.name || 'Paket'})`,
+                price_at_time: 0,
+                original_price: t.price || 0,
+                discount_percent: 100,
+                followup_days: t.followup_days || 14,
+                notes: `[KUPON_LAMA:${item.id}:${coupon.coupon_packages?.name || 'Paket'}] Sisa ${item.remaining_sessions} Sesi`,
+                commission_percent: t.commission_percent || 5,
+                is_existing_coupon: true,
+                used_coupon_item_id: item.id,
+                coupon_package_name: coupon.coupon_packages?.name || 'Paket Kupon',
+                remaining_sessions: item.remaining_sessions
+            }
+        ])
+
+        toast.success(`Kupon ${coupon.coupon_packages?.name || ''} digunakan! Sisa ${item.remaining_sessions} sesi.`)
     }
 
     const handleRemoveTreatment = (treatmentId) => {
@@ -608,27 +745,142 @@ export default function TreatmentInputPage() {
                     </div>
                 </div>
 
-                {/* ─── SECTION 2: PILIH TREATMENT ─── */}
+                {/* ─── BANNER KUPON AKTIF PASIEN (JIKA ADA) ─── */}
+                {patientActiveCoupons.length > 0 && (
+                    <div className="card-ayumi p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/70 border-2 border-emerald-200 rounded-2xl shadow-xs">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-xl">🎟️</span>
+                            <div>
+                                <h3 className="text-sm font-extrabold text-emerald-900">Kupon Aktif Milik Pasien</h3>
+                                <p className="text-xs text-emerald-700">Pasien memiliki kupon yang masih bersisa. Klik tombol untuk langsung menggunakan kupon pada tindakan hari ini.</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {patientActiveCoupons.map(coupon => (
+                                <div key={coupon.id} className="space-y-2">
+                                    {coupon.patient_coupon_items?.filter(it => it.remaining_sessions > 0).map(it => {
+                                        const isUsedInForm = selectedTreatments.some(x => x.used_coupon_item_id === it.id)
+                                        return (
+                                            <div key={it.id} className="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs flex items-center justify-between gap-2">
+                                                <div>
+                                                    <div className="font-bold text-xs text-gray-800">{coupon.coupon_packages?.name || 'Paket Kupon'}</div>
+                                                    <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                                                        {it.treatments?.name || 'Tindakan'} • <span className="bg-emerald-100 px-1.5 py-0.5 rounded text-emerald-800 font-extrabold">Sisa {it.remaining_sessions} Sesi</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    disabled={isUsedInForm}
+                                                    onClick={() => handleUseActiveCoupon(coupon, it)}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${isUsedInForm ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'}`}
+                                                >
+                                                    {isUsedInForm ? '✓ Sudah Dipakai' : '⚡ Pakai Kupon'}
+                                                </button>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── SECTION 2: PILIH TREATMENT & PAKET KUPON ─── */}
                 <div className="card-ayumi p-4 md:p-6 space-y-4">
-                    <div className="flex justify-between items-center border-b pb-3">
-                        <h2 className="text-lg font-bold text-ayumi-primary flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-                            Tindakan Treatment *
-                        </h2>
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b pb-3">
+                        <div>
+                            <h2 className="text-lg font-bold text-ayumi-primary flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                                Tindakan Treatment *
+                            </h2>
+                            <p className="text-xs text-gray-400 mt-0.5">Pilih tindakan satuan biasa atau pilih paket kupon jika pasien mengambil paket.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {/* Tombol Beli Paket Kupon Baru */}
                             <div className="relative">
                                 <button
                                     type="button"
-                                    onClick={() => setIsTreatmentDropdownOpen(!isTreatmentDropdownOpen)}
-                                    className="border-2 border-pink-200 text-ayumi-primary font-bold rounded-xl px-4 py-2 text-sm bg-pink-50 hover:bg-pink-100 transition-all flex items-center gap-2 cursor-pointer"
+                                    onClick={() => {
+                                        setIsPackageDropdownOpen(!isPackageDropdownOpen)
+                                        setIsTreatmentDropdownOpen(false)
+                                    }}
+                                    className="border-2 border-purple-200 text-purple-700 font-bold rounded-xl px-3.5 py-2 text-xs md:text-sm bg-purple-50 hover:bg-purple-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                    <span>🎁</span>
+                                    <span>Ambil Paket Kupon</span>
+                                </button>
+                                {isPackageDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsPackageDropdownOpen(false)} />
+                                        <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white border border-purple-100 rounded-2xl shadow-2xl z-50 p-3 space-y-2">
+                                            <div className="text-xs font-bold text-purple-900 px-1">Pilih Paket Kupon Baru:</div>
+                                            <div className="relative">
+                                                <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Cari paket kupon (cth: PRP 3x)..."
+                                                    value={packageSearch}
+                                                    onChange={(e) => setPackageSearch(e.target.value)}
+                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-purple-500 bg-gray-50"
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+                                                {couponPackagesMaster
+                                                    .filter(p => p.name.toLowerCase().includes(packageSearch.toLowerCase()))
+                                                    .map(p => {
+                                                        const totalSessions = p.coupon_package_items?.[0]?.quantity || 0
+                                                        const treatmentName = p.coupon_package_items?.[0]?.treatments?.name || 'Treatment'
+                                                        return (
+                                                            <button
+                                                                key={p.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    handleAddPackage(p)
+                                                                    setIsPackageDropdownOpen(false)
+                                                                    setPackageSearch('')
+                                                                }}
+                                                                className="w-full text-left px-3 py-2.5 rounded-xl transition-colors hover:bg-purple-50 flex items-center justify-between text-sm cursor-pointer"
+                                                            >
+                                                                <div>
+                                                                    <div className="font-extrabold text-purple-900">{p.name}</div>
+                                                                    <div className="text-[11px] text-gray-500">{treatmentName} • {totalSessions}x Sesi</div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="text-xs font-bold text-ayumi-secondary">Rp {Number(p.price).toLocaleString('id-ID')}</div>
+                                                                    <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-1.5 py-0.5 rounded">Pilih</span>
+                                                                </div>
+                                                            </button>
+                                                        )
+                                                    })
+                                                }
+                                                {couponPackagesMaster.filter(p => p.name.toLowerCase().includes(packageSearch.toLowerCase())).length === 0 && (
+                                                    <div className="text-center py-6 text-gray-400 text-sm">Tidak ada paket ditemukan</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Tombol Tambah Treatment Satuan */}
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsTreatmentDropdownOpen(!isTreatmentDropdownOpen)
+                                        setIsPackageDropdownOpen(false)
+                                    }}
+                                    className="border-2 border-pink-200 text-ayumi-primary font-bold rounded-xl px-3.5 py-2 text-xs md:text-sm bg-pink-50 hover:bg-pink-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                                    Tambah Treatment
+                                    <span>Tambah Treatment Satuan</span>
                                 </button>
                                 {isTreatmentDropdownOpen && (
                                     <>
                                         <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsTreatmentDropdownOpen(false)} />
                                         <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white border border-pink-100 rounded-2xl shadow-2xl z-50 p-3 space-y-2">
+                                            <div className="text-xs font-bold text-pink-900 px-1">Pilih Treatment Satuan:</div>
                                             <div className="relative">
                                                 <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                                 <input
@@ -644,7 +896,7 @@ export default function TreatmentInputPage() {
                                                 {treatmentsMaster
                                                     .filter(t => t.name.toLowerCase().includes(treatmentSearch.toLowerCase()))
                                                     .map(t => {
-                                                        const isSelected = selectedTreatments.some(x => x.treatment_id === t.id)
+                                                        const isSelected = selectedTreatments.some(x => x.treatment_id === t.id && !x.is_new_package && !x.is_existing_coupon)
                                                         return (
                                                             <button
                                                                 key={t.id}
@@ -658,6 +910,7 @@ export default function TreatmentInputPage() {
                                                                 className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between text-sm cursor-pointer ${isSelected ? 'opacity-40 cursor-not-allowed' : 'hover:bg-pink-50'}`}
                                                             >
                                                                 <span className="font-bold text-ayumi-secondary truncate pr-2">{t.name}</span>
+                                                                <span className="text-xs font-bold text-gray-400">Rp {Number(t.price).toLocaleString('id-ID')}</span>
                                                             </button>
                                                         )
                                                     })
@@ -674,35 +927,74 @@ export default function TreatmentInputPage() {
                     </div>
  
                     {selectedTreatments.length === 0 ? (
-                        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-2xl">
+                        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
                             <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
                             <p className="text-gray-400 font-medium text-sm">Belum ada treatment dipilih</p>
-                            <p className="text-gray-300 text-xs mt-1">Klik tombol "Tambah Treatment" di atas</p>
+                            <p className="text-gray-400 text-xs mt-1">Pilih "Ambil Paket Kupon" atau "Tambah Treatment Satuan" di atas</p>
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            {selectedTreatments.map((item, idx) => (
-                                <div key={item.treatment_id} className="flex items-center justify-between bg-pink-50 p-3.5 rounded-xl border border-pink-100">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-ayumi-primary/10 rounded-full flex items-center justify-center text-ayumi-primary font-bold text-sm">
-                                            {idx + 1}
+                        <div className="space-y-2.5">
+                            {selectedTreatments.map((item, idx) => {
+                                const isNewPkg = item.is_new_package || item.notes?.includes('[KUPON_BARU:')
+                                const isOldCoupon = item.is_existing_coupon || item.notes?.includes('[KUPON_LAMA:')
+
+                                return (
+                                    <div 
+                                        key={item.treatment_id + (item.used_coupon_item_id || idx)} 
+                                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
+                                            isNewPkg 
+                                                ? 'bg-purple-50/80 border-purple-200' 
+                                                : isOldCoupon 
+                                                    ? 'bg-emerald-50/80 border-emerald-200' 
+                                                    : 'bg-pink-50 border-pink-100'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                                                isNewPkg 
+                                                    ? 'bg-purple-200 text-purple-800' 
+                                                    : isOldCoupon 
+                                                        ? 'bg-emerald-200 text-emerald-800' 
+                                                        : 'bg-ayumi-primary/10 text-ayumi-primary'
+                                            }`}>
+                                                {idx + 1}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-ayumi-secondary text-sm">{item.name}</span>
+                                                    {isNewPkg && (
+                                                        <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
+                                                            🎁 Beli Paket Baru
+                                                        </span>
+                                                    )}
+                                                    {isOldCoupon && (
+                                                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">
+                                                            🎟️ Klaim Kupon Pasien
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {item.notes && (
+                                                    <div className={`text-xs font-medium mt-0.5 ${
+                                                        isNewPkg ? 'text-purple-700' : isOldCoupon ? 'text-emerald-700' : 'text-gray-500'
+                                                    }`}>
+                                                        {item.notes.replace(/\[KUPON_BARU:[^\]]+\]\s*/, '').replace(/\[KUPON_LAMA:[^\]]+\]\s*/, '')}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="font-bold text-ayumi-secondary text-sm">{item.name}</div>
-                                            {item.notes && <div className="text-xs text-purple-600 font-medium mt-0.5">{item.notes}</div>}
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveTreatment(item.treatment_id)}
+                                                className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                                                title="Hapus treatment ini"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveTreatment(item.treatment_id)}
-                                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
