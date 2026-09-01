@@ -32,6 +32,7 @@ export default function CRMPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [priorityFilter, setPriorityFilter] = useState('All')
     const [typeFilter, setTypeFilter] = useState('All')
+    const [timeframeFilter, setTimeframeFilter] = useState('due')
     const [branchFilter, setBranchFilter] = useState('All')
 
     // Modal States
@@ -86,7 +87,7 @@ export default function CRMPage() {
 
     useEffect(() => {
         fetchData()
-    }, [])
+    }, [timeframeFilter])
 
     // Set default date when manual modal is opened
     useEffect(() => {
@@ -126,7 +127,7 @@ export default function CRMPage() {
 
         const todayDateStr = new Date().toISOString().split('T')[0]
 
-        // 1. Fetch Follow Up Queue (pending or rescheduled, scheduled_date <= today)
+        // 1. Fetch Follow Up Queue
         let qQuery = supabase
             .from('followup_queue')
             .select(`
@@ -135,9 +136,20 @@ export default function CRMPage() {
                 treatment_records (treatment_date, branch_id)
             `)
             .in('status', ['pending', 'rescheduled'])
-            .lte('scheduled_date', todayDateStr)
 
-        const { data: rawQData } = await qQuery.order('priority', { ascending: false })
+        if (timeframeFilter === 'due') {
+            qQuery = qQuery.lte('scheduled_date', todayDateStr)
+        } else if (timeframeFilter === 'upcoming_7') {
+            const d = new Date()
+            d.setDate(d.getDate() + 7)
+            qQuery = qQuery.lte('scheduled_date', d.toISOString().split('T')[0])
+        } else if (timeframeFilter === 'upcoming_30') {
+            const d = new Date()
+            d.setDate(d.getDate() + 30)
+            qQuery = qQuery.lte('scheduled_date', d.toISOString().split('T')[0])
+        }
+
+        const { data: rawQData } = await qQuery.order('scheduled_date', { ascending: true })
             
         let qData = []
         if (rawQData) {
@@ -705,9 +717,23 @@ export default function CRMPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-4 w-full md:w-auto justify-end">
-                        {/* Priority Filter (Only in Follow Up Queue tab) */}
+                        {/* Priority & Timeframe Filter (Only in Follow Up Queue tab) */}
                         {activeTab === 'queue' && (
                             <>
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Jadwal:</span>
+                                    <select
+                                        value={timeframeFilter}
+                                        onChange={(e) => setTimeframeFilter(e.target.value)}
+                                        className="input-ayumi py-2 text-sm max-w-[200px] focus:bg-gray-50 font-bold"
+                                    >
+                                        <option value="due">⏰ Jatuh Tempo & Hari Ini</option>
+                                        <option value="upcoming_7">📅 7 Hari Mendatang</option>
+                                        <option value="upcoming_30">📅 30 Hari Mendatang</option>
+                                        <option value="all">🌐 Semua Antrean</option>
+                                    </select>
+                                </div>
+
                                 <div className="flex items-center gap-2 w-full sm:w-auto">
                                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Tahap:</span>
                                     <select
@@ -772,7 +798,12 @@ export default function CRMPage() {
                         {activeTab === 'queue' && (
                             <div className="space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                    <h3 className="text-base font-extrabold text-gray-900">Harus Dihubungi Hari Ini</h3>
+                                    <h3 className="text-base font-extrabold text-gray-900">
+                                        {timeframeFilter === 'due' && 'Harus Dihubungi Hari Ini & Jatuh Tempo'}
+                                        {timeframeFilter === 'upcoming_7' && 'Jadwal Follow-Up 7 Hari Mendatang'}
+                                        {timeframeFilter === 'upcoming_30' && 'Jadwal Follow-Up 30 Hari Mendatang'}
+                                        {timeframeFilter === 'all' && 'Semua Jadwal Antrean Follow-Up'}
+                                    </h3>
                                     <div className="flex flex-wrap items-center gap-1.5 bg-gray-100/70 p-1.5 rounded-2xl border border-gray-200/70">
                                         <button
                                             onClick={() => setTypeFilter('All')}
@@ -802,7 +833,7 @@ export default function CRMPage() {
                                 </div>
                                 {filteredQueue.length === 0 ? (
                                     <div className="text-center py-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-                                        <p className="text-gray-500 text-sm font-medium">Tidak ada antrean follow-up untuk hari ini. Luar biasa! 🎉</p>
+                                        <p className="text-gray-500 text-sm font-medium">Tidak ada antrean follow-up untuk filter ini. 🎉</p>
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-sm">
@@ -811,72 +842,85 @@ export default function CRMPage() {
                                                 <tr className="bg-pink-50/60 text-ayumi-secondary text-xs uppercase font-extrabold tracking-wider">
                                                     <th className="p-4">Pasien</th>
                                                     <th className="p-4">Terakhir Treatment</th>
+                                                    <th className="p-4">Jadwal Hubungi</th>
                                                     <th className="p-4">Jenis / Prioritas</th>
                                                     <th className="p-4 text-center">Aksi</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100 text-sm bg-white">
-                                                {filteredQueue.map(q => (
-                                                    <tr key={q.id} className="hover:bg-pink-50/20 transition-colors">
-                                                        <td className="p-4">
-                                                            <div className="font-bold text-gray-900">{q.patients?.full_name}</div>
-                                                            <div className="text-xs text-gray-400 mt-0.5">{q.patients?.whatsapp || 'No WA -'}</div>
-                                                        </td>
-                                                        <td className="p-4 text-xs font-semibold text-gray-600">
-                                                            {q.treatment_records?.treatment_date || '-'}
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="text-xs font-bold uppercase">
-                                                                {(() => {
-                                                                    const effType = getEffectiveFollowupType(q)
-                                                                    const typeLabels = {
-                                                                        'followup_2minggu': { label: 'Cek Progres 2 Minggu', color: 'text-indigo-700' },
-                                                                        'followup_3minggu': { label: 'Cek Progres 3 Minggu', color: 'text-blue-700' },
-                                                                        'followup_1bulan': { label: 'Cek Progres 1 Bulan', color: 'text-purple-700' },
-                                                                        'reminder_besok': { label: 'Reminder Besok Treatment', color: 'text-red-700' },
-                                                                        'treatment_reminder': { label: 'Pengingat Perawatan', color: 'text-ayumi-primary' },
-                                                                        'dormant_reminder': { label: 'Sapaan Dormant', color: 'text-orange-700' },
-                                                                        'birthday': { label: 'Ulang Tahun', color: 'text-pink-700' }
-                                                                    }
-                                                                    const info = typeLabels[effType] || { label: effType?.replace(/_/g, ' ') || '-', color: 'text-gray-600' }
-                                                                    return <span className={info.color}>{info.label}</span>
-                                                                })()}
-                                                            </div>
-                                                            <div className={`text-[10px] font-extrabold inline-block px-2 py-0.5 rounded-md mt-1 uppercase ${q.priority === 'high' ? 'bg-red-100 text-red-700' : (q.priority === 'normal' || q.priority === 'medium') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                                                                {q.priority}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <button
-                                                                    onClick={() => handleOpenWaModal(q, q.followup_type || 'treatment_reminder')}
-                                                                    className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                                                                >
-                                                                    💬 Hubungi WA
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handleSelesaiClick(q)} 
-                                                                    className="h-8 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
-                                                                >
-                                                                    Selesai
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handleTundaClick(q)} 
-                                                                    className="h-8 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
-                                                                >
-                                                                    Tunda
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handleDeleteQueue(q.id, q.patients?.full_name)} 
-                                                                    className="h-8 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
-                                                                    title="Hapus"
-                                                                >
-                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                {filteredQueue.map(q => {
+                                                    const todayStr = new Date().toISOString().split('T')[0];
+                                                    const isDue = q.scheduled_date && q.scheduled_date <= todayStr;
+                                                    return (
+                                                        <tr key={q.id} className="hover:bg-pink-50/20 transition-colors">
+                                                            <td className="p-4">
+                                                                <div className="font-bold text-gray-900">{q.patients?.full_name}</div>
+                                                                <div className="text-xs text-gray-400 mt-0.5">{q.patients?.whatsapp || 'No WA -'}</div>
+                                                            </td>
+                                                            <td className="p-4 text-xs font-semibold text-gray-600">
+                                                                {q.treatment_records?.treatment_date || '-'}
+                                                            </td>
+                                                            <td className="p-4 text-xs font-semibold text-gray-700">
+                                                                <div className="font-bold">{q.scheduled_date || '-'}</div>
+                                                                {isDue ? (
+                                                                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full inline-block mt-0.5">Jatuh Tempo</span>
+                                                                ) : (
+                                                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full inline-block mt-0.5">Terjadwal</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-xs font-bold uppercase">
+                                                                    {(() => {
+                                                                        const effType = getEffectiveFollowupType(q)
+                                                                        const typeLabels = {
+                                                                            'followup_2minggu': { label: 'Cek Progres 2 Minggu', color: 'text-indigo-700' },
+                                                                            'followup_3minggu': { label: 'Cek Progres 3 Minggu', color: 'text-blue-700' },
+                                                                            'followup_1bulan': { label: 'Cek Progres 1 Bulan', color: 'text-purple-700' },
+                                                                            'reminder_besok': { label: 'Reminder Besok Treatment', color: 'text-red-700' },
+                                                                            'treatment_reminder': { label: 'Pengingat Perawatan', color: 'text-ayumi-primary' },
+                                                                            'dormant_reminder': { label: 'Sapaan Dormant', color: 'text-orange-700' },
+                                                                            'birthday': { label: 'Ulang Tahun', color: 'text-pink-700' }
+                                                                        }
+                                                                        const info = typeLabels[effType] || { label: effType?.replace(/_/g, ' ') || '-', color: 'text-gray-600' }
+                                                                        return <span className={info.color}>{info.label}</span>
+                                                                    })()}
+                                                                </div>
+                                                                <div className={`text-[10px] font-extrabold inline-block px-2 py-0.5 rounded-md mt-1 uppercase ${q.priority === 'high' ? 'bg-red-100 text-red-700' : (q.priority === 'normal' || q.priority === 'medium') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                                                                    {q.priority}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <button
+                                                                        onClick={() => handleOpenWaModal(q, q.followup_type || 'treatment_reminder')}
+                                                                        className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                                                    >
+                                                                        💬 Hubungi WA
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleSelesaiClick(q)} 
+                                                                        className="h-8 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
+                                                                    >
+                                                                        Selesai
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleTundaClick(q)} 
+                                                                        className="h-8 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
+                                                                    >
+                                                                        Tunda
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleDeleteQueue(q.id, q.patients?.full_name)} 
+                                                                        className="h-8 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
+                                                                        title="Hapus"
+                                                                    >
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>

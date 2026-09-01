@@ -523,6 +523,7 @@ async function main() {
     const treatmentRecordPayloads = [];
     const transactionItemPayloads = [];
     const treatmentRecordItemPayloads = [];
+    const followupQueuePayloads = [];
 
     // Grouping Treatments by trx_ref
     const treatmentsByTrxRef = new Map();
@@ -642,6 +643,34 @@ async function main() {
                 recommendation: '-',
                 created_at: isoDate,
                 updated_at: isoDate
+            });
+
+            // Otomatis buat jadwal antrean follow-up CRM (2 minggu, 3 minggu, 1 bulan)
+            const baseDate = new Date(dateStr + 'T00:00:00');
+            const followupSteps = [
+                { days: 14, priority: 'normal' },
+                { days: 21, priority: 'normal' },
+                { days: 30, priority: 'normal' }
+            ];
+
+            followupSteps.forEach(step => {
+                const sDate = new Date(baseDate);
+                sDate.setDate(sDate.getDate() + step.days);
+                const sDateStr = sDate.toISOString().split('T')[0];
+
+                followupQueuePayloads.push({
+                    id: crypto.randomUUID(),
+                    patient_id: patientId,
+                    treatment_record_id: treatmentRecordId,
+                    branch_id: CIAMIS_BRANCH_ID,
+                    assigned_to: primaryTherapistUser?.id || null,
+                    followup_type: 'treatment_reminder',
+                    scheduled_date: sDateStr,
+                    priority: step.priority,
+                    status: 'pending',
+                    created_at: isoDate,
+                    updated_at: isoDate
+                });
             });
         }
 
@@ -924,6 +953,9 @@ async function main() {
 
     // 7. Patient Coupon Items
     await batchInsert('patient_coupon_items', couponItemPayloads, 'Item Paket Kupon');
+
+    // 8. Follow-up CRM Queue
+    await batchInsert('followup_queue', followupQueuePayloads, 'Antrean Follow Up CRM');
 
     // 11. Verifikasi Akhir
     console.log('\n🔍 Memverifikasi data tersimpan di Supabase...');
