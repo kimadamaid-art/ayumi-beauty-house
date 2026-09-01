@@ -689,43 +689,54 @@ function AddRecordForm() {
                 <div className="lg:col-span-2 space-y-6">
                     {/* Profil Kulit & Riwayat Klinis */}
                     <div className="card-ayumi p-4 md:p-6 space-y-6">
-                        <div className="flex items-center justify-between border-b pb-3">
-                            <h3 className="text-lg font-bold text-ayumi-secondary flex items-center gap-2">
-                                <span className="p-1.5 bg-pink-100 text-pink-600 rounded-lg">🔬</span>
-                                Profil Kulit & Riwayat Klinis Pasien
-                            </h3>
-                            <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                                Sinkron ke Master Pasien
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
+                            <div>
+                                <h3 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                                    <span className="p-1.5 bg-pink-100 text-pink-600 rounded-xl text-lg">🔬</span>
+                                    Profil Kulit & Riwayat Klinis Pasien
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium">Informasi jenis kulit, kontraindikasi medis, dan perawatan rutin pasien</p>
+                            </div>
+                            <span className="self-start sm:self-auto text-[11px] font-bold text-pink-700 bg-pink-50 border border-pink-200 px-3 py-1 rounded-full shadow-2xs">
+                                ✨ Sinkron ke Master Pasien
                             </span>
                         </div>
 
                         {/* Jenis Kulit */}
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                                Jenis Kulit (Skin Type)
-                            </label>
+                        <div className="space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                                    <span>🧴</span> Jenis Kulit (Skin Type)
+                                </label>
+                                {formData.skin_type && (
+                                    <span className="text-[11px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md">
+                                        Terpilih: {formData.skin_type}
+                                    </span>
+                                )}
+                            </div>
                             <div className="flex flex-wrap gap-2">
                                 {[
-                                    { id: 'Normal', label: '✨ Normal', color: 'hover:border-emerald-400 hover:text-emerald-700 active:bg-emerald-50' },
-                                    { id: 'Kering', label: '🌵 Kering (Dry)', color: 'hover:border-amber-400 hover:text-amber-700 active:bg-amber-50' },
-                                    { id: 'Berminyak', label: '💧 Berminyak (Oily)', color: 'hover:border-blue-400 hover:text-blue-700 active:bg-blue-50' },
-                                    { id: 'Kombinasi', label: '⚖️ Kombinasi', color: 'hover:border-teal-400 hover:text-teal-700 active:bg-teal-50' },
-                                    { id: 'Sensitif', label: '🌸 Sensitif', color: 'hover:border-rose-400 hover:text-rose-700 active:bg-rose-50' },
-                                    { id: 'Acne-Prone', label: '🔴 Acne-Prone (Berjerawat)', color: 'hover:border-red-400 hover:text-red-700 active:bg-red-50' },
-                                    { id: 'Aging', label: '⏳ Aging / Flek', color: 'hover:border-purple-400 hover:text-purple-700 active:bg-purple-50' }
+                                    { id: 'Normal', label: '✨ Normal', activeBg: 'bg-emerald-600 border-emerald-600 text-white' },
+                                    { id: 'Kering', label: '🌵 Kering (Dry)', activeBg: 'bg-amber-600 border-amber-600 text-white' },
+                                    { id: 'Berminyak', label: '💧 Berminyak (Oily)', activeBg: 'bg-blue-600 border-blue-600 text-white' },
+                                    { id: 'Kombinasi', label: '⚖️ Kombinasi', activeBg: 'bg-teal-600 border-teal-600 text-white' },
+                                    { id: 'Sensitif', label: '🌸 Sensitif', activeBg: 'bg-rose-600 border-rose-600 text-white' },
+                                    { id: 'Acne-Prone', label: '🔴 Acne-Prone (Jerawat)', activeBg: 'bg-red-600 border-red-600 text-white' },
+                                    { id: 'Aging / Flek', label: '⏳ Aging / Flek', activeBg: 'bg-purple-600 border-purple-600 text-white' }
                                 ].map(item => {
-                                    const isSelected = formData.skin_type === item.id || (formData.skin_type && formData.skin_type.toLowerCase().includes(item.id.toLowerCase()))
+                                    const isSelected = formData.skin_type === item.id || (formData.skin_type && formData.skin_type.toLowerCase().split(',').map(s=>s.trim()).includes(item.id.toLowerCase()))
                                     return (
                                         <button
                                             key={item.id}
                                             type="button"
                                             onClick={() => setFormData(prev => ({ ...prev, skin_type: isSelected ? '' : item.id }))}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
                                                 isSelected 
-                                                    ? 'bg-pink-600 border-pink-600 text-white shadow-sm scale-105' 
-                                                    : `bg-white border-gray-200 text-gray-700 ${item.color}`
+                                                    ? `${item.activeBg} shadow-sm scale-105 ring-2 ring-pink-300` 
+                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                                             }`}
                                         >
+                                            {isSelected && <span className="mr-1">✓</span>}
                                             {item.label}
                                         </button>
                                     )
@@ -734,108 +745,158 @@ function AddRecordForm() {
                         </div>
 
                         {/* Kontraindikasi */}
-                        <div className="p-4 bg-rose-50/50 border-2 border-rose-200/80 rounded-2xl space-y-2">
+                        <div className="p-4 bg-gradient-to-br from-rose-50/70 via-rose-50/30 to-amber-50/40 border-2 border-rose-200/90 rounded-2xl space-y-2.5 shadow-2xs">
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
-                                    <span className="text-rose-600 font-extrabold text-base">⚠️</span>
+                                <label className="text-xs font-extrabold uppercase tracking-wider text-rose-900 flex items-center gap-1.5">
+                                    <span className="text-base">⚠️</span>
                                     Kontraindikasi / Peringatan Khusus
                                 </label>
-                                <span className="text-[11px] font-bold text-rose-600 uppercase bg-rose-100 px-2 py-0.5 rounded-md">Penting</span>
+                                <span className="text-[10px] font-extrabold text-rose-700 uppercase bg-rose-100/80 border border-rose-200 px-2 py-0.5 rounded-md">
+                                    Wajib Diperiksa
+                                </span>
                             </div>
                             <textarea
                                 name="contraindications"
                                 value={formData.contraindications}
                                 onChange={handleChange}
                                 rows="2"
-                                placeholder="Contoh: Sedang hamil/menyusui, alergi zat aktif tertentu, penggunaan retinol/AHA aktif..."
-                                className="input-ayumi bg-white text-sm border-rose-200 focus:border-rose-400 resize-none"
+                                placeholder="Contoh: Sedang hamil/menyusui, alergi zat aktif, penggunaan retinol/AHA aktif..."
+                                className="input-ayumi bg-white text-xs md:text-sm border-rose-200 focus:border-rose-400 resize-none shadow-2xs"
                             ></textarea>
                             {/* Quick Tag Chips */}
-                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                <span className="text-[10px] text-gray-500 font-semibold mr-1">Tag Cepat:</span>
-                                {[
-                                    'Ibu Hamil / Menyusui',
-                                    'Retinoid / AHA-BHA Aktif',
-                                    'Alergi Obat/Bahan',
-                                    'Riwayat Keloid',
-                                    'Kulit Iritasi / Sunburn',
-                                    'Tidak Ada Kontraindikasi'
-                                ].map(tag => (
-                                    <button
-                                        key={tag}
-                                        type="button"
-                                        onClick={() => {
-                                            setFormData(prev => {
-                                                const current = prev.contraindications?.trim() || ''
-                                                if (tag === 'Tidak Ada Kontraindikasi') return { ...prev, contraindications: 'Tidak Ada' }
-                                                if (current.includes(tag)) return prev
-                                                const updated = current ? `${current}, ${tag}` : tag
-                                                return { ...prev, contraindications: updated }
-                                            })
-                                        }}
-                                        className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-rose-200 text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition-colors cursor-pointer"
-                                    >
-                                        + {tag}
-                                    </button>
-                                ))}
+                            <div className="space-y-1.5 pt-1">
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat (Klik untuk Tambah/Hapus):</span>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {[
+                                        'Ibu Hamil / Menyusui',
+                                        'Retinoid / Roaccutane / AHA Aktif',
+                                        'Alergi Obat/Bahan',
+                                        'Riwayat Keloid',
+                                        'Kulit Iritasi / Sunburn',
+                                        'Tanam Benang / Filler Baru',
+                                        'Tidak Ada Kontraindikasi'
+                                    ].map(tag => {
+                                        const isNone = tag === 'Tidak Ada Kontraindikasi'
+                                        const curr = (formData.contraindications || '').trim()
+                                        const isSelected = isNone 
+                                            ? (curr === 'Tidak Ada' || curr === 'Tidak Ada Kontraindikasi')
+                                            : curr.split(',').map(s=>s.trim()).includes(tag)
+
+                                        return (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData(prev => {
+                                                        const current = (prev.contraindications || '').trim()
+                                                        if (isNone) {
+                                                            return { ...prev, contraindications: isSelected ? '' : 'Tidak Ada' }
+                                                        }
+                                                        if (current === 'Tidak Ada' || current === 'Tidak Ada Kontraindikasi') {
+                                                            return { ...prev, contraindications: tag }
+                                                        }
+                                                        let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                        if (items.includes(tag)) {
+                                                            items = items.filter(i => i !== tag)
+                                                        } else {
+                                                            items.push(tag)
+                                                        }
+                                                        return { ...prev, contraindications: items.join(', ') }
+                                                    })
+                                                }}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-rose-600 border-rose-600 text-white shadow-2xs'
+                                                        : 'bg-white border-rose-200/80 text-rose-800 hover:bg-rose-100/70'
+                                                }`}
+                                            >
+                                                {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Sejarah Medis */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-gray-700">
-                                    📋 Sejarah Medis & Riwayat Penyakit
+                            <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2.5">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                    <span>📋</span> Sejarah Medis & Riwayat Penyakit
                                 </label>
                                 <textarea
                                     name="medical_history"
                                     value={formData.medical_history}
                                     onChange={handleChange}
                                     rows="3"
-                                    placeholder="Riwayat medis umum, riwayat alergi lama, konsumsi obat rutin, atau tindakan medis sebelumnya..."
-                                    className="input-ayumi bg-gray-50 focus:bg-white text-sm resize-none"
+                                    placeholder="Riwayat medis, riwayat alergi lama, pengobatan rutin, atau tindakan di klinik lain..."
+                                    className="input-ayumi bg-white focus:bg-white text-xs md:text-sm resize-none shadow-2xs"
                                 ></textarea>
-                                <div className="flex flex-wrap items-center gap-1.5">
+                                {/* Quick Tags */}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                                     {[
                                         'Penyakit Kulit Kronis',
-                                        'Konsumsi Obat Jerawat Rutin',
-                                        'Perawatan di Klinik Lain',
+                                        'Obat Jerawat Rutin',
+                                        'Alergi Obat/Makanan',
+                                        'Treatment di Klinik Lain',
                                         'Tidak Ada Riwayat Medis'
-                                    ].map(tag => (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => {
-                                                setFormData(prev => {
-                                                    const current = prev.medical_history?.trim() || ''
-                                                    if (tag === 'Tidak Ada Riwayat Medis') return { ...prev, medical_history: 'Tidak Ada' }
-                                                    if (current.includes(tag)) return prev
-                                                    const updated = current ? `${current}, ${tag}` : tag
-                                                    return { ...prev, medical_history: updated }
-                                                })
-                                            }}
-                                            className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-                                        >
-                                            + {tag}
-                                        </button>
-                                    ))}
+                                    ].map(tag => {
+                                        const isNone = tag === 'Tidak Ada Riwayat Medis'
+                                        const curr = (formData.medical_history || '').trim()
+                                        const isSelected = isNone 
+                                            ? (curr === 'Tidak Ada' || curr === 'Tidak Ada Riwayat Medis')
+                                            : curr.split(',').map(s=>s.trim()).includes(tag)
+
+                                        return (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData(prev => {
+                                                        const current = (prev.medical_history || '').trim()
+                                                        if (isNone) {
+                                                            return { ...prev, medical_history: isSelected ? '' : 'Tidak Ada' }
+                                                        }
+                                                        if (current === 'Tidak Ada' || current === 'Tidak Ada Riwayat Medis') {
+                                                            return { ...prev, medical_history: tag }
+                                                        }
+                                                        let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                        if (items.includes(tag)) {
+                                                            items = items.filter(i => i !== tag)
+                                                        } else {
+                                                            items.push(tag)
+                                                        }
+                                                        return { ...prev, medical_history: items.join(', ') }
+                                                    })
+                                                }}
+                                                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-slate-800 border-slate-800 text-white shadow-2xs'
+                                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             </div>
 
                             {/* Perawatan Klien */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-gray-700">
-                                    🧴 Perawatan Klien (Skincare Rutin di Rumah)
+                            <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2.5">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                    <span>🧴</span> Skincare Rutin di Rumah
                                 </label>
                                 <textarea
                                     name="client_skincare_routine"
                                     value={formData.client_skincare_routine}
                                     onChange={handleChange}
                                     rows="3"
-                                    placeholder="Produk perawatan harian yang sedang dipakai klien (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
-                                    className="input-ayumi bg-gray-50 focus:bg-white text-sm resize-none"
+                                    placeholder="Produk harian yang dipakai (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
+                                    className="input-ayumi bg-white focus:bg-white text-xs md:text-sm resize-none shadow-2xs"
                                 ></textarea>
-                                <div className="flex flex-wrap items-center gap-1.5">
+                                {/* Quick Tags */}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                                     {[
                                         'Facial Wash',
                                         'Toner',
@@ -843,24 +904,37 @@ function AddRecordForm() {
                                         'Sunscreen',
                                         'Moisturizer',
                                         'Night Cream',
-                                        'Produk Racikan Dokter'
-                                    ].map(tag => (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => {
-                                                setFormData(prev => {
-                                                    const current = prev.client_skincare_routine?.trim() || ''
-                                                    if (current.includes(tag)) return prev
-                                                    const updated = current ? `${current}, ${tag}` : tag
-                                                    return { ...prev, client_skincare_routine: updated }
-                                                })
-                                            }}
-                                            className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-                                        >
-                                            + {tag}
-                                        </button>
-                                    ))}
+                                        'Racikan Dokter'
+                                    ].map(tag => {
+                                        const curr = (formData.client_skincare_routine || '').trim()
+                                        const isSelected = curr.split(',').map(s=>s.trim()).includes(tag)
+
+                                        return (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData(prev => {
+                                                        const current = (prev.client_skincare_routine || '').trim()
+                                                        let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                        if (items.includes(tag)) {
+                                                            items = items.filter(i => i !== tag)
+                                                        } else {
+                                                            items.push(tag)
+                                                        }
+                                                        return { ...prev, client_skincare_routine: items.join(', ') }
+                                                    })
+                                                }}
+                                                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-pink-600 border-pink-600 text-white shadow-2xs'
+                                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-pink-50 hover:text-pink-700 hover:border-pink-200'
+                                                }`}
+                                            >
+                                                {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             </div>
                         </div>
