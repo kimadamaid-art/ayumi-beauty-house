@@ -7,7 +7,7 @@ export default function HorizontalCategoryRow({
     categoryName,
     items = [],
     onItemClick,
-    categoryTheme = 'sky' // 'sky' | 'pink' | 'purple' | 'teal'
+    categoryTheme = 'sky'
 }) {
     const scrollContainerRef = useRef(null)
 
@@ -15,40 +15,40 @@ export default function HorizontalCategoryRow({
 
     const handleScroll = (direction) => {
         if (scrollContainerRef.current) {
-            const scrollAmount = direction === 'left' ? -320 : 320
+            const scrollAmount = direction === 'left' ? -280 : 280
             scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
         }
     }
 
-    // Theme color palettes
+    // Modern harmonious color palettes per category
     const themeStyles = {
         sky: {
-            cardBg: 'bg-gradient-to-br from-sky-400 to-sky-600',
-            border: 'border-sky-200 hover:border-sky-400',
-            pill: 'bg-sky-50 text-sky-700 border-sky-200',
-            price: 'text-sky-950',
-            btnHover: 'hover:bg-sky-50 text-sky-700'
-        },
-        pink: {
-            cardBg: 'bg-gradient-to-br from-pink-500 to-rose-500',
-            border: 'border-pink-200 hover:border-pink-400',
-            pill: 'bg-pink-50 text-pink-700 border-pink-200',
-            price: 'text-rose-950',
-            btnHover: 'hover:bg-pink-50 text-pink-700'
-        },
-        purple: {
-            cardBg: 'bg-gradient-to-br from-purple-500 to-indigo-600',
-            border: 'border-purple-200 hover:border-purple-400',
-            pill: 'bg-purple-50 text-purple-700 border-purple-200',
-            price: 'text-purple-950',
-            btnHover: 'hover:bg-purple-50 text-purple-700'
+            cardBg: 'bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600',
+            border: 'border-sky-200/60 group-hover:border-sky-400',
+            badge: 'bg-sky-50 text-sky-700 border-sky-200',
+            price: 'text-sky-700',
+            glow: 'group-hover:shadow-sky-200/60'
         },
         teal: {
-            cardBg: 'bg-gradient-to-br from-teal-500 to-emerald-600',
-            border: 'border-teal-200 hover:border-teal-400',
-            pill: 'bg-teal-50 text-teal-700 border-teal-200',
-            price: 'text-teal-950',
-            btnHover: 'hover:bg-teal-50 text-teal-700'
+            cardBg: 'bg-gradient-to-br from-teal-400 via-emerald-500 to-cyan-600',
+            border: 'border-teal-200/60 group-hover:border-teal-400',
+            badge: 'bg-teal-50 text-teal-700 border-teal-200',
+            price: 'text-teal-700',
+            glow: 'group-hover:shadow-teal-200/60'
+        },
+        pink: {
+            cardBg: 'bg-gradient-to-br from-pink-400 via-rose-500 to-red-500',
+            border: 'border-pink-200/60 group-hover:border-pink-400',
+            badge: 'bg-pink-50 text-pink-700 border-pink-200',
+            price: 'text-rose-700',
+            glow: 'group-hover:shadow-pink-200/60'
+        },
+        purple: {
+            cardBg: 'bg-gradient-to-br from-purple-400 via-violet-500 to-indigo-600',
+            border: 'border-purple-200/60 group-hover:border-purple-400',
+            badge: 'bg-purple-50 text-purple-700 border-purple-200',
+            price: 'text-purple-700',
+            glow: 'group-hover:shadow-purple-200/60'
         }
     }
 
@@ -56,19 +56,20 @@ export default function HorizontalCategoryRow({
 
     return (
         <div className="space-y-2 py-1">
-            {/* Category Header with Scroll Arrows */}
+            {/* Category Header */}
             <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-700"></span>
                     <h3 className="font-extrabold text-xs sm:text-sm text-gray-900 tracking-wider uppercase">
                         {categoryName}
                     </h3>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gray-200/80 text-gray-700">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
                         {items.length}
                     </span>
                 </div>
 
                 {/* Left / Right Arrow Buttons */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                     <button
                         type="button"
                         onClick={() => handleScroll('left')}
@@ -88,14 +89,15 @@ export default function HorizontalCategoryRow({
                 </div>
             </div>
 
-            {/* Horizontal Scrollable Cards Container */}
+            {/* Horizontal Cards Container (No bulky scrollbar) */}
             <div
                 ref={scrollContainerRef}
-                className="flex items-start gap-2.5 sm:gap-3 overflow-x-auto custom-scrollbar pb-2.5 pt-1 px-1 scroll-smooth"
+                className="flex items-start gap-2.5 sm:gap-3 overflow-x-auto pb-2 pt-1 px-1 scroll-smooth"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
                 {items.map((item) => {
-                    const type = item.itemType || (item.category_id !== undefined ? 'treatment' : item.total_sessions ? 'coupon' : 'product')
-                    const variants = type === 'product' ? getProductVariants(item) : []
+                    const type = item.itemType || 'product'
+                    const variants = getProductVariants(item)
                     const initials = getItemInitials(item.name)
                     const hasDiscount = item.discount_percent > 0
                     const effectivePrice = hasDiscount ? item.price * (1 - item.discount_percent / 100) : item.price
@@ -104,31 +106,31 @@ export default function HorizontalCategoryRow({
                         <div
                             key={`${type}-${item.id}`}
                             onClick={() => onItemClick(item, type)}
-                            className={`w-28 sm:w-32 shrink-0 flex flex-col items-center cursor-pointer group select-none transition-all`}
+                            className="w-24 sm:w-28 shrink-0 flex flex-col items-center cursor-pointer group select-none transition-all"
                         >
-                            {/* Square Initial Card (GD Cashier Style) */}
-                            <div className={`w-full aspect-square rounded-2xl ${currentTheme.cardBg} text-white shadow-xs group-hover:shadow-md group-hover:scale-105 transition-all duration-200 flex flex-col items-center justify-center relative p-2 border border-white/20`}>
+                            {/* Square Initial Card */}
+                            <div className={`w-full aspect-square rounded-2xl ${currentTheme.cardBg} text-white shadow-sm group-hover:shadow-md ${currentTheme.glow} group-hover:-translate-y-1 transition-all duration-200 flex flex-col items-center justify-center relative p-2 border border-white/25`}>
                                 {/* Initials */}
-                                <span className="text-2xl sm:text-3xl font-black tracking-wider drop-shadow-xs">
+                                <span className="text-xl sm:text-2xl font-black tracking-wider drop-shadow-xs">
                                     {initials}
                                 </span>
 
-                                {/* Top Pill Badges */}
+                                {/* Top Badges */}
                                 {variants.length > 0 && (
-                                    <span className="absolute top-1.5 right-1.5 text-[8px] sm:text-[9px] font-black bg-white text-sky-900 px-1.5 py-0.5 rounded-md shadow-2xs">
+                                    <span className="absolute top-1.5 right-1.5 text-[8px] font-black bg-white/95 text-slate-800 px-1.5 py-0.5 rounded-md shadow-2xs border border-white/80">
                                         {variants.length} Varian
                                     </span>
                                 )}
 
                                 {hasDiscount && (
-                                    <span className="absolute top-1.5 left-1.5 text-[8px] sm:text-[9px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded-md shadow-2xs">
+                                    <span className="absolute top-1.5 left-1.5 text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded-md shadow-2xs">
                                         -{item.discount_percent}%
                                     </span>
                                 )}
 
-                                {type === 'product' && item.quantity !== undefined && (
-                                    <span className={`absolute bottom-1.5 right-1.5 text-[8px] font-extrabold px-1 py-0.2 rounded ${
-                                        item.quantity > 5 ? 'bg-black/25 text-white' : 'bg-red-500 text-white animate-pulse'
+                                {item.quantity !== undefined && (
+                                    <span className={`absolute bottom-1.5 right-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs ${
+                                        item.quantity > 5 ? 'bg-black/30 text-white' : 'bg-red-500 text-white animate-pulse'
                                     }`}>
                                         Stok {item.quantity}
                                     </span>
@@ -137,12 +139,12 @@ export default function HorizontalCategoryRow({
 
                             {/* Item Name & Price below */}
                             <div className="w-full text-center mt-1.5 px-0.5">
-                                <h4 className="text-[11px] sm:text-xs font-bold text-gray-900 group-hover:text-sky-600 transition-colors line-clamp-2 leading-snug h-7 flex items-center justify-center">
+                                <h4 className="text-[11px] font-bold text-gray-800 group-hover:text-sky-600 transition-colors line-clamp-2 leading-tight min-h-[26px] flex items-center justify-center">
                                     {item.name}
                                 </h4>
 
                                 {variants.length > 0 ? (
-                                    <div className="text-[10px] sm:text-[11px] font-extrabold text-sky-700 mt-0.5">
+                                    <div className="text-[10px] font-extrabold text-sky-700 mt-0.5">
                                         Mulai Rp {Math.min(...variants.map(v => v.price)).toLocaleString('id-ID')}
                                     </div>
                                 ) : (
@@ -152,7 +154,7 @@ export default function HorizontalCategoryRow({
                                                 Rp {item.price?.toLocaleString('id-ID')}
                                             </span>
                                         )}
-                                        <span className={`text-[11px] font-black ${currentTheme.price}`}>
+                                        <span className={`text-[10px] font-extrabold ${currentTheme.price}`}>
                                             Rp {effectivePrice?.toLocaleString('id-ID')}
                                         </span>
                                     </div>
