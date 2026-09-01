@@ -287,7 +287,7 @@ function EditRecordForm() {
         return {
             patient_id: patientId,
             treatment_record_id: recordId,
-            photo_type: 'treatment',
+            photo_type: 'before',
             storage_path: filePath,
             caption: slotKey
         }

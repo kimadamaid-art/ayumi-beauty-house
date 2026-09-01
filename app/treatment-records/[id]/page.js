@@ -216,7 +216,7 @@ export default function TreatmentRecordDetailPage() {
 
             if (itemsData) setItems(itemsData)
 
-            // 3. Fetch Photos and Generate Signed URLs
+            // 3. Fetch Photos and Generate URLs
             const { data: photosData, error: photosErr } = await supabase
                 .from('patient_photos')
                 .select('*')
@@ -228,30 +228,28 @@ export default function TreatmentRecordDetailPage() {
                     const photo = photosData[i]
                     let photoUrl = null
 
-                    // 1. Coba Signed URL
-                    try {
-                        const { data: signedData, error: signedErr } = await supabase.storage
+                    if (photo.storage_path?.startsWith('http')) {
+                        photoUrl = photo.storage_path
+                    } else {
+                        // 1. Ambil Public URL (instan & selalu bisa diakses)
+                        const { data: pubData } = supabase.storage
                             .from('patient-photos')
-                            .createSignedUrl(photo.storage_path, 60 * 60) // valid 1 jam
-
-                        if (signedData?.signedUrl && !signedErr) {
-                            photoUrl = signedData.signedUrl
-                        }
-                    } catch (e) {
-                        console.error('Error creating signed URL for photo:', photo.storage_path, e)
-                    }
-
-                    // 2. Fallback ke Public URL jika Signed URL terkendala
-                    if (!photoUrl) {
-                        try {
-                            const { data: pubData } = supabase.storage
-                                .from('patient-photos')
-                                .getPublicUrl(photo.storage_path)
-                            if (pubData?.publicUrl) {
-                                photoUrl = pubData.publicUrl
+                            .getPublicUrl(photo.storage_path)
+                        
+                        if (pubData?.publicUrl) {
+                            photoUrl = pubData.publicUrl
+                        } else {
+                            // Fallback signed URL
+                            try {
+                                const { data: signedData } = await supabase.storage
+                                    .from('patient-photos')
+                                    .createSignedUrl(photo.storage_path, 60 * 60)
+                                if (signedData?.signedUrl) {
+                                    photoUrl = signedData.signedUrl
+                                }
+                            } catch (e) {
+                                console.error('Error creating signed URL for photo:', photo.storage_path, e)
                             }
-                        } catch (e) {
-                            console.error('Error getting public URL for photo:', photo.storage_path, e)
                         }
                     }
 

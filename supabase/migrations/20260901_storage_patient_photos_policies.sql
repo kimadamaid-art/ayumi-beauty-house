@@ -3,17 +3,17 @@
 -- Dan Tabel 'patient_photos'
 -- ==============================================================================
 
--- 1. Konfigurasi Bucket 'patient-photos' (Private, Batas 15MB, Format Gambar)
+-- 1. Konfigurasi Bucket 'patient-photos' (Public, Batas 15MB, Format Gambar)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
     'patient-photos', 
     'patient-photos', 
-    false, 
+    true, 
     15728640, 
     ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/heic', 'image/heif']
 )
 ON CONFLICT (id) DO UPDATE SET
-    public = false,
+    public = true,
     file_size_limit = 15728640,
     allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/heic', 'image/heif'];
 
@@ -24,11 +24,11 @@ ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'patient-photos');
 
--- 3. Kebijakan Akses / Baca Foto via Signed URL (SELECT)
-DROP POLICY IF EXISTS "Allow authenticated users to view patient photos" ON storage.objects;
-CREATE POLICY "Allow authenticated users to view patient photos"
+-- 3. Kebijakan Akses / Baca Foto (SELECT)
+DROP POLICY IF EXISTS "Allow public view patient photos" ON storage.objects;
+CREATE POLICY "Allow public view patient photos"
 ON storage.objects FOR SELECT
-TO authenticated
+TO public
 USING (bucket_id = 'patient-photos');
 
 -- 4. Kebijakan Perbarui Foto (UPDATE / UPSERT)
