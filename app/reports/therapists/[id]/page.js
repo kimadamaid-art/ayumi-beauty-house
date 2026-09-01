@@ -10,6 +10,7 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
 import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
 
 export default function TherapistDetailPage() {
     const params = useParams()
@@ -168,22 +169,7 @@ export default function TherapistDetailPage() {
                     )
                 `)
 
-            const couponMap = {}
-            if (cLogs) {
-                cLogs.forEach(cl => {
-                    if (cl.treatment_record_id && cl.patient_coupon_items) {
-                        const pCoupons = cl.patient_coupon_items.patient_coupons
-                        const couponTxItem = pCoupons?.transactions?.transaction_items?.find(ti => ti.item_type === 'coupon')
-                        const purchasePrice = couponTxItem && Number(couponTxItem.subtotal || 0) > 0
-                            ? Number(couponTxItem.subtotal)
-                            : Number(pCoupons?.coupon_packages?.price || 0)
-                        const totalSessions = Number(cl.patient_coupon_items.total_sessions || 1)
-                        if (purchasePrice > 0 && totalSessions > 0) {
-                            couponMap[cl.treatment_record_id] = Math.round(purchasePrice / totalSessions)
-                        }
-                    }
-                })
-            }
+            const couponMap = buildCouponPriceMap(cLogs || [])
 
             const enhancedData = (data || [])
                 .filter(r => Number(r.commission_percent !== undefined && r.commission_percent !== null ? r.commission_percent : 5) > 0)
@@ -220,21 +206,12 @@ export default function TherapistDetailPage() {
     const stats = useMemo(() => {
         const totalIncome = treatmentRecords.reduce((acc, curr) => {
             const p = Number(curr.price_at_time || 0)
-            return acc + (p > 0 ? p : Number(curr.proportional_coupon_price || 0))
+            const basePrice = getCommissionBasePrice(curr)
+            return acc + (p > 0 ? p : (curr.proportional_coupon_price || basePrice))
         }, 0)
 
         const totalCommission = treatmentRecords.reduce((acc, curr) => {
-            const price = Number(curr.price_at_time || 0)
-            let basePrice = price
-            if (price === 0) {
-                if (curr.proportional_coupon_price && curr.proportional_coupon_price > 0) {
-                    basePrice = curr.proportional_coupon_price
-                } else if (Number(curr.original_price || 0) > 0) {
-                    basePrice = Number(curr.original_price)
-                }
-            }
-            const commPercent = Number(curr.commission_percent || 0)
-            return acc + Math.round(basePrice * (commPercent / 100))
+            return acc + calculateTherapistCommission(curr)
         }, 0)
         const totalTreatments = treatmentRecords.length
         return {
@@ -265,7 +242,9 @@ export default function TherapistDetailPage() {
         treatmentRecords.forEach(item => {
             const dateStr = item.treatment_records?.treatment_date
             if (dateStr && dailyMap[dateStr] !== undefined) {
-                dailyMap[dateStr] += Number(item.price_at_time || 0)
+                const p = Number(item.price_at_time || 0)
+                const basePrice = getCommissionBasePrice(item)
+                dailyMap[dateStr] += (p > 0 ? p : (item.proportional_coupon_price || basePrice))
             }
         })
 
@@ -309,9 +288,9 @@ export default function TherapistDetailPage() {
         // Map data to custom format for Excel rows
         const rows = filteredRecords.map((r, idx) => {
             const price = Number(r.price_at_time || 0)
-            const basePrice = (price === 0 && Number(r.original_price || 0) > 0) ? Number(r.original_price) : price
+            const basePrice = getCommissionBasePrice(r)
             const commPercent = Number(r.commission_percent || 0)
-            const commAmount = Math.round(basePrice * (commPercent / 100))
+            const commAmount = calculateTherapistCommission(r)
             return {
                 'No': idx + 1,
                 'Tanggal': r.treatment_records?.treatment_date || '',
@@ -319,7 +298,7 @@ export default function TherapistDetailPage() {
                 'Nama Pasien': r.treatment_records?.patients?.full_name || 'Tidak Diketahui',
                 'WhatsApp': r.treatment_records?.patients?.whatsapp || '',
                 'Treatment': r.treatments?.name || 'Tidak Diketahui',
-                'Harga Treatment': price,
+                'Harga Treatment': price > 0 ? price : basePrice,
                 'Komisi (%)': commPercent,
                 'Komisi (Rp)': commAmount,
                 'Cabang': r.treatment_records?.branches?.name || 'Pusat',
@@ -500,18 +479,11 @@ export default function TherapistDetailPage() {
                 let currentX = margin
 
                 const price = Number(r.price_at_time || 0)
-                let basePrice = price
-                if (price === 0) {
-                    if (r.proportional_coupon_price && r.proportional_coupon_price > 0) {
-                        basePrice = r.proportional_coupon_price
-                    } else if (Number(r.original_price || 0) > 0) {
-                        basePrice = Number(r.original_price)
-                    }
-                }
+                const basePrice = getCommissionBasePrice(r)
                 const commPercent = Number(r.commission_percent || 0)
-                const commAmount = Math.round(basePrice * (commPercent / 100))
+                const commAmount = calculateTherapistCommission(r)
 
-                const displayPrice = price > 0 ? price : (r.proportional_coupon_price || basePrice)
+                const displayPrice = price > 0 ? price : basePrice
                 const rowData = [
                     (idx + 1).toString(),
                     r.treatment_records?.treatment_date || '-',
@@ -787,10 +759,8 @@ export default function TherapistDetailPage() {
                                                 </td>
                                                 <td className="px-6 py-4 text-right ">
                                                     {(() => {
-                                                        const price = Number(r.price_at_time || 0)
-                                                        const basePrice = (price === 0 && Number(r.original_price || 0) > 0) ? Number(r.original_price) : price
                                                         const commPercent = Number(r.commission_percent || 0)
-                                                        const commAmount = Math.round(basePrice * (commPercent / 100))
+                                                        const commAmount = calculateTherapistCommission(r)
                                                         return commAmount > 0 ? (
                                                             <div className="flex flex-col items-end">
                                                                 <span className="font-bold text-emerald-600">Rp {commAmount.toLocaleString('id-ID')}</span>

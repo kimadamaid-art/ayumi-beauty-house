@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { notifyTherapistReady } from '@/lib/notifications'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
 
 export default function TherapistDashboard() {
     const router = useRouter()
@@ -191,7 +192,33 @@ export default function TherapistDashboard() {
             .order('treatment_records(treatment_date)', { ascending: false })
 
         if (!error && data) {
-            setCommItems(data)
+            // Ambil kupon usage logs untuk mencocokkan harga riil per sesi kupon
+            const { data: cLogs } = await supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    id,
+                    treatment_record_id,
+                    patient_coupon_items(
+                        total_sessions,
+                        patient_coupons(
+                            package_id,
+                            transaction_id,
+                            coupon_packages(price),
+                            transactions(
+                                total,
+                                transaction_items(item_type, price, subtotal)
+                            )
+                        )
+                    )
+                `)
+
+            const couponMap = buildCouponPriceMap(cLogs || [])
+            const enhanced = data.map(it => ({
+                ...it,
+                proportional_coupon_price: it.treatment_records?.id ? couponMap[it.treatment_records.id] : null
+            }))
+
+            setCommItems(enhanced)
         } else {
             setCommItems([])
         }
@@ -237,13 +264,10 @@ export default function TherapistDashboard() {
 
         commItems.forEach(item => {
             const priceAtTime = Number(item.price_at_time || 0)
-            const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
-                ? Number(item.original_price)
-                : priceAtTime
-            const commPercent = Number(item.commission_percent || 0)
-            const commAmount = Math.round(basePrice * (commPercent / 100))
+            const basePrice = getCommissionBasePrice(item)
+            const commAmount = calculateTherapistCommission(item)
 
-            totalRevenue += priceAtTime
+            totalRevenue += (priceAtTime > 0 ? priceAtTime : (item.proportional_coupon_price || basePrice))
             totalCommission += commAmount
         })
 
@@ -550,12 +574,9 @@ export default function TherapistDashboard() {
                                     <tbody className="divide-y divide-gray-100 bg-white">
                                         {commItems.map(item => {
                                             const rec = item.treatment_records
-                                            const priceAtTime = Number(item.price_at_time || 0)
-                                            const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
-                                                ? Number(item.original_price)
-                                                : priceAtTime
+                                            const basePrice = getCommissionBasePrice(item)
                                             const commPercent = Number(item.commission_percent || 0)
-                                            const commAmount = Math.round(basePrice * (commPercent / 100))
+                                            const commAmount = calculateTherapistCommission(item)
 
                                             return (
                                                 <tr key={item.id} className="hover:bg-pink-50/20">

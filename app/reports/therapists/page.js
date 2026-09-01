@@ -10,6 +10,7 @@ import BranchFilter from '@/components/ui/BranchFilter'
 import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
 
 export default function TherapistsReportPage() {
     const router = useRouter()
@@ -147,22 +148,7 @@ export default function TherapistsReportPage() {
                     )
                 `)
 
-            const couponMap = {}
-            if (cLogs) {
-                cLogs.forEach(cl => {
-                    if (cl.treatment_record_id && cl.patient_coupon_items) {
-                        const pCoupons = cl.patient_coupon_items.patient_coupons
-                        const couponTxItem = pCoupons?.transactions?.transaction_items?.find(ti => ti.item_type === 'coupon')
-                        const purchasePrice = couponTxItem && Number(couponTxItem.subtotal || 0) > 0
-                            ? Number(couponTxItem.subtotal)
-                            : Number(pCoupons?.coupon_packages?.price || 0)
-                        const totalSessions = Number(cl.patient_coupon_items.total_sessions || 1)
-                        if (purchasePrice > 0 && totalSessions > 0) {
-                            couponMap[cl.treatment_record_id] = Math.round(purchasePrice / totalSessions)
-                        }
-                    }
-                })
-            }
+            const couponMap = buildCouponPriceMap(cLogs || [])
 
             const enhancedItems = (data || []).map(item => {
                 const trId = item.treatment_records?.id
@@ -202,21 +188,10 @@ export default function TherapistsReportPage() {
             }
 
             const priceAtTime = Number(item.price_at_time || 0)
-            // Basis komisi:
-            // 1. Jika sesi kupon (priceAtTime === 0): pakai proporsional harga paket / jumlah sesi (jika ada) atau original_price
-            // 2. Jika treatment diskon/reguler: pakai priceAtTime (harga bersih setelah diskon)
-            let commissionBasePrice = priceAtTime
-            if (priceAtTime === 0) {
-                if (item.proportional_coupon_price && item.proportional_coupon_price > 0) {
-                    commissionBasePrice = item.proportional_coupon_price
-                } else if (Number(item.original_price || 0) > 0) {
-                    commissionBasePrice = Number(item.original_price)
-                }
-            }
+            const basePrice = getCommissionBasePrice(item)
+            const commissionAmount = calculateTherapistCommission(item)
 
-            const commissionAmount = Math.round(commissionBasePrice * (commissionPercent / 100))
-
-            therapistGroups[therapistId].revenue += (priceAtTime > 0 ? priceAtTime : (item.proportional_coupon_price || 0))
+            therapistGroups[therapistId].revenue += (priceAtTime > 0 ? priceAtTime : (item.proportional_coupon_price || basePrice))
             therapistGroups[therapistId].commission += commissionAmount
             therapistGroups[therapistId].treatmentCount += 1
             if (item.treatment_records?.patient_id) {

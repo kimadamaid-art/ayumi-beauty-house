@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
 
 function TherapistHistoryContent() {
     const router = useRouter()
@@ -111,6 +112,35 @@ function TherapistHistoryContent() {
                 }
             }
 
+            // Ambil kupon usage logs untuk mencocokkan harga riil sesi kupon
+            const { data: cLogs } = await supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    id,
+                    treatment_record_id,
+                    patient_coupon_items(
+                        total_sessions,
+                        patient_coupons(
+                            package_id,
+                            transaction_id,
+                            coupon_packages(price),
+                            transactions(
+                                total,
+                                transaction_items(item_type, price, subtotal)
+                            )
+                        )
+                    )
+                `)
+
+            const couponMap = buildCouponPriceMap(cLogs || [])
+            data.forEach(r => {
+                if (r.treatment_record_items) {
+                    r.treatment_record_items.forEach(it => {
+                        it.proportional_coupon_price = r.id ? couponMap[r.id] : null
+                    })
+                }
+            })
+
             setRecords([...data])
         }
         setLoading(false)
@@ -155,12 +185,7 @@ function TherapistHistoryContent() {
 
         records.forEach(r => {
             (r.treatment_record_items || []).forEach(item => {
-                const priceAtTime = Number(item.price_at_time || 0)
-                const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
-                    ? Number(item.original_price)
-                    : priceAtTime
-                const commPercent = Number(item.commission_percent || 0)
-                totalCommission += Math.round(basePrice * (commPercent / 100))
+                totalCommission += calculateTherapistCommission(item)
                 totalTreatmentItems++
             })
         })
@@ -333,12 +358,7 @@ function TherapistHistoryContent() {
                                         const itemsList = r.treatment_record_items || []
 
                                         itemsList.forEach(item => {
-                                            const priceAtTime = Number(item.price_at_time || 0)
-                                            const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
-                                                ? Number(item.original_price)
-                                                : priceAtTime
-                                            const commPercent = Number(item.commission_percent || 0)
-                                            totalRecordCommission += Math.round(basePrice * (commPercent / 100))
+                                            totalRecordCommission += calculateTherapistCommission(item)
                                         })
 
                                         const patientObj = Array.isArray(r.patients) ? r.patients[0] : (r.patients || r.appointments?.patients)
@@ -397,12 +417,8 @@ function TherapistHistoryContent() {
                                                         </span>
                                                         <div className="flex flex-wrap justify-end gap-1">
                                                             {itemsList.map(item => {
-                                                                const priceAtTime = Number(item.price_at_time || 0)
-                                                                const basePrice = (priceAtTime === 0 && Number(item.original_price || 0) > 0)
-                                                                    ? Number(item.original_price)
-                                                                    : priceAtTime
                                                                 const commPercent = Number(item.commission_percent || 0)
-                                                                const itemComm = Math.round(basePrice * (commPercent / 100))
+                                                                const itemComm = calculateTherapistCommission(item)
 
                                                                 return (
                                                                     <span key={item.id} className="text-[10px] bg-orange-50 text-orange-800 px-1.5 py-0.2 rounded border border-orange-200 font-semibold">
