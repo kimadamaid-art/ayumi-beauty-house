@@ -1123,7 +1123,7 @@ function PosPageContent() {
                 throw new Error('Gagal mendapatkan data transaksi dari database.')
             }
 
-            // Potong sesi kupon lewat redeem_coupon_session.
+            // Potong sesi kupon lewat Server API /api/coupons/redeem
             const failedCoupons = []
 
             // 1. Sesi pertama dari pembelian paket kupon baru (jika ada tindakan hari ini dari paket baru)
@@ -1139,41 +1139,28 @@ function PosPageContent() {
                             .maybeSingle()
 
                         if (newCouponItem) {
-                            const { error: fsRedeemErr } = await supabase.rpc('redeem_coupon_session', {
-                                p_coupon_item_id: newCouponItem.id,
-                                p_patient_id: selectedPatient.id,
-                                p_quantity: 1,
-                                p_transaction_id: trxData.id,
-                                p_treatment_record_id: fsItem.treatment_record_id || treatmentRecordId || null,
-                                p_branch_id: selectedBranch,
-                                p_notes: `Sesi 1 digunakan langsung saat pembelian paket (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
+                            const res = await fetch('/api/coupons/redeem', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    coupon_item_id: newCouponItem.id,
+                                    patient_id: selectedPatient.id,
+                                    quantity: 1,
+                                    transaction_id: trxData.id,
+                                    treatment_record_id: fsItem.treatment_record_id || treatmentRecordId || null,
+                                    branch_id: selectedBranch,
+                                    used_by: dbUser?.id,
+                                    notes: `Sesi 1 digunakan langsung saat pembelian paket (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
+                                })
                             })
-
-                            if (fsRedeemErr) {
-                                console.warn('Fallback update sesi 1 kupon baru:', fsRedeemErr)
-                                await supabase
-                                    .from('patient_coupon_items')
-                                    .update({
-                                        used_sessions: 1,
-                                        remaining_sessions: Math.max(0, newCouponItem.total_sessions - 1)
-                                    })
-                                    .eq('id', newCouponItem.id)
-
-                                await supabase
-                                    .from('coupon_usage_logs')
-                                    .insert([{
-                                        patient_coupon_item_id: newCouponItem.id,
-                                        patient_id: selectedPatient.id,
-                                        transaction_id: trxData.id,
-                                        treatment_record_id: fsItem.treatment_record_id || treatmentRecordId || null,
-                                        branch_id: selectedBranch,
-                                        used_by: dbUser?.id,
-                                        notes: 'Sesi 1 digunakan langsung saat pembelian paket di kasir'
-                                    }])
+                            const resJson = await res.json()
+                            if (!res.ok || resJson.error) {
+                                throw new Error(resJson.error || 'Gagal memotong sesi 1 paket baru')
                             }
                         }
                     } catch (fsErr) {
                         console.error('Error memotong sesi 1 paket baru:', fsErr)
+                        failedCoupons.push(`${fsItem.name}: ${fsErr.message}`)
                     }
                 }
             }
@@ -1181,30 +1168,50 @@ function PosPageContent() {
             // 2. Potong sesi kupon aktif lama
             for (const cartItem of cart) {
                 if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && !cartItem.is_first_session_of_new_coupon && selectedPatient) {
-                    const { error: redeemErr } = await supabase.rpc('redeem_coupon_session', {
-                        p_coupon_item_id: cartItem.used_coupon_item_id,
-                        p_patient_id: selectedPatient.id,
-                        p_quantity: cartItem.quantity,
-                        p_transaction_id: trxData.id,
-                        p_treatment_record_id: cartItem.treatment_record_id || treatmentRecordId || null,
-                        p_branch_id: selectedBranch,
-                        p_notes: `Klaim Kasir (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
-                    })
-
-                    if (redeemErr) {
+                    try {
+                        const res = await fetch('/api/coupons/redeem', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                coupon_item_id: cartItem.used_coupon_item_id,
+                                patient_id: selectedPatient.id,
+                                quantity: cartItem.quantity || 1,
+                                transaction_id: trxData.id,
+                                treatment_record_id: cartItem.treatment_record_id || treatmentRecordId || null,
+                                branch_id: selectedBranch,
+                                used_by: dbUser?.id,
+                                notes: `Klaim Kasir (${trxData.transaction_number || trxData.id?.substring(0, 8)})`
+                            })
+                        })
+                        const resJson = await res.json()
+                        if (!res.ok || resJson.error) {
+                            throw new Error(resJson.error || 'Gagal memotong sesi kupon')
+                        }
+                    } catch (redeemErr) {
                         console.error('Gagal memotong sesi kupon:', redeemErr)
                         failedCoupons.push(`${cartItem.name}: ${redeemErr.message}`)
                     }
                 }
             }
 
-            // Pembayaran sudah tersimpan, jadi kegagalan di sini tidak boleh lewat diam-diam:
-            // kasir harus tahu sesi mana yang belum terpotong agar bisa dibetulkan manual.
+            // 3. Pastikan treatment_record_id terhubung ke transaksi jika ada
+            if (treatmentRecordId && trxData.id) {
+                try {
+                    await supabase
+                        .from('transactions')
+                        .update({ treatment_record_id: treatmentRecordId })
+                        .eq('id', trxData.id)
+                } catch (linkErr) {
+                    console.warn('Warning linking treatment record to transaction:', linkErr)
+                }
+            }
+
+            // Pembayaran sudah tersimpan, jika ada sesi gagal beri tahu kasir
             if (failedCoupons.length > 0) {
                 alert(
-                    'PERHATIAN: Pembayaran sudah tersimpan, tetapi sesi kupon berikut GAGAL dipotong:\n\n' +
+                    'PERHATIAN: Pembayaran berhasil disimpan, tetapi sesi kupon berikut GAGAL dipotong otomatis:\n\n' +
                     failedCoupons.join('\n') +
-                    '\n\nSisa sesi kupon pelanggan ini perlu diperiksa dan dibetulkan manual.'
+                    '\n\nSisa sesi kupon pelanggan ini perlu diperiksa di menu Kupon Pasien.'
                 )
             }
 
