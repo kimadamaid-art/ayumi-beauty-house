@@ -278,7 +278,7 @@ function PosPageContent() {
                 .select(`
                     id, treatment_time, treatment_date, branch_id,
                     patients(id, full_name, whatsapp),
-                    treatment_record_items(treatment_id, price_at_time, discount_percent, treatments(name, price))
+                    treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent))
                 `)
 
             if (pendingRecordId) {
@@ -564,7 +564,7 @@ function PosPageContent() {
                 id, treatment_time, treatment_date, branch_id, performed_by,
                 branches(name),
                 patients(id, full_name, whatsapp),
-                treatment_record_items(treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
+                treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
                 coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name))))
             `)
             .eq('treatment_date', todayStr)
@@ -624,16 +624,19 @@ function PosPageContent() {
 
             if (matchNewPkg) {
                 const [, pkgId, pkgName, pkgPrice] = matchNewPkg
+                const fallbackPkg = couponPackages.find(p => p.id === pkgId || p.name?.toLowerCase() === pkgName?.toLowerCase())
+                const parsedPrice = Number(pkgPrice) || Number(fallbackPkg?.price) || 0
+
                 if (!newPackageItem) {
                     newPackageItem = {
-                        id: pkgId,
+                        id: pkgId || fallbackPkg?.id || 'new-coupon',
                         item_type: 'coupon',
-                        name: `Paket Kupon: ${pkgName}`,
-                        price: Number(pkgPrice) || 0,
-                        original_price: Number(pkgPrice) || 0,
+                        name: `Paket Kupon: ${pkgName || fallbackPkg?.name || 'Paket'}`,
+                        price: parsedPrice,
+                        original_price: parsedPrice,
                         discount_percent: 0,
                         quantity: 1,
-                        subtotal: Number(pkgPrice) || 0,
+                        subtotal: parsedPrice,
                         commission_percent: 0,
                         is_new_coupon_package: true
                     }
