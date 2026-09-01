@@ -67,8 +67,16 @@ function PosPageContent() {
     async function fetchInitialData() {
         setIsLoading(true)
         
-        // Fetch User
-        const { data: { user } } = await supabase.auth.getUser()
+        // Fetch User and Master Data in parallel (eliminate waterfall lag)
+        const [userRes, brRes, trRes, cpRes, thRes] = await Promise.all([
+            supabase.auth.getUser(),
+            supabase.from('branches').select('id, name').eq('is_active', true),
+            supabase.from('treatments').select('*').eq('is_active', true).order('name', { ascending: true }),
+            supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true }),
+            supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name')
+        ])
+
+        const user = userRes.data?.user
         if (user) {
             const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
             if (uData) {
@@ -85,21 +93,10 @@ function PosPageContent() {
             }
         }
         
-        // Fetch Branches
-        const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
-        if (brData) setBranches(brData)
-            
-        // Fetch Treatments
-        const { data: trData } = await supabase.from('treatments').select('*').eq('is_active', true).order('name', { ascending: true })
-        if (trData) setTreatments(trData)
-            
-        // Fetch Coupons
-        const { data: cpData } = await supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true })
-        if (cpData) setCoupons(cpData)
-
-        // Fetch active therapists
-        const { data: thData } = await supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name')
-        if (thData) setTherapists(thData)
+        if (brRes.data) setBranches(brRes.data)
+        if (trRes.data) setTreatments(trRes.data)
+        if (cpRes.data) setCoupons(cpRes.data)
+        if (thRes.data) setTherapists(thRes.data)
 
         setIsLoading(false)
     }

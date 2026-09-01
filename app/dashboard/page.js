@@ -487,38 +487,37 @@ export default function Dashboard() {
             }
 
             // 1. Appointments Today
-            let aptQuery = supabase.from('appointments').select('id', { count: 'exact' })
+            let aptQuery = supabase.from('appointments').select('id', { count: 'exact', head: true })
                 .eq('appointment_date', todayDateStr)
             aptQuery = applyBranchFilter(aptQuery)
 
             // 2. Followups Today
-            let fuQuery = supabase.from('followup_queue').select('id', { count: 'exact' })
+            let fuQuery = supabase.from('followup_queue').select('id', { count: 'exact', head: true })
                 .eq('status', 'pending')
                 .lte('scheduled_date', todayDateStr)
             fuQuery = applyBranchFilter(fuQuery)
 
             // 3. Birthdays This Month
-            const now = new Date()
-            let bdayQuery = supabase.from('patients').select('id', { count: 'exact' })
+            let bdayQuery = supabase.from('patients').select('id', { count: 'exact', head: true })
             bdayQuery = applyBranchFilter(bdayQuery)
 
             // 4. Dormant Patients (>60 days no visit)
             const sixtyDaysAgo = new Date()
             sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
-            let dormantQuery = supabase.from('patients').select('id', { count: 'exact' })
+            let dormantQuery = supabase.from('patients').select('id', { count: 'exact', head: true })
                 .or(`last_visit.lt.${sixtyDaysAgo.toISOString()},last_visit.is.null`)
             dormantQuery = applyBranchFilter(dormantQuery)
 
             // 5. New Patients This Month
             const startOfMonthIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-            let newPatQuery = supabase.from('patients').select('id', { count: 'exact' })
+            let newPatQuery = supabase.from('patients').select('id', { count: 'exact', head: true })
                 .gte('created_at', startOfMonthIso)
             newPatQuery = applyBranchFilter(newPatQuery)
 
             // 6. Expiring Coupons (30 days)
             const in30Days = new Date()
             in30Days.setDate(in30Days.getDate() + 30)
-            const couponsQuery = supabase.from('patient_coupons').select('id', { count: 'exact' })
+            const couponsQuery = supabase.from('patient_coupons').select('id', { count: 'exact', head: true })
                 .eq('status', 'active')
                 .gte('expired_at', new Date().toISOString())
                 .lte('expired_at', in30Days.toISOString())

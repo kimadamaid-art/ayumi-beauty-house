@@ -116,16 +116,19 @@ export default function PatientsPage() {
                 // Fetch patient coupons in a separate query to prevent crashing if table does not exist
                 let couponsMap = {}
                 try {
-                    const { data: couponsData, error: couponsError } = await supabase
-                        .from('patient_coupons')
-                        .select('id, patient_id, status')
-                    
-                    if (!couponsError && couponsData) {
-                        couponsData.forEach(c => {
-                            if (c.status === 'active') {
+                    const patientIds = data.map(p => p.id)
+                    if (patientIds.length > 0) {
+                        const { data: couponsData, error: couponsError } = await supabase
+                            .from('patient_coupons')
+                            .select('id, patient_id, status')
+                            .in('patient_id', patientIds)
+                            .eq('status', 'active')
+                        
+                        if (!couponsError && couponsData) {
+                            couponsData.forEach(c => {
                                 couponsMap[c.patient_id] = (couponsMap[c.patient_id] || 0) + 1
-                            }
-                        })
+                            })
+                        }
                     }
                 } catch (e) {
                     console.error('Error loading patient coupons:', e)
