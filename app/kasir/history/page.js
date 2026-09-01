@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
+import { getNetTransactionRevenue } from '@/lib/paymentUtils'
 
 export default function TransactionsHistoryPage() {
     const [transactions, setTransactions] = useState([])
@@ -88,7 +89,7 @@ export default function TransactionsHistoryPage() {
     )
 
     const totalIncome = useMemo(
-        () => validTransactions.reduce((sum, trx) => sum + Number(trx.total || 0), 0),
+        () => validTransactions.reduce((sum, trx) => sum + getNetTransactionRevenue(trx), 0),
         [validTransactions]
     )
 

@@ -10,7 +10,7 @@ import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
-import { parsePaymentSplits } from '@/lib/paymentUtils'
+import { parsePaymentSplits, getNetTransactionRevenue } from '@/lib/paymentUtils'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -226,7 +226,7 @@ export default function TransactionsPage() {
 
         filteredValidTransactions.forEach(tx => {
             totalTx += 1
-            totalRevenue += Number(tx.total || 0)
+            totalRevenue += getNetTransactionRevenue(tx)
             tx.transaction_items?.forEach(item => {
                 const subtotal = Number(item.subtotal || 0)
                 if (item.item_type === 'treatment') {
@@ -386,7 +386,7 @@ export default function TransactionsPage() {
         let totalRevenue = 0
         let tQty = 0, pQty = 0, cQty = 0
         validDataset.forEach(tx => {
-            totalRevenue += Number(tx.total || 0)
+            totalRevenue += getNetTransactionRevenue(tx)
             tx.transaction_items?.forEach(item => {
                 if (item.item_type === 'treatment') tQty += item.quantity || 0
                 if (item.item_type === 'product') pQty += item.quantity || 0
@@ -682,7 +682,7 @@ export default function TransactionsPage() {
             const paymentBreakdown = { cash: 0, transfer: 0, qris: 0, debit: 0, credit: 0 }
 
             validDataset.forEach(tx => {
-                totalRevenue += Number(tx.total || 0)
+                totalRevenue += getNetTransactionRevenue(tx)
                 const splits = parsePaymentSplits(tx)
                 Object.entries(splits).forEach(([m, amt]) => {
                     if (paymentBreakdown[m] !== undefined) {
@@ -1227,7 +1227,8 @@ export default function TransactionsPage() {
         const hourlyBins = Array.from({ length: 24 }, (_, i) => ({ hour: `${String(i).padStart(2, '0')}:00`, transaksi: 0, pendapatan: 0 }))
 
         txList.forEach(tx => {
-            revenue += Number(tx.total || 0)
+            const txNet = getNetTransactionRevenue(tx)
+            revenue += txNet
             const splits = parsePaymentSplits(tx)
             Object.entries(splits).forEach(([m, amt]) => {
                 if (payMethods[m] && amt > 0) {
@@ -1238,7 +1239,7 @@ export default function TransactionsPage() {
 
             const h = new Date(tx.created_at).getHours()
             hourlyBins[h].transaksi++
-            hourlyBins[h].pendapatan += Number(tx.total || 0)
+            hourlyBins[h].pendapatan += txNet
 
             tx.transaction_items?.forEach(item => {
                 const type = item.item_type
@@ -1294,9 +1295,10 @@ export default function TransactionsPage() {
         const branchBreakdown = {}
 
         txList.forEach(tx => {
-            revenue += Number(tx.total || 0)
+            const txNet = getNetTransactionRevenue(tx)
+            revenue += txNet
             const dayIdx = new Date(tx.created_at).getDay()
-            dailyRevenue[dayIdx].pendapatan += Number(tx.total || 0)
+            dailyRevenue[dayIdx].pendapatan += txNet
             dailyRevenue[dayIdx].transaksi++
 
             const brName = tx.branches?.name || 'Tanpa Cabang'
@@ -1304,7 +1306,7 @@ export default function TransactionsPage() {
                 branchBreakdown[brName] = { name: brName, count: 0, total: 0 }
             }
             branchBreakdown[brName].count++
-            branchBreakdown[brName].total += Number(tx.total || 0)
+            branchBreakdown[brName].total += txNet
         })
 
         // Sort chart starting from Monday
@@ -1336,7 +1338,7 @@ export default function TransactionsPage() {
         })
 
         // Comparisons
-        const prevRevenue = prevTxList.reduce((sum, tx) => sum + Number(tx.total || 0), 0)
+        const prevRevenue = prevTxList.reduce((sum, tx) => sum + getNetTransactionRevenue(tx), 0)
         let growthPercent = 0
         if (prevRevenue > 0) {
             growthPercent = ((revenue - prevRevenue) / prevRevenue) * 100
@@ -1398,7 +1400,7 @@ export default function TransactionsPage() {
         const payMethods = { cash: 0, transfer: 0, qris: 0, debit: 0, credit: 0 }
 
         txList.forEach(tx => {
-            const val = Number(tx.total || 0)
+            const val = getNetTransactionRevenue(tx)
             revenue += val
 
             // Map payment method (support split payments)
@@ -1443,7 +1445,7 @@ export default function TransactionsPage() {
         const topCoupons = Object.entries(coupons).map(([name, qty]) => ({ name, qty })).sort((a,b) => b.qty - a.qty).slice(0, 5)
 
         // Comparisons
-        const prevRevenue = prevTxList.reduce((sum, tx) => sum + Number(tx.total || 0), 0)
+        const prevRevenue = prevTxList.reduce((sum, tx) => sum + getNetTransactionRevenue(tx), 0)
         let growthPercent = 0
         if (prevRevenue > 0) {
             growthPercent = ((revenue - prevRevenue) / prevRevenue) * 100
@@ -1507,7 +1509,7 @@ export default function TransactionsPage() {
         const branchPivot = {} // { BranchName: { Jan: 0, Feb: 0 ... } }
 
         txList.forEach(tx => {
-            const val = Number(tx.total || 0)
+            const val = getNetTransactionRevenue(tx)
             revenue += val
 
             const mIdx = new Date(tx.created_at).getMonth()
@@ -1545,7 +1547,7 @@ export default function TransactionsPage() {
         })
 
         // Comparisons
-        const prevRevenue = prevTxList.reduce((sum, tx) => sum + Number(tx.total || 0), 0)
+        const prevRevenue = prevTxList.reduce((sum, tx) => sum + getNetTransactionRevenue(tx), 0)
         let growthPercent = 0
         if (prevRevenue > 0) {
             growthPercent = ((revenue - prevRevenue) / prevRevenue) * 100
@@ -1611,7 +1613,7 @@ export default function TransactionsPage() {
         let couponRevenue = 0
 
         txList.forEach(tx => {
-            revenue += Number(tx.total || 0)
+            revenue += getNetTransactionRevenue(tx)
             tx.transaction_items?.forEach(item => {
                 const subtotal = Number(item.subtotal || 0)
                 if (item.item_type === 'treatment') {

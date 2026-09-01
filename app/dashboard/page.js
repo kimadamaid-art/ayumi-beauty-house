@@ -9,7 +9,7 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import DateRangePicker from '../../components/DateRangePicker'
 import BranchFilter from '@/components/ui/BranchFilter'
 import StatCard from '@/components/ui/StatCard'
-import { parsePaymentSplits } from '@/lib/paymentUtils'
+import { parsePaymentSplits, getNetTransactionRevenue } from '@/lib/paymentUtils'
 import { 
     LineChart, 
     Line, 
@@ -277,7 +277,7 @@ export default function Dashboard() {
                         branchObj.couponUsedValue += txCouponUsed
                         branchObj.otherIncome += txOther
                         
-                        const realCash = Number(tx.total || 0)
+                        const realCash = getNetTransactionRevenue(tx)
                         const totalValuation = realCash + txCouponUsed
 
                         branchObj.cashIncome += realCash
@@ -598,7 +598,7 @@ export default function Dashboard() {
                 todayTxCount = trxTodayResult.data.length
                 trxTodayResult.data.forEach(tx => {
                     if (tx) {
-                        todayIncome += Number(tx.total || 0)
+                        todayIncome += getNetTransactionRevenue(tx)
                         const splits = parsePaymentSplits(tx)
                         Object.entries(splits).forEach(([m, amt]) => {
                             if (amt > 0) {
@@ -635,7 +635,7 @@ export default function Dashboard() {
                         try {
                             const dateStr = new Date(tx.created_at).toISOString().split('T')[0]
                             if (dailyMap[dateStr] !== undefined) {
-                                dailyMap[dateStr] += Number(tx.total || 0)
+                                dailyMap[dateStr] += getNetTransactionRevenue(tx)
                             }
                         } catch (e) {
                             console.error('Error parsing date for sparkline:', tx.created_at, e)
