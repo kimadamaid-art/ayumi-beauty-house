@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { openWhatsApp } from '@/lib/whatsapp'
+import html2canvas from 'html2canvas'
+import { toast } from 'react-hot-toast'
 
 export default function ReceiptPage() {
     const { id } = useParams()
@@ -13,6 +15,7 @@ export default function ReceiptPage() {
     const [transaction, setTransaction] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false)
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false)
 
     async function fetchTransaction() {
         setIsLoading(true)
@@ -243,6 +246,112 @@ export default function ReceiptPage() {
         }
     }
 
+    const handleSendReceiptImage = async (mode = 'wa_image') => {
+        let phone = transaction.patients?.whatsapp || ''
+        if (!phone) {
+            const inputPhone = window.prompt(
+                'Nomor WhatsApp pasien belum terdaftar.\nSilakan masukkan nomor WhatsApp tujuan (contoh: 08123456789):'
+            )
+            if (!inputPhone || !inputPhone.trim()) return
+            phone = inputPhone.trim()
+        }
+
+        const receiptEl = document.getElementById('receipt-area')
+        if (!receiptEl) {
+            handleSendWA()
+            return
+        }
+
+        try {
+            setIsGeneratingImage(true)
+            toast.loading('Memproses foto struk...', { id: 'receipt-img' })
+
+            // Generate high-resolution canvas
+            const canvas = await html2canvas(receiptEl, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                windowWidth: 420
+            })
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    toast.error('Gagal membuat gambar struk', { id: 'receipt-img' })
+                    setIsGeneratingImage(false)
+                    return
+                }
+
+                const fileName = `Struk_Ayumi_${transaction.transaction_number || 'TRX'}.png`
+
+                // Jika mode unduh
+                if (mode === 'download') {
+                    const link = document.createElement('a')
+                    link.download = fileName
+                    link.href = URL.createObjectURL(blob)
+                    link.click()
+                    toast.success('📥 Foto struk berhasil diunduh!', { id: 'receipt-img' })
+                    setIsGeneratingImage(false)
+                    return
+                }
+
+                // Jika perangkat mendukung Web Share API dengan file (misal HP / Mac share sheet)
+                const file = new File([blob], fileName, { type: 'image/png' })
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            title: `Struk Pembayaran ${transaction.transaction_number}`,
+                            text: `Berikut bukti pembayaran transaksi ${transaction.transaction_number} di Ayumi Beauty House.`,
+                            files: [file]
+                        })
+                        toast.success('✅ Berhasil dibagikan!', { id: 'receipt-img' })
+                        setIsGeneratingImage(false)
+                        return
+                    } catch (shareErr) {
+                        if (shareErr.name === 'AbortError') {
+                            toast.dismiss('receipt-img')
+                            setIsGeneratingImage(false)
+                            return
+                        }
+                    }
+                }
+
+                // Desktop browser: Copy gambar langsung ke clipboard
+                let copied = false
+                if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+                    try {
+                        const item = new ClipboardItem({ 'image/png': blob })
+                        await navigator.clipboard.write([item])
+                        copied = true
+                    } catch (clipErr) {
+                        console.warn('Clipboard write failed:', clipErr)
+                    }
+                }
+
+                const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
+                const captionText = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House ✨\nBerikut adalah foto struk bukti pembayaran untuk transaksi *${transaction.transaction_number}*.\n\n_Silakan simpan bukti pembayaran ini. Sampai jumpa kembali!_`
+
+                if (copied) {
+                    toast.success('📸 Foto struk disalin ke Clipboard! Tekan Paste (Ctrl+V / Cmd+V) di chat WhatsApp.', { 
+                        id: 'receipt-img',
+                        duration: 6000 
+                    })
+                } else {
+                    toast.success('Membuka WhatsApp...', { id: 'receipt-img' })
+                }
+
+                // Buka WhatsApp Web menggunakan tab yang sama
+                openWhatsApp(phone, captionText)
+                setIsGeneratingImage(false)
+            }, 'image/png')
+        } catch (err) {
+            console.error('Error generating receipt image:', err)
+            toast.error('Gagal memproses foto struk: ' + err.message, { id: 'receipt-img' })
+            setIsGeneratingImage(false)
+            handleSendWA()
+        }
+    }
+
     const handleSendWA = () => {
         let phone = transaction.patients?.whatsapp || ''
         if (!phone) {
@@ -395,16 +504,45 @@ export default function ReceiptPage() {
                         Transaksi Baru
                     </Link>
                     <Link href="/transactions" className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-bold transition-colors shadow-sm">
-                        Lihat di Riwayat Transaksi
+                        Riwayat Transaksi
                     </Link>
+                    
+                    {/* Tombol Utama: Kirim Foto Struk WA */}
+                    <button 
+                        onClick={() => handleSendReceiptImage('wa_image')}
+                        disabled={isGeneratingImage}
+                        className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+                        title="Salin Foto Struk ke Clipboard & Buka WhatsApp"
+                    >
+                        {isGeneratingImage ? (
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        )}
+                        📸 Kirim Foto Struk WA
+                    </button>
+
+                    {/* Tombol Unduh Foto Struk */}
+                    <button 
+                        onClick={() => handleSendReceiptImage('download')}
+                        disabled={isGeneratingImage}
+                        className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        title="Unduh Gambar Struk dalam format PNG"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Unduh Foto Struk
+                    </button>
+
+                    {/* Tombol Kirim Teks WA Biasa */}
                     <button 
                         onClick={handleSendWA}
-                        className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                        title="Kirim Struk ke WhatsApp"
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        title="Kirim Struk format Teks Rincian ke WhatsApp"
                     >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.993L2 22l5.233-1.371a9.946 9.946 0 004.787 1.226h.005c5.502 0 9.985-4.479 9.986-9.987 0-2.67-1.037-5.178-2.924-7.065A9.923 9.923 0 0012.012 2zm4.857 13.913c-.266.747-1.545 1.399-2.113 1.488-.517.081-1.19.122-1.921-.112-.733-.234-1.637-.621-2.738-1.096-1.83-.791-3.23-2.56-3.32-2.682-.092-.121-.75-.992-.75-1.884v-.001c0-.893.468-1.332.635-1.514.167-.182.365-.228.487-.228.121 0 .243.002.348.006.112.005.263-.042.412.316.152.366.52.1.626.471.106.371.076.66-.046.903-.121.243-.243.402-.365.548-.121.146-.248.304-.106.548.142.244.632 1.039 1.36 1.688.937.834 1.728 1.093 1.972 1.214.244.121.385.101.527-.061.142-.162.608-.71.77-1.016.162-.304.324-.254.548-.172.223.081 1.42.67 1.663.792.244.121.405.182.466.284.061.101.061.589-.203 1.337z"/></svg>
-                        Kirim Struk WA
+                        <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984a9.964 9.964 0 001.333 4.993L2 22l5.233-1.371a9.946 9.946 0 004.787 1.226h.005c5.502 0 9.985-4.479 9.986-9.987 0-2.67-1.037-5.178-2.924-7.065A9.923 9.923 0 0012.012 2zm4.857 13.913c-.266.747-1.545 1.399-2.113 1.488-.517.081-1.19.122-1.921-.112-.733-.234-1.637-.621-2.738-1.096-1.83-.791-3.23-2.56-3.32-2.682-.092-.121-.75-.992-.75-1.884v-.001c0-.893.468-1.332.635-1.514.167-.182.365-.228.487-.228.121 0 .243.002.348.006.112.005.263-.042.412.316.152.366.52.1.626.471.106.371.076.66-.046.903-.121.243-.243.402-.365.548-.121.146-.248.304-.106.548.142.244.632 1.039 1.36 1.688.937.834 1.728 1.093 1.972 1.214.244.121.385.101.527-.061.142-.162.608-.71.77-1.016.162-.304.324-.254.548-.172.223.081 1.42.67 1.663.792.244.121.405.182.466.284.061.101.061.589-.203 1.337z"/></svg>
+                        Kirim WA (Teks)
                     </button>
+
                     <button 
                         onClick={handlePrintBluetooth}
                         disabled={isBluetoothPrinting}
@@ -412,7 +550,7 @@ export default function ReceiptPage() {
                         title="Cetak Langsung via Bluetooth Thermal Printer (ESC/POS)"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                        {isBluetoothPrinting ? 'Mencetak...' : 'Print Bluetooth (Direct)'}
+                        {isBluetoothPrinting ? 'Mencetak...' : 'Print Bluetooth'}
                     </button>
                     <button 
                         onClick={handlePrint}
@@ -420,7 +558,7 @@ export default function ReceiptPage() {
                         title="Cetak/Simpan PDF lewat Dialog Browser"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        Simpan PDF / Print Bawaan
+                        Simpan PDF / Print
                     </button>
                 </div>
             </div>
