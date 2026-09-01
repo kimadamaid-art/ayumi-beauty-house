@@ -154,7 +154,7 @@ export default function TreatmentRecordDetailPage() {
                 .from('treatment_records')
                 .select(`
                     *,
-                    patients ( id, full_name, whatsapp, birth_date ),
+                    patients ( id, full_name, whatsapp, birth_date, skin_type, allergies, medical_notes, notes ),
                     users:users!treatment_records_performed_by_fkey ( id, full_name, role ),
                     branches ( id, name ),
                     transactions ( id, transaction_number, payment_status, total, created_at )
@@ -727,10 +727,64 @@ export default function TreatmentRecordDetailPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Kolom Kiri: Rekam Medis (SOAP) */}
+                {/* Kolom Kiri: Profil Klinis & Rekam Medis (SOAP) */}
                 <div className="lg:col-span-1 space-y-6">
+                    
+                    {/* Profil Klinis Pasien */}
+                    {(record.skin_type || record.patients?.skin_type || record.contraindications || record.patients?.allergies || record.medical_history || record.patients?.medical_notes || record.client_skincare_routine || record.patients?.notes) && (
+                        <div className="card-ayumi p-4 md:p-6 space-y-4 bg-gradient-to-br from-pink-50/40 via-white to-purple-50/20 border border-pink-100 shadow-2xs">
+                            <h3 className="text-sm font-extrabold text-ayumi-secondary uppercase tracking-wider flex items-center gap-2 border-b border-pink-100/80 pb-2.5">
+                                <span className="p-1 bg-pink-100 text-pink-600 rounded-lg text-xs">🔬</span>
+                                Profil Klinis Pasien
+                            </h3>
+
+                            {/* Jenis Kulit */}
+                            {(record.skin_type || record.patients?.skin_type) && (
+                                <div>
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Jenis Kulit</span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-pink-100 text-pink-800 font-extrabold text-xs rounded-xl shadow-2xs">
+                                        ✨ {record.skin_type || record.patients?.skin_type}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Kontraindikasi */}
+                            {(record.contraindications || record.patients?.allergies) && (
+                                <div className="p-3 bg-rose-50 border border-rose-200/80 rounded-xl space-y-1">
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-rose-800">
+                                        <span>⚠️</span>
+                                        <span>Kontraindikasi / Peringatan:</span>
+                                    </div>
+                                    <p className="text-xs text-rose-900 font-semibold leading-relaxed whitespace-pre-wrap">
+                                        {record.contraindications || record.patients?.allergies}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Sejarah Medis */}
+                            {(record.medical_history || record.patients?.medical_notes) && (
+                                <div>
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">📋 Sejarah Medis</span>
+                                    <p className="text-xs font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                        {record.medical_history || record.patients?.medical_notes}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Perawatan Klien (Skincare Rutin) */}
+                            {(record.client_skincare_routine || record.patients?.notes) && (
+                                <div>
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">🧴 Perawatan Klien (Skincare di Rumah)</span>
+                                    <p className="text-xs font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                        {record.client_skincare_routine || record.patients?.notes}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="card-ayumi p-4 md:p-6 space-y-5">
-                        <h3 className="text-lg font-bold text-ayumi-primary border-b border-pink-50 pb-2">Rekam Medis (SOAP)</h3>
+                        <h3 className="text-lg font-bold text-ayumi-primary border-b border-pink-50 pb-2">Catatan SOAP</h3>
                         
                         <div className="space-y-4">
                             <div>

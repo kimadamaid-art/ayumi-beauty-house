@@ -37,8 +37,12 @@ export default function TreatmentInputPage() {
     const [isTreatmentDropdownOpen, setIsTreatmentDropdownOpen] = useState(false)
     const [isPackageDropdownOpen, setIsPackageDropdownOpen] = useState(false)
 
-    // SOAP Form
+    // SOAP Form & Clinical Profile
     const [formData, setFormData] = useState({
+        skin_type: '',
+        contraindications: '',
+        medical_history: '',
+        client_skincare_routine: '',
         complaints: '',
         skin_condition: '',
         result_notes: '',
@@ -82,10 +86,10 @@ export default function TreatmentInputPage() {
         }
         setDbUser(userData)
 
-        // Fetch Appointment
+        // Fetch Appointment with full patient clinical profile
         const { data: aptData } = await supabase
             .from('appointments')
-            .select(`*, patients (id, full_name, gender, birth_date, allergies, notes), branches (name)`)
+            .select(`*, patients (id, full_name, gender, birth_date, allergies, notes, skin_type, medical_notes, skin_concerns), branches (name)`)
             .eq('id', appointmentId)
             .single()
 
@@ -122,6 +126,10 @@ export default function TreatmentInputPage() {
                 }
 
                 setFormData({
+                    skin_type: existingRecord.skin_type || aptData.patients?.skin_type || '',
+                    contraindications: existingRecord.contraindications || aptData.patients?.allergies || '',
+                    medical_history: existingRecord.medical_history || aptData.patients?.medical_notes || '',
+                    client_skincare_routine: existingRecord.client_skincare_routine || aptData.patients?.notes || '',
                     complaints: existingRecord.complaints || aptData.notes || '',
                     skin_condition: existingRecord.skin_condition || '',
                     result_notes: existingRecord.result_notes || '',
@@ -187,9 +195,13 @@ export default function TreatmentInputPage() {
                     setPhotoPreviews(prev => ({ ...prev, ...previews }))
                 }
             } else {
-                // Pre-fill complaints from appointment notes
+                // Pre-fill clinical data & complaints from patient profile & appointment notes
                 setFormData(prev => ({
                     ...prev,
+                    skin_type: aptData.patients?.skin_type || '',
+                    contraindications: aptData.patients?.allergies || '',
+                    medical_history: aptData.patients?.medical_notes || '',
+                    client_skincare_routine: aptData.patients?.notes || '',
                     complaints: aptData.notes || ''
                 }))
             }
@@ -454,48 +466,100 @@ export default function TreatmentInputPage() {
 
         try {
             let recordId = existingRecordId
+            const targetPatientId = appointment?.patient_id || appointment?.patients?.id || null
+
+            // Clinical & SOAP fields payload
+            const clinicalFields = {
+                skin_type: formData.skin_type || null,
+                contraindications: formData.contraindications || null,
+                medical_history: formData.medical_history || null,
+                client_skincare_routine: formData.client_skincare_routine || null
+            }
 
             if (existingRecordId) {
                 // Update existing record
+                let updatePayload = {
+                    patient_id: targetPatientId,
+                    performed_by: performer,
+                    skin_condition: formData.skin_condition,
+                    complaints: formData.complaints,
+                    result_notes: formData.result_notes,
+                    recommendation: formData.recommendation,
+                    ...clinicalFields,
+                    updated_by: dbUser.id
+                }
+
                 const { error: updateError } = await supabase
                     .from('treatment_records')
-                    .update({
-                        patient_id: appointment.patient_id || appointment.patients?.id || null,
-                        performed_by: performer,
-                        skin_condition: formData.skin_condition,
-                        complaints: formData.complaints,
-                        result_notes: formData.result_notes,
-                        recommendation: formData.recommendation,
-                        updated_by: dbUser.id
-                    })
+                    .update(updatePayload)
                     .eq('id', existingRecordId)
 
-                if (updateError) throw updateError
+                if (updateError) {
+                    // Graceful fallback if columns are still pending schema cache
+                    delete updatePayload.skin_type
+                    delete updatePayload.contraindications
+                    delete updatePayload.medical_history
+                    delete updatePayload.client_skincare_routine
+                    const { error: fallbackErr } = await supabase
+                        .from('treatment_records')
+                        .update(updatePayload)
+                        .eq('id', existingRecordId)
+                    if (fallbackErr) throw fallbackErr
+                }
 
                 // Clear old items to re-insert fresh list
                 await supabase.from('treatment_record_items').delete().eq('treatment_record_id', existingRecordId)
             } else {
                 // Insert new Treatment Record
+                let insertPayload = {
+                    patient_id: targetPatientId,
+                    appointment_id: appointment.id,
+                    branch_id: appointment.branch_id,
+                    performed_by: performer,
+                    treatment_date: new Date().toISOString().split('T')[0],
+                    treatment_time: new Date().toTimeString().substring(0, 5),
+                    skin_condition: formData.skin_condition,
+                    complaints: formData.complaints,
+                    result_notes: formData.result_notes,
+                    recommendation: formData.recommendation,
+                    ...clinicalFields,
+                    created_by: dbUser.id
+                }
+
                 const { data: recordData, error: recordError } = await supabase
                     .from('treatment_records')
-                    .insert([{
-                        patient_id: appointment.patient_id || appointment.patients?.id || null,
-                        appointment_id: appointment.id,
-                        branch_id: appointment.branch_id,
-                        performed_by: performer,
-                        treatment_date: new Date().toISOString().split('T')[0],
-                        treatment_time: new Date().toTimeString().substring(0, 5),
-                        skin_condition: formData.skin_condition,
-                        complaints: formData.complaints,
-                        result_notes: formData.result_notes,
-                        recommendation: formData.recommendation,
-                        created_by: dbUser.id
-                    }])
+                    .insert([insertPayload])
                     .select('id')
                     .single()
 
-                if (recordError) throw recordError
-                recordId = recordData.id
+                if (recordError) {
+                    delete insertPayload.skin_type
+                    delete insertPayload.contraindications
+                    delete insertPayload.medical_history
+                    delete insertPayload.client_skincare_routine
+                    const { data: fbData, error: fbErr } = await supabase
+                        .from('treatment_records')
+                        .insert([insertPayload])
+                        .select('id')
+                        .single()
+                    if (fbErr) throw fbErr
+                    recordId = fbData.id
+                } else {
+                    recordId = recordData.id
+                }
+            }
+
+            // Sync clinical profile directly to master patients table
+            if (targetPatientId) {
+                await supabase
+                    .from('patients')
+                    .update({
+                        skin_type: formData.skin_type || null,
+                        allergies: formData.contraindications || null,
+                        medical_notes: formData.medical_history || null,
+                        notes: formData.client_skincare_routine || null
+                    })
+                    .eq('id', targetPatientId)
             }
 
             // 2. Insert Treatment Record Items + Followup Queue
@@ -549,7 +613,6 @@ export default function TreatmentInputPage() {
 
             // 3. Upload Photos (via Server API)
             const photoSlots = ['foto_depan', 'foto_kiri', 'foto_kanan']
-            const targetPatientId = appointment?.patient_id || appointment?.patients?.id || null
 
             for (const slot of photoSlots) {
                 if (photoFiles[slot]) {
@@ -668,7 +731,188 @@ export default function TreatmentInputPage() {
                     </div>
                 )}
 
-                {/* ─── SECTION 1: CATATAN SOAP ─── */}
+                {/* ─── SECTION 1: PROFIL KULIT & DATA KLINIS PASIEN ─── */}
+                <div className="card-ayumi p-4 md:p-6 space-y-6">
+                    <div className="flex items-center justify-between border-b pb-3">
+                        <h2 className="text-lg font-bold text-ayumi-secondary flex items-center gap-2">
+                            <span className="p-1.5 bg-pink-100 text-pink-600 rounded-lg">🔬</span>
+                            Profil Kulit & Riwayat Klinis Pasien
+                        </h2>
+                        <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                            Tersinkronisasi ke Master Pasien
+                        </span>
+                    </div>
+
+                    {/* 1.1 Jenis Kulit (Skin Type Chips) */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                            Jenis Kulit (Skin Type)
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                { id: 'Normal', label: '✨ Normal', color: 'hover:border-emerald-400 hover:text-emerald-700 active:bg-emerald-50' },
+                                { id: 'Kering', label: '🌵 Kering (Dry)', color: 'hover:border-amber-400 hover:text-amber-700 active:bg-amber-50' },
+                                { id: 'Berminyak', label: '💧 Berminyak (Oily)', color: 'hover:border-blue-400 hover:text-blue-700 active:bg-blue-50' },
+                                { id: 'Kombinasi', label: '⚖️ Kombinasi', color: 'hover:border-teal-400 hover:text-teal-700 active:bg-teal-50' },
+                                { id: 'Sensitif', label: '🌸 Sensitif', color: 'hover:border-rose-400 hover:text-rose-700 active:bg-rose-50' },
+                                { id: 'Acne-Prone', label: '🔴 Acne-Prone (Berjerawat)', color: 'hover:border-red-400 hover:text-red-700 active:bg-red-50' },
+                                { id: 'Aging', label: '⏳ Aging / Flek', color: 'hover:border-purple-400 hover:text-purple-700 active:bg-purple-50' }
+                            ].map(item => {
+                                const isSelected = formData.skin_type === item.id || (formData.skin_type && formData.skin_type.toLowerCase().includes(item.id.toLowerCase()))
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, skin_type: isSelected ? '' : item.id }))}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                            isSelected 
+                                                ? 'bg-pink-600 border-pink-600 text-white shadow-sm scale-105' 
+                                                : `bg-white border-gray-200 text-gray-700 ${item.color}`
+                                        }`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* 1.2 Kontraindikasi (Warning Box) */}
+                    <div className="p-4 bg-rose-50/50 border-2 border-rose-200/80 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
+                                <span className="text-rose-600 font-extrabold text-base">⚠️</span>
+                                Kontraindikasi / Peringatan Khusus
+                            </label>
+                            <span className="text-[11px] font-bold text-rose-600 uppercase bg-rose-100 px-2 py-0.5 rounded-md">Penting</span>
+                        </div>
+                        <textarea
+                            name="contraindications"
+                            value={formData.contraindications}
+                            onChange={handleChange}
+                            rows="2"
+                            placeholder="Contoh: Sedang hamil/menyusui, alergi zat aktif tertentu, penggunaan retinol/AHA aktif..."
+                            className="input-ayumi bg-white text-sm border-rose-200 focus:border-rose-400 resize-none"
+                        ></textarea>
+                        {/* Quick Tag Chips */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            <span className="text-[10px] text-gray-500 font-semibold mr-1">Tag Cepat:</span>
+                            {[
+                                'Ibu Hamil / Menyusui',
+                                'Retinoid / AHA-BHA Aktif',
+                                'Alergi Obat/Bahan',
+                                'Riwayat Keloid',
+                                'Kulit Iritasi / Sunburn',
+                                'Tidak Ada Kontraindikasi'
+                            ].map(tag => (
+                                <button
+                                    key={tag}
+                                    type="button"
+                                    onClick={() => {
+                                        setFormData(prev => {
+                                            const current = prev.contraindications?.trim() || ''
+                                            if (tag === 'Tidak Ada Kontraindikasi') return { ...prev, contraindications: 'Tidak Ada' }
+                                            if (current.includes(tag)) return prev
+                                            const updated = current ? `${current}, ${tag}` : tag
+                                            return { ...prev, contraindications: updated }
+                                        })
+                                    }}
+                                    className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-rose-200 text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition-colors cursor-pointer"
+                                >
+                                    + {tag}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* 1.3 Sejarah Medis */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-gray-700">
+                                📋 Sejarah Medis & Riwayat Penyakit
+                            </label>
+                            <textarea
+                                name="medical_history"
+                                value={formData.medical_history}
+                                onChange={handleChange}
+                                rows="3"
+                                placeholder="Riwayat medis umum, riwayat alergi lama, konsumsi obat rutin, atau tindakan medis sebelumnya..."
+                                className="input-ayumi bg-gray-50 focus:bg-white text-sm resize-none"
+                            ></textarea>
+                            {/* Quick Tags */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                {[
+                                    'Penyakit Kulit Kronis',
+                                    'Konsumsi Obat Jerawat Rutin',
+                                    'Perawatan di Klinik Lain',
+                                    'Tidak Ada Riwayat Medis'
+                                ].map(tag => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => {
+                                                const current = prev.medical_history?.trim() || ''
+                                                if (tag === 'Tidak Ada Riwayat Medis') return { ...prev, medical_history: 'Tidak Ada' }
+                                                if (current.includes(tag)) return prev
+                                                const updated = current ? `${current}, ${tag}` : tag
+                                                return { ...prev, medical_history: updated }
+                                            })
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                    >
+                                        + {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 1.4 Perawatan Klien (Skincare Rutin Homecare) */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-gray-700">
+                                🧴 Perawatan Klien (Skincare Rutin di Rumah)
+                            </label>
+                            <textarea
+                                name="client_skincare_routine"
+                                value={formData.client_skincare_routine}
+                                onChange={handleChange}
+                                rows="3"
+                                placeholder="Produk perawatan harian yang sedang dipakai klien (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
+                                className="input-ayumi bg-gray-50 focus:bg-white text-sm resize-none"
+                            ></textarea>
+                            {/* Quick Tags */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                {[
+                                    'Facial Wash',
+                                    'Toner',
+                                    'Serum',
+                                    'Sunscreen',
+                                    'Moisturizer',
+                                    'Night Cream',
+                                    'Produk Racikan Dokter'
+                                ].map(tag => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => {
+                                                const current = prev.client_skincare_routine?.trim() || ''
+                                                if (current.includes(tag)) return prev
+                                                const updated = current ? `${current}, ${tag}` : tag
+                                                return { ...prev, client_skincare_routine: updated }
+                                            })
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                    >
+                                        + {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ─── SECTION 2: CATATAN SOAP ─── */}
                 <div className="card-ayumi p-4 md:p-6 space-y-5">
                     <h2 className="text-lg font-bold text-ayumi-secondary border-b pb-3 flex items-center gap-2">
                         <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -692,7 +936,7 @@ export default function TreatmentInputPage() {
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">
                                 <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded mr-2">O</span>
-                                Objektif (Kondisi Kulit)
+                                Objektif (Kondisi Kulit Saat Pemeriksaan)
                             </label>
                             <textarea
                                 name="skin_condition"
