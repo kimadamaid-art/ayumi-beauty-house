@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
@@ -8,6 +8,9 @@ import BranchFilter from '@/components/ui/BranchFilter'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 import { usePatientSearch } from '@/hooks/usePatientSearch'
 import { validatePatientData } from '@/lib/patientValidation'
+import HorizontalCategoryRow from '@/components/pos/HorizontalCategoryRow'
+import ItemVariantModal from '@/components/pos/ItemVariantModal'
+import { getItemInitials, getItemCategory, getProductVariants, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
 
 function PosPageContent() {
     const router = useRouter()
@@ -23,6 +26,7 @@ function PosPageContent() {
     const [treatments, setTreatments] = useState([])
     const [products, setProducts] = useState([])
     const [coupons, setCoupons] = useState([])
+    const [categories, setCategories] = useState([])
     const [pendingBills, setPendingBills] = useState([])
     const [therapists, setTherapists] = useState([])
     const [selectedTherapistId, setSelectedTherapistId] = useState('')
@@ -38,13 +42,18 @@ function PosPageContent() {
     } = usePatientSearch({ debounceMs: 150, limit: 50 })
 
     // UI State
-    const [activeTab, setActiveTab] = useState('treatment') // 'treatment' | 'product' | 'coupon'
+    const [activeTab, setActiveTab] = useState('treatment') // 'treatment' | 'product' | 'coupon' | 'all'
     const [searchQuery, setSearchQuery] = useState('')
     const [isPatientDropdownOpen, setIsPatientDropdownOpen] = useState(false)
     const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
     const [leftPanelTab, setLeftPanelTab] = useState('pending')
     const [expandedCartItem, setExpandedCartItem] = useState(null)
     const [patientActiveCoupons, setPatientActiveCoupons] = useState([])
+
+    // Item Variant & Quantity Modal State
+    const [selectedCatalogItem, setSelectedCatalogItem] = useState(null)
+    const [selectedItemType, setSelectedItemType] = useState('product') // 'treatment' | 'product' | 'coupon'
+    const [isItemModalOpen, setIsItemModalOpen] = useState(false)
 
     // Quick Add Patient State
     const [quickAddForm, setQuickAddForm] = useState({ full_name: '', whatsapp: '' })
@@ -226,12 +235,13 @@ function PosPageContent() {
         setIsLoading(true)
         
         // Fetch User and Master Data in parallel (eliminate waterfall lag)
-        const [userRes, brRes, trRes, cpRes, thRes] = await Promise.all([
+        const [userRes, brRes, trRes, cpRes, thRes, catRes] = await Promise.all([
             supabase.auth.getUser(),
             supabase.from('branches').select('id, name').eq('is_active', true),
-            supabase.from('treatments').select('*').eq('is_active', true).order('name', { ascending: true }),
+            supabase.from('treatments').select('*, treatment_categories(id, name, sort_order)').eq('is_active', true).order('name', { ascending: true }),
             supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true }),
-            supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name')
+            supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name'),
+            supabase.from('treatment_categories').select('*').eq('is_active', true).order('sort_order', { ascending: true })
         ])
 
         const user = userRes.data?.user
@@ -255,6 +265,7 @@ function PosPageContent() {
         if (trRes.data) setTreatments(trRes.data)
         if (cpRes.data) setCoupons(cpRes.data)
         if (thRes.data) setTherapists(thRes.data)
+        if (catRes.data) setCategories(catRes.data)
 
         setIsLoading(false)
     }
@@ -309,7 +320,7 @@ function PosPageContent() {
             .select(`
                 quantity,
                 product_id,
-                products (id, name, price, is_active)
+                products (id, name, description, price, is_active)
             `)
             .eq('branch_id', selectedBranch)
             .gt('quantity', 0)
@@ -832,6 +843,208 @@ function PosPageContent() {
             }
         })
     }
+
+    // --- Item Variant Modal Handlers ---
+    const handleOpenItemModal = (item, type) => {
+        if (!selectedBranch) {
+            alert('Silakan pilih cabang terlebih dahulu!')
+            return
+        }
+        setSelectedCatalogItem(item)
+        setSelectedItemType(type)
+        setIsItemModalOpen(true)
+    }
+
+    const handleCloseItemModal = () => {
+        setIsItemModalOpen(false)
+        setSelectedCatalogItem(null)
+    }
+
+    const handleConfirmModalSelection = ({ item, itemType, quantity, selectedVariant, discountType, discountValue, basePrice, totalPrice }) => {
+        const qty = Math.max(1, quantity || 1)
+        let discountPercent = 0
+        let customDiscountNominal = 0
+        let unitPrice = basePrice
+
+        if (discountValue > 0) {
+            if (discountType === 'percent') {
+                discountPercent = Math.min(100, Math.max(0, discountValue))
+                unitPrice = Math.round(basePrice * (1 - discountPercent / 100))
+            } else {
+                customDiscountNominal = discountValue
+                const discountPerUnit = Math.round(discountValue / qty)
+                unitPrice = Math.max(0, basePrice - discountPerUnit)
+                discountPercent = basePrice > 0 ? Math.round((discountPerUnit / basePrice) * 100) : 0
+            }
+        } else if (item.discount_percent > 0) {
+            discountPercent = Number(item.discount_percent)
+            unitPrice = Math.round(basePrice * (1 - discountPercent / 100))
+        }
+
+        // Check active coupon for treatment if no variant selected and itemType === 'treatment'
+        let isUsingCoupon = false
+        let usedCouponItemId = null
+        let couponPackageName = ''
+        let remainingSessions = 0
+
+        if (itemType === 'treatment' && patientActiveCoupons.length > 0) {
+            const match = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+            if (match) {
+                isUsingCoupon = true
+                usedCouponItemId = match.id
+                couponPackageName = match.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
+                remainingSessions = match.remaining_sessions
+                unitPrice = 0
+                discountPercent = 100
+            }
+        }
+
+        const cartItemId = selectedVariant 
+            ? `${item.id}_${selectedVariant.name.replace(/[^a-zA-Z0-9]/g, '_')}`
+            : item.id
+
+        const cartItemName = selectedVariant
+            ? `${item.name} (${selectedVariant.name})`
+            : item.name
+
+        setCart(prev => {
+            const existingIdx = prev.findIndex(ci => ci.id === cartItemId && ci.item_type === itemType)
+
+            if (existingIdx >= 0) {
+                const existing = prev[existingIdx]
+                const newQty = existing.quantity + qty
+
+                if (itemType === 'product' && item.quantity !== undefined && newQty > item.quantity) {
+                    alert(`Stok tidak mencukupi. Tersedia: ${item.quantity}`)
+                    return prev
+                }
+
+                const updated = [...prev]
+                updated[existingIdx] = {
+                    ...existing,
+                    quantity: newQty,
+                    subtotal: existing.price * newQty
+                }
+                return updated
+            }
+
+            if (itemType === 'product' && item.quantity !== undefined && qty > item.quantity) {
+                alert(`Stok tidak mencukupi. Tersedia: ${item.quantity}`)
+                return prev
+            }
+
+            return [
+                ...prev,
+                {
+                    id: cartItemId,
+                    product_id: itemType === 'product' ? item.id : null,
+                    treatment_id: itemType === 'treatment' ? item.id : null,
+                    coupon_id: itemType === 'coupon' ? item.id : null,
+                    item_type: itemType,
+                    name: cartItemName,
+                    variant_name: selectedVariant ? selectedVariant.name : null,
+                    price: unitPrice,
+                    original_price: basePrice,
+                    quantity: qty,
+                    maxQuantity: itemType === 'product' ? item.quantity : null,
+                    discount_percent: discountPercent,
+                    custom_discount_nominal: customDiscountNominal,
+                    subtotal: unitPrice * qty,
+                    commission_percent: itemType === 'treatment' ? (item.commission_percent || 0) : 0,
+                    is_using_coupon: isUsingCoupon,
+                    coupon_already_deducted: false,
+                    used_coupon_item_id: usedCouponItemId,
+                    coupon_package_name: couponPackageName,
+                    remaining_sessions: remainingSessions,
+                    therapist_id: selectedTherapistId || (therapists[0]?.id || '')
+                }
+            ]
+        })
+
+        handleCloseItemModal()
+    }
+
+    // Categorized items grouped for horizontal scrolling (GD Cashier style)
+    const groupedCategoryData = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim()
+
+        const filteredTreatments = treatments.filter(t => !q || t.name.toLowerCase().includes(q))
+        const filteredProducts = products.filter(p => !q || p.name.toLowerCase().includes(q))
+        const filteredCoupons = coupons.filter(c => !q || c.name.toLowerCase().includes(q))
+
+        const showAll = activeTab === 'all'
+        const showTreatments = showAll || activeTab === 'treatment'
+        const showProducts = showAll || activeTab === 'product'
+        const showCoupons = showAll || activeTab === 'coupon'
+
+        // Prepare Category Order (Follow DB sort_order + DEFAULT_CATEGORY_ORDER fallback)
+        const dbCategoryNames = (categories || []).map(c => c.name)
+        const allKnownCategoryOrder = [
+            ...dbCategoryNames,
+            ...DEFAULT_CATEGORY_ORDER.filter(dc => !dbCategoryNames.includes(dc))
+        ]
+
+        const categoryMap = {}
+        allKnownCategoryOrder.forEach(cat => {
+            categoryMap[cat] = []
+        })
+
+        if (showTreatments) {
+            filteredTreatments.forEach(t => {
+                const cat = getItemCategory(t, 'treatment')
+                if (!categoryMap[cat]) categoryMap[cat] = []
+                categoryMap[cat].push({ ...t, itemType: 'treatment' })
+            })
+        }
+
+        if (showProducts) {
+            filteredProducts.forEach(p => {
+                const cat = getItemCategory(p, 'product')
+                if (!categoryMap[cat]) categoryMap[cat] = []
+                categoryMap[cat].push({ ...p, itemType: 'product' })
+            })
+        }
+
+        if (showCoupons) {
+            filteredCoupons.forEach(c => {
+                const cat = 'PAKET KUPON'
+                if (!categoryMap[cat]) categoryMap[cat] = []
+                categoryMap[cat].push({ ...c, itemType: 'coupon' })
+            })
+        }
+
+        const result = []
+        allKnownCategoryOrder.forEach(catName => {
+            if (categoryMap[catName] && categoryMap[catName].length > 0) {
+                let theme = 'sky'
+                if (catName.includes('TREATMENT') || catName.includes('FACE') || catName.includes('BODY') || catName.includes('WAXING') || catName.includes('SKIN BOOSTER')) {
+                    theme = 'pink'
+                } else if (catName === 'PAKET KUPON' || catName.includes('VIP')) {
+                    theme = 'purple'
+                } else if (catName.includes('Ayumi') || catName.includes('Dekoratif')) {
+                    theme = 'teal'
+                }
+                result.push({
+                    name: catName,
+                    theme,
+                    items: categoryMap[catName]
+                })
+            }
+        })
+
+        // Catch any remaining categories
+        Object.keys(categoryMap).forEach(catName => {
+            if (!allKnownCategoryOrder.includes(catName) && categoryMap[catName].length > 0) {
+                result.push({
+                    name: catName,
+                    theme: catName === 'PAKET KUPON' ? 'purple' : 'sky',
+                    items: categoryMap[catName]
+                })
+            }
+        })
+
+        return result
+    }, [searchQuery, activeTab, treatments, products, coupons, categories])
 
     const toggleCartItemCoupon = (itemId) => {
         setCart(prev => prev.map(cartItem => {
@@ -1542,14 +1755,13 @@ function PosPageContent() {
                             </div>
                         </div>
 
-                        {/* Items list rendered as POS card grid */}
+                        {/* Items list rendered as Categorized POS Horizontal Carousel Grid (GD Cashier Style) */}
                         <div className="p-3 sm:p-4 overflow-y-auto max-h-[66vh] custom-scrollbar flex-1 bg-gray-50/30">
                             {(() => {
                                 const q = searchQuery.toLowerCase().trim()
-                                const filteredTreatments = treatments.filter(t => !q || t.name.toLowerCase().includes(q))
-                                const filteredProducts = products.filter(p => !q || p.name.toLowerCase().includes(q))
-                                const filteredCoupons = coupons.filter(c => !q || c.name.toLowerCase().includes(q))
-                                const totalMatches = filteredTreatments.length + filteredProducts.length + filteredCoupons.length
+                                const totalMatches = treatments.filter(t => !q || t.name.toLowerCase().includes(q)).length +
+                                                     products.filter(p => !q || p.name.toLowerCase().includes(q)).length +
+                                                     coupons.filter(c => !q || c.name.toLowerCase().includes(q)).length
 
                                 // Branch not selected warning for products
                                 if (!selectedBranch && activeTab === 'product') {
@@ -1581,208 +1793,25 @@ function PosPageContent() {
                                     )
                                 }
 
-                                const showAll = activeTab === 'all'
-                                const showTreatments = showAll || activeTab === 'treatment'
-                                const showProducts = showAll || activeTab === 'product'
-                                const showCoupons = showAll || activeTab === 'coupon'
-
-                                // Notice when user is on a specific tab with 0 results but other tabs have matches
-                                const currentTabEmpty = (activeTab === 'treatment' && filteredTreatments.length === 0) ||
-                                                        (activeTab === 'product' && filteredProducts.length === 0) ||
-                                                        (activeTab === 'coupon' && filteredCoupons.length === 0)
+                                if (groupedCategoryData.length === 0) {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center py-16 text-gray-400 text-center my-auto">
+                                            <p className="text-xs font-semibold">Belum ada item aktif di kategori ini.</p>
+                                        </div>
+                                    )
+                                }
 
                                 return (
-                                    <div className="space-y-4">
-                                        {/* Cross-category Match Notification */}
-                                        {q && currentTabEmpty && totalMatches > 0 && (
-                                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs animate-fade-in">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                                                    <div className="text-xs text-amber-900 font-medium">
-                                                        Tidak ada hasil di tab ini, namun ditemukan <strong className="font-extrabold text-amber-950">{totalMatches} item</strong> di kategori lain untuk &quot;{searchQuery}&quot;:
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setActiveTab('all')}
-                                                        className="text-xs bg-slate-900 hover:bg-black text-white px-2.5 py-1 rounded-lg font-bold transition-colors shadow-2xs cursor-pointer"
-                                                    >
-                                                        Lihat Semua ({totalMatches})
-                                                    </button>
-                                                    {filteredTreatments.length > 0 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setActiveTab('treatment')}
-                                                            className="text-xs bg-pink-100 hover:bg-pink-200 text-pink-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
-                                                        >
-                                                            Treatment ({filteredTreatments.length})
-                                                        </button>
-                                                    )}
-                                                    {filteredProducts.length > 0 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setActiveTab('product')}
-                                                            className="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
-                                                        >
-                                                            Produk ({filteredProducts.length})
-                                                        </button>
-                                                    )}
-                                                    {filteredCoupons.length > 0 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setActiveTab('coupon')}
-                                                            className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
-                                                        >
-                                                            Kupon ({filteredCoupons.length})
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
-                                            {/* 1. TREATMENTS */}
-                                            {showTreatments && filteredTreatments.map(t => {
-                                                const hasDiscount = t.discount_percent > 0
-                                                const price = hasDiscount ? t.price * (1 - t.discount_percent / 100) : t.price
-                                                return (
-                                                    <div
-                                                        key={`tr-${t.id}`}
-                                                        onClick={() => addToCart(t, 'treatment')}
-                                                        className="bg-white p-3 rounded-2xl border border-pink-100 shadow-2xs flex flex-col justify-between hover:border-pink-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
-                                                    >
-                                                        <div className="space-y-1.5 mb-2">
-                                                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
-                                                                    Treatment
-                                                                </span>
-                                                                {hasDiscount && (
-                                                                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
-                                                                        Diskon {t.discount_percent}%
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-pink-600 transition-colors">
-                                                                {t.name}
-                                                            </h4>
-                                                        </div>
-
-                                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                            <div className="flex flex-col min-w-0">
-                                                                {hasDiscount && (
-                                                                    <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
-                                                                        Rp {t.price.toLocaleString('id-ID')}
-                                                                    </span>
-                                                                )}
-                                                                <span className="font-black text-xs sm:text-sm text-pink-700 whitespace-nowrap">
-                                                                    Rp {price.toLocaleString('id-ID')}
-                                                                </span>
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    addToCart(t, 'treatment')
-                                                                }}
-                                                                className="w-7 h-7 rounded-xl bg-pink-500 hover:bg-pink-600 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-                                                                title="Tambah ke keranjang"
-                                                            >
-                                                                +
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-
-                                            {/* 2. PRODUCTS */}
-                                            {showProducts && filteredProducts.map(p => (
-                                                <div
-                                                    key={`pr-${p.id}`}
-                                                    onClick={() => addToCart(p, 'product')}
-                                                    className="bg-white p-3 rounded-2xl border border-emerald-100 shadow-2xs flex flex-col justify-between hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
-                                                >
-                                                    <div className="space-y-1.5 mb-2">
-                                                        <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
-                                                                Produk
-                                                            </span>
-                                                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${
-                                                                p.quantity > 5 
-                                                                    ? 'bg-teal-50 text-teal-800 border-teal-200' 
-                                                                    : p.quantity > 0 
-                                                                        ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse' 
-                                                                        : 'bg-gray-100 text-gray-500 border-gray-200'
-                                                            }`}>
-                                                                Stok: {p.quantity}
-                                                            </span>
-                                                        </div>
-                                                        <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-emerald-700 transition-colors">
-                                                            {p.name}
-                                                        </h4>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                        <span className="font-black text-xs sm:text-sm text-emerald-800 whitespace-nowrap">
-                                                            Rp {p.price.toLocaleString('id-ID')}
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                addToCart(p, 'product')
-                                                            }}
-                                                            className="w-7 h-7 rounded-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-                                                            title="Tambah ke keranjang"
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-
-                                            {/* 3. COUPONS */}
-                                            {showCoupons && filteredCoupons.map(c => (
-                                                <div
-                                                    key={`cp-${c.id}`}
-                                                    onClick={() => addToCart(c, 'coupon')}
-                                                    className="bg-white p-3 rounded-2xl border border-purple-100 shadow-2xs flex flex-col justify-between hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
-                                                >
-                                                    <div className="space-y-1.5 mb-2">
-                                                        <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                            <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
-                                                                Paket Kupon
-                                                            </span>
-                                                            {c.category && (
-                                                                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
-                                                                    {c.category}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-purple-700 transition-colors">
-                                                            {c.name}
-                                                        </h4>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                        <span className="font-black text-xs sm:text-sm text-purple-900 whitespace-nowrap">
-                                                            Rp {c.price.toLocaleString('id-ID')}
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                addToCart(c, 'coupon')
-                                                            }}
-                                                            className="w-7 h-7 rounded-xl bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-                                                            title="Tambah ke keranjang"
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                    <div className="space-y-6">
+                                        {groupedCategoryData.map(group => (
+                                            <HorizontalCategoryRow
+                                                key={group.name}
+                                                categoryName={group.name}
+                                                items={group.items}
+                                                categoryTheme={group.theme}
+                                                onItemClick={(item, type) => handleOpenItemModal(item, type)}
+                                            />
+                                        ))}
                                     </div>
                                 )
                             })()}
@@ -2603,6 +2632,15 @@ function PosPageContent() {
                     </div>
                 </div>
             )}
+
+            {/* Item Variant & Quantity Selection Modal */}
+            <ItemVariantModal
+                isOpen={isItemModalOpen}
+                item={selectedCatalogItem}
+                itemType={selectedItemType}
+                onClose={handleCloseItemModal}
+                onConfirm={handleConfirmModalSelection}
+            />
         </div>
     )
 }

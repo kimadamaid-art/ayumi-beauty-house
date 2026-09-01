@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import BranchFilter from '@/components/ui/BranchFilter'
+import { getProductVariants, getItemCategory, formatProductDescription } from '@/lib/productVariants'
 
 export default function ProductsPage() {
     const router = useRouter()
@@ -202,19 +204,31 @@ export default function ProductsPage() {
         })
 
         if (product) {
+            const rawVariants = getProductVariants(product)
+            const cat = getItemCategory(product, 'product')
+            const cleanDesc = (product.description || '')
+                .replace(/\[VARIANTS:\[.*?\]\]/g, '')
+                .replace(/Kategori:\s*[^|\[\]]+/gi, '')
+                .replace(/^\|\s*|\s*\|$/g, '')
+                .trim()
+
             setFormData({
                 name: product.name || '',
-                description: product.description || '',
+                category: cat,
+                plainDescription: cleanDesc,
                 price: product.price || '',
                 is_active: product.is_active !== undefined ? product.is_active : true,
+                variants: rawVariants,
                 branchStocks: initialBranchStocks
             })
         } else {
             setFormData({
                 name: '',
-                description: '',
+                category: 'YUFADERMA BRIGHT',
+                plainDescription: '',
                 price: '',
                 is_active: true,
+                variants: [],
                 branchStocks: initialBranchStocks
             })
         }
@@ -245,13 +259,47 @@ export default function ProductsPage() {
         }))
     }
 
+    const handleAddVariant = () => {
+        setFormData(prev => ({
+            ...prev,
+            variants: [
+                ...prev.variants,
+                { name: '', price: Number(prev.price) || 0 }
+            ]
+        }))
+    }
+
+    const handleVariantChange = (index, field, value) => {
+        setFormData(prev => {
+            const newVariants = [...prev.variants]
+            newVariants[index] = {
+                ...newVariants[index],
+                [field]: field === 'price' ? Number(value) : value
+            }
+            return { ...prev, variants: newVariants }
+        })
+    }
+
+    const handleRemoveVariant = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            variants: prev.variants.filter((_, i) => i !== index)
+        }))
+    }
+
     const handleSave = async (e) => {
         e.preventDefault()
         setIsSaving(true)
 
+        const finalDescription = formatProductDescription(
+            formData.category,
+            formData.plainDescription,
+            formData.variants
+        )
+
         const productPayload = {
             name: formData.name.trim(),
-            description: formData.description ? formData.description.trim() : null,
+            description: finalDescription || null,
             price: Number(formData.price),
             is_active: formData.is_active,
             updated_at: new Date().toISOString()
@@ -488,17 +536,37 @@ export default function ProductsPage() {
                             <tbody className="divide-y divide-gray-50 text-sm">
                                 {displayedProducts.map((p) => {
                                     const totalStock = getTotalStockForProduct(p.id)
-
                                     return (
                                         <tr key={p.id} className={`hover:bg-ayumi-table-hover transition-colors ${!p.is_active ? 'opacity-60 bg-gray-50' : ''}`}>
                                             {/* Product Name & Description */}
                                             <td className="p-4 font-medium text-gray-800">
-                                                <div className="font-semibold text-gray-900">{p.name}</div>
-                                                {p.description && <p className="text-xs text-gray-400 font-normal mt-0.5">{p.description}</p>}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-bold text-gray-900">{p.name}</span>
+                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-50 text-orange-700 border border-orange-200">
+                                                        {getItemCategory(p, 'product')}
+                                                    </span>
+                                                    {(() => {
+                                                        const vars = getProductVariants(p)
+                                                        if (vars.length === 0) return null
+                                                        return (
+                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-sky-50 text-sky-700 border border-sky-200" title={vars.map(v => `${v.name}: Rp ${v.price.toLocaleString('id-ID')}`).join(', ')}>
+                                                                {vars.length} Varian
+                                                            </span>
+                                                        )
+                                                    })()}
+                                                </div>
+                                                {(() => {
+                                                    const cleanDesc = (p.description || '')
+                                                        .replace(/\[VARIANTS:\[.*?\]\]/g, '')
+                                                        .replace(/Kategori:\s*[^|\[\]]+/gi, '')
+                                                        .replace(/^\|\s*|\s*\|$/g, '')
+                                                        .trim()
+                                                    return cleanDesc ? <p className="text-xs text-gray-400 font-normal mt-0.5">{cleanDesc}</p> : null
+                                                })()}
                                             </td>
 
                                             {/* Selling Price */}
-                                            <td className="p-4 text-right text-gray-700  font-bold">
+                                            <td className="p-4 text-right text-gray-700 font-bold">
                                                 Rp {p.price?.toLocaleString('id-ID')}
                                             </td>
 
@@ -513,11 +581,12 @@ export default function ProductsPage() {
                                                         const isSavingKey = savingStockKey === key
 
                                                         return (
-                                                            <div className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-orange-50/40 focus-within:bg-orange-50 focus-within:border-orange-400 focus-within:ring-4 focus-within:ring-orange-100 p-1.5 rounded-xl border border-gray-200 transition-all shadow-2xs">
+                                                            <div className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-orange-300 focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-200/60 px-2 py-1 rounded-xl transition-all shadow-2xs">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleStepper(p.id, b.id, -1)}
-                                                                    className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-extrabold text-base flex items-center justify-center transition-colors border border-gray-200 shadow-2xs cursor-pointer select-none"
+                                                                    disabled={currentQty <= 0}
+                                                                    className="w-7 h-7 rounded-lg bg-orange-100 hover:bg-orange-200 active:bg-orange-300 disabled:opacity-40 disabled:hover:bg-orange-100 text-orange-700 font-extrabold text-base flex items-center justify-center transition-colors border border-orange-200 shadow-2xs cursor-pointer select-none"
                                                                     title="Kurangi Stok"
                                                                 >
                                                                     -
@@ -529,7 +598,7 @@ export default function ProductsPage() {
                                                                     onFocus={(e) => e.target.select()}
                                                                     onChange={(e) => handleInlineInputChange(p.id, b.id, e.target.value)}
                                                                     onBlur={() => handleInlineStockSave(p.id, b.id, currentQty)}
-                                                                    className="w-16 h-7 text-center  font-black text-sm border border-gray-200 rounded-md focus:border-orange-500 focus:ring-0 bg-transparent text-gray-900 focus:text-orange-950 outline-none"
+                                                                    className="w-16 h-7 text-center font-black text-sm border border-gray-200 rounded-md focus:border-orange-500 focus:ring-0 bg-transparent text-gray-900 focus:text-orange-950 outline-none"
                                                                 />
                                                                 <button
                                                                     type="button"
@@ -559,7 +628,7 @@ export default function ProductsPage() {
                                                                     key={b.id} 
                                                                     className="inline-flex items-center gap-1.5 bg-white hover:bg-orange-50/50 focus-within:bg-orange-50 focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-200/60 border border-gray-200 px-2.5 py-1 rounded-xl transition-all shadow-2xs"
                                                                 >
-                                                                    <span className="text-xs font-bold text-gray-500 ">{b.branch_code || b.name.slice(0,3).toUpperCase()}:</span>
+                                                                    <span className="text-xs font-bold text-gray-500">{b.branch_code || b.name.slice(0,3).toUpperCase()}:</span>
                                                                     <input
                                                                         type="number"
                                                                         min="0"
@@ -567,7 +636,7 @@ export default function ProductsPage() {
                                                                         onFocus={(e) => e.target.select()}
                                                                         onChange={(e) => handleInlineInputChange(p.id, b.id, e.target.value)}
                                                                         onBlur={() => handleInlineStockSave(p.id, b.id, currentQty)}
-                                                                        className="w-14 h-7 text-center  font-black text-xs bg-transparent outline-none text-gray-800 focus:text-orange-950"
+                                                                        className="w-14 h-7 text-center font-black text-xs bg-transparent outline-none text-gray-800 focus:text-orange-950"
                                                                     />
                                                                     {isSavingKey && <span className="text-[10px] font-bold text-emerald-600">✓</span>}
                                                                 </div>
@@ -579,7 +648,7 @@ export default function ProductsPage() {
 
                                             {/* Total Stock Badge */}
                                             <td className="p-4 text-center">
-                                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold  ${
+                                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
                                                     totalStock === 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-800'
                                                 }`}>
                                                     {totalStock} pcs
@@ -638,7 +707,7 @@ export default function ProductsPage() {
                                 </h3>
                                 <p className="text-xs text-orange-600 mt-0.5">
                                     {dbUser?.role === 'owner' 
-                                        ? 'Atur detail produk dan alokasi stok untuk semua cabang.'
+                                        ? 'Atur detail produk, varian, dan alokasi stok untuk semua cabang.'
                                         : `Atur detail produk dan alokasi stok untuk cabang ${userBranchName || 'Anda'}.`
                                     }
                                 </p>
@@ -660,35 +729,123 @@ export default function ProductsPage() {
                                         value={formData.name}
                                         onChange={handleChange}
                                         required
-                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm"
+                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm font-bold"
                                         placeholder="Contoh: Mid-Night Brightening Cream"
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Kategori / Deskripsi (Opsional)</label>
-                                    <input
-                                        type="text"
-                                        name="description"
-                                        value={formData.description}
-                                        onChange={handleChange}
-                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm"
-                                        placeholder="Contoh: Kategori: YUFADERMA BRIGHT"
-                                    />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Kategori Produk</label>
+                                        <select
+                                            name="category"
+                                            value={formData.category}
+                                            onChange={handleChange}
+                                            className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm font-semibold cursor-pointer"
+                                        >
+                                            <option value="YUFADERMA ACNE">YUFADERMA ACNE</option>
+                                            <option value="YUFADERMA BRIGHT">YUFADERMA BRIGHT</option>
+                                            <option value="Ayumi Produk">Ayumi Produk</option>
+                                            <option value="Dekoratif">Dekoratif</option>
+                                            <option value="FACE TREATMENT">FACE TREATMENT</option>
+                                            <option value="BODY TREATMENT">BODY TREATMENT</option>
+                                            <option value="TREATMENT BASIC">TREATMENT BASIC</option>
+                                            <option value="SKIN BOOSTER">SKIN BOOSTER</option>
+                                            <option value="GENERAL / LAINNYA">GENERAL / LAINNYA</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Harga Dasar / Acuan (Rp)</label>
+                                        <input
+                                            type="number"
+                                            name="price"
+                                            value={formData.price}
+                                            onChange={handleChange}
+                                            required
+                                            min="0"
+                                            className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm font-bold"
+                                            placeholder="108000"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Harga Jual (Rp)</label>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Deskripsi Tambahan (Opsional)</label>
                                     <input
-                                        type="number"
-                                        name="price"
-                                        value={formData.price}
+                                        type="text"
+                                        name="plainDescription"
+                                        value={formData.plainDescription}
                                         onChange={handleChange}
-                                        required
-                                        min="0"
-                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm  font-bold"
+                                        className="input-ayumi bg-white focus:ring-orange-200 focus:border-orange-400 text-sm"
+                                        placeholder="Catatan / deskripsi produk..."
                                     />
                                 </div>
+                            </div>
+
+                            {/* Product Variants Management Section */}
+                            <div className="space-y-3 pb-3 border-b border-gray-100">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                                            <span>Varian Produk (Opsi Pilihan di POS)</span>
+                                            {formData.variants.length > 0 && (
+                                                <span className="px-2 py-0.2 bg-sky-100 text-sky-800 text-[10px] font-black rounded-full">
+                                                    {formData.variants.length} Varian
+                                                </span>
+                                            )}
+                                        </h4>
+                                        <p className="text-xs text-gray-400 mt-0.5">Jika diisi, kasir wajib memilih salah satu varian di POS sebelum checkout.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddVariant}
+                                        className="text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                        <span>+ Tambah Varian</span>
+                                    </button>
+                                </div>
+
+                                {formData.variants.length === 0 ? (
+                                    <div className="p-3 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-center text-xs text-gray-400">
+                                        Produk berharga tunggal (tanpa varian). Klik <strong>+ Tambah Varian</strong> jika produk memiliki pilihan seperti <em>Night Series, Night Flek, dll.</em>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                        {formData.variants.map((v, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 p-2 bg-sky-50/40 border border-sky-100 rounded-xl">
+                                                <input
+                                                    type="text"
+                                                    value={v.name}
+                                                    onChange={(e) => handleVariantChange(idx, 'name', e.target.value)}
+                                                    placeholder="Nama Varian (cth: Night Flek)"
+                                                    required
+                                                    className="input-ayumi bg-white text-xs font-bold flex-1 py-1.5 focus:ring-sky-200 focus:border-sky-400"
+                                                />
+                                                <div className="w-36 relative">
+                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">Rp</span>
+                                                    <input
+                                                        type="number"
+                                                        value={v.price}
+                                                        onChange={(e) => handleVariantChange(idx, 'price', e.target.value)}
+                                                        placeholder="115000"
+                                                        required
+                                                        min="0"
+                                                        className="input-ayumi bg-white text-xs font-bold w-full pl-8 py-1.5 text-right focus:ring-sky-200 focus:border-sky-400"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveVariant(idx)}
+                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                                    title="Hapus Varian"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Branch Stock Allocation Section */}
