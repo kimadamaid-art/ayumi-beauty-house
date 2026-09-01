@@ -272,9 +272,20 @@ function EditRecordForm() {
 
     const uploadPhotoSlot = async (file, slotKey, patientId, recordId) => {
         // Automatic client-side compression (WebP 1600px q80)
-        const compressed = await compressImageForMedical(file, 1600, 0.8)
+        let uploadFile = file
+        if (typeof compressImageForMedical === 'function') {
+            try {
+                uploadFile = await compressImageForMedical(file, 1600, 0.8)
+            } catch (e) {
+                console.warn('Compression fallback:', e)
+            }
+        }
+
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData?.session?.access_token
+
         const fd = new FormData()
-        fd.append('file', compressed)
+        fd.append('file', uploadFile)
         fd.append('patientId', patientId)
         fd.append('recordId', recordId)
         fd.append('slotKey', slotKey)
@@ -282,6 +293,7 @@ function EditRecordForm() {
 
         const res = await fetch('/api/patient-photos/upload', {
             method: 'POST',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             body: fd
         })
 
@@ -390,10 +402,10 @@ function EditRecordForm() {
             router.refresh()
 
         } catch (err) {
-            console.error(err)
-            const friendlyMsg = getFriendlyErrorMessage(err)
-            setError(friendlyMsg)
-            toast.error(friendlyMsg)
+            console.error('Error saving treatment record:', err)
+            const errorMsg = err.message || getFriendlyErrorMessage(err)
+            setError(errorMsg)
+            toast.error(errorMsg)
         } finally {
             setIsSaving(false)
         }

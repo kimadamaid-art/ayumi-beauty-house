@@ -419,8 +419,12 @@ export default function TreatmentInputPage() {
         fd.append('slotKey', slotKey)
         fd.append('photoType', 'before')
 
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData?.session?.access_token
+
         const res = await fetch('/api/patient-photos/upload', {
             method: 'POST',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
             body: fd
         })
 
