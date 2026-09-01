@@ -241,14 +241,15 @@ function AddRecordForm() {
                 // Find coupons belonging to this patient and where parent is active
                 const { data: pcData } = await supabase
                     .from('patient_coupons')
-                    .select('id')
+                    .select('id, expired_at, status')
                     .eq('patient_id', formData.patient_id)
-                    .eq('status', 'active')
-                    // Status 'active' tidak pernah berubah sendiri saat masa berlaku habis,
-                    // jadi tanggal kedaluwarsa harus diperiksa terpisah agar kupon lewat tempo tidak bisa ditukar.
-                    .gt('expired_at', new Date().toISOString())
+                    .neq('status', 'fully_used')
+                    .neq('status', 'completed')
 
-                const activeCouponIds = pcData?.map(pc => pc.id) || []
+                const now = new Date()
+                const activeCouponIds = pcData
+                    ?.filter(pc => !pc.expired_at || new Date(pc.expired_at) >= now)
+                    ?.map(pc => pc.id) || []
                 
                 const validItems = data.filter(item => activeCouponIds.includes(item.patient_coupon_id) && item.remaining_sessions > 0)
                 setPatientCoupons(validItems)

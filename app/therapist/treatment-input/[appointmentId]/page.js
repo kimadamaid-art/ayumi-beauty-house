@@ -230,12 +230,14 @@ export default function TreatmentInputPage() {
                 .eq('patient_id', patientId)
                 .neq('status', 'fully_used')
                 .neq('status', 'completed')
-                .gt('expired_at', new Date().toISOString())
 
             if (pcData) {
-                const validCoupons = pcData.filter(c => 
-                    c.patient_coupon_items?.some(it => it.remaining_sessions > 0 && it.status !== 'fully_used')
-                )
+                const now = new Date()
+                const validCoupons = pcData.filter(c => {
+                    const isNotExpired = !c.expired_at || new Date(c.expired_at) >= now
+                    const hasRemaining = c.patient_coupon_items?.some(it => Number(it.remaining_sessions) > 0 && it.status !== 'fully_used')
+                    return isNotExpired && hasRemaining
+                })
                 setPatientActiveCoupons(validCoupons)
             }
         }
