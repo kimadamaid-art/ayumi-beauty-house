@@ -795,14 +795,18 @@ function EditRecordForm() {
                                 
                                 {isTreatmentDropdownOpen && (
                                     <>
-                                        <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsTreatmentDropdownOpen(false)} />
-                                        <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white border border-pink-100 rounded-2xl shadow-xl z-50 p-3.5 space-y-3">
+                                        <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs md:bg-transparent md:backdrop-blur-none cursor-default" onClick={() => setIsTreatmentDropdownOpen(false)} />
+                                        <div className="fixed inset-x-3 top-20 max-w-md mx-auto md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:w-96 bg-white border border-pink-100 rounded-2xl shadow-2xl z-50 p-3.5 space-y-3">
+                                            <div className="flex justify-between items-center px-1">
+                                                <div className="text-xs font-bold text-pink-900">Pilih Treatment / Produk:</div>
+                                                <button type="button" onClick={() => setIsTreatmentDropdownOpen(false)} className="text-gray-400 hover:text-red-500 md:hidden text-xs font-bold">✕ Tutup</button>
+                                            </div>
                                             <input
                                                 type="text"
-                                                placeholder="Cari..."
+                                                placeholder="Cari treatment atau produk..."
                                                 value={treatmentSearch}
                                                 onChange={(e) => setTreatmentSearch(e.target.value)}
-                                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-ayumi-primary bg-gray-50 text-gray-700"
+                                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-ayumi-primary bg-gray-50 text-gray-700 font-semibold"
                                                 autoFocus
                                             />
                                             <div className="max-h-60 overflow-y-auto divide-y divide-gray-50 pr-1">
@@ -820,13 +824,18 @@ function EditRecordForm() {
                                                                     setIsTreatmentDropdownOpen(false);
                                                                     setTreatmentSearch('');
                                                                 }}
-                                                                className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between text-xs md:text-sm ${isSelected ? 'opacity-40 cursor-not-allowed bg-gray-50' : 'hover:bg-pink-50/50'}`}
+                                                                className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between text-xs md:text-sm cursor-pointer ${isSelected ? 'opacity-40 cursor-not-allowed bg-gray-50' : 'hover:bg-pink-50/50'}`}
                                                             >
-                                                                <span className="font-bold text-ayumi-secondary truncate">{t.name}</span>
-                                                                <span className="font-bold text-gray-700">Rp {t.price?.toLocaleString('id-ID')}</span>
+                                                                <span className="font-bold text-ayumi-secondary truncate pr-2">{t.name}</span>
+                                                                <span className="font-bold text-gray-700 shrink-0">Rp {t.price?.toLocaleString('id-ID')}</span>
                                                             </button>
                                                         );
                                                     })}
+                                                {treatmentsMaster.filter(t => t.name.toLowerCase().includes(treatmentSearch.toLowerCase())).length === 0 && (
+                                                    <div className="text-center py-6 text-gray-400 text-xs font-medium">
+                                                        Tidak ada treatment/produk ditemukan
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </>
@@ -842,11 +851,19 @@ function EditRecordForm() {
                             <div className="space-y-3">
                                 {selectedTreatments.map(item => {
                                     const hasDiscount = item.discount_percent > 0;
+                                    const isCoupon = Boolean(item.used_coupon_item_id || item.notes?.includes('[KUPON'));
                                     return (
-                                        <div key={item.treatment_id} className="flex flex-col md:flex-row gap-3 items-center bg-gray-50 p-3.5 rounded-xl border border-gray-100">
+                                        <div key={item.treatment_id} className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between bg-gray-50 p-3.5 rounded-xl border border-gray-100">
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-ayumi-secondary truncate">{item.name}</div>
-                                                {hasDiscount && (
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-bold text-ayumi-secondary">{item.name}</span>
+                                                    {isCoupon && (
+                                                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">
+                                                            🎟️ Kupon Pasien (Rp 0)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {hasDiscount && !isCoupon && (
                                                     <div className="flex items-center gap-1.5 mt-1 text-xs">
                                                         <span className="line-through text-gray-400">Rp {item.original_price?.toLocaleString('id-ID')}</span>
                                                         <span className="bg-pink-50 text-ayumi-primary font-bold px-1.5 py-0.5 rounded text-[10px]">
@@ -854,13 +871,13 @@ function EditRecordForm() {
                                                         </span>
                                                     </div>
                                                 )}
-                                                {item.notes && <p className="text-xs text-gray-500 mt-0.5">{item.notes}</p>}
+                                                {item.notes && <p className="text-xs text-gray-500 mt-0.5">{item.notes.replace(/\[KUPON_BARU:[^\]]+\]\s*/, '').replace(/\[KUPON_LAMA:[^\]]+\]\s*/, '')}</p>}
                                             </div>
                                             
-                                            <div className="w-full md:w-auto flex flex-col xl:flex-row items-center gap-3">
-                                                <div className="flex items-center gap-2 w-full sm:w-28">
-                                                    <label className="text-xs font-bold text-gray-500 whitespace-nowrap">Diskon %:</label>
-                                                    <div className="relative flex-1">
+                                            {!isCoupon && (
+                                                <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-gray-200">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase pl-1">Disc%</span>
                                                         <input 
                                                             type="number" 
                                                             min="0"
@@ -868,44 +885,39 @@ function EditRecordForm() {
                                                             value={item.discount_percent === 0 ? '' : item.discount_percent}
                                                             placeholder="0"
                                                             onChange={(e) => handleTreatmentDiscountChange(item.treatment_id, e.target.value)}
-                                                            className="w-full pr-6 pl-2.5 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white  font-bold"
+                                                            className="w-full text-xs font-bold text-right pr-1 outline-none"
                                                         />
-                                                        <span className="absolute right-2.5 top-1.5 text-gray-400 text-xs font-semibold">%</span>
+                                                        <span className="text-gray-400 text-xs pr-1 font-bold">%</span>
                                                     </div>
-                                                </div>
 
-                                                <div className="flex items-center gap-2 w-full sm:w-36">
-                                                    <label className="text-xs font-bold text-gray-500 whitespace-nowrap">Diskon Rp:</label>
-                                                    <div className="relative flex-1">
-                                                        <span className="absolute left-2 top-1.5 text-gray-400 text-xs font-semibold">Rp</span>
+                                                    <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-200">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase pl-1">Disc Rp</span>
                                                         <input 
                                                             type="number" 
                                                             value={item.original_price - item.price_at_time === 0 ? '' : item.original_price - item.price_at_time}
                                                             placeholder="0"
                                                             onChange={(e) => handleTreatmentDiscountNominalChange(item.treatment_id, e.target.value)}
-                                                            className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white  font-bold"
+                                                            className="w-full text-xs font-bold text-right pr-1 outline-none"
                                                         />
                                                     </div>
-                                                </div>
 
-                                                <div className="flex items-center gap-2 w-full sm:w-44">
-                                                    <label className="text-xs font-bold text-gray-500 whitespace-nowrap">Harga:</label>
-                                                    <div className="relative flex-1">
-                                                        <span className="absolute left-2.5 top-1.5 text-gray-400 text-xs font-semibold">Rp</span>
+                                                    <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-200">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase pl-1">Harga Rp</span>
                                                         <input 
                                                             type="number" 
                                                             value={item.price_at_time}
                                                             onChange={(e) => handleTreatmentPriceChange(item.treatment_id, e.target.value)}
-                                                            className="w-full pl-7 pr-2.5 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-ayumi-primary bg-white  font-bold text-right"
+                                                            className="w-full text-xs font-bold text-right pr-1 outline-none text-ayumi-primary"
                                                         />
                                                     </div>
                                                 </div>
-                                            </div>
+                                            )}
 
                                             <button 
                                                 type="button" 
                                                 onClick={() => handleRemoveTreatment(item.treatment_id)}
-                                                className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                                className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors self-end md:self-center cursor-pointer"
+                                                title="Hapus tindakan"
                                             >
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                             </button>

@@ -1045,9 +1045,12 @@ export default function TreatmentInputPage() {
                                 </button>
                                 {isPackageDropdownOpen && (
                                     <>
-                                        <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsPackageDropdownOpen(false)} />
-                                        <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white border border-purple-100 rounded-2xl shadow-2xl z-50 p-3 space-y-2">
-                                            <div className="text-xs font-bold text-purple-900 px-1">Pilih Paket Kupon Baru:</div>
+                                        <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs md:bg-transparent md:backdrop-blur-none cursor-default" onClick={() => setIsPackageDropdownOpen(false)} />
+                                        <div className="fixed inset-x-3 top-20 max-w-md mx-auto md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:w-96 bg-white border border-purple-100 rounded-2xl shadow-2xl z-50 p-3.5 space-y-2">
+                                            <div className="flex justify-between items-center px-1">
+                                                <div className="text-xs font-bold text-purple-900">Pilih Paket Kupon Baru:</div>
+                                                <button type="button" onClick={() => setIsPackageDropdownOpen(false)} className="text-gray-400 hover:text-red-500 md:hidden text-xs font-bold">✕ Tutup</button>
+                                            </div>
                                             <div className="relative">
                                                 <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                                 <input
@@ -1055,7 +1058,7 @@ export default function TreatmentInputPage() {
                                                     placeholder="Cari paket kupon (cth: PRP 3x)..."
                                                     value={packageSearch}
                                                     onChange={(e) => setPackageSearch(e.target.value)}
-                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-purple-500 bg-gray-50"
+                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-purple-500 bg-gray-50 font-medium"
                                                     autoFocus
                                                 />
                                             </div>
@@ -1076,11 +1079,11 @@ export default function TreatmentInputPage() {
                                                                 }}
                                                                 className="w-full text-left px-3 py-2.5 rounded-xl transition-colors hover:bg-purple-50 flex items-center justify-between text-sm cursor-pointer"
                                                             >
-                                                                <div>
-                                                                    <div className="font-extrabold text-purple-900">{p.name}</div>
+                                                                <div className="min-w-0 pr-2">
+                                                                    <div className="font-extrabold text-purple-900 truncate">{p.name}</div>
                                                                     <div className="text-[11px] text-gray-500">{treatmentName} • {totalSessions}x Sesi</div>
                                                                 </div>
-                                                                <div className="text-right">
+                                                                <div className="text-right shrink-0">
                                                                     <div className="text-xs font-bold text-ayumi-secondary">Rp {Number(p.price).toLocaleString('id-ID')}</div>
                                                                     <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-1.5 py-0.5 rounded">Pilih</span>
                                                                 </div>
@@ -1112,9 +1115,12 @@ export default function TreatmentInputPage() {
                                 </button>
                                 {isTreatmentDropdownOpen && (
                                     <>
-                                        <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsTreatmentDropdownOpen(false)} />
-                                        <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white border border-pink-100 rounded-2xl shadow-2xl z-50 p-3 space-y-2">
-                                            <div className="text-xs font-bold text-pink-900 px-1">Pilih Treatment Satuan:</div>
+                                        <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs md:bg-transparent md:backdrop-blur-none cursor-default" onClick={() => setIsTreatmentDropdownOpen(false)} />
+                                        <div className="fixed inset-x-3 top-20 max-w-md mx-auto md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:w-96 bg-white border border-pink-100 rounded-2xl shadow-2xl z-50 p-3.5 space-y-2">
+                                            <div className="flex justify-between items-center px-1">
+                                                <div className="text-xs font-bold text-pink-900">Pilih Treatment Satuan:</div>
+                                                <button type="button" onClick={() => setIsTreatmentDropdownOpen(false)} className="text-gray-400 hover:text-red-500 md:hidden text-xs font-bold">✕ Tutup</button>
+                                            </div>
                                             <div className="relative">
                                                 <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                                 <input
@@ -1122,7 +1128,7 @@ export default function TreatmentInputPage() {
                                                     placeholder="Cari treatment..."
                                                     value={treatmentSearch}
                                                     onChange={(e) => setTreatmentSearch(e.target.value)}
-                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-ayumi-primary bg-gray-50"
+                                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-ayumi-primary bg-gray-50 font-medium"
                                                     autoFocus
                                                 />
                                             </div>
@@ -1144,7 +1150,7 @@ export default function TreatmentInputPage() {
                                                                 className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between text-sm cursor-pointer ${isSelected ? 'opacity-40 cursor-not-allowed' : 'hover:bg-pink-50'}`}
                                                             >
                                                                 <span className="font-bold text-ayumi-secondary truncate pr-2">{t.name}</span>
-                                                                <span className="text-xs font-bold text-gray-400">Rp {Number(t.price).toLocaleString('id-ID')}</span>
+                                                                <span className="text-xs font-bold text-gray-400 shrink-0">Rp {Number(t.price).toLocaleString('id-ID')}</span>
                                                             </button>
                                                         )
                                                     })
