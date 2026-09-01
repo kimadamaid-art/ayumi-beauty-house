@@ -19,7 +19,7 @@ export default function PatientsPage() {
     const [branchFilter, setBranchFilter] = useState('All')
     const [couponFilter, setCouponFilter] = useState('All')
     const [vipFilter, setVipFilter] = useState('All')
-    const [sortBy, setSortBy] = useState('Newest')
+    const [sortBy, setSortBy] = useState('LatestVisit')
     const [branches, setBranches] = useState([])
     const [isOwner, setIsOwner] = useState(false)
     const [page, setPage] = useState(1)
@@ -46,7 +46,7 @@ export default function PatientsPage() {
 
     useEffect(() => {
         setPage(1)
-    }, [branchFilter])
+    }, [branchFilter, sortBy])
 
     useEffect(() => {
         const fetchPatients = async () => {
@@ -73,11 +73,22 @@ export default function PatientsPage() {
                 if (brData) setBranches(brData)
             }
 
-            // Fetch patients
+            // Fetch patients with dynamic ordering
             let query = supabase
                 .from('patients')
                 .select('*, branches(name), treatment_records(treatment_date, branch_id)')
-                .order('created_at', { ascending: false })
+            
+            if (sortBy === 'LatestVisit') {
+                query = query.order('updated_at', { ascending: false })
+            } else if (sortBy === 'Newest') {
+                query = query.order('created_at', { ascending: false })
+            } else if (sortBy === 'OldestVisit') {
+                query = query.order('updated_at', { ascending: true })
+            } else if (sortBy === 'NameAsc') {
+                query = query.order('full_name', { ascending: true })
+            } else {
+                query = query.order('updated_at', { ascending: false })
+            }
             
             if (!isOwner && userBranchId) {
                 query = query.eq('branch_id', userBranchId)
@@ -165,7 +176,7 @@ export default function PatientsPage() {
             setIsLoading(false)
         }
         fetchPatients()
-    }, [supabase, page, searchQuery, branchFilter])
+    }, [supabase, page, searchQuery, branchFilter, sortBy])
 
     // --- EXCEL IMPORT LOGIC ---
     const handleDownloadTemplate = () => {
@@ -364,15 +375,23 @@ export default function PatientsPage() {
         })
 
         if (sortBy === 'LatestVisit') {
-            result.sort((a, b) => (b.lastVisitDate?.getTime() || 0) - (a.lastVisitDate?.getTime() || 0))
+            result.sort((a, b) => {
+                const timeA = a.lastVisitDate ? a.lastVisitDate.getTime() : new Date(a.updated_at || 0).getTime()
+                const timeB = b.lastVisitDate ? b.lastVisitDate.getTime() : new Date(b.updated_at || 0).getTime()
+                return timeB - timeA
+            })
+        } else if (sortBy === 'Newest') {
+            result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
         } else if (sortBy === 'OldestVisit') {
             result.sort((a, b) => {
-                const timeA = a.lastVisitDate?.getTime() || 0
-                const timeB = b.lastVisitDate?.getTime() || 0
+                const timeA = a.lastVisitDate ? a.lastVisitDate.getTime() : new Date(a.updated_at || 0).getTime()
+                const timeB = b.lastVisitDate ? b.lastVisitDate.getTime() : new Date(b.updated_at || 0).getTime()
                 if (timeA === 0) return 1
                 if (timeB === 0) return -1
                 return timeA - timeB
             })
+        } else if (sortBy === 'NameAsc') {
+            result.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''))
         }
 
         return result
@@ -423,38 +442,37 @@ export default function PatientsPage() {
                 </Link>
             </div>
 
-            <div className="card-ayumi overflow-hidden">
-                <div className="p-4 md:p-6 border-b border-gray-100 bg-white flex flex-col gap-4">
-                    {/* Baris 1: Search & Cabang */}
+            {/* Header & Advanced Filters Card */}
+            <div className="card-ayumi overflow-hidden border border-ayumi-border shadow-xs">
+                <div className="p-5 border-b border-gray-100 flex flex-col gap-4">
+                    {/* Baris 1: Search & Branch Filter */}
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                        <div className="relative w-full md:w-96">
-                            <svg className="w-5 h-5 absolute left-4 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                            <input 
-                                type="text" 
+                        <div className="relative flex-1 w-full">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
                                 placeholder="Cari berdasarkan nama atau no whatsapp..."
+                                className="input-ayumi pl-10 text-sm bg-gray-50 focus:bg-white w-full"
                                 value={searchInput}
                                 onChange={(e) => setSearchInput(e.target.value)}
-                                className="input-ayumi pl-12 bg-gray-50 focus:bg-white"
                             />
                         </div>
-                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                            {isOwner && (
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                    <span className="text-sm font-semibold text-ayumi-text-muted whitespace-nowrap">Cabang:</span>
-                                    <select 
-                                        value={branchFilter}
-                                        onChange={(e) => setBranchFilter(e.target.value)}
-                                        className="input-ayumi flex-1 bg-gray-50 focus:bg-white text-sm"
-                                    >
-                                        <option value="All">Semua Cabang</option>
-                                        <option value="pusat">Pusat (Tanpa Cabang)</option>
-                                        {branches.map(b => (
-                                            <option key={b.id} value={b.id}>{b.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                        </div>
+
+                        {/* Branch Filter for Owner */}
+                        {isOwner && (
+                            <div className="w-full md:w-auto min-w-[200px]">
+                                <BranchFilter 
+                                    branches={branches}
+                                    selectedBranch={branchFilter}
+                                    onChange={(bId) => setBranchFilter(bId)}
+                                    showAll={true}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Baris 2: Advanced Filters (Admin & Owner) */}
@@ -494,12 +512,16 @@ export default function PatientsPage() {
 
                         <select 
                             value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
+                            onChange={(e) => {
+                                setSortBy(e.target.value)
+                                setPage(1)
+                            }}
                             className="input-ayumi py-2 text-sm bg-gray-50 focus:bg-white flex-1 min-w-[170px]"
                         >
-                            <option value="Newest">Pasien Baru</option>
                             <option value="LatestVisit">Kunjungan Terbaru</option>
+                            <option value="Newest">Pasien Baru Mendaftar</option>
                             <option value="OldestVisit">Kunjungan Terlama</option>
+                            <option value="NameAsc">Nama Pasien (A - Z)</option>
                         </select>
                     </div>
                 </div>

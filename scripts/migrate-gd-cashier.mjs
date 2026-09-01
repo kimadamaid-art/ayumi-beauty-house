@@ -396,6 +396,37 @@ async function main() {
     const patientPayloads = [];
     const validationErrors = [];
 
+    // Hitung riwayat tanggal pertama dan terakhir per pasien untuk created_at & updated_at yang akurat
+    const patientTimelineMap = new Map();
+    const recordPatientDate = (key, isoDate) => {
+        if (!key || !isoDate) return;
+        if (!patientTimelineMap.has(key)) {
+            patientTimelineMap.set(key, { first: isoDate, last: isoDate });
+        } else {
+            const cur = patientTimelineMap.get(key);
+            if (isoDate < cur.first) cur.first = isoDate;
+            if (isoDate > cur.last) cur.last = isoDate;
+        }
+    };
+
+    rawTransactions.forEach(tx => {
+        const code = String(tx.gd_user_code || '').trim();
+        const iso = parseIsoTimestamp(tx.tanggal);
+        if (code && iso) recordPatientDate(code, iso);
+    });
+
+    rawTreatments.forEach(tr => {
+        const code = String(tr.gd_user_code || '').trim();
+        const iso = parseIsoTimestamp(tr.tanggal);
+        if (code && iso) recordPatientDate(code, iso);
+    });
+
+    rawCoupons.forEach(kp => {
+        const code = String(kp.gd_user_code || '').trim();
+        const iso = parseIsoTimestamp(kp.created_at || kp.tanggal);
+        if (code && iso) recordPatientDate(code, iso);
+    });
+
     rawPatients.forEach((row, idx) => {
         const rowNum = idx + 2;
         const code = String(row.gd_user_code || '').trim();
@@ -409,6 +440,10 @@ async function main() {
             validationErrors.push({ sheet: 'Pasien', row: rowNum, error: 'gd_user_code kosong' });
             return;
         }
+
+        const timeline = (code ? patientTimelineMap.get(code) : null) || (wa ? patientTimelineMap.get(wa) : null);
+        const createdAt = timeline?.first || new Date('2021-04-01T00:00:00+07:00').toISOString();
+        const updatedAt = timeline?.last || createdAt;
 
         // Cek duplikasi nomor WhatsApp dalam file Pasien
         let patientId;
@@ -435,8 +470,8 @@ async function main() {
                 medical_notes: String(row.medical_notes || '').trim() || null,
                 notes: String(row.notes || '').trim() || null,
                 is_active: true,
-                created_at: new Date('2021-04-01T00:00:00+07:00').toISOString(),
-                updated_at: new Date().toISOString()
+                created_at: createdAt,
+                updated_at: updatedAt
             });
         }
     });
@@ -448,6 +483,10 @@ async function main() {
             const rawWa = String(kp.whatsapp || '').trim();
             const wa = normalizePhone(rawWa);
             const name = String(kp.nama || '').trim() || 'Pelanggan Kupon';
+
+            const timeline = (userCode ? patientTimelineMap.get(userCode) : null) || (wa ? patientTimelineMap.get(wa) : null);
+            const createdAt = timeline?.first || new Date('2021-04-01T00:00:00+07:00').toISOString();
+            const updatedAt = timeline?.last || createdAt;
 
             let pId;
             if (wa && waToPatientId.has(wa)) {
@@ -468,10 +507,10 @@ async function main() {
                     skin_concerns: null,
                     allergies: null,
                     medical_notes: null,
-                    notes: `GD:${userCode} | Ditambahkan dari Kupon`,
+                    notes: 'Auto-created from legacy coupon sheet',
                     is_active: true,
-                    created_at: new Date('2021-04-01T00:00:00+07:00').toISOString(),
-                    updated_at: new Date().toISOString()
+                    created_at: createdAt,
+                    updated_at: updatedAt
                 });
             }
             codeToPatientId.set(userCode, pId);
