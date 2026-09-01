@@ -60,9 +60,167 @@ function PosPageContent() {
     const [discountType, setDiscountType] = useState('nominal') // 'nominal' | 'percent'
     const [discountValue, setDiscountValue] = useState(0)
     const [paymentMethod, setPaymentMethod] = useState('cash')
+    const [cashReceived, setCashReceived] = useState('')
     const [splitAmounts, setSplitAmounts] = useState({ cash: '', transfer: '', qris: '', debit: '', credit: '' })
     const [notes, setNotes] = useState('')
     const [isProcessing, setIsProcessing] = useState(false)
+
+    // Held Transactions State (Tahan Draft Transaksi)
+    const [heldTransactions, setHeldTransactions] = useState([])
+    const [isHeldModalOpen, setIsHeldModalOpen] = useState(false)
+
+    // Load held drafts and restore active draft on mount
+    useEffect(() => {
+        try {
+            const savedHeld = localStorage.getItem('ayumi_pos_held_transactions')
+            if (savedHeld) {
+                setHeldTransactions(JSON.parse(savedHeld))
+            }
+            const activeDraft = localStorage.getItem('ayumi_pos_active_draft')
+            if (activeDraft) {
+                const parsed = JSON.parse(activeDraft)
+                if (parsed.cart?.length > 0 || parsed.selectedPatient) {
+                    setCart(parsed.cart || [])
+                    setSelectedPatient(parsed.selectedPatient || null)
+                    setSelectedPatientDetails(parsed.selectedPatientDetails || null)
+                    setDiscountType(parsed.discountType || 'nominal')
+                    setDiscountValue(parsed.discountValue || 0)
+                    setNotes(parsed.notes || '')
+                    setSelectedTherapistId(parsed.selectedTherapistId || '')
+                }
+            }
+        } catch (err) {
+            console.error('Error loading saved drafts from storage:', err)
+        }
+    }, [])
+
+    // Auto-save active draft to localStorage
+    useEffect(() => {
+        try {
+            if (cart.length > 0 || selectedPatient) {
+                localStorage.setItem('ayumi_pos_active_draft', JSON.stringify({
+                    cart,
+                    selectedPatient,
+                    selectedPatientDetails,
+                    discountType,
+                    discountValue,
+                    notes,
+                    selectedTherapistId,
+                    timestamp: new Date().toISOString()
+                }))
+            } else {
+                localStorage.removeItem('ayumi_pos_active_draft')
+            }
+        } catch (err) {
+            console.error('Error auto-saving active cart:', err)
+        }
+    }, [cart, selectedPatient, selectedPatientDetails, discountType, discountValue, notes, selectedTherapistId])
+
+    // Handler to Hold current active transaction
+    const handleHoldTransaction = () => {
+        if (cart.length === 0 && !selectedPatient) {
+            alert('Tidak ada data pasien atau item belanja di keranjang yang bisa ditahan!')
+            return
+        }
+
+        const newHeld = {
+            id: 'held_' + Date.now(),
+            patient: selectedPatient,
+            patientDetails: selectedPatientDetails,
+            cart: [...cart],
+            discountType,
+            discountValue,
+            notes,
+            selectedTherapistId,
+            heldAt: new Date().toISOString(),
+            totalAmount: total
+        }
+
+        const updated = [newHeld, ...heldTransactions]
+        setHeldTransactions(updated)
+        try {
+            localStorage.setItem('ayumi_pos_held_transactions', JSON.stringify(updated))
+            localStorage.removeItem('ayumi_pos_active_draft')
+        } catch (e) {
+            console.error(e)
+        }
+
+        // Reset active cart
+        setCart([])
+        setSelectedPatient(null)
+        setSelectedPatientDetails(null)
+        setDiscountValue(0)
+        setNotes('')
+        setCashReceived('')
+        setSelectedTherapistId('')
+
+        toast.success(`Transaksi ${newHeld.patient?.full_name ? 'atas nama "' + newHeld.patient.full_name + '"' : ''} berhasil ditahan!`)
+    }
+
+    // Handler to restore a held transaction
+    const handleRestoreHeldTransaction = (heldItem) => {
+        if (cart.length > 0 || selectedPatient) {
+            const confirmSwap = confirm('Keranjang kasir saat ini sedang terisi. Apakah Anda ingin menahan transaksi saat ini terlebih dahulu dan membuka draft ini?')
+            if (confirmSwap) {
+                handleHoldTransaction()
+            }
+        }
+
+        setSelectedPatient(heldItem.patient || null)
+        setSelectedPatientDetails(heldItem.patientDetails || null)
+        setCart(heldItem.cart || [])
+        setDiscountType(heldItem.discountType || 'nominal')
+        setDiscountValue(heldItem.discountValue || 0)
+        setNotes(heldItem.notes || '')
+        setSelectedTherapistId(heldItem.selectedTherapistId || '')
+        setCashReceived('')
+
+        // Remove from held list
+        const remaining = heldTransactions.filter(h => h.id !== heldItem.id)
+        setHeldTransactions(remaining)
+        try {
+            localStorage.setItem('ayumi_pos_held_transactions', JSON.stringify(remaining))
+        } catch (e) {
+            console.error(e)
+        }
+
+        setIsHeldModalOpen(false)
+        toast.success(`Draft transaksi ${heldItem.patient?.full_name || ''} berhasil dibuka kembali!`)
+    }
+
+    // Handler to delete a held draft
+    const handleDeleteHeldTransaction = (heldId, e) => {
+        e?.stopPropagation()
+        if (confirm('Yakin ingin menghapus draft transaksi tertahan ini?')) {
+            const remaining = heldTransactions.filter(h => h.id !== heldId)
+            setHeldTransactions(remaining)
+            try {
+                localStorage.setItem('ayumi_pos_held_transactions', JSON.stringify(remaining))
+            } catch (err) {
+                console.error(err)
+            }
+            toast.success('Draft berhasil dihapus.')
+        }
+    }
+
+    // Handler to reset current active cart
+    const handleResetCart = () => {
+        if (confirm('Kosongkan keranjang dan mulai transaksi baru?')) {
+            setCart([])
+            setSelectedPatient(null)
+            setSelectedPatientDetails(null)
+            setDiscountValue(0)
+            setNotes('')
+            setCashReceived('')
+            setSelectedTherapistId('')
+            try {
+                localStorage.removeItem('ayumi_pos_active_draft')
+            } catch (err) {
+                console.error(err)
+            }
+            toast.success('Keranjang berhasil dikosongkan.')
+        }
+    }
 
     async function fetchInitialData() {
         setIsLoading(true)
@@ -814,11 +972,20 @@ function PosPageContent() {
             }
         }
 
-        // Validasi Split Payment
+        // Validasi Split & Cash Payment
         let finalPaymentMethod = paymentMethod
         let finalNotes = notes || ''
 
-        if (paymentMethod === 'split') {
+        if (paymentMethod === 'cash') {
+            const cashNum = Number(cashReceived) || total
+            const changeNum = cashNum >= total ? cashNum - total : 0
+            if (cashReceived && cashNum < total) {
+                alert(`Uang tunai yang dibayarkan pembeli (Rp ${cashNum.toLocaleString('id-ID')}) masih kurang dari total tagihan (Rp ${total.toLocaleString('id-ID')})!`)
+                return
+            }
+            const cashTag = `[CASH:received=${cashNum};change=${changeNum}]`
+            finalNotes = finalNotes ? `${cashTag} | ${finalNotes}` : cashTag
+        } else if (paymentMethod === 'split') {
             const cashVal = Number(splitAmounts.cash) || 0
             const transferVal = Number(splitAmounts.transfer) || 0
             const qrisVal = Number(splitAmounts.qris) || 0
@@ -1041,7 +1208,10 @@ function PosPageContent() {
                 )
             }
 
-            // Navigate to Receipt page
+            // Clear active draft from localStorage & Navigate to Receipt page
+            try {
+                localStorage.removeItem('ayumi_pos_active_draft')
+            } catch (e) {}
             setSelectedTherapistId('')
             router.push(`/kasir/transactions/${trxData.id}`)
             
@@ -1439,7 +1609,50 @@ function PosPageContent() {
                 
                 {/* Patient Selector */}
                 <div className="p-5 border-b border-gray-100 pt-6 bg-white">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Pelanggan (Wajib Diisi)</label>
+                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            Pelanggan (Wajib Diisi)
+                        </label>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Held Drafts Badge Button */}
+                            {heldTransactions.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsHeldModalOpen(true)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-all shadow-2xs cursor-pointer animate-pulse"
+                                    title="Buka daftar transaksi yang sedang ditahan"
+                                >
+                                    <span>📂</span>
+                                    <span>Draft ({heldTransactions.length})</span>
+                                </button>
+                            )}
+
+                            {/* Hold Active Transaction Button */}
+                            {(cart.length > 0 || selectedPatient) && (
+                                <button
+                                    type="button"
+                                    onClick={handleHoldTransaction}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold bg-pink-50 text-ayumi-secondary hover:bg-pink-100 border border-pink-200 transition-all shadow-2xs cursor-pointer"
+                                    title="Tahan transaksi saat ini agar bisa melayani transaksi lain dulu"
+                                >
+                                    <span>💾</span>
+                                    <span>Tahan Transaksi</span>
+                                </button>
+                            )}
+
+                            {/* Reset / Clear Cart Button */}
+                            {(cart.length > 0 || selectedPatient) && (
+                                <button
+                                    type="button"
+                                    onClick={handleResetCart}
+                                    className="text-gray-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
+                                    title="Kosongkan keranjang & mulai transaksi baru"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            )}
+                        </div>
+                    </div>
                     {selectedPatient ? (
                         <div className="flex justify-between items-center bg-pink-50/50 p-4.5 rounded-2xl border border-pink-100/60 shadow-sm relative overflow-hidden transition-all">
                             <div className="flex items-center gap-3">
@@ -2069,6 +2282,97 @@ function PosPageContent() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Cash Payment Inputs (Uang Diterima & Kembalian) */}
+                            {paymentMethod === 'cash' && (
+                                <div className="mt-3 p-3.5 bg-emerald-50/60 border-2 border-emerald-200/90 rounded-2xl space-y-3 animate-fadeIn">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                                            <span>💵</span>
+                                            <span>Uang Tunai Diterima (Rp)</span>
+                                        </label>
+                                        {(() => {
+                                            const cVal = Number(cashReceived) || 0
+                                            if (cVal > 0 && cVal >= total) {
+                                                const change = cVal - total
+                                                return (
+                                                    <span className="text-xs font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                                                        Kembalian: Rp {change.toLocaleString('id-ID')}
+                                                    </span>
+                                                )
+                                            } else if (cVal > 0 && cVal < total) {
+                                                return (
+                                                    <span className="text-xs font-black text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full border border-rose-200">
+                                                        Kurang: Rp {(total - cVal).toLocaleString('id-ID')}
+                                                    </span>
+                                                )
+                                            }
+                                            return null
+                                        })()}
+                                    </div>
+
+                                    <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-extrabold text-emerald-600">Rp</span>
+                                        <input
+                                            type="number"
+                                            value={cashReceived}
+                                            onChange={(e) => setCashReceived(e.target.value)}
+                                            onFocus={(e) => e.target.select()}
+                                            placeholder={total ? total.toString() : '0'}
+                                            className="w-full pl-11 pr-4 py-2.5 bg-white border border-emerald-300 rounded-xl text-lg font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs text-right"
+                                        />
+                                    </div>
+
+                                    {/* Quick Cash Presets */}
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCashReceived(total.toString())}
+                                            className="px-2.5 py-1 text-[11px] font-extrabold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-2xs cursor-pointer"
+                                        >
+                                            ✓ Uang Pas
+                                        </button>
+                                        {(() => {
+                                            const presets = []
+                                            if (total > 0) {
+                                                const round50k = Math.ceil(total / 50000) * 50000
+                                                const round100k = Math.ceil(total / 100000) * 100000
+                                                if (round50k > total && !presets.includes(round50k)) presets.push(round50k)
+                                                if (round100k > total && !presets.includes(round100k)) presets.push(round100k)
+                                            }
+                                            const standardValues = [50000, 100000, 200000, 500000]
+                                            for (const val of standardValues) {
+                                                if (val > total && !presets.includes(val) && presets.length < 4) {
+                                                    presets.push(val)
+                                                }
+                                            }
+                                            return presets.map(val => (
+                                                <button
+                                                    key={val}
+                                                    type="button"
+                                                    onClick={() => setCashReceived(val.toString())}
+                                                    className="px-2.5 py-1 text-[11px] font-bold bg-white border border-emerald-200 text-emerald-800 rounded-lg hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
+                                                >
+                                                    Rp {val.toLocaleString('id-ID')}
+                                                </button>
+                                            ))
+                                        })()}
+                                    </div>
+
+                                    {/* Large Change Banner */}
+                                    {Number(cashReceived) > total && (
+                                        <div className="p-3 bg-gradient-to-r from-emerald-100 to-teal-100 border border-emerald-300 rounded-xl flex items-center justify-between">
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">Uang Kembalian Pelanggan</span>
+                                                <span className="text-xs text-emerald-700 font-semibold">Harap berikan uang kembalian</span>
+                                            </div>
+                                            <span className="text-xl font-black text-emerald-950 tracking-tight">
+                                                Rp {(Number(cashReceived) - total).toLocaleString('id-ID')}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <button 
@@ -2089,6 +2393,112 @@ function PosPageContent() {
                     </div>
                 </div>
             </div>
+
+            {/* ═══════════════════════════════════════════════════ */}
+            {/* MODAL: DAFTAR TRANSAKSI TERTAHAN (HELD DRAFTS)   */}
+            {/* ═══════════════════════════════════════════════════ */}
+            {isHeldModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+                    <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[85vh] animate-scaleUp">
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg font-bold">
+                                    📂
+                                </div>
+                                <div>
+                                    <h3 className="font-extrabold text-base text-gray-900">Daftar Transaksi Tertahan</h3>
+                                    <p className="text-xs text-gray-500 font-medium">Buka kembali transaksi pelanggan yang disimpan sementara</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsHeldModalOpen(false)}
+                                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Body / List */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3">
+                            {heldTransactions.length === 0 ? (
+                                <div className="text-center py-12 text-gray-400">
+                                    <span className="text-4xl block mb-2">📭</span>
+                                    <p className="text-sm font-semibold">Tidak ada transaksi yang sedang ditahan</p>
+                                </div>
+                            ) : (
+                                heldTransactions.map((heldItem) => {
+                                    const itemCount = heldItem.cart?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0
+                                    const heldDate = new Date(heldItem.heldAt)
+                                    const timeStr = heldDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                                    const dateStr = heldDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+
+                                    return (
+                                        <div
+                                            key={heldItem.id}
+                                            className="p-4 bg-gradient-to-r from-pink-50/30 via-white to-amber-50/20 border border-gray-200 hover:border-ayumi-primary rounded-2xl transition-all shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                                        >
+                                            <div className="space-y-1.5 min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-extrabold text-sm text-gray-900 truncate">
+                                                        {heldItem.patient?.full_name || 'Pelanggan Walk-in'}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                                        ⏰ {timeStr} ({dateStr})
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-gray-500 truncate">
+                                                    {heldItem.patient?.whatsapp ? `📞 ${heldItem.patient.whatsapp}` : 'Tanpa No. HP'}
+                                                </p>
+                                                <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 flex-wrap pt-0.5">
+                                                    <span className="bg-gray-100 px-2 py-0.5 rounded-md text-[11px]">
+                                                        🛍️ {itemCount} Item
+                                                    </span>
+                                                    <span className="font-black text-ayumi-secondary text-sm">
+                                                        Rp {(heldItem.totalAmount || 0).toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRestoreHeldTransaction(heldItem)}
+                                                    className="px-3.5 py-2 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                                >
+                                                    <span>▶️</span>
+                                                    <span>Lanjutkan</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleDeleteHeldTransaction(heldItem.id, e)}
+                                                    className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-gray-100 hover:border-rose-200"
+                                                    title="Hapus draft ini"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                            <span>Draft tersimpan aman di browser kasir</span>
+                            <button
+                                type="button"
+                                onClick={() => setIsHeldModalOpen(false)}
+                                className="font-bold text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
