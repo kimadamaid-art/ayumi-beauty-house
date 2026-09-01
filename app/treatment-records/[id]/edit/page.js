@@ -31,6 +31,10 @@ function EditRecordForm() {
         performed_by: '',
         treatment_date: '',
         treatment_time: '',
+        skin_type: '',
+        contraindications: '',
+        medical_history: '',
+        client_skincare_routine: '',
         complaints: '',
         skin_condition: '',
         result_notes: '',
@@ -87,7 +91,7 @@ function EditRecordForm() {
             setIsOwner(userData?.role === 'owner')
 
             // 3. Fetch Master Data
-            const { data: pts } = await supabase.from('patients').select('id, full_name, whatsapp').order('full_name', { ascending: true })
+            const { data: pts } = await supabase.from('patients').select('id, full_name, whatsapp, skin_type, allergies, medical_notes, notes').order('full_name', { ascending: true })
             if (pts) setPatients(pts)
 
             const { data: usrs } = await supabase.from('users').select('id, full_name, role, branch_id').eq('role', 'therapist').eq('is_active', true).order('full_name')
@@ -102,7 +106,7 @@ function EditRecordForm() {
             // 4. Fetch Existing Record Details
             const { data: recData, error: recErr } = await supabase
                 .from('treatment_records')
-                .select('*')
+                .select('*, patients (id, full_name, whatsapp, skin_type, allergies, medical_notes, notes)')
                 .eq('id', id)
                 .single()
 
@@ -125,6 +129,10 @@ function EditRecordForm() {
                 performed_by: recData.performed_by || '',
                 treatment_date: recData.treatment_date,
                 treatment_time: recData.treatment_time ? recData.treatment_time.substring(0, 5) : '',
+                skin_type: recData.skin_type || recData.patients?.skin_type || '',
+                contraindications: recData.contraindications || recData.patients?.allergies || '',
+                medical_history: recData.medical_history || recData.patients?.medical_notes || '',
+                client_skincare_routine: recData.client_skincare_routine || recData.patients?.notes || '',
                 complaints: recData.complaints || '',
                 skin_condition: recData.skin_condition || '',
                 result_notes: recData.result_notes || '',
@@ -322,22 +330,51 @@ function EditRecordForm() {
 
         try {
             // 1. Update Treatment Record
+            let updatePayload = {
+                patient_id: formData.patient_id,
+                branch_id: formData.branch_id,
+                performed_by: formData.performed_by || null,
+                treatment_date: formData.treatment_date,
+                treatment_time: formData.treatment_time,
+                skin_type: formData.skin_type || null,
+                contraindications: formData.contraindications || null,
+                medical_history: formData.medical_history || null,
+                client_skincare_routine: formData.client_skincare_routine || null,
+                skin_condition: formData.skin_condition,
+                complaints: formData.complaints,
+                result_notes: formData.result_notes,
+                recommendation: formData.recommendation
+            }
+
             const { error: recordErr } = await supabase
                 .from('treatment_records')
-                .update({
-                    patient_id: formData.patient_id,
-                    branch_id: formData.branch_id,
-                    performed_by: formData.performed_by || null,
-                    treatment_date: formData.treatment_date,
-                    treatment_time: formData.treatment_time,
-                    skin_condition: formData.skin_condition,
-                    complaints: formData.complaints,
-                    result_notes: formData.result_notes,
-                    recommendation: formData.recommendation
-                })
+                .update(updatePayload)
                 .eq('id', id)
 
-            if (recordErr) throw recordErr
+            if (recordErr) {
+                delete updatePayload.skin_type
+                delete updatePayload.contraindications
+                delete updatePayload.medical_history
+                delete updatePayload.client_skincare_routine
+                const { error: fallbackErr } = await supabase
+                    .from('treatment_records')
+                    .update(updatePayload)
+                    .eq('id', id)
+                if (fallbackErr) throw fallbackErr
+            }
+
+            // Sync to master patient record
+            if (formData.patient_id) {
+                await supabase
+                    .from('patients')
+                    .update({
+                        skin_type: formData.skin_type || null,
+                        allergies: formData.contraindications || null,
+                        medical_notes: formData.medical_history || null,
+                        notes: formData.client_skincare_routine || null
+                    })
+                    .eq('id', formData.patient_id)
+            }
 
             // 2. Delete old Items & insert new ones
             await supabase.from('treatment_record_items').delete().eq('treatment_record_id', id)
@@ -513,6 +550,185 @@ function EditRecordForm() {
 
                 {/* Kanan: Medis & Item */}
                 <div className="lg:col-span-2 space-y-6">
+                    {/* Profil Kulit & Riwayat Klinis */}
+                    <div className="card-ayumi p-4 md:p-6 space-y-6">
+                        <div className="flex items-center justify-between border-b pb-3">
+                            <h3 className="text-lg font-bold text-ayumi-secondary flex items-center gap-2">
+                                <span className="p-1.5 bg-pink-100 text-pink-600 rounded-lg">🔬</span>
+                                Profil Kulit & Riwayat Klinis Pasien
+                            </h3>
+                            <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                                Sinkron ke Master Pasien
+                            </span>
+                        </div>
+
+                        {/* Jenis Kulit */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                Jenis Kulit (Skin Type)
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { id: 'Normal', label: '✨ Normal', color: 'hover:border-emerald-400 hover:text-emerald-700 active:bg-emerald-50' },
+                                    { id: 'Kering', label: '🌵 Kering (Dry)', color: 'hover:border-amber-400 hover:text-amber-700 active:bg-amber-50' },
+                                    { id: 'Berminyak', label: '💧 Berminyak (Oily)', color: 'hover:border-blue-400 hover:text-blue-700 active:bg-blue-50' },
+                                    { id: 'Kombinasi', label: '⚖️ Kombinasi', color: 'hover:border-teal-400 hover:text-teal-700 active:bg-teal-50' },
+                                    { id: 'Sensitif', label: '🌸 Sensitif', color: 'hover:border-rose-400 hover:text-rose-700 active:bg-rose-50' },
+                                    { id: 'Acne-Prone', label: '🔴 Acne-Prone (Berjerawat)', color: 'hover:border-red-400 hover:text-red-700 active:bg-red-50' },
+                                    { id: 'Aging', label: '⏳ Aging / Flek', color: 'hover:border-purple-400 hover:text-purple-700 active:bg-purple-50' }
+                                ].map(item => {
+                                    const isSelected = formData.skin_type === item.id || (formData.skin_type && formData.skin_type.toLowerCase().includes(item.id.toLowerCase()))
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, skin_type: isSelected ? '' : item.id }))}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                                isSelected 
+                                                    ? 'bg-pink-600 border-pink-600 text-white shadow-sm scale-105' 
+                                                    : `bg-white border-gray-200 text-gray-700 ${item.color}`
+                                            }`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Kontraindikasi */}
+                        <div className="p-4 bg-rose-50/50 border-2 border-rose-200/80 rounded-2xl space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
+                                    <span className="text-rose-600 font-extrabold text-base">⚠️</span>
+                                    Kontraindikasi / Peringatan Khusus
+                                </label>
+                                <span className="text-[11px] font-bold text-rose-600 uppercase bg-rose-100 px-2 py-0.5 rounded-md">Penting</span>
+                            </div>
+                            <textarea
+                                name="contraindications"
+                                value={formData.contraindications}
+                                onChange={handleChange}
+                                rows="2"
+                                placeholder="Contoh: Sedang hamil/menyusui, alergi zat aktif tertentu, penggunaan retinol/AHA aktif..."
+                                className="input-ayumi bg-white text-sm border-rose-200 focus:border-rose-400 resize-none"
+                            ></textarea>
+                            {/* Quick Tag Chips */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                <span className="text-[10px] text-gray-500 font-semibold mr-1">Tag Cepat:</span>
+                                {[
+                                    'Ibu Hamil / Menyusui',
+                                    'Retinoid / AHA-BHA Aktif',
+                                    'Alergi Obat/Bahan',
+                                    'Riwayat Keloid',
+                                    'Kulit Iritasi / Sunburn',
+                                    'Tidak Ada Kontraindikasi'
+                                ].map(tag => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => {
+                                                const current = prev.contraindications?.trim() || ''
+                                                if (tag === 'Tidak Ada Kontraindikasi') return { ...prev, contraindications: 'Tidak Ada' }
+                                                if (current.includes(tag)) return prev
+                                                const updated = current ? `${current}, ${tag}` : tag
+                                                return { ...prev, contraindications: updated }
+                                            })
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-rose-200 text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition-colors cursor-pointer"
+                                    >
+                                        + {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {/* Sejarah Medis */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-gray-700">
+                                    📋 Sejarah Medis & Riwayat Penyakit
+                                </label>
+                                <textarea
+                                    name="medical_history"
+                                    value={formData.medical_history}
+                                    onChange={handleChange}
+                                    rows="3"
+                                    placeholder="Riwayat medis umum, riwayat alergi lama, konsumsi obat rutin, atau tindakan medis sebelumnya..."
+                                    className="input-ayumi bg-gray-50 focus:bg-white text-sm resize-none"
+                                ></textarea>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {[
+                                        'Penyakit Kulit Kronis',
+                                        'Konsumsi Obat Jerawat Rutin',
+                                        'Perawatan di Klinik Lain',
+                                        'Tidak Ada Riwayat Medis'
+                                    ].map(tag => (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => {
+                                                setFormData(prev => {
+                                                    const current = prev.medical_history?.trim() || ''
+                                                    if (tag === 'Tidak Ada Riwayat Medis') return { ...prev, medical_history: 'Tidak Ada' }
+                                                    if (current.includes(tag)) return prev
+                                                    const updated = current ? `${current}, ${tag}` : tag
+                                                    return { ...prev, medical_history: updated }
+                                                })
+                                            }}
+                                            className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                        >
+                                            + {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Perawatan Klien */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-gray-700">
+                                    🧴 Perawatan Klien (Skincare Rutin di Rumah)
+                                </label>
+                                <textarea
+                                    name="client_skincare_routine"
+                                    value={formData.client_skincare_routine}
+                                    onChange={handleChange}
+                                    rows="3"
+                                    placeholder="Produk perawatan harian yang sedang dipakai klien (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
+                                    className="input-ayumi bg-gray-50 focus:bg-white text-sm resize-none"
+                                ></textarea>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {[
+                                        'Facial Wash',
+                                        'Toner',
+                                        'Serum',
+                                        'Sunscreen',
+                                        'Moisturizer',
+                                        'Night Cream',
+                                        'Produk Racikan Dokter'
+                                    ].map(tag => (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => {
+                                                setFormData(prev => {
+                                                    const current = prev.client_skincare_routine?.trim() || ''
+                                                    if (current.includes(tag)) return prev
+                                                    const updated = current ? `${current}, ${tag}` : tag
+                                                    return { ...prev, client_skincare_routine: updated }
+                                                })
+                                            }}
+                                            className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                        >
+                                            + {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="card-ayumi p-4 md:p-6 space-y-4">
                         <h3 className="text-lg font-bold text-ayumi-primary border-b pb-2">Catatan SOAP</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
