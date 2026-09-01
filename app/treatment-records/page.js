@@ -103,10 +103,12 @@ export default function TreatmentRecordsPage() {
             .from('treatment_records')
             .select(`
                 id,
+                patient_id,
                 treatment_date,
                 treatment_time,
                 branch_id,
                 performed_by,
+                result_notes,
                 branches(name),
                 patients!inner(full_name, whatsapp),
                 users:users!treatment_records_performed_by_fkey(full_name),
@@ -144,6 +146,43 @@ export default function TreatmentRecordsPage() {
         const { data, error } = await query
 
         if (!error && data) {
+            // Cek jika ada rekam medis yang belum terhubung transaksi langsung (misal bagian dari transaksi multi-tindakan / worker)
+            const unlinked = data.filter(r => !r.transactions || r.transactions.length === 0)
+            if (unlinked.length > 0) {
+                const patientIds = [...new Set(unlinked.map(r => r.patient_id).filter(Boolean))]
+                if (patientIds.length > 0) {
+                    const { data: pTxs } = await supabase
+                        .from('transactions')
+                        .select('id, transaction_number, payment_status, total, patient_id, created_at, notes, treatment_record_id')
+                        .in('patient_id', patientIds)
+                        .eq('payment_status', 'paid')
+
+                    if (pTxs && pTxs.length > 0) {
+                        data.forEach(r => {
+                            if (!r.transactions || r.transactions.length === 0) {
+                                const strukMatch = r.result_notes?.match(/No\.\s*Struk:\s*([^\s|]+)/i) || r.result_notes?.match(/Struk:\s*([^\s|]+)/i)
+                                const struk = strukMatch ? strukMatch[1].trim() : null
+                                
+                                let matched = null
+                                if (struk) {
+                                    matched = pTxs.find(tx => tx.patient_id === r.patient_id && (tx.notes?.includes(struk) || tx.transaction_number?.includes(struk)))
+                                }
+                                if (!matched) {
+                                    matched = pTxs.find(tx => {
+                                        if (tx.patient_id !== r.patient_id) return false
+                                        const txDate = tx.created_at?.split('T')[0]
+                                        return txDate === r.treatment_date
+                                    })
+                                }
+                                if (matched) {
+                                    r.transactions = [matched]
+                                }
+                            }
+                        })
+                    }
+                }
+            }
+
             if (page === 1) {
                 setRecords(data)
             } else {

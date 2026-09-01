@@ -168,6 +168,34 @@ export default function TreatmentRecordDetailPage() {
                 return
             }
 
+            // Fallback matching jika record ini bagian dari transaksi multi-tindakan / worker
+            if (!recData.transactions || recData.transactions.length === 0) {
+                const { data: pTxs } = await supabase
+                    .from('transactions')
+                    .select('id, transaction_number, payment_status, total, patient_id, created_at, notes, treatment_record_id')
+                    .eq('patient_id', recData.patient_id)
+                    .eq('payment_status', 'paid')
+
+                if (pTxs && pTxs.length > 0) {
+                    const strukMatch = recData.result_notes?.match(/No\.\s*Struk:\s*([^\s|]+)/i) || recData.result_notes?.match(/Struk:\s*([^\s|]+)/i)
+                    const struk = strukMatch ? strukMatch[1].trim() : null
+                    
+                    let matched = null
+                    if (struk) {
+                        matched = pTxs.find(tx => tx.notes?.includes(struk) || tx.transaction_number?.includes(struk))
+                    }
+                    if (!matched) {
+                        matched = pTxs.find(tx => {
+                            const txDate = tx.created_at?.split('T')[0]
+                            return txDate === recData.treatment_date
+                        })
+                    }
+                    if (matched) {
+                        recData.transactions = [matched]
+                    }
+                }
+            }
+
             // Guard check for admin
             if (userRoleVal === 'admin' && recData.branch_id !== userBranchIdVal) {
                 toast.error('Anda tidak memiliki izin untuk melihat rekam medis dari cabang lain.')
