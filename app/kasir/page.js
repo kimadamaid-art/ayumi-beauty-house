@@ -1160,7 +1160,14 @@ function PosPageContent() {
                         ) : (
                             <div className="p-4.5 space-y-3 overflow-y-auto max-h-[60vh] custom-scrollbar">
                                 {pendingBills.map((bill) => {
-                                    const totalBill = bill.treatment_record_items?.reduce((s, i) => s + (i.price_at_time || 0), 0) || 0
+                                    const totalBill = bill.treatment_record_items?.reduce((s, i) => {
+                                        const rawNotes = i.notes || ''
+                                        const matchNewPkg = rawNotes.match(/\[KUPON_BARU:([^:]+):([^:]+):([^\]]+)\]/)
+                                        if (matchNewPkg) {
+                                            return s + (Number(matchNewPkg[3]) || 0)
+                                        }
+                                        return s + (i.price_at_time || 0)
+                                    }, 0) || 0
                                     const isLoaded = cart.some(c => c.treatment_record_id === bill.id)
                                     return (
                                         <div
@@ -1197,11 +1204,23 @@ function PosPageContent() {
                                                 </div>
                                                 {/* mini treatment tags */}
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    {bill.treatment_record_items?.slice(0,3).map((it, i) => (
-                                                        <span key={i} className="bg-purple-50/70 text-purple-700 border border-purple-100/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                                            {it.treatments?.name?.split(' ').slice(0,2).join(' ') || 'Treatment'}
-                                                        </span>
-                                                    ))}
+                                                    {bill.treatment_record_items?.slice(0,3).map((it, i) => {
+                                                        const rawNotes = it.notes || ''
+                                                        const matchNewPkg = rawNotes.match(/\[KUPON_BARU:([^:]+):([^:]+):([^\]]+)\]/)
+                                                        if (matchNewPkg) {
+                                                            return (
+                                                                <span key={i} className="bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                                    <span>🎁</span>
+                                                                    <span>Paket {matchNewPkg[2]}</span>
+                                                                </span>
+                                                            )
+                                                        }
+                                                        return (
+                                                            <span key={i} className="bg-purple-50/70 text-purple-700 border border-purple-100/50 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                                {it.treatments?.name?.split(' ').slice(0,2).join(' ') || 'Treatment'}
+                                                            </span>
+                                                        )
+                                                    })}
                                                     {(bill.treatment_record_items?.length || 0) > 3 && (
                                                         <span className="bg-gray-100 text-gray-500 border border-gray-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
                                                             +{bill.treatment_record_items.length - 3} lainnya
