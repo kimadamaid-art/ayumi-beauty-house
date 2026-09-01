@@ -74,21 +74,21 @@ export default function ItemVariantModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-[#F2D8C3]">
                 {/* Header */}
-                <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/70">
+                <div className="p-4 sm:p-5 border-b border-[#F2D8C3] flex items-center justify-between bg-[#FAF6F0]">
                     <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#B5531B] bg-[#FAF1E8] px-2 py-0.5 rounded-md border border-[#F2D8C3]">
                             {getItemCategory(item, itemType)}
                         </span>
-                        <h3 className="text-base sm:text-lg font-black text-gray-900 mt-1 line-clamp-1">
+                        <h3 className="text-base sm:text-lg font-black text-[#4E2A12] mt-1 line-clamp-1">
                             {item.name}
                         </h3>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+                        className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-500 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer border border-[#F2D8C3]"
                     >
                         ✕
                     </button>
@@ -114,13 +114,13 @@ export default function ItemVariantModal({
                                 value={quantity}
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                                className="w-16 h-10 text-center font-black text-lg border border-gray-200 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none text-gray-900"
+                                className="w-16 h-10 text-center font-black text-lg border border-[#F2D8C3] rounded-xl focus:border-[#D46221] focus:ring-2 focus:ring-[#F2D8C3] outline-none text-[#2C1E16]"
                             />
                             <button
                                 type="button"
                                 onClick={() => handleQuantityChange(1)}
                                 disabled={itemType === 'product' && item.quantity !== undefined && qty >= item.quantity}
-                                className="w-10 h-10 rounded-xl bg-sky-500 hover:bg-sky-600 active:bg-sky-700 disabled:opacity-40 text-white font-black text-lg flex items-center justify-center transition-colors shadow-xs cursor-pointer select-none"
+                                className="w-10 h-10 rounded-xl bg-[#D46221] hover:bg-[#B5531B] active:bg-[#914214] disabled:opacity-40 text-white font-black text-lg flex items-center justify-center transition-colors shadow-xs cursor-pointer select-none"
                             >
                                 +
                             </button>
@@ -135,7 +135,7 @@ export default function ItemVariantModal({
                     {/* Variant Selection Section */}
                     {hasVariants && (
                         <div className="space-y-2 pt-3 border-t border-gray-100">
-                            <label className="block text-xs font-black text-gray-700 uppercase tracking-wider">
+                            <label className="block text-xs font-black text-[#4E2A12] uppercase tracking-wider">
                                 Pilih Varian Produk
                             </label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -148,14 +148,14 @@ export default function ItemVariantModal({
                                             onClick={() => setSelectedVariant(v)}
                                             className={`p-3 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
                                                 isSelected
-                                                    ? 'bg-sky-500 text-white border-sky-500 shadow-sm ring-2 ring-sky-200'
-                                                    : 'bg-white text-gray-800 border-gray-200 hover:border-sky-300 hover:bg-sky-50/40'
+                                                    ? 'bg-[#D46221] text-white border-[#D46221] shadow-sm ring-2 ring-[#F2D8C3]'
+                                                    : 'bg-white text-gray-800 border-[#F2D8C3] hover:border-[#D46221] hover:bg-[#FAF1E8]/50'
                                             }`}
                                         >
-                                            <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                                            <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-[#2C1E16]'}`}>
                                                 {v.name}
                                             </span>
-                                            <span className={`text-xs font-bold mt-1 ${isSelected ? 'text-sky-100' : 'text-gray-500'}`}>
+                                            <span className={`text-xs font-bold mt-1 ${isSelected ? 'text-orange-100' : 'text-[#B5531B]'}`}>
                                                 IDR {v.price.toLocaleString('id-ID')}
                                             </span>
                                         </button>
@@ -168,7 +168,7 @@ export default function ItemVariantModal({
                     {/* Custom Discount Section */}
                     <div className="space-y-2 pt-3 border-t border-gray-100">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-black text-gray-700 uppercase tracking-wider">
+                            <label className="text-xs font-black text-[#4E2A12] uppercase tracking-wider">
                                 Custom Discount
                             </label>
                             <div className="flex bg-gray-100 p-0.5 rounded-lg text-xs font-bold">
@@ -201,7 +201,7 @@ export default function ItemVariantModal({
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => setDiscountValue(e.target.value)}
                                 placeholder={discountType === 'percent' ? 'Contoh: 10 (%)' : 'Contoh: 20000 (Rp)'}
-                                className="input-ayumi bg-white text-xs font-bold py-2 w-full focus:ring-sky-200 focus:border-sky-400"
+                                className="input-ayumi bg-white text-xs font-bold py-2 w-full focus:ring-[#F2D8C3] focus:border-[#D46221]"
                             />
                             {discountType === 'percent' && (
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">%</span>
@@ -210,10 +210,10 @@ export default function ItemVariantModal({
                     </div>
 
                     {/* Total Summary */}
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+                    <div className="p-3.5 bg-[#FAF6F0] rounded-xl border border-[#F2D8C3] flex items-center justify-between">
                         <div>
                             <span className="text-[11px] text-gray-500 block">Harga Dasar ({qty}x)</span>
-                            <span className="text-xs font-bold text-gray-700">Rp {(basePrice * qty).toLocaleString('id-ID')}</span>
+                            <span className="text-xs font-bold text-[#4E2A12]">Rp {(basePrice * qty).toLocaleString('id-ID')}</span>
                         </div>
                         {discountAmount > 0 && (
                             <div className="text-right">
@@ -221,9 +221,9 @@ export default function ItemVariantModal({
                                 <span className="text-xs font-bold text-rose-600">-Rp {discountAmount.toLocaleString('id-ID')}</span>
                             </div>
                         )}
-                        <div className="text-right pl-2 border-l border-gray-200">
+                        <div className="text-right pl-2 border-l border-[#F2D8C3]">
                             <span className="text-[11px] text-gray-500 block font-semibold">Total</span>
-                            <span className="text-sm font-black text-sky-800">
+                            <span className="text-sm font-black text-[#D46221]">
                                 Rp {totalPrice.toLocaleString('id-ID')}
                             </span>
                         </div>
@@ -231,18 +231,18 @@ export default function ItemVariantModal({
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50/50">
+                <div className="p-4 border-t border-[#F2D8C3] flex gap-2 justify-end bg-[#FAF6F0]/60">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
+                        className="px-4 py-2.5 text-xs font-bold text-gray-600 bg-white hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border border-gray-200"
                     >
                         Batal
                     </button>
                     <button
                         type="button"
                         onClick={handleConfirm}
-                        className="px-5 py-2.5 text-xs font-black text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        className="px-5 py-2.5 text-xs font-black text-white bg-[#D46221] hover:bg-[#B5531B] rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                         <span>Tambah ke Keranjang</span>
                     </button>

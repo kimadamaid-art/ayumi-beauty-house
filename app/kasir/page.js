@@ -1641,29 +1641,29 @@ function PosPageContent() {
                                             key: 'all',
                                             label: 'Semua',
                                             count: totalMatches,
-                                            activeStyle: 'bg-slate-900 text-white shadow-xs font-black',
-                                            inactiveHover: 'hover:text-slate-900 hover:bg-white/60'
+                                            activeStyle: 'bg-[#4E2A12] text-white shadow-xs font-black',
+                                            inactiveHover: 'hover:text-[#4E2A12] hover:bg-white/60'
                                         }] : []),
                                         {
                                             key: 'treatment',
                                             label: 'Treatment',
                                             count: searchQuery.trim() ? filteredTreatments.length : treatments.length,
-                                            activeStyle: 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-xs font-black',
-                                            inactiveHover: 'hover:text-pink-600 hover:bg-pink-50/60'
+                                            activeStyle: 'bg-[#D46221] text-white shadow-xs font-black',
+                                            inactiveHover: 'hover:text-[#D46221] hover:bg-[#FAF1E8]'
                                         },
                                         {
                                             key: 'product',
                                             label: 'Produk',
                                             count: searchQuery.trim() ? filteredProducts.length : products.length,
-                                            activeStyle: 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs font-black',
-                                            inactiveHover: 'hover:text-teal-700 hover:bg-emerald-50/60'
+                                            activeStyle: 'bg-[#2D6A4F] text-white shadow-xs font-black',
+                                            inactiveHover: 'hover:text-[#2D6A4F] hover:bg-emerald-50/60'
                                         },
                                         {
                                             key: 'coupon',
                                             label: 'Paket Kupon',
                                             count: searchQuery.trim() ? filteredCoupons.length : coupons.length,
-                                            activeStyle: 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs font-black',
-                                            inactiveHover: 'hover:text-purple-700 hover:bg-purple-50/60'
+                                            activeStyle: 'bg-[#B5531B] text-white shadow-xs font-black',
+                                            inactiveHover: 'hover:text-[#B5531B] hover:bg-[#FAF1E8]'
                                         },
                                     ]
 
@@ -1684,7 +1684,7 @@ function PosPageContent() {
                                                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                                                     isActive 
                                                         ? 'bg-white/25 text-white' 
-                                                        : 'bg-gray-300/70 text-gray-700'
+                                                        : 'bg-gray-200/80 text-gray-700'
                                                 }`}>
                                                     {tab.count}
                                                 </span>
@@ -1697,7 +1697,7 @@ function PosPageContent() {
                             {/* Search bar - Wider & Responsive with Clear Button */}
                             <div className="relative flex-1 max-w-full md:max-w-md w-full">
                                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
-                                    <svg className="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                    <svg className="w-4 h-4 text-[#D46221]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 </span>
                                 <input
                                     type="text"
@@ -1709,7 +1709,7 @@ function PosPageContent() {
                                             setActiveTab('all')
                                         }
                                     }}
-                                    className="input-ayumi pl-9.5 pr-8 bg-white w-full text-xs sm:text-sm py-2 border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-100 rounded-xl shadow-2xs font-medium"
+                                    className="input-ayumi pl-9.5 pr-8 bg-white w-full text-xs sm:text-sm py-2 border-gray-200 focus:border-[#D46221] focus:ring-2 focus:ring-[#F2D8C3] rounded-xl shadow-2xs font-medium"
                                 />
                                 {searchQuery && (
                                     <button
@@ -1725,7 +1725,7 @@ function PosPageContent() {
                         </div>
 
                         {/* Items list rendered as POS card grid for Treatment & Kupon, and Categorized for Products */}
-                        <div className="p-3 sm:p-4 overflow-y-auto max-h-[66vh] custom-scrollbar flex-1 bg-gray-50/30">
+                        <div className="p-3 sm:p-4 overflow-y-auto max-h-[66vh] custom-scrollbar flex-1 bg-[#FAF6F0]/40">
                             {(() => {
                                 const q = searchQuery.toLowerCase().trim()
                                 const filteredTreatments = treatments.filter(t => !q || t.name.toLowerCase().includes(q))
@@ -1755,7 +1755,7 @@ function PosPageContent() {
                                             <button
                                                 type="button"
                                                 onClick={() => setSearchQuery('')}
-                                                className="mt-2 text-xs bg-pink-50 hover:bg-pink-100 text-ayumi-primary font-bold px-3 py-1.5 rounded-lg transition-colors border border-pink-200 cursor-pointer"
+                                                className="mt-2 text-xs bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#D46221] font-bold px-3 py-1.5 rounded-lg transition-colors border border-[#F2D8C3] cursor-pointer"
                                             >
                                                 Reset Pencarian
                                             </button>
@@ -1777,18 +1777,18 @@ function PosPageContent() {
                                     <div className="space-y-6">
                                         {/* Cross-category Match Notification */}
                                         {q && currentTabEmpty && totalMatches > 0 && (
-                                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs animate-fade-in">
+                                            <div className="bg-[#FAF1E8] border border-[#F2D8C3] rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs animate-fade-in">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                                                    <div className="text-xs text-amber-900 font-medium">
-                                                        Tidak ada hasil di tab ini, namun ditemukan <strong className="font-extrabold text-amber-950">{totalMatches} item</strong> di kategori lain untuk &quot;{searchQuery}&quot;:
+                                                    <span className="w-2 h-2 rounded-full bg-[#D46221] shrink-0"></span>
+                                                    <div className="text-xs text-[#4E2A12] font-medium">
+                                                        Tidak ada hasil di tab ini, namun ditemukan <strong className="font-extrabold text-[#2C1E16]">{totalMatches} item</strong> di kategori lain untuk &quot;{searchQuery}&quot;:
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 flex-wrap">
                                                     <button
                                                         type="button"
                                                         onClick={() => setActiveTab('all')}
-                                                        className="text-xs bg-slate-900 hover:bg-black text-white px-2.5 py-1 rounded-lg font-bold transition-colors shadow-2xs cursor-pointer"
+                                                        className="text-xs bg-[#4E2A12] hover:bg-[#2C1E16] text-white px-2.5 py-1 rounded-lg font-bold transition-colors shadow-2xs cursor-pointer"
                                                     >
                                                         Lihat Semua ({totalMatches})
                                                     </button>
@@ -1796,7 +1796,7 @@ function PosPageContent() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setActiveTab('treatment')}
-                                                            className="text-xs bg-pink-100 hover:bg-pink-200 text-pink-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                                                            className="text-xs bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
                                                         >
                                                             Treatment ({filteredTreatments.length})
                                                         </button>
@@ -1814,7 +1814,7 @@ function PosPageContent() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setActiveTab('coupon')}
-                                                            className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                                                            className="text-xs bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] px-2.5 py-1 rounded-lg font-bold transition-colors cursor-pointer"
                                                         >
                                                             Kupon ({filteredCoupons.length})
                                                         </button>
@@ -1823,11 +1823,11 @@ function PosPageContent() {
                                             </div>
                                         )}
 
-                                        {/* 1. TREATMENTS (Grid Biasa - Tanpa Pemisah Kategori) */}
+                                        {/* 1. TREATMENTS (Grid Biasa - Ayumi Harmony) */}
                                         {showTreatments && filteredTreatments.length > 0 && (
                                             <div className="space-y-2">
                                                 {showAll && (
-                                                    <h3 className="font-extrabold text-xs text-gray-700 tracking-wider uppercase px-1">
+                                                    <h3 className="font-black text-xs text-[#4E2A12] tracking-wider uppercase px-1">
                                                         Treatment Perawatan ({filteredTreatments.length})
                                                     </h3>
                                                 )}
@@ -1839,20 +1839,20 @@ function PosPageContent() {
                                                             <div
                                                                 key={`tr-${t.id}`}
                                                                 onClick={() => addToCart(t, 'treatment')}
-                                                                className="bg-white p-3 rounded-2xl border border-pink-100 shadow-2xs flex flex-col justify-between hover:border-pink-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                                className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
                                                             >
                                                                 <div className="space-y-1.5 mb-2">
                                                                     <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                        <span className="bg-pink-50 text-pink-700 border border-pink-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
+                                                                        <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
                                                                             Treatment
                                                                         </span>
                                                                         {hasDiscount && (
-                                                                            <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
+                                                                            <span className="bg-[#D46221] text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
                                                                                 Diskon {t.discount_percent}%
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-pink-600 transition-colors">
+                                                                    <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
                                                                         {t.name}
                                                                     </h4>
                                                                 </div>
@@ -1864,7 +1864,7 @@ function PosPageContent() {
                                                                                 Rp {t.price.toLocaleString('id-ID')}
                                                                             </span>
                                                                         )}
-                                                                        <span className="font-black text-xs sm:text-sm text-pink-700 whitespace-nowrap">
+                                                                        <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
                                                                             Rp {price.toLocaleString('id-ID')}
                                                                         </span>
                                                                     </div>
@@ -1874,7 +1874,7 @@ function PosPageContent() {
                                                                             e.stopPropagation()
                                                                             addToCart(t, 'treatment')
                                                                         }}
-                                                                        className="w-7 h-7 rounded-xl bg-pink-500 hover:bg-pink-600 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                        className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
                                                                         title="Tambah ke keranjang"
                                                                     >
                                                                         +
@@ -1891,7 +1891,7 @@ function PosPageContent() {
                                         {showProducts && (
                                             <div className="space-y-4">
                                                 {showAll && (
-                                                    <h3 className="font-extrabold text-xs text-gray-700 tracking-wider uppercase px-1">
+                                                    <h3 className="font-black text-xs text-[#4E2A12] tracking-wider uppercase px-1">
                                                         Produk Skincare ({filteredProducts.length})
                                                     </h3>
                                                 )}
@@ -1906,7 +1906,6 @@ function PosPageContent() {
                                                                 key={group.name}
                                                                 categoryName={group.name}
                                                                 items={group.items}
-                                                                categoryTheme={group.theme}
                                                                 onItemClick={(item, type) => handleOpenItemModal(item, type)}
                                                             />
                                                         ))}
@@ -1915,11 +1914,11 @@ function PosPageContent() {
                                             </div>
                                         )}
 
-                                        {/* 3. KUPON (Grid Biasa - Tanpa Pemisah Kategori) */}
+                                        {/* 3. KUPON (Grid Biasa - Ayumi Harmony) */}
                                         {showCoupons && filteredCoupons.length > 0 && (
                                             <div className="space-y-2">
                                                 {showAll && (
-                                                    <h3 className="font-extrabold text-xs text-gray-700 tracking-wider uppercase px-1">
+                                                    <h3 className="font-black text-xs text-[#4E2A12] tracking-wider uppercase px-1">
                                                         Paket Kupon ({filteredCoupons.length})
                                                     </h3>
                                                 )}
@@ -1928,26 +1927,26 @@ function PosPageContent() {
                                                         <div
                                                             key={`cp-${c.id}`}
                                                             onClick={() => addToCart(c, 'coupon')}
-                                                            className="bg-white p-3 rounded-2xl border border-purple-100 shadow-2xs flex flex-col justify-between hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                            className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
                                                         >
                                                             <div className="space-y-1.5 mb-2">
                                                                 <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                    <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[9px] font-extrabold px-2 py-0.5 rounded-md">
+                                                                    <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
                                                                         Paket Kupon
                                                                     </span>
                                                                     {c.category && (
-                                                                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                                                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
                                                                             {c.category}
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug group-hover:text-purple-700 transition-colors">
+                                                                <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
                                                                     {c.name}
                                                                 </h4>
                                                             </div>
 
                                                             <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
-                                                                <span className="font-black text-xs sm:text-sm text-purple-900 whitespace-nowrap">
+                                                                <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
                                                                     Rp {c.price.toLocaleString('id-ID')}
                                                                 </span>
                                                                 <button
@@ -1956,7 +1955,7 @@ function PosPageContent() {
                                                                         e.stopPropagation()
                                                                         addToCart(c, 'coupon')
                                                                     }}
-                                                                    className="w-7 h-7 rounded-xl bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                    className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
                                                                     title="Tambah ke keranjang"
                                                                 >
                                                                     +
