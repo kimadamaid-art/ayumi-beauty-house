@@ -138,18 +138,24 @@ export default function CRMPage() {
             .in('status', ['pending', 'rescheduled'])
 
         if (timeframeFilter === 'due') {
-            qQuery = qQuery.lte('scheduled_date', todayDateStr)
+            qQuery = qQuery.lte('scheduled_date', todayDateStr).order('scheduled_date', { ascending: false })
         } else if (timeframeFilter === 'upcoming_7') {
             const d = new Date()
             d.setDate(d.getDate() + 7)
-            qQuery = qQuery.lte('scheduled_date', d.toISOString().split('T')[0])
+            qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', d.toISOString().split('T')[0]).order('scheduled_date', { ascending: true })
+        } else if (timeframeFilter === 'upcoming_14') {
+            const d = new Date()
+            d.setDate(d.getDate() + 14)
+            qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', d.toISOString().split('T')[0]).order('scheduled_date', { ascending: true })
         } else if (timeframeFilter === 'upcoming_30') {
             const d = new Date()
             d.setDate(d.getDate() + 30)
-            qQuery = qQuery.lte('scheduled_date', d.toISOString().split('T')[0])
+            qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', d.toISOString().split('T')[0]).order('scheduled_date', { ascending: true })
+        } else {
+            qQuery = qQuery.order('scheduled_date', { ascending: false })
         }
 
-        const { data: rawQData } = await qQuery.order('scheduled_date', { ascending: true })
+        const { data: rawQData } = await qQuery
             
         let qData = []
         if (rawQData) {
@@ -725,11 +731,12 @@ export default function CRMPage() {
                                     <select
                                         value={timeframeFilter}
                                         onChange={(e) => setTimeframeFilter(e.target.value)}
-                                        className="input-ayumi py-2 text-sm max-w-[200px] focus:bg-gray-50 font-bold"
+                                        className="input-ayumi py-2 text-sm max-w-[210px] focus:bg-gray-50 font-bold"
                                     >
                                         <option value="due">⏰ Jatuh Tempo & Hari Ini</option>
                                         <option value="upcoming_7">📅 7 Hari Mendatang</option>
-                                        <option value="upcoming_30">📅 30 Hari Mendatang</option>
+                                        <option value="upcoming_14">📅 14 Hari Mendatang</option>
+                                        <option value="upcoming_30">📅 30 Hari Mendatang (1 Bulan)</option>
                                         <option value="all">🌐 Semua Antrean</option>
                                     </select>
                                 </div>
@@ -801,7 +808,8 @@ export default function CRMPage() {
                                     <h3 className="text-base font-extrabold text-gray-900">
                                         {timeframeFilter === 'due' && 'Harus Dihubungi Hari Ini & Jatuh Tempo'}
                                         {timeframeFilter === 'upcoming_7' && 'Jadwal Follow-Up 7 Hari Mendatang'}
-                                        {timeframeFilter === 'upcoming_30' && 'Jadwal Follow-Up 30 Hari Mendatang'}
+                                        {timeframeFilter === 'upcoming_14' && 'Jadwal Follow-Up 14 Hari Mendatang'}
+                                        {timeframeFilter === 'upcoming_30' && 'Jadwal Follow-Up 30 Hari Mendatang (1 Bulan)'}
                                         {timeframeFilter === 'all' && 'Semua Jadwal Antrean Follow-Up'}
                                     </h3>
                                     <div className="flex flex-wrap items-center gap-1.5 bg-gray-100/70 p-1.5 rounded-2xl border border-gray-200/70">

@@ -187,9 +187,32 @@ async function main() {
             await supabase.from('patient_coupons').delete().in('id', chunk);
         }
 
-        // 5. Followup & Pasien
+        // 5. Followup & Pasien (dengan paginasi lengkap)
         await supabase.from('followup_logs').delete().eq('branch_id', CIAMIS_BRANCH_ID);
-        await supabase.from('followup_queue').delete().eq('branch_id', CIAMIS_BRANCH_ID);
+        
+        let allFqIds = [];
+        from = 0;
+        while (true) {
+            const { data } = await supabase.from('followup_queue').select('id').eq('branch_id', CIAMIS_BRANCH_ID).range(from, from + 999);
+            if (!data || data.length === 0) break;
+            allFqIds.push(...data.map(d => d.id));
+            from += 1000;
+        }
+        for (let i = 0; i < allFqIds.length; i += 500) {
+            await supabase.from('followup_queue').delete().in('id', allFqIds.slice(i, i + 500));
+        }
+
+        let allPatIds = [];
+        from = 0;
+        while (true) {
+            const { data } = await supabase.from('patients').select('id').eq('branch_id', CIAMIS_BRANCH_ID).range(from, from + 999);
+            if (!data || data.length === 0) break;
+            allPatIds.push(...data.map(d => d.id));
+            from += 1000;
+        }
+        for (let i = 0; i < allPatIds.length; i += 500) {
+            await supabase.from('patients').delete().in('id', allPatIds.slice(i, i + 500));
+        }
         await supabase.from('patients').delete().eq('branch_id', CIAMIS_BRANCH_ID);
 
         // 6. Bersihkan entri produk yang sebelumnya keliru masuk ke treatments
@@ -524,6 +547,7 @@ async function main() {
     const transactionItemPayloads = [];
     const treatmentRecordItemPayloads = [];
     const followupQueuePayloads = [];
+    const latestTreatmentRecordPerPatient = new Map();
 
     // Grouping Treatments by trx_ref
     const treatmentsByTrxRef = new Map();
@@ -645,33 +669,17 @@ async function main() {
                 updated_at: isoDate
             });
 
-            // Otomatis buat jadwal antrean follow-up CRM (2 minggu, 3 minggu, 1 bulan)
-            const baseDate = new Date(dateStr + 'T00:00:00');
-            const followupSteps = [
-                { days: 14, priority: 'normal' },
-                { days: 21, priority: 'normal' },
-                { days: 30, priority: 'normal' }
-            ];
-
-            followupSteps.forEach(step => {
-                const sDate = new Date(baseDate);
-                sDate.setDate(sDate.getDate() + step.days);
-                const sDateStr = sDate.toISOString().split('T')[0];
-
-                followupQueuePayloads.push({
-                    id: crypto.randomUUID(),
-                    patient_id: patientId,
-                    treatment_record_id: treatmentRecordId,
-                    branch_id: CIAMIS_BRANCH_ID,
-                    assigned_to: primaryTherapistUser?.id || null,
-                    followup_type: 'treatment_reminder',
-                    scheduled_date: sDateStr,
-                    priority: step.priority,
-                    status: 'pending',
-                    created_at: isoDate,
-                    updated_at: isoDate
+            // Catat kunjungan tindakan terbaru per pasien untuk follow-up CRM
+            const existingLatest = latestTreatmentRecordPerPatient.get(patientId);
+            if (!existingLatest || dateStr > existingLatest.dateStr) {
+                latestTreatmentRecordPerPatient.set(patientId, {
+                    treatmentRecordId,
+                    patientId,
+                    dateStr,
+                    isoDate,
+                    primaryTherapistUser
                 });
-            });
+            }
         }
 
         // Transaction Header
@@ -761,6 +769,38 @@ async function main() {
                 });
             }
         });
+    });
+
+    // Generate antrean follow-up CRM HANYA untuk kunjungan TERAKHIR pasien yang masih aktif/relevan (Agustus 2026 ke atas)
+    latestTreatmentRecordPerPatient.forEach(latest => {
+        if (latest.dateStr >= '2026-08-01') {
+            const baseDate = new Date(latest.dateStr + 'T00:00:00');
+            const followupSteps = [
+                { days: 14, priority: 'normal' },
+                { days: 21, priority: 'normal' },
+                { days: 30, priority: 'normal' }
+            ];
+
+            followupSteps.forEach(step => {
+                const sDate = new Date(baseDate);
+                sDate.setDate(sDate.getDate() + step.days);
+                const sDateStr = sDate.toISOString().split('T')[0];
+
+                followupQueuePayloads.push({
+                    id: crypto.randomUUID(),
+                    patient_id: latest.patientId,
+                    treatment_record_id: latest.treatmentRecordId,
+                    branch_id: CIAMIS_BRANCH_ID,
+                    assigned_to: latest.primaryTherapistUser?.id || null,
+                    followup_type: 'treatment_reminder',
+                    scheduled_date: sDateStr,
+                    priority: step.priority,
+                    status: 'pending',
+                    created_at: latest.isoDate,
+                    updated_at: latest.isoDate
+                });
+            });
+        }
     });
 
     // 8. Siapkan Data Kupon
