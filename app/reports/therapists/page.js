@@ -186,7 +186,10 @@ export default function TherapistsReportPage() {
 
         treatmentItems.forEach(item => {
             const therapistId = item.treatment_records?.performed_by
-            if (!therapistId) return
+            const commissionPercent = Number(item.commission_percent !== undefined && item.commission_percent !== null ? item.commission_percent : 5)
+            
+            // Abaikan item tanpa terapis atau item worker/infus dengan komisi 0
+            if (!therapistId || commissionPercent === 0) return
 
             if (!therapistGroups[therapistId]) {
                 therapistGroups[therapistId] = {
@@ -211,7 +214,6 @@ export default function TherapistsReportPage() {
                 }
             }
 
-            const commissionPercent = Number(item.commission_percent || 0)
             const commissionAmount = Math.round(commissionBasePrice * (commissionPercent / 100))
 
             therapistGroups[therapistId].revenue += (priceAtTime > 0 ? priceAtTime : (item.proportional_coupon_price || 0))
@@ -238,16 +240,13 @@ export default function TherapistsReportPage() {
             }
         })
 
-        // Filter by branch penempatan if selectedBranch !== 'all' (only for listing consistency if requested, but database filters actions by records' branch)
-        // Here we just keep all active therapists and display their metrics within that branch's records.
-
         // Sort by revenue descending
         return result.sort((a, b) => b.revenue - a.revenue)
     }, [treatmentItems, therapists])
 
-    // Unassigned Treatments (Worker / Infus / Tanpa Terapis)
+    // Unassigned Treatments (Worker / Infus / Tanpa Terapis / Komisi 0%)
     const unassignedTreatments = useMemo(() => {
-        return treatmentItems.filter(item => !item.treatment_records?.performed_by)
+        return treatmentItems.filter(item => !item.treatment_records?.performed_by || Number(item.commission_percent) === 0)
     }, [treatmentItems])
 
     // Summary Card Stats

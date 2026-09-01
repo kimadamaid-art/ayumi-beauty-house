@@ -562,55 +562,47 @@ async function main() {
         const dateStr = String(tx.tanggal || '').split(' ')[0] || '2021-04-05';
         const timeStr = String(tx.tanggal || '').split(' ')[1] || '10:00:00';
 
-        // Kelompokkan item tindakan medis berdasarkan terapis masing-masing
-        const therapistGroups = new Map();
-        treatmentItems.forEach(item => {
-            const rawT = String(item.terapis || '').trim();
-            const tLower = rawT.toLowerCase();
-            const isUnassigned = tLower === '' || tLower === 'infus' || tLower === 'staf' || tLower === 'dokter' || tLower === 'perawat';
-            const user = !isUnassigned ? findTherapistUser(rawT) : null;
-            const key = user ? user.id : (isUnassigned ? 'UNASSIGNED' : rawT);
-
-            if (!therapistGroups.has(key)) {
-                therapistGroups.set(key, {
-                    user: user,
-                    label: rawT || (isUnassigned ? 'Infus / Medis' : 'Staf'),
-                    recordId: null,
-                    items: []
-                });
-            }
-            therapistGroups.get(key).items.push(item);
-        });
-
-        // Buat rekam medis EMR per kelompok terapis (jika patient_id ADA dan ADA tindakan klinis)
-        let primaryRecordId = null;
+        // Buat 1 rekam medis EMR per transaksi kunjungan jika ada tindakan klinis
+        let treatmentRecordId = null;
         if (patientId && hasTreatmentItems) {
-            // Urutkan kelompok agar kelompok yang memiliki user terapis klinis menjadi primary
-            const sortedGroups = Array.from(therapistGroups.values()).sort((a, b) => {
-                if (a.user && !b.user) return -1;
-                if (!a.user && b.user) return 1;
-                return 0;
+            treatmentRecordId = crypto.randomUUID();
+
+            // Temukan terapis klinis utama jika ada
+            let primaryTherapistUser = null;
+            for (const item of treatmentItems) {
+                const rawT = String(item.terapis || '').trim();
+                const tLower = rawT.toLowerCase();
+                const isUnassigned = tLower === '' || tLower === 'infus' || tLower === 'staf' || tLower === 'dokter' || tLower === 'perawat';
+                if (!isUnassigned) {
+                    const u = findTherapistUser(rawT);
+                    if (u) {
+                        primaryTherapistUser = u;
+                        break;
+                    }
+                }
+            }
+
+            const labels = [];
+            if (primaryTherapistUser) labels.push(primaryTherapistUser.full_name);
+            const hasWorker = treatmentItems.some(i => {
+                const rawT = String(i.terapis || '').trim().toLowerCase();
+                return rawT === '' || rawT === 'infus' || rawT === 'staf' || rawT === 'dokter' || rawT === 'perawat';
             });
+            if (hasWorker) labels.push('Worker (Infus)');
 
-            sortedGroups.forEach(group => {
-                const recordId = crypto.randomUUID();
-                group.recordId = recordId;
-                if (!primaryRecordId) primaryRecordId = recordId;
-
-                treatmentRecordPayloads.push({
-                    id: recordId,
-                    patient_id: patientId,
-                    branch_id: CIAMIS_BRANCH_ID,
-                    performed_by: group.user?.id || null,
-                    treatment_date: dateStr,
-                    treatment_time: timeStr,
-                    skin_condition: '-',
-                    complaints: '-',
-                    result_notes: `Migrasi GD Cashier | No. Struk: ${tx.no_struk || '-'} | Terapis: ${group.label}`,
-                    recommendation: '-',
-                    created_at: isoDate,
-                    updated_at: isoDate
-                });
+            treatmentRecordPayloads.push({
+                id: treatmentRecordId,
+                patient_id: patientId,
+                branch_id: CIAMIS_BRANCH_ID,
+                performed_by: primaryTherapistUser?.id || null,
+                treatment_date: dateStr,
+                treatment_time: timeStr,
+                skin_condition: '-',
+                complaints: '-',
+                result_notes: `Migrasi GD Cashier | No. Struk: ${tx.no_struk || '-'} | Terapis: ${labels.join(', ') || 'Worker'}`,
+                recommendation: '-',
+                created_at: isoDate,
+                updated_at: isoDate
             });
         }
 
@@ -620,7 +612,7 @@ async function main() {
             transaction_number: ref,
             patient_id: patientId,
             branch_id: CIAMIS_BRANCH_ID,
-            treatment_record_id: primaryRecordId,
+            treatment_record_id: treatmentRecordId,
             cashier_id: defaultCashier?.id || null,
             subtotal: subtotal,
             discount: totalDisc,
@@ -681,29 +673,24 @@ async function main() {
             });
 
             // Treatment record item (hanya untuk tindakan medis klinis)
-            if (!isProd && treatmentId) {
-                // Temukan group recordId untuk item ini
+            if (!isProd && treatmentId && treatmentRecordId) {
                 const rawT = String(item.terapis || '').trim();
                 const tLower = rawT.toLowerCase();
                 const isUnassigned = tLower === '' || tLower === 'infus' || tLower === 'staf' || tLower === 'dokter' || tLower === 'perawat';
-                const user = !isUnassigned ? findTherapistUser(rawT) : null;
-                const key = user ? user.id : (isUnassigned ? 'UNASSIGNED' : rawT);
-                const assignedGroup = therapistGroups.get(key);
-                const assignedRecordId = assignedGroup?.recordId || primaryRecordId;
+                const itemUser = !isUnassigned ? findTherapistUser(rawT) : null;
+                const effectiveCommPercent = itemUser ? commPercent : 0; // Worker/Infus komisi 0%
 
-                if (assignedRecordId) {
-                    treatmentRecordItemPayloads.push({
-                        id: crypto.randomUUID(),
-                        treatment_record_id: assignedRecordId,
-                        treatment_id: treatmentId,
-                        price_at_time: netDiscountedPrice,
-                        original_price: bruto / qty || price,
-                        discount_percent: discPercent,
-                        commission_percent: commPercent,
-                        notes: `${rawItemName}${item.terapis ? ` (${item.terapis})` : ''}`,
-                        sort_order: treatmentSortOrder++
-                    });
-                }
+                treatmentRecordItemPayloads.push({
+                    id: crypto.randomUUID(),
+                    treatment_record_id: treatmentRecordId,
+                    treatment_id: treatmentId,
+                    price_at_time: netDiscountedPrice,
+                    original_price: bruto / qty || price,
+                    discount_percent: discPercent,
+                    commission_percent: effectiveCommPercent,
+                    notes: `${rawItemName}${item.terapis ? ` (${item.terapis})` : (isUnassigned ? ' (Worker / Infus)' : '')}`,
+                    sort_order: treatmentSortOrder++
+                });
             }
         });
     });

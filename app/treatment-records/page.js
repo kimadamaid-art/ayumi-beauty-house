@@ -310,16 +310,19 @@ export default function TreatmentRecordsPage() {
                                                     <div className="text-xs text-gray-500">{r.patients?.whatsapp || '-'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    {r.users?.full_name ? (
-                                                        <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                                                            {r.users.full_name}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md text-[11px] border border-emerald-200">
-                                                            Worker
-                                                        </span>
-                                                    )}
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        {r.users?.full_name && (
+                                                            <span className="font-bold text-gray-800 text-xs inline-flex items-center gap-1 bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md border border-purple-100 shadow-2xs">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                                {r.users.full_name}
+                                                            </span>
+                                                        )}
+                                                        {((!r.users?.full_name) || (r.result_notes && (r.result_notes.includes('Worker') || r.result_notes.includes('Infus')))) && (
+                                                            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md text-[11px] border border-emerald-200 shadow-2xs">
+                                                                💉 Worker (Infus)
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {paidTx ? (

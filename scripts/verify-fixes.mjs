@@ -145,7 +145,7 @@ async function verify() {
         const commPct = Number(item.commission_percent !== null && item.commission_percent !== undefined ? item.commission_percent : 5)
         const commAmt = Math.round(price * (commPct / 100))
 
-        if (!performedBy) {
+        if (!performedBy || commPct === 0) {
             unassignedItems.push({
                 item: item.notes || item.treatments?.name,
                 patient: patientName,

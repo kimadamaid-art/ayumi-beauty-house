@@ -185,14 +185,16 @@ export default function TherapistDetailPage() {
                 })
             }
 
-            const enhancedData = (data || []).map(r => {
-                const trId = r.treatment_records?.id
-                const proportionalCouponPrice = trId ? couponMap[trId] : null
-                return {
-                    ...r,
-                    proportional_coupon_price: proportionalCouponPrice
-                }
-            })
+            const enhancedData = (data || [])
+                .filter(r => Number(r.commission_percent !== undefined && r.commission_percent !== null ? r.commission_percent : 5) > 0)
+                .map(r => {
+                    const trId = r.treatment_records?.id
+                    const proportionalCouponPrice = trId ? couponMap[trId] : null
+                    return {
+                        ...r,
+                        proportional_coupon_price: proportionalCouponPrice
+                    }
+                })
 
             // Sort treatment_records manually by date and time descending
             const sortedData = enhancedData.sort((a, b) => {
