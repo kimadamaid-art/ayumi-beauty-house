@@ -16,6 +16,8 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
     // Comparison Mode State
     const [comparePhoto1, setComparePhoto1] = useState(null)
     const [comparePhoto2, setComparePhoto2] = useState(null)
+    const [compareViewType, setCompareViewType] = useState('side_by_side') // 'side_by_side' | 'split_slider'
+    const [sliderPos, setSliderPos] = useState(50)
 
     useEffect(() => {
         if (isOpen) {
@@ -462,7 +464,7 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                                                                     else setComparePhoto2(photo)
                                                                                     setActiveTab('compare')
                                                                                 }}
-                                                                                className="text-[10px] font-extrabold text-purple-700 hover:text-purple-900 hover:underline"
+                                                                                className="text-[10px] font-extrabold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
                                                                             >
                                                                                 + Bandingkan
                                                                             </button>
@@ -479,7 +481,7 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                 </div>
                             )}
 
-                            {/* TAB 3: MODE KOMPARASI PROGRESS (SIDE-BY-SIDE) */}
+                            {/* TAB 3: MODE KOMPARASI PROGRESS (SIDE-BY-SIDE & SPLIT SLIDER) */}
                             {activeTab === 'compare' && (
                                 <div className="space-y-4">
                                     <div className="bg-purple-50/70 p-4 rounded-2xl border border-purple-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -488,14 +490,39 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                                 <span>🔬</span> Komparasi Progress Kondisi Kulit Pasien (Before vs After)
                                             </h4>
                                             <p className="text-xs text-purple-700 mt-0.5">
-                                                Pilih dua foto dari sesi/tanggal berbeda di bawah untuk membandingkan perkembangan kulit pasien secara berdampingan.
+                                                Bandingkan dua foto sesi berbeda secara berdampingan atau dengan slider geser sebelum/sesudah.
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {/* View Type Switcher */}
+                                            <div className="flex bg-white p-0.5 rounded-xl border border-purple-200 text-xs font-bold shadow-2xs">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCompareViewType('side_by_side')}
+                                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                                        compareViewType === 'side_by_side' 
+                                                            ? 'bg-purple-600 text-white shadow-xs' 
+                                                            : 'text-purple-700 hover:bg-purple-50'
+                                                    }`}
+                                                >
+                                                    Side-by-Side
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCompareViewType('split_slider')}
+                                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                                        compareViewType === 'split_slider' 
+                                                            ? 'bg-purple-600 text-white shadow-xs' 
+                                                            : 'text-purple-700 hover:bg-purple-50'
+                                                    }`}
+                                                >
+                                                    Slider Geser
+                                                </button>
+                                            </div>
+
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    // Swap
                                                     const temp = comparePhoto1
                                                     setComparePhoto1(comparePhoto2)
                                                     setComparePhoto2(temp)
@@ -508,136 +535,206 @@ export default function TherapistPatientHistoryModal({ patientId, isOpen, onClos
                                         </div>
                                     </div>
 
-                                    {/* Side by Side Frame */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Foto 1 (Before / Sesi Awal) */}
-                                        <div className="bg-white rounded-2xl p-4 border-2 border-indigo-200 shadow-xs space-y-3">
-                                            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                                <span className="text-xs font-black uppercase text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
-                                                    Foto 1 (Sesi Sebelumnya)
-                                                </span>
-                                                <select
-                                                    value={comparePhoto1?.id || ''}
-                                                    onChange={(e) => {
-                                                        const match = photos.find(p => p.id === e.target.value)
-                                                        if (match) setComparePhoto1(match)
-                                                    }}
-                                                    className="text-xs font-bold border border-gray-200 rounded-xl px-2 py-1 max-w-[180px] bg-white text-gray-800 outline-none"
-                                                >
-                                                    <option value="" disabled>-- Pilih Foto 1 --</option>
-                                                    {photos.map((p) => {
-                                                        const pDate = p.treatment_records?.treatment_date || p.created_at?.split('T')[0]
-                                                        return (
-                                                            <option key={p.id} value={p.id}>
-                                                                {pDate} - {formatPhotoLabel(p.caption, p.storage_path)}
-                                                            </option>
-                                                        )
-                                                    })}
-                                                </select>
-                                            </div>
-
-                                            {comparePhoto1 ? (
-                                                <div className="space-y-2">
-                                                    <div 
-                                                        onClick={() => setSelectedPhotoZoom(comparePhoto1.fullUrl)}
-                                                        className="relative w-full h-64 sm:h-72 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 shadow-inner cursor-pointer group"
-                                                    >
-                                                        <img
-                                                            src={comparePhoto1.fullUrl}
-                                                            alt="Foto 1"
-                                                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                                                        />
-                                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                                                            <span>🔍 Perbesar</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="bg-gray-50 p-2.5 rounded-xl text-xs space-y-1">
-                                                        <div className="flex justify-between font-bold text-gray-800">
-                                                            <span>{formatPhotoLabel(comparePhoto1.caption, comparePhoto1.storage_path)}</span>
-                                                            <span className="text-indigo-600">
-                                                                {comparePhoto1.treatment_records?.treatment_date 
-                                                                    ? new Date(comparePhoto1.treatment_records.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-                                                                    : new Date(comparePhoto1.created_at).toLocaleDateString('id-ID')
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                        {comparePhoto1.treatment_records?.branches?.name && (
-                                                            <p className="text-[11px] text-gray-500">Cabang: {comparePhoto1.treatment_records.branches.name}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="h-64 sm:h-72 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
-                                                    <span>📸</span>
-                                                    <span className="text-xs font-bold mt-1">Pilih foto pertama dari dropdown di atas</span>
-                                                </div>
-                                            )}
+                                    {/* Selection Row */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3.5 rounded-2xl border border-gray-100 shadow-2xs">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-black uppercase text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 shrink-0">
+                                                Foto 1 (Sebelum)
+                                            </span>
+                                            <select
+                                                value={comparePhoto1?.id || ''}
+                                                onChange={(e) => {
+                                                    const match = photos.find(p => p.id === e.target.value)
+                                                    if (match) setComparePhoto1(match)
+                                                }}
+                                                className="text-xs font-bold border border-gray-200 rounded-xl px-2 py-1.5 flex-1 bg-white text-gray-800 outline-none truncate"
+                                            >
+                                                <option value="" disabled>-- Pilih Foto 1 --</option>
+                                                {photos.map((p) => {
+                                                    const pDate = p.treatment_records?.treatment_date || p.created_at?.split('T')[0]
+                                                    return (
+                                                        <option key={p.id} value={p.id}>
+                                                            {pDate} - {formatPhotoLabel(p.caption, p.storage_path)}
+                                                        </option>
+                                                    )
+                                                })}
+                                            </select>
                                         </div>
 
-                                        {/* Foto 2 (After / Sesi Terbaru) */}
-                                        <div className="bg-white rounded-2xl p-4 border-2 border-purple-200 shadow-xs space-y-3">
-                                            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                                <span className="text-xs font-black uppercase text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
-                                                    Foto 2 (Sesi Lanjutan / Terkini)
-                                                </span>
-                                                <select
-                                                    value={comparePhoto2?.id || ''}
-                                                    onChange={(e) => {
-                                                        const match = photos.find(p => p.id === e.target.value)
-                                                        if (match) setComparePhoto2(match)
-                                                    }}
-                                                    className="text-xs font-bold border border-gray-200 rounded-xl px-2 py-1 max-w-[180px] bg-white text-gray-800 outline-none"
-                                                >
-                                                    <option value="" disabled>-- Pilih Foto 2 --</option>
-                                                    {photos.map((p) => {
-                                                        const pDate = p.treatment_records?.treatment_date || p.created_at?.split('T')[0]
-                                                        return (
-                                                            <option key={p.id} value={p.id}>
-                                                                {pDate} - {formatPhotoLabel(p.caption, p.storage_path)}
-                                                            </option>
-                                                        )
-                                                    })}
-                                                </select>
-                                            </div>
-
-                                            {comparePhoto2 ? (
-                                                <div className="space-y-2">
-                                                    <div 
-                                                        onClick={() => setSelectedPhotoZoom(comparePhoto2.fullUrl)}
-                                                        className="relative w-full h-64 sm:h-72 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 shadow-inner cursor-pointer group"
-                                                    >
-                                                        <img
-                                                            src={comparePhoto2.fullUrl}
-                                                            alt="Foto 2"
-                                                            className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                                                        />
-                                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                                                            <span>🔍 Perbesar</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="bg-gray-50 p-2.5 rounded-xl text-xs space-y-1">
-                                                        <div className="flex justify-between font-bold text-gray-800">
-                                                            <span>{formatPhotoLabel(comparePhoto2.caption, comparePhoto2.storage_path)}</span>
-                                                            <span className="text-purple-600">
-                                                                {comparePhoto2.treatment_records?.treatment_date 
-                                                                    ? new Date(comparePhoto2.treatment_records.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-                                                                    : new Date(comparePhoto2.created_at).toLocaleDateString('id-ID')
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                        {comparePhoto2.treatment_records?.branches?.name && (
-                                                            <p className="text-[11px] text-gray-500">Cabang: {comparePhoto2.treatment_records.branches.name}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="h-64 sm:h-72 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
-                                                    <span>📸</span>
-                                                    <span className="text-xs font-bold mt-1">Pilih foto kedua dari dropdown di atas</span>
-                                                </div>
-                                            )}
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-black uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100 shrink-0">
+                                                Foto 2 (Sesudah)
+                                            </span>
+                                            <select
+                                                value={comparePhoto2?.id || ''}
+                                                onChange={(e) => {
+                                                    const match = photos.find(p => p.id === e.target.value)
+                                                    if (match) setComparePhoto2(match)
+                                                }}
+                                                className="text-xs font-bold border border-gray-200 rounded-xl px-2 py-1.5 flex-1 bg-white text-gray-800 outline-none truncate"
+                                            >
+                                                <option value="" disabled>-- Pilih Foto 2 --</option>
+                                                {photos.map((p) => {
+                                                    const pDate = p.treatment_records?.treatment_date || p.created_at?.split('T')[0]
+                                                    return (
+                                                        <option key={p.id} value={p.id}>
+                                                            {pDate} - {formatPhotoLabel(p.caption, p.storage_path)}
+                                                        </option>
+                                                    )
+                                                })}
+                                            </select>
                                         </div>
                                     </div>
+
+                                    {/* View 1: Side by Side Frame */}
+                                    {compareViewType === 'side_by_side' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Foto 1 (Before / Sesi Awal) */}
+                                            <div className="bg-white rounded-2xl p-4 border-2 border-indigo-100 shadow-xs space-y-3">
+                                                {comparePhoto1 ? (
+                                                    <div className="space-y-2">
+                                                        <div 
+                                                            onClick={() => setSelectedPhotoZoom(comparePhoto1.fullUrl)}
+                                                            className="relative w-full h-64 sm:h-72 bg-gray-950/5 rounded-xl overflow-hidden border border-gray-200 shadow-inner cursor-pointer group"
+                                                        >
+                                                            <img
+                                                                src={comparePhoto1.fullUrl}
+                                                                alt="Foto 1"
+                                                                className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                                                <span>🔍 Perbesar</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-gray-50 p-2.5 rounded-xl text-xs space-y-1">
+                                                            <div className="flex justify-between font-bold text-gray-800">
+                                                                <span>{formatPhotoLabel(comparePhoto1.caption, comparePhoto1.storage_path)}</span>
+                                                                <span className="text-indigo-600">
+                                                                    {comparePhoto1.treatment_records?.treatment_date 
+                                                                        ? new Date(comparePhoto1.treatment_records.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                                        : new Date(comparePhoto1.created_at).toLocaleDateString('id-ID')
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                            {comparePhoto1.treatment_records?.branches?.name && (
+                                                                <p className="text-[11px] text-gray-500">Cabang: {comparePhoto1.treatment_records.branches.name}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-64 sm:h-72 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
+                                                        <span>📸</span>
+                                                        <span className="text-xs font-bold mt-1">Pilih foto pertama dari dropdown di atas</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Foto 2 (After / Sesi Terbaru) */}
+                                            <div className="bg-white rounded-2xl p-4 border-2 border-purple-100 shadow-xs space-y-3">
+                                                {comparePhoto2 ? (
+                                                    <div className="space-y-2">
+                                                        <div 
+                                                            onClick={() => setSelectedPhotoZoom(comparePhoto2.fullUrl)}
+                                                            className="relative w-full h-64 sm:h-72 bg-gray-950/5 rounded-xl overflow-hidden border border-gray-200 shadow-inner cursor-pointer group"
+                                                        >
+                                                            <img
+                                                                src={comparePhoto2.fullUrl}
+                                                                alt="Foto 2"
+                                                                className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                                                <span>🔍 Perbesar</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-gray-50 p-2.5 rounded-xl text-xs space-y-1">
+                                                            <div className="flex justify-between font-bold text-gray-800">
+                                                                <span>{formatPhotoLabel(comparePhoto2.caption, comparePhoto2.storage_path)}</span>
+                                                                <span className="text-purple-600">
+                                                                    {comparePhoto2.treatment_records?.treatment_date 
+                                                                        ? new Date(comparePhoto2.treatment_records.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                                        : new Date(comparePhoto2.created_at).toLocaleDateString('id-ID')
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                            {comparePhoto2.treatment_records?.branches?.name && (
+                                                                <p className="text-[11px] text-gray-500">Cabang: {comparePhoto2.treatment_records.branches.name}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-64 sm:h-72 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
+                                                        <span>📸</span>
+                                                        <span className="text-xs font-bold mt-1">Pilih foto kedua dari dropdown di atas</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* View 2: Split Slider Interactive Frame */}
+                                    {compareViewType === 'split_slider' && (
+                                        <div className="bg-white p-5 rounded-2xl border border-purple-100 shadow-xs space-y-4">
+                                            {comparePhoto1 && comparePhoto2 ? (
+                                                <div className="flex flex-col items-center space-y-3">
+                                                    <div className="relative w-full max-w-xl h-80 sm:h-96 rounded-2xl overflow-hidden shadow-lg border-2 border-purple-200 select-none bg-gray-950">
+                                                        {/* After Image (Background) */}
+                                                        <img
+                                                            src={comparePhoto2.fullUrl}
+                                                            alt="After"
+                                                            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                                                        />
+                                                        <div className="absolute top-3 right-3 bg-purple-900/80 backdrop-blur-xs text-white text-[10px] font-black px-2 py-1 rounded-md shadow-md pointer-events-none z-10">
+                                                            Sesudah ({comparePhoto2.treatment_records?.treatment_date || 'Terkini'})
+                                                        </div>
+
+                                                        {/* Before Image (Clipped Foreground) */}
+                                                        <div 
+                                                            className="absolute inset-0 overflow-hidden pointer-events-none"
+                                                            style={{ clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)` }}
+                                                        >
+                                                            <img
+                                                                src={comparePhoto1.fullUrl}
+                                                                alt="Before"
+                                                                className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                                                            />
+                                                            <div className="absolute top-3 left-3 bg-indigo-900/80 backdrop-blur-xs text-white text-[10px] font-black px-2 py-1 rounded-md shadow-md pointer-events-none z-10">
+                                                                Sebelum ({comparePhoto1.treatment_records?.treatment_date || 'Awal'})
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Divider Line */}
+                                                        <div 
+                                                            className="absolute top-0 bottom-0 w-0.5 bg-white shadow-2xl pointer-events-none z-20 flex items-center justify-center"
+                                                            style={{ left: `${sliderPos}%` }}
+                                                        >
+                                                            <div className="w-8 h-8 rounded-full bg-white text-purple-700 shadow-xl border-2 border-purple-600 flex items-center justify-center font-black text-xs">
+                                                                ⇄
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Slider Control */}
+                                                    <div className="w-full max-w-xl flex items-center gap-3 pt-2">
+                                                        <span className="text-xs font-bold text-indigo-700 shrink-0">◀ Sebelum ({sliderPos}%)</span>
+                                                        <input 
+                                                            type="range"
+                                                            min="0"
+                                                            max="100"
+                                                            value={sliderPos}
+                                                            onChange={(e) => setSliderPos(Number(e.target.value))}
+                                                            className="flex-1 accent-purple-600 cursor-pointer h-2 bg-gray-200 rounded-lg"
+                                                        />
+                                                        <span className="text-xs font-bold text-purple-700 shrink-0">Sesudah ▶</span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="h-64 flex flex-col items-center justify-center text-gray-400 text-center">
+                                                    <span>🔬</span>
+                                                    <span className="text-xs font-bold mt-1">Silakan pilih Foto 1 dan Foto 2 untuk mengaktifkan slider komparasi</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
