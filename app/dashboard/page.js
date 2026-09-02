@@ -335,7 +335,7 @@ export default function Dashboard() {
 
             const { data: monthlyTrx } = await supabase
                 .from('transactions')
-                .select('id, branch_id, total')
+                .select('id, branch_id, total, subtotal, discount, payment_method, notes')
                 .eq('payment_status', 'paid')
                 .gte('created_at', startOfMonth)
                 .lte('created_at', endOfMonth)
@@ -357,7 +357,7 @@ export default function Dashboard() {
             if (monthlyTrx) {
                 monthlyTrx.forEach(tx => {
                     if (tx && tx.branch_id && monthlyMap[tx.branch_id]) {
-                        const amt = Number(tx.total || 0)
+                        const amt = getNetTransactionRevenue(tx)
                         monthlyMap[tx.branch_id].monthlyIncome += amt
                     }
                 })
@@ -674,7 +674,7 @@ export default function Dashboard() {
 
                 const { data: monthlyTrx } = await supabase
                     .from('transactions')
-                    .select('total')
+                    .select('id, total, subtotal, discount, payment_method, notes')
                     .eq('payment_status', 'paid')
                     .eq('branch_id', activeBranchId)
                     .gte('created_at', startOfCurrentMonth)
@@ -683,7 +683,7 @@ export default function Dashboard() {
                 let adminMonthlyIncome = 0
                 if (monthlyTrx) {
                     monthlyTrx.forEach(tx => {
-                        adminMonthlyIncome += Number(tx.total || 0)
+                        adminMonthlyIncome += getNetTransactionRevenue(tx)
                     })
                 }
 

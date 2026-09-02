@@ -398,7 +398,8 @@ function PosPageContent() {
         if (activeCouponItems.length > 0) {
             setCart(prev => prev.map(cartItem => {
                 if (cartItem.item_type === 'treatment') {
-                    const match = activeCouponItems.find(c => c.treatment_id === cartItem.id && c.remaining_sessions > 0)
+                    const trId = cartItem.treatment_id || (cartItem.id && typeof cartItem.id === 'string' && cartItem.id.includes('_') ? cartItem.id.split('_')[0] : cartItem.id)
+                    const match = activeCouponItems.find(c => c.treatment_id === trId && c.remaining_sessions > 0)
                     if (match) {
                         return {
                             ...cartItem,
@@ -1109,7 +1110,8 @@ function PosPageContent() {
                     }
                 } else {
                     // Switch to coupon
-                    const match = patientActiveCoupons.find(c => c.treatment_id === cartItem.id && c.remaining_sessions > 0)
+                    const trId = cartItem.treatment_id || (cartItem.id && typeof cartItem.id === 'string' && cartItem.id.includes('_') ? cartItem.id.split('_')[0] : cartItem.id)
+                    const match = patientActiveCoupons.find(c => c.treatment_id === trId && c.remaining_sessions > 0)
                     if (match) {
                         return {
                             ...cartItem,
@@ -1351,7 +1353,7 @@ function PosPageContent() {
                     if (newTr?.id) {
                         const trItemPayloads = group.items.map((it, sIdx) => ({
                             treatment_record_id: newTr.id,
-                            treatment_id: it.id,
+                            treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
                             price_at_time: it.price,
                             original_price: it.original_price || it.price,
                             discount_percent: it.discount_percent || 0,
@@ -1366,7 +1368,7 @@ function PosPageContent() {
 
             // Prepare items payload for RPC
             const itemsPayload = cart.map(item => ({
-                id: item.id,
+                id: item.product_id || item.treatment_id || item.coupon_id || (item.id && typeof item.id === 'string' && item.id.includes('_') ? item.id.split('_')[0] : item.id),
                 item_type: item.item_type,
                 name: item.name,
                 price: item.price,
@@ -1416,7 +1418,7 @@ function PosPageContent() {
                             .from('patient_coupon_items')
                             .select('id, total_sessions, used_sessions, remaining_sessions, patient_coupons!inner(transaction_id)')
                             .eq('patient_coupons.transaction_id', trxData.id)
-                            .eq('treatment_id', fsItem.id)
+                            .eq('treatment_id', fsItem.treatment_id || (fsItem.id && typeof fsItem.id === 'string' && fsItem.id.includes('_') ? fsItem.id.split('_')[0] : fsItem.id))
                             .maybeSingle()
 
                         if (newCouponItem) {
