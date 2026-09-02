@@ -992,7 +992,7 @@ export default function Dashboard() {
             doc.text('RINCIAN PERFORMA & OMSET PER CABANG', margin, y)
             y += 3.5
 
-            const bHeaders = ['Nama Cabang', 'Omset Treatment', 'Omset Produk', 'Kupon Terjual', 'Pemakaian Kupon', 'Total Omset', 'Trx']
+            const bHeaders = ['Nama Cabang', 'Omset Treatment', 'Omset Produk', 'Kupon Terjual', 'Pemakaian Sesi', 'Total Omset', 'Trx']
             const bWidths = [38, 26, 26, 24, 26, 28, 12]
 
             const drawBranchHeader = () => {
@@ -1460,7 +1460,7 @@ export default function Dashboard() {
                                         <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#EC4899" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                         <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                         <Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <Bar dataKey="couponUsedValue" name="Pemakaian Kupon" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <Bar dataKey="couponUsedValue" name="Pemakaian Sesi" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -1506,7 +1506,7 @@ export default function Dashboard() {
                                             <div className="flex justify-between items-center text-xs pt-1 border-t border-dashed border-gray-200">
                                                 <span className="text-amber-700 font-bold flex items-center gap-1.5">
                                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                                                    Pemakaian Kupon:
+                                                    Pemakaian Sesi:
                                                 </span>
                                                 <strong className="text-amber-700 font-extrabold tracking-tight">Rp {b.couponUsedValue.toLocaleString('id-ID')}</strong>
                                             </div>
@@ -1520,7 +1520,7 @@ export default function Dashboard() {
                                         </div>
                                         {b.couponUsedValue > 0 && (
                                             <div className="text-right">
-                                                <p className="text-[9px] text-amber-600 font-bold uppercase">+ Klaim Kupon</p>
+                                                <p className="text-[9px] text-amber-600 font-bold uppercase">+ Pemakaian Sesi</p>
                                                 <p className="text-xs font-extrabold text-amber-600">Rp {b.couponUsedValue.toLocaleString('id-ID')}</p>
                                             </div>
                                         )}
@@ -1646,7 +1646,7 @@ export default function Dashboard() {
                                             )}
                                             {(companyTotals.rangeCouponUsedValue || 0) > 0 && (
                                                 <span className="text-amber-700">
-                                                    🎟️ Pemakaian Kupon (Klaim): Rp {(companyTotals.rangeCouponUsedValue || 0).toLocaleString('id-ID')}
+                                                    🎟️ Pemakaian Sesi: Rp {(companyTotals.rangeCouponUsedValue || 0).toLocaleString('id-ID')}
                                                 </span>
                                             )}
                                         </div>
