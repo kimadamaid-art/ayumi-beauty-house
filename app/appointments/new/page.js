@@ -71,11 +71,14 @@ function NewAppointmentForm() {
         const localDate = new Date()
         const offset = localDate.getTimezoneOffset()
         const localISO = new Date(localDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0]
+        const urlNotes = searchParams.get('notes') || ''
+        const isInfusParam = urlNotes.toLowerCase().includes('infus') || searchParams.get('isInfus') === 'true'
         setFormData(prev => ({
             ...prev,
             appointment_date: searchParams.get('date') || localISO,
             start_time: searchParams.get('time') || prev.start_time,
-            notes: searchParams.get('notes') || prev.notes
+            therapist_id: isInfusParam ? 'worker' : (prev.therapist_id || ''),
+            notes: urlNotes || prev.notes
         }))
         fetchInitialData()
     }, [])
