@@ -22,6 +22,8 @@ export default function TreatmentInputPage() {
     const [dbUser, setDbUser] = useState(null)
     const [existingRecordId, setExistingRecordId] = useState(null)
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+    const [historyModalTab, setHistoryModalTab] = useState('records')
+    const [pastPatientPhotos, setPastPatientPhotos] = useState([])
 
     // Master data
     const [treatmentsMaster, setTreatmentsMaster] = useState([])
@@ -269,8 +271,43 @@ export default function TreatmentInputPage() {
                 setSelectedPerformerId(prev => prev || thList[0].id)
             }
         }
+
+        // Fetch patient full photo history for progress tracking
+        if (patientId) {
+            try {
+                const resHist = await fetch(`/api/therapist/patient-history?patientId=${patientId}`)
+                if (resHist.ok) {
+                    const histData = await resHist.json()
+                    if (histData.photos) {
+                        const photosWithUrls = histData.photos.map(p => {
+                            let fullUrl = p.fullUrl || p.photo_url || p.image_url || p.storage_path
+                            if (fullUrl && !fullUrl.startsWith('http')) {
+                                const { data: pubUrl } = supabase.storage.from('patient-photos').getPublicUrl(fullUrl)
+                                fullUrl = pubUrl?.publicUrl || fullUrl
+                            }
+                            return { ...p, fullUrl }
+                        })
+                        setPastPatientPhotos(photosWithUrls)
+                    }
+                }
+            } catch (histErr) {
+                console.warn('Warning fetching past patient photos:', histErr)
+            }
+        }
         
         setLoading(false)
+    }
+
+    const getLatestPastPhotoForSlot = (slotKey) => {
+        if (!pastPatientPhotos || pastPatientPhotos.length === 0) return null
+        const targetAngle = slotKey === 'foto_depan' ? 'depan' : slotKey === 'foto_kiri' ? 'kiri' : 'kanan'
+        return pastPatientPhotos.find(p => {
+            const raw = (p.caption || p.storage_path || '').toLowerCase()
+            if (targetAngle === 'depan') return raw.includes('depan') || raw.includes('front')
+            if (targetAngle === 'kiri') return raw.includes('kiri') || raw.includes('left')
+            if (targetAngle === 'kanan') return raw.includes('kanan') || raw.includes('right')
+            return false
+        })
     }
 
     const handleChange = (e) => {
@@ -1317,13 +1354,41 @@ export default function TreatmentInputPage() {
 
                 {/* ─── SECTION 3: FOTO DOKUMENTASI ─── */}
                 <div className="card-ayumi p-4 md:p-6 space-y-4">
-                    <div className="flex justify-between items-center border-b pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
                         <div>
                             <h2 className="text-lg font-bold text-ayumi-secondary flex items-center gap-2">
                                 <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                 Foto Dokumentasi <span className="text-gray-400 font-normal text-sm ml-1">(Opsional)</span>
                             </h2>
-                            <p className="text-xs text-gray-500 mt-0.5">Ambil foto kondisi kulit langsung lewat kamera atau pilih file.</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Ambil foto kondisi kulit saat ini atau bandingkan dengan riwayat kunjungan sebelumnya.</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHistoryModalTab('photos')
+                                    setIsHistoryModalOpen(true)
+                                }}
+                                className="px-3 py-1.5 bg-pink-50 hover:bg-pink-100 text-ayumi-primary border border-pink-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                title="Buka Galeri Foto Pasien"
+                            >
+                                <span>📸</span>
+                                <span>Riwayat Foto ({pastPatientPhotos.length})</span>
+                            </button>
+                            {pastPatientPhotos.length >= 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setHistoryModalTab('compare')
+                                        setIsHistoryModalOpen(true)
+                                    }}
+                                    className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                    title="Bandingkan Progress Foto"
+                                >
+                                    <span>🔬</span>
+                                    <span>Bandingkan Progress</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                     
@@ -1332,96 +1397,137 @@ export default function TreatmentInputPage() {
                             { key: 'foto_depan', label: 'Foto Depan' },
                             { key: 'foto_kiri', label: 'Foto Samping Kiri' },
                             { key: 'foto_kanan', label: 'Foto Samping Kanan' }
-                        ].map(slot => (
-                            <div key={slot.key} className="relative border-2 border-dashed border-gray-200 rounded-2xl flex flex-col justify-center items-center min-h-[190px] bg-gray-50/70 hover:bg-white transition-all p-3">
-                                {photoPreviews[slot.key] ? (
-                                    <div className="w-full relative group">
-                                        <div className="w-full h-48 sm:h-52 bg-gray-950/5 rounded-xl overflow-hidden flex items-center justify-center border border-gray-100 shadow-inner">
-                                            <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-full object-contain" />
-                                        </div>
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setActiveCameraSlot(slot.key)
-                                                    setIsCameraOpen(true)
-                                                }}
-                                                className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-xl text-xs font-bold shadow transition-transform hover:scale-105 flex items-center gap-1 cursor-pointer"
-                                                title="Ambil Ulang dari Kamera"
-                                            >
-                                                <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                Kamera
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => fileInputRefs[slot.key].current?.click()}
-                                                className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-xl text-xs font-bold shadow transition-transform hover:scale-105 flex items-center gap-1 cursor-pointer"
-                                                title="Ganti dari Galeri"
-                                            >
-                                                <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                Galeri
-                                            </button>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setPhotoFiles(prev => ({ ...prev, [slot.key]: null }))
-                                                setPhotoPreviews(prev => ({ ...prev, [slot.key]: null }))
-                                            }}
-                                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-md z-10 cursor-pointer"
-                                            title="Hapus Foto"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-                                        </button>
-                                        <div className="mt-1.5 text-center">
-                                            <span className="text-xs font-bold text-gray-600">{slot.label}</span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center space-y-2.5 w-full py-1">
-                                        <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                        </div>
-                                        <span className="text-xs font-bold text-gray-700 block">{slot.label}</span>
-                                        
-                                        <div className="flex items-center gap-1.5 w-full max-w-[190px]">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setActiveCameraSlot(slot.key)
-                                                    setIsCameraOpen(true)
-                                                }}
-                                                className="flex-1 py-1.5 px-2 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
-                                            >
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                Kamera
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => fileInputRefs[slot.key].current?.click()}
-                                                className="flex-1 py-1.5 px-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
-                                            >
-                                                <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                                Galeri
-                                            </button>
-                                        </div>
+                        ].map(slot => {
+                            const latestPast = getLatestPastPhotoForSlot(slot.key)
+                            return (
+                                <div key={slot.key} className="space-y-2">
+                                    <div className="relative border-2 border-dashed border-gray-200 rounded-2xl flex flex-col justify-center items-center min-h-[190px] bg-gray-50/70 hover:bg-white transition-all p-3">
+                                        {photoPreviews[slot.key] ? (
+                                            <div className="w-full relative group">
+                                                <div className="w-full h-48 sm:h-52 bg-gray-950/5 rounded-xl overflow-hidden flex items-center justify-center border border-gray-100 shadow-inner">
+                                                    <img src={photoPreviews[slot.key]} alt={slot.label} className="w-full h-full object-contain" />
+                                                </div>
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setActiveCameraSlot(slot.key)
+                                                            setIsCameraOpen(true)
+                                                        }}
+                                                        className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-xl text-xs font-bold shadow transition-transform hover:scale-105 flex items-center gap-1 cursor-pointer"
+                                                        title="Ambil Ulang dari Kamera"
+                                                    >
+                                                        <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                        Kamera
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => fileInputRefs[slot.key].current?.click()}
+                                                        className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-xl text-xs font-bold shadow transition-transform hover:scale-105 flex items-center gap-1 cursor-pointer"
+                                                        title="Ganti dari Galeri"
+                                                    >
+                                                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                        Galeri
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPhotoFiles(prev => ({ ...prev, [slot.key]: null }))
+                                                        setPhotoPreviews(prev => ({ ...prev, [slot.key]: null }))
+                                                    }}
+                                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-md z-10 cursor-pointer"
+                                                    title="Hapus Foto"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                                <div className="mt-1.5 text-center">
+                                                    <span className="text-xs font-bold text-gray-600">{slot.label}</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center space-y-2.5 w-full py-1">
+                                                <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                </div>
+                                                <span className="text-xs font-bold text-gray-700 block">{slot.label}</span>
+                                                
+                                                <div className="flex items-center gap-1.5 w-full max-w-[190px]">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setActiveCameraSlot(slot.key)
+                                                            setIsCameraOpen(true)
+                                                        }}
+                                                        className="flex-1 py-1.5 px-2 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                        Kamera
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => fileInputRefs[slot.key].current?.click()}
+                                                        className="flex-1 py-1.5 px-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                        Galeri
+                                                    </button>
+                                                </div>
 
-                                        <input
-                                            type="file"
-                                            ref={fileInputRefs[slot.key]}
-                                            accept="image/jpeg,image/png,image/webp"
-                                            capture="environment"
-                                            onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    handleFileChange(slot.key, e.target.files[0])
-                                                }
-                                            }}
-                                            className="hidden"
-                                        />
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRefs[slot.key]}
+                                                    accept="image/jpeg,image/png,image/webp"
+                                                    capture="environment"
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            handleFileChange(slot.key, e.target.files[0])
+                                                        }
+                                                    }}
+                                                    className="hidden"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        ))}
+
+                                    {/* Mini Preview Foto Kunjungan Terakhir untuk Sudut Ini */}
+                                    {latestPast && (
+                                        <div className="p-2 bg-purple-50/70 rounded-xl border border-purple-100 flex items-center justify-between gap-2 shadow-2xs">
+                                            <div className="flex items-center gap-2">
+                                                <div 
+                                                    onClick={() => {
+                                                        setHistoryModalTab('photos')
+                                                        setIsHistoryModalOpen(true)
+                                                    }}
+                                                    className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 border border-purple-200 shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                                                    title="Klik untuk melihat di galeri"
+                                                >
+                                                    <img src={latestPast.fullUrl} alt="Foto Lalu" className="w-full h-full object-cover" />
+                                                </div>
+                                                <div className="overflow-hidden">
+                                                    <span className="text-[10px] font-black text-purple-900 block truncate leading-tight">Foto Sesi Lalu</span>
+                                                    <span className="text-[9px] text-purple-600 font-bold block truncate">
+                                                        {latestPast.treatment_records?.treatment_date 
+                                                            ? new Date(latestPast.treatment_records.treatment_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                                                            : new Date(latestPast.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setHistoryModalTab('compare')
+                                                    setIsHistoryModalOpen(true)
+                                                }}
+                                                className="text-[10px] font-extrabold text-purple-700 hover:text-purple-900 bg-white hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
+                                            >
+                                                Bandingkan ↗
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
                     </div>
 
                     {/* Camera Capture Modal */}
@@ -1462,6 +1568,7 @@ export default function TreatmentInputPage() {
             <TherapistPatientHistoryModal
                 patientId={appointment?.patient_id}
                 isOpen={isHistoryModalOpen}
+                initialTab={historyModalTab}
                 onClose={() => setIsHistoryModalOpen(false)}
             />
         </div>
