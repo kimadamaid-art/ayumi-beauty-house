@@ -613,6 +613,12 @@ function PosPageContent() {
                 setSelectedBranch(bill.branch_id)
             }
 
+            // Selalu reset diskon nota dan pembayaran agar tidak membawa input draft sebelumnya
+            setDiscountType('nominal')
+            setDiscountValue(0)
+            setCashReceived('')
+            setNotes('')
+
             let activeCoupons = []
 
             // Select patient and fetch active coupons
@@ -1142,7 +1148,14 @@ function PosPageContent() {
     }
 
     const removeFromCart = (id, type) => {
-        setCart(prev => prev.filter(i => !(i.id === id && i.item_type === type)))
+        setCart(prev => {
+            const next = prev.filter(i => !(i.id === id && i.item_type === type))
+            if (next.length === 0) {
+                setDiscountValue(0)
+                setCashReceived('')
+            }
+            return next
+        })
     }
 
     const handleCartItemOriginalPriceChange = (id, type, newOriginalPrice) => {
@@ -2178,6 +2191,10 @@ function PosPageContent() {
                                     setSelectedPatient(null)
                                     setSelectedPatientDetails(null)
                                     setCart([])
+                                    setDiscountValue(0)
+                                    setDiscountType('nominal')
+                                    setCashReceived('')
+                                    setNotes('')
                                     if (pendingBills.length > 0) {
                                         setLeftPanelTab('pending')
                                     }
