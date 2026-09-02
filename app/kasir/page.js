@@ -2665,9 +2665,12 @@ function PosPageContent() {
 
                         {/* Split Payment UI */}
                         {paymentMethod === 'split' && (
-                            <div className="mt-2 p-2 bg-pink-50/40 border border-pink-200 rounded-xl space-y-1.5 animate-fadeIn">
-                                <div className="flex items-center justify-between pb-1 border-b border-pink-100">
-                                    <span className="text-[10px] font-black text-ayumi-secondary">🔀 Rincian Split</span>
+                            <div className="mt-2.5 p-3 bg-gradient-to-br from-pink-50/60 via-purple-50/30 to-amber-50/40 border border-pink-200/80 rounded-2xl space-y-2.5 shadow-xs animate-fadeIn">
+                                <div className="flex items-center justify-between pb-1.5 border-b border-pink-100">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs">🔀</span>
+                                        <span className="text-xs font-black text-slate-800">Pembagian Pembayaran (Split)</span>
+                                    </div>
                                     {(() => {
                                         const cVal = Number(splitAmounts.cash) || 0
                                         const tVal = Number(splitAmounts.transfer) || 0
@@ -2677,55 +2680,151 @@ function PosPageContent() {
                                         const currentSum = cVal + tVal + qVal + dVal + crVal
                                         const diff = total - currentSum
 
-                                        if (diff === 0) {
-                                            return <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-full">✓ Pas</span>
+                                        if (diff === 0 && currentSum > 0) {
+                                            return <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">✓ Jumlah Pas (Rp {total.toLocaleString('id-ID')})</span>
+                                        } else if (diff > 0) {
+                                            return <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">Sisa Belum Dibagi: Rp {diff.toLocaleString('id-ID')}</span>
                                         } else {
-                                            return <span className="text-[9px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded-full">Kurang: Rp {diff.toLocaleString('id-ID')}</span>
+                                            return <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">Lebih: Rp {Math.abs(diff).toLocaleString('id-ID')}</span>
                                         }
                                     })()}
                                 </div>
-                                <div className="grid grid-cols-2 gap-1.5 text-xs">
-                                    <div className="bg-white p-1 rounded-md border border-gray-200 flex items-center gap-1">
-                                        <span className="text-[9px] text-gray-500 font-bold">💵 Cash:</span>
-                                        <input 
-                                            type="number"
-                                            value={splitAmounts.cash}
-                                            placeholder="0"
-                                            onChange={(e) => setSplitAmounts(prev => ({ ...prev, cash: e.target.value }))}
-                                            className="w-full font-black text-gray-800 p-0 border-none outline-none text-xs text-right"
-                                        />
+
+                                {/* 5 Input Nominal Pembayaran */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    {/* 1. Cash */}
+                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
+                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>💵</span> Cash / Tunai:
+                                        </label>
+                                        <div className="flex items-center gap-1 w-32">
+                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                            <input 
+                                                type="number"
+                                                value={splitAmounts.cash}
+                                                placeholder="0"
+                                                onChange={(e) => setSplitAmounts(prev => ({ ...prev, cash: e.target.value }))}
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="bg-white p-1 rounded-md border border-gray-200 flex items-center gap-1">
-                                        <span className="text-[9px] text-gray-500 font-bold">🏦 Bank:</span>
-                                        <input 
-                                            type="number"
-                                            value={splitAmounts.transfer}
-                                            placeholder="0"
-                                            onChange={(e) => setSplitAmounts(prev => ({ ...prev, transfer: e.target.value }))}
-                                            className="w-full font-black text-gray-800 p-0 border-none outline-none text-xs text-right"
-                                        />
+
+                                    {/* 2. QRIS */}
+                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
+                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>📱</span> QRIS:
+                                        </label>
+                                        <div className="flex items-center gap-1 w-32">
+                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                            <input 
+                                                type="number"
+                                                value={splitAmounts.qris}
+                                                placeholder="0"
+                                                onChange={(e) => setSplitAmounts(prev => ({ ...prev, qris: e.target.value }))}
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="bg-white p-1 rounded-md border border-gray-200 flex items-center gap-1">
-                                        <span className="text-[9px] text-gray-500 font-bold">📱 QRIS:</span>
-                                        <input 
-                                            type="number"
-                                            value={splitAmounts.qris}
-                                            placeholder="0"
-                                            onChange={(e) => setSplitAmounts(prev => ({ ...prev, qris: e.target.value }))}
-                                            className="w-full font-black text-gray-800 p-0 border-none outline-none text-xs text-right"
-                                        />
+
+                                    {/* 3. Transfer Bank */}
+                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
+                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>🏦</span> Transfer Bank:
+                                        </label>
+                                        <div className="flex items-center gap-1 w-32">
+                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                            <input 
+                                                type="number"
+                                                value={splitAmounts.transfer}
+                                                placeholder="0"
+                                                onChange={(e) => setSplitAmounts(prev => ({ ...prev, transfer: e.target.value }))}
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="bg-white p-1 rounded-md border border-gray-200 flex items-center gap-1">
-                                        <span className="text-[9px] text-gray-500 font-bold">💳 Debit:</span>
-                                        <input 
-                                            type="number"
-                                            value={splitAmounts.debit}
-                                            placeholder="0"
-                                            onChange={(e) => setSplitAmounts(prev => ({ ...prev, debit: e.target.value }))}
-                                            className="w-full font-black text-gray-800 p-0 border-none outline-none text-xs text-right"
-                                        />
+
+                                    {/* 4. Debit */}
+                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
+                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>💳</span> Kartu Debit:
+                                        </label>
+                                        <div className="flex items-center gap-1 w-32">
+                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                            <input 
+                                                type="number"
+                                                value={splitAmounts.debit}
+                                                placeholder="0"
+                                                onChange={(e) => setSplitAmounts(prev => ({ ...prev, debit: e.target.value }))}
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* 5. Kredit */}
+                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2 sm:col-span-2">
+                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>💳</span> Kartu Kredit:
+                                        </label>
+                                        <div className="flex items-center gap-1 w-32">
+                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                            <input 
+                                                type="number"
+                                                value={splitAmounts.credit}
+                                                placeholder="0"
+                                                onChange={(e) => setSplitAmounts(prev => ({ ...prev, credit: e.target.value }))}
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* Tombol Otomatis Isi Sisa (Quick Fill) */}
+                                {(() => {
+                                    const cVal = Number(splitAmounts.cash) || 0
+                                    const tVal = Number(splitAmounts.transfer) || 0
+                                    const qVal = Number(splitAmounts.qris) || 0
+                                    const dVal = Number(splitAmounts.debit) || 0
+                                    const crVal = Number(splitAmounts.credit) || 0
+                                    const currentSum = cVal + tVal + qVal + dVal + crVal
+                                    const diff = total - currentSum
+
+                                    if (diff > 0) {
+                                        return (
+                                            <div className="pt-1.5 border-t border-pink-100 flex flex-wrap items-center gap-1.5">
+                                                <span className="text-[9.5px] font-bold text-gray-500">Isi sisa Rp {diff.toLocaleString('id-ID')} ke:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSplitAmounts(prev => ({ ...prev, qris: (Number(prev.qris) || 0) + diff }))}
+                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                >
+                                                    + QRIS
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSplitAmounts(prev => ({ ...prev, cash: (Number(prev.cash) || 0) + diff }))}
+                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                >
+                                                    + Cash
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSplitAmounts(prev => ({ ...prev, transfer: (Number(prev.transfer) || 0) + diff }))}
+                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                >
+                                                    + Transfer Bank
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSplitAmounts(prev => ({ ...prev, debit: (Number(prev.debit) || 0) + diff }))}
+                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                >
+                                                    + Debit
+                                                </button>
+                                            </div>
+                                        )
+                                    }
+                                    return null
+                                })()}
                             </div>
                         )}
 

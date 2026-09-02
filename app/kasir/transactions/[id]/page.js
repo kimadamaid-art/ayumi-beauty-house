@@ -207,13 +207,26 @@ export default function ReceiptPage() {
                 chunks.push(line(`QRIS(0.3%): +Rp ${qrisFee.toLocaleString('id-ID')}`))
             }
 
+            const splitMatch = transaction.notes?.match(/\[SPLIT:([^\]]+)\]/i)
+            const splitBreakdown = splitMatch ? splitMatch[1].split(';').map(p => {
+                const [m, a] = p.split('=')
+                return { method: (m || '').toUpperCase(), amount: Number(a || 0) }
+            }) : null
+
             chunks.push(divider)
             chunks.push(BOLD_ON)
             chunks.push(line(`TOTAL   : Rp ${Number(transaction.total).toLocaleString('id-ID')}`))
-            chunks.push(line(`BAYAR   : ${transaction.payment_method?.toUpperCase()}`))
-            if (cashReceivedVal !== null) {
-                chunks.push(line(`TUNAI   : Rp ${cashReceivedVal.toLocaleString('id-ID')}`))
-                chunks.push(line(`KEMBALI : Rp ${cashChangeVal.toLocaleString('id-ID')}`))
+            if (splitBreakdown && splitBreakdown.length > 0) {
+                chunks.push(line(`BAYAR   : SPLIT PAYMENT`))
+                splitBreakdown.forEach(s => {
+                    chunks.push(line(` - ${s.method.padEnd(8, ' ')}: Rp ${s.amount.toLocaleString('id-ID')}`))
+                })
+            } else {
+                chunks.push(line(`BAYAR   : ${transaction.payment_method?.toUpperCase()}`))
+                if (cashReceivedVal !== null) {
+                    chunks.push(line(`TUNAI   : Rp ${cashReceivedVal.toLocaleString('id-ID')}`))
+                    chunks.push(line(`KEMBALI : Rp ${cashChangeVal.toLocaleString('id-ID')}`))
+                }
             }
             chunks.push(BOLD_OFF)
             chunks.push(divider)
@@ -400,15 +413,28 @@ export default function ReceiptPage() {
 
         const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
         const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0.3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
-        const cashText = cashReceivedVal !== null 
+
+        let paymentMethodText = transaction.payment_method?.toUpperCase() || '-'
+        if (splitBreakdown && splitBreakdown.length > 0) {
+            const splitSummary = splitBreakdown.map(s => `${s.method}: Rp ${s.amount.toLocaleString('id-ID')}`).join(', ')
+            paymentMethodText = `SPLIT (${splitSummary})`
+        }
+
+        const cashText = (!splitBreakdown && cashReceivedVal !== null) 
             ? `\n*Tunai Diterima:* Rp ${cashReceivedVal.toLocaleString('id-ID')}\n*Kembalian:* Rp ${cashChangeVal.toLocaleString('id-ID')}` 
             : ''
         const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
 
-        const text = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.\nBerikut adalah rincian transaksi Anda:\n\nNo. Transaksi: *${transaction.transaction_number}*\nTanggal: ${formatDate(transaction.created_at)}\nCabang: ${transaction.branches?.name || 'Ayumi Clinic'}\n\n*Item:*\n${itemsText}\n\n*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}\n*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${transaction.payment_method?.toUpperCase() || '-'}${cashText}\nStatus: LUNAS\n\nHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
+        const text = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.\nBerikut adalah rincian transaksi Anda:\n\nNo. Transaksi: *${transaction.transaction_number}*\nTanggal: ${formatDate(transaction.created_at)}\nCabang: ${transaction.branches?.name || 'Ayumi Clinic'}\n\n*Item:*\n${itemsText}\n\n*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}\n*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${paymentMethodText}${cashText}\nStatus: LUNAS\n\nHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
 
         openWhatsApp(phone, text)
     }
+
+    const splitMatch = transaction?.notes?.match(/\[SPLIT:([^\]]+)\]/i)
+    const splitBreakdown = splitMatch ? splitMatch[1].split(';').map(p => {
+        const [m, a] = p.split('=')
+        return { method: (m || '').toUpperCase(), amount: Number(a || 0) }
+    }) : null
 
     const cashMatch = transaction?.notes?.match(/\[CASH:received=(\d+);change=(\d+)\]/i)
     const cashReceivedVal = cashMatch ? Number(cashMatch[1]) : null
@@ -687,19 +713,32 @@ export default function ReceiptPage() {
                 <div className="bg-gray-50 rounded-xl p-3.5 mb-6 space-y-2 border border-gray-100">
                     <div className="flex justify-between items-center text-xs">
                         <span className="font-bold text-gray-500 uppercase tracking-wider">Metode Bayar</span>
-                        <span className="font-extrabold text-gray-800 uppercase">{transaction.payment_method}</span>
+                        <span className="font-extrabold text-gray-800 uppercase">
+                            {splitBreakdown ? 'SPLIT PAYMENT' : transaction.payment_method}
+                        </span>
                     </div>
-                    {cashReceivedVal !== null && (
-                        <>
-                            <div className="flex justify-between items-center text-xs pt-1.5 border-t border-gray-200/60">
-                                <span className="font-semibold text-gray-600">Tunai Diterima</span>
-                                <span className="font-bold text-gray-800">Rp {cashReceivedVal.toLocaleString('id-ID')}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="font-bold text-emerald-700">Kembalian</span>
-                                <span className="font-extrabold text-emerald-700">Rp {cashChangeVal.toLocaleString('id-ID')}</span>
-                            </div>
-                        </>
+                    {splitBreakdown && splitBreakdown.length > 0 ? (
+                        <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60">
+                            {splitBreakdown.map((s, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-xs">
+                                    <span className="font-semibold text-gray-600">• {s.method}</span>
+                                    <span className="font-bold text-gray-800">Rp {s.amount.toLocaleString('id-ID')}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        cashReceivedVal !== null && (
+                            <>
+                                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-gray-200/60">
+                                    <span className="font-semibold text-gray-600">Tunai Diterima</span>
+                                    <span className="font-bold text-gray-800">Rp {cashReceivedVal.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="font-bold text-emerald-700">Kembalian</span>
+                                    <span className="font-extrabold text-emerald-700">Rp {cashChangeVal.toLocaleString('id-ID')}</span>
+                                </div>
+                            </>
+                        )
                     )}
                 </div>
 
