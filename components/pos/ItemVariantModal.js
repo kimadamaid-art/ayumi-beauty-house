@@ -31,9 +31,7 @@ export default function ItemVariantModal({
         }
     }, [isOpen, item])
 
-    if (!isOpen || !item) return null
-
-    const basePrice = selectedVariant ? Number(selectedVariant.price) : Number(item.price || 0)
+    const basePrice = selectedVariant ? Number(selectedVariant.price) : Number(item?.price || 0)
     const qty = Math.max(1, parseInt(quantity, 10) || 1)
 
     // Calculate subtotal
@@ -50,13 +48,14 @@ export default function ItemVariantModal({
 
     const handleQuantityChange = (delta) => {
         const newQty = Math.max(1, qty + delta)
-        if (itemType === 'product' && item.quantity !== undefined && newQty > item.quantity) {
+        if (itemType === 'product' && item?.quantity !== undefined && newQty > item.quantity) {
             return
         }
         setQuantity(newQty)
     }
 
     const handleConfirm = () => {
+        if (!item) return
         if (hasVariants && !selectedVariant) {
             return
         }
@@ -74,7 +73,7 @@ export default function ItemVariantModal({
 
     // Keyboard Shortcuts: Enter to Confirm, Escape to Close
     useEffect(() => {
-        if (!isOpen) return
+        if (!isOpen || !item) return
 
         const handleKeyDown = (e) => {
             if (e.key === 'Enter') {
@@ -89,6 +88,8 @@ export default function ItemVariantModal({
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isOpen, hasVariants, selectedVariant, qty, rawDisc, basePrice, totalPrice, item, itemType, discountType, onConfirm, onClose])
+
+    if (!isOpen || !item) return null
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
