@@ -1734,48 +1734,18 @@ function PosPageContent() {
             // 4. Update Backdate Timestamps (Admin & Owner Backdate Transaksi Susulan)
             if (isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate) {
                 try {
-                    const customIso = new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString()
-                    
-                    // a. Update transactions created_at
-                    await supabase
-                        .from('transactions')
-                        .update({ created_at: customIso })
-                        .eq('id', trxData.id)
-
-                    // b. Update linked treatment records
-                    const allTrIdsToUpdate = Array.from(new Set([treatmentRecordId, ...createdDirectTrIds].filter(Boolean)))
-                    if (allTrIdsToUpdate.length > 0) {
-                        await supabase
-                            .from('treatment_records')
-                            .update({
-                                treatment_date: backdateDate,
-                                treatment_time: backdateTime || '12:00',
-                                created_at: customIso
-                            })
-                            .in('id', allTrIdsToUpdate)
+                    const bdRes = await fetch(`/api/transactions/${trxData.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            backdateDate,
+                            backdateTime: backdateTime || '12:00'
+                        })
+                    })
+                    if (!bdRes.ok) {
+                        const bdErrJson = await bdRes.json()
+                        console.warn('Warning updating backdate timestamps via API:', bdErrJson.error)
                     }
-
-                    // c. Update linked patient coupons & coupon items
-                    const { data: linkedCoupons } = await supabase
-                        .from('patient_coupons')
-                        .update({ created_at: customIso })
-                        .eq('transaction_id', trxData.id)
-                        .select('id')
-
-                    if (linkedCoupons && linkedCoupons.length > 0) {
-                        const couponIds = linkedCoupons.map(c => c.id)
-                        await supabase
-                            .from('patient_coupon_items')
-                            .update({ created_at: customIso })
-                            .in('patient_coupon_id', couponIds)
-                    }
-
-                    // d. Update coupon usage logs
-                    await supabase
-                        .from('coupon_usage_logs')
-                        .update({ used_at: customIso })
-                        .eq('transaction_id', trxData.id)
-
                 } catch (bdErr) {
                     console.warn('Warning updating backdate timestamps:', bdErr)
                 }
