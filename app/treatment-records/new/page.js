@@ -18,6 +18,8 @@ function AddRecordForm() {
 
     // Authorization & Loading State
     const [isCheckingAccess, setIsCheckingAccess] = useState(true)
+    const [currentUserRole, setCurrentUserRole] = useState('')
+    const [currentUserId, setCurrentUserId] = useState('')
 
     // Data Master
     const [patients, setPatients] = useState([])
@@ -94,6 +96,8 @@ function AddRecordForm() {
                 return
             }
 
+            setCurrentUserId(user.id)
+            setCurrentUserRole(userData?.role || 'admin')
             setIsCheckingAccess(false)
 
             // 3. Fetch Master Data
@@ -398,6 +402,18 @@ function AddRecordForm() {
             return
         }
 
+        // Anti-Fraud Guardrail: Batasi staf biasa maksimal H-1
+        const yesterdayObj = new Date()
+        yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+        const yesterday = yesterdayObj.toISOString().split('T')[0]
+        const today = new Date().toISOString().split('T')[0]
+
+        if (currentUserRole !== 'owner' && (formData.treatment_date < yesterday || formData.treatment_date > today)) {
+            setError('Akses Terkunci (Anti-Fraud): Staf cabang hanya diizinkan menginput rekam medis untuk hari ini atau maksimal H-1 (kemarin). Hubungi Owner jika ada tindakan lampau.')
+            toast.error('Hanya Owner yang memiliki wewenang input rekam medis sebelum H-1.')
+            return
+        }
+
         setIsSaving(true)
 
         try {
@@ -634,6 +650,8 @@ function AddRecordForm() {
                                     onChange={handleChange}
                                     required
                                     readOnly={!!urlAppointmentId}
+                                    min={currentUserRole === 'owner' ? undefined : new Date(Date.now() - 86400000).toISOString().split('T')[0]}
+                                    max={new Date().toISOString().split('T')[0]}
                                     className="input-ayumi bg-white read-only:bg-gray-100 read-only:text-gray-500"
                                 />
                             </div>

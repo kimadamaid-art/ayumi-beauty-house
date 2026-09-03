@@ -266,6 +266,14 @@ function NewAppointmentForm() {
             return
         }
 
+        // Anti-Fraud Guardrail: Batasi staf biasa maksimal H-1
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+        if (!isOwner && formData.appointment_date < yesterday) {
+            toast.error('Hanya Owner yang dapat membuat jadwal janji temu sebelum kemarin (H-1).')
+            setError('Akses Terkunci (Anti-Fraud): Staf hanya dapat menjadwalkan untuk hari ini, masa depan, atau maksimal H-1 (kemarin). Hubungi Owner untuk tanggal lampau.')
+            return
+        }
+
         setIsSaving(true)
 
         try {
@@ -502,6 +510,7 @@ function NewAppointmentForm() {
                             value={formData.appointment_date}
                             onChange={handleChange}
                             required
+                            min={isOwner ? undefined : new Date(Date.now() - 86400000).toISOString().split('T')[0]}
                             className="input-ayumi focus:bg-white"
                         />
                     </div>
