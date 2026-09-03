@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
@@ -23,7 +23,7 @@ export default function TherapistDashboard() {
     const [searchQuery, setSearchQuery] = useState('')
     const [filterStatus, setFilterStatus] = useState('')
 
-    // Helper Date
+    // Schedule Filter States (Default: Hari ini)
     const getLocalDateString = (date = new Date()) => {
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -32,11 +32,9 @@ export default function TherapistDashboard() {
     }
 
     const todayStr = getLocalDateString()
-
-    // Timeline Schedule States
+    const [schedulePreset, setSchedulePreset] = useState('today') // 'today' | 'tomorrow' | 'week' | 'custom'
     const [scheduleStartDate, setScheduleStartDate] = useState(todayStr)
     const [scheduleEndDate, setScheduleEndDate] = useState(todayStr)
-    const SCHEDULE_HOURS = ['08.00', '09.00', '10.00', '11.00', '12.00', '13.00', '14.00', '15.00', '16.00', '17.00', '18.00', '19.00', '20.00']
 
     // Commission Widget States
     const [commPeriodPreset, setCommPeriodPreset] = useState('month') // 'today' | 'week' | 'month' | 'custom'
@@ -46,28 +44,75 @@ export default function TherapistDashboard() {
     const [commLoading, setCommLoading] = useState(false)
     const [isCommDetailOpen, setIsCommDetailOpen] = useState(false)
 
+    // Ref tracking to prevent stale closures in Realtime & Polling
+    const selectedBranchRef = useRef(selectedBranch)
+    const scheduleStartRef = useRef(scheduleStartDate)
+    const scheduleEndRef = useRef(scheduleEndDate)
+    const dbUserRef = useRef(dbUser)
+
+    useEffect(() => {
+        selectedBranchRef.current = selectedBranch
+        scheduleStartRef.current = scheduleStartDate
+        scheduleEndRef.current = scheduleEndDate
+        dbUserRef.current = dbUser
+    }, [selectedBranch, scheduleStartDate, scheduleEndDate, dbUser])
+
     useEffect(() => {
         fetchUserAndData()
 
+        // 1. Supabase Realtime Multi-Table Listener
         const channel = supabase
-            .channel('therapist-realtime-dashboard')
+            .channel(`therapist-realtime-${Date.now()}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'appointments' },
                 () => {
-                    fetchAppointments()
+                    fetchAppointments(true)
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'appointment_treatments' },
+                () => {
+                    fetchAppointments(true)
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'treatment_records' },
+                () => {
+                    fetchAppointments(true)
                 }
             )
             .subscribe()
 
+        // 2. Tab Focus & Visibility Listener (Auto refresh instantly when opening/waking tablet)
+        const handleFocusOrVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                fetchAppointments(true)
+            }
+        }
+        window.addEventListener('focus', handleFocusOrVisibility)
+        document.addEventListener('visibilitychange', handleFocusOrVisibility)
+
+        // 3. Resilient Silent Auto-Polling Fallback (Every 10 seconds)
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchAppointments(true)
+            }
+        }, 10000)
+
         return () => {
             supabase.removeChannel(channel)
+            window.removeEventListener('focus', handleFocusOrVisibility)
+            document.removeEventListener('visibilitychange', handleFocusOrVisibility)
+            clearInterval(interval)
         }
     }, [])
 
     useEffect(() => {
         if (selectedBranch) {
-            fetchAppointments()
+            fetchAppointments(false)
         }
     }, [selectedBranch, scheduleStartDate, scheduleEndDate])
 
@@ -91,6 +136,7 @@ export default function TherapistDashboard() {
         }
 
         setDbUser(userData)
+        dbUserRef.current = userData
 
         // Default commission to this month
         const now = new Date()
@@ -105,11 +151,16 @@ export default function TherapistDashboard() {
 
         const assignedBranchId = userData.branch_id || ''
         setSelectedBranch(assignedBranchId)
+        selectedBranchRef.current = assignedBranchId
     }
 
-    const fetchAppointments = async () => {
-        if (!selectedBranch) return
-        setLoading(true)
+    const fetchAppointments = async (silent = false) => {
+        const branchId = selectedBranchRef.current || selectedBranch
+        if (!branchId) return
+        if (!silent) setLoading(true)
+
+        const startDate = scheduleStartRef.current || scheduleStartDate
+        const endDate = scheduleEndRef.current || scheduleEndDate
 
         const { data, error } = await supabase
             .from('appointments')
@@ -128,9 +179,9 @@ export default function TherapistDashboard() {
                     )
                 )
             `)
-            .eq('branch_id', selectedBranch)
-            .gte('appointment_date', scheduleStartDate)
-            .lte('appointment_date', scheduleEndDate)
+            .eq('branch_id', branchId)
+            .gte('appointment_date', startDate)
+            .lte('appointment_date', endDate)
             .order('appointment_date', { ascending: true })
             .order('start_time', { ascending: true })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
@@ -34,32 +34,74 @@ export default function AppointmentsPage() {
     const [selectedInfusTreatmentId, setSelectedInfusTreatmentId] = useState('')
     const [isSubmittingInfus, setIsSubmittingInfus] = useState(false)
 
-    useEffect(() => {
-        fetchData()
+    // Ref tracking to avoid stale closures
+    const filterBranchRef = useRef(filterBranch)
+    const filterStatusRef = useRef(filterStatus)
+    const startDateRef = useRef(startDate)
+    const endDateRef = useRef(endDate)
 
-        // Subscribe to public.appointments updates for realtime dashboard
+    useEffect(() => {
+        filterBranchRef.current = filterBranch
+        filterStatusRef.current = filterStatus
+        startDateRef.current = startDate
+        endDateRef.current = endDate
+    }, [filterBranch, filterStatus, startDate, endDate])
+
+    useEffect(() => {
+        fetchData(false)
+
+        // 1. Multi-Table Realtime Listener
         const channel = supabase
-            .channel('realtime-appointments-dashboard')
+            .channel(`realtime-appointments-${Date.now()}`)
             .on(
                 'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'appointments'
-                },
+                { event: '*', schema: 'public', table: 'appointments' },
                 () => {
-                    fetchData()
+                    fetchData(true)
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'appointment_treatments' },
+                () => {
+                    fetchData(true)
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'treatment_records' },
+                () => {
+                    fetchData(true)
                 }
             )
             .subscribe()
 
+        // 2. Tab Focus & Visibility Listener (Auto refresh instantly when opening app)
+        const handleFocusOrVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                fetchData(true)
+            }
+        }
+        window.addEventListener('focus', handleFocusOrVisibility)
+        document.addEventListener('visibilitychange', handleFocusOrVisibility)
+
+        // 3. Resilient Silent Auto-Polling Fallback (Every 12 seconds)
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchData(true)
+            }
+        }, 12000)
+
         return () => {
             supabase.removeChannel(channel)
+            window.removeEventListener('focus', handleFocusOrVisibility)
+            document.removeEventListener('visibilitychange', handleFocusOrVisibility)
+            clearInterval(interval)
         }
     }, [])
 
-    const fetchData = async () => {
-        setLoading(true)
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true)
         
         // Fetch Branches
         const { data: branchData } = await supabase.from('branches').select('id, name')

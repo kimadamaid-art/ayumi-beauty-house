@@ -745,7 +745,7 @@ function PosPageContent() {
         if (!selectedBranch) return
 
         const channel = supabase
-            .channel('realtime-kasir-pending-bills')
+            .channel(`realtime-kasir-pending-bills-${Date.now()}`)
             .on(
                 'postgres_changes',
                 {
@@ -781,8 +781,25 @@ function PosPageContent() {
             )
             .subscribe()
 
+        const handleFocusOrVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                fetchPendingBills(selectedBranch)
+            }
+        }
+        window.addEventListener('focus', handleFocusOrVisibility)
+        document.addEventListener('visibilitychange', handleFocusOrVisibility)
+
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchPendingBills(selectedBranch)
+            }
+        }, 12000)
+
         return () => {
             supabase.removeChannel(channel)
+            window.removeEventListener('focus', handleFocusOrVisibility)
+            document.removeEventListener('visibilitychange', handleFocusOrVisibility)
+            clearInterval(interval)
         }
     }, [selectedBranch])
 
