@@ -78,6 +78,17 @@ function PosPageContent() {
     const [heldTransactions, setHeldTransactions] = useState([])
     const [isHeldModalOpen, setIsHeldModalOpen] = useState(false)
 
+    // Patient Purchase & Treatment History Modal State
+    const [isPatientHistoryModalOpen, setIsPatientHistoryModalOpen] = useState(false)
+    const [patientHistoryLoading, setPatientHistoryLoading] = useState(false)
+    const [patientHistoryActiveTab, setPatientHistoryActiveTab] = useState('summary') // 'summary' | 'transactions' | 'records'
+    const [patientHistoryData, setPatientHistoryData] = useState({
+        pastTreatments: [],
+        pastProducts: [],
+        transactions: [],
+        records: []
+    })
+
     // Load held drafts and restore active draft on mount
     useEffect(() => {
         try {
@@ -96,6 +107,9 @@ function PosPageContent() {
                     setDiscountValue(parsed.discountValue || 0)
                     setNotes(parsed.notes || '')
                     setSelectedTherapistId(parsed.selectedTherapistId || '')
+                    if (parsed.selectedPatient?.id) {
+                        fetchPatientHistory(parsed.selectedPatient.id)
+                    }
                 }
             }
         } catch (err) {
@@ -416,7 +430,206 @@ function PosPageContent() {
             }))
         }
 
+        // Fetch past products and treatment history for quick recommendations
+        fetchPatientHistory(patient.id)
+
         return activeCouponItems
+    }
+
+    async function fetchPatientHistory(patientId) {
+        if (!patientId) {
+            setPatientHistoryData({ pastTreatments: [], pastProducts: [], transactions: [], records: [] })
+            return
+        }
+        setPatientHistoryLoading(true)
+        try {
+            // 1. Fetch Transactions with items
+            const { data: txList } = await supabase
+                .from('transactions')
+                .select(`
+                    id,
+                    invoice_number,
+                    created_at,
+                    total,
+                    subtotal,
+                    discount,
+                    payment_method,
+                    payment_status,
+                    notes,
+                    branches (id, name),
+                    transaction_items (
+                        id, name, item_type, quantity, price, subtotal, discount_percent, original_price
+                    )
+                `)
+                .eq('patient_id', patientId)
+                .neq('payment_status', 'void')
+                .order('created_at', { ascending: false })
+                .limit(25)
+
+            // 2. Fetch Treatment Records
+            const { data: recList } = await supabase
+                .from('treatment_records')
+                .select(`
+                    id,
+                    treatment_date,
+                    treatment_time,
+                    notes,
+                    complaint,
+                    diagnosis,
+                    branches (id, name),
+                    treatment_record_items (
+                        id,
+                        notes,
+                        treatment_id,
+                        treatments (id, name, price)
+                    )
+                `)
+                .eq('patient_id', patientId)
+                .order('treatment_date', { ascending: false })
+                .limit(25)
+
+            // Aggregate Past Treatments
+            const treatmentMap = {}
+            if (txList) {
+                txList.forEach(tx => {
+                    if (tx.transaction_items) {
+                        tx.transaction_items.forEach(item => {
+                            if (item.item_type === 'treatment') {
+                                const key = (item.name || '').toLowerCase().trim()
+                                if (key) {
+                                    if (!treatmentMap[key]) {
+                                        treatmentMap[key] = {
+                                            id: item.id,
+                                            name: item.name,
+                                            price: Number(item.price) || Number(item.original_price) || 0,
+                                            lastDate: tx.created_at,
+                                            branchName: tx.branches?.name || '',
+                                            count: 0,
+                                            totalQty: 0
+                                        }
+                                    }
+                                    treatmentMap[key].count += 1
+                                    treatmentMap[key].totalQty += Number(item.quantity || 1)
+                                    if (new Date(tx.created_at) > new Date(treatmentMap[key].lastDate)) {
+                                        treatmentMap[key].lastDate = tx.created_at
+                                        treatmentMap[key].branchName = tx.branches?.name || ''
+                                    }
+                                }
+                            }
+                        })
+                    }
+                })
+            }
+            if (recList) {
+                recList.forEach(rec => {
+                    if (rec.treatment_record_items) {
+                        rec.treatment_record_items.forEach(it => {
+                            const trName = it.treatments?.name || it.notes
+                            if (trName) {
+                                const key = trName.toLowerCase().trim()
+                                if (!treatmentMap[key]) {
+                                    treatmentMap[key] = {
+                                        id: it.treatment_id || it.id,
+                                        name: trName,
+                                        price: Number(it.treatments?.price) || 0,
+                                        lastDate: rec.treatment_date,
+                                        branchName: rec.branches?.name || '',
+                                        count: 0,
+                                        totalQty: 0
+                                    }
+                                }
+                                treatmentMap[key].count += 1
+                                treatmentMap[key].totalQty += 1
+                                if (new Date(rec.treatment_date) > new Date(treatmentMap[key].lastDate)) {
+                                    treatmentMap[key].lastDate = rec.treatment_date
+                                    treatmentMap[key].branchName = rec.branches?.name || ''
+                                }
+                            }
+                        })
+                    }
+                })
+            }
+
+            // Aggregate Past Products
+            const productMap = {}
+            if (txList) {
+                txList.forEach(tx => {
+                    if (tx.transaction_items) {
+                        tx.transaction_items.forEach(item => {
+                            if (item.item_type === 'product') {
+                                const key = (item.name || '').toLowerCase().trim()
+                                if (key) {
+                                    if (!productMap[key]) {
+                                        productMap[key] = {
+                                            id: item.id,
+                                            name: item.name,
+                                            price: Number(item.price) || 0,
+                                            lastDate: tx.created_at,
+                                            branchName: tx.branches?.name || '',
+                                            count: 0,
+                                            totalQty: 0
+                                        }
+                                    }
+                                    productMap[key].count += 1
+                                    productMap[key].totalQty += Number(item.quantity || 1)
+                                    if (new Date(tx.created_at) > new Date(productMap[key].lastDate)) {
+                                        productMap[key].lastDate = tx.created_at
+                                        productMap[key].branchName = tx.branches?.name || ''
+                                    }
+                                }
+                            }
+                        })
+                    }
+                })
+            }
+
+            const pastTreatments = Object.values(treatmentMap).sort((a, b) => new Date(b.lastDate) - new Date(a.lastDate))
+            const pastProducts = Object.values(productMap).sort((a, b) => new Date(b.lastDate) - new Date(a.lastDate))
+
+            setPatientHistoryData({
+                pastTreatments,
+                pastProducts,
+                transactions: txList || [],
+                records: recList || []
+            })
+        } catch (err) {
+            console.error('Error fetching patient history:', err)
+        } finally {
+            setPatientHistoryLoading(false)
+        }
+    }
+
+    const handleAddHistoryItemToCart = (historyItem, type) => {
+        if (!selectedBranch) {
+            alert('Silakan pilih cabang terlebih dahulu di bagian atas!')
+            return
+        }
+        if (type === 'treatment') {
+            const found = treatments.find(t => t.name?.toLowerCase().trim() === historyItem.name?.toLowerCase().trim())
+            if (found) {
+                addToCart(found, 'treatment')
+            } else {
+                addToCart({
+                    id: historyItem.id || `hist-tr-${Date.now()}`,
+                    name: historyItem.name,
+                    price: historyItem.price || 0,
+                    commission_percent: 0,
+                    discount_percent: 0
+                }, 'treatment')
+            }
+        } else if (type === 'product') {
+            const found = products.find(p => p.name?.toLowerCase().trim() === historyItem.name?.toLowerCase().trim())
+            if (found) {
+                addToCart(found, 'product')
+            } else {
+                addToCart({
+                    id: historyItem.id || `hist-pr-${Date.now()}`,
+                    name: historyItem.name,
+                    price: historyItem.price || 0,
+                    quantity: 99
+                }, 'product')
+            }
+        }
     }
 
     async function handleQuickAddPatient(e) {
@@ -2166,46 +2379,101 @@ function PosPageContent() {
                         </div>
                     </div>
                     {selectedPatient ? (
-                        <div className="flex justify-between items-center bg-pink-50/50 p-2.5 rounded-xl border border-pink-100/70 shadow-2xs relative overflow-hidden transition-all">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                {/* Initial Avatar */}
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ayumi-primary to-rose-400 flex items-center justify-center text-white font-black text-xs shadow-inner shrink-0">
-                                    {(selectedPatient.full_name?.charAt(0) || '?').toUpperCase()}
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center bg-pink-50/50 p-2.5 rounded-xl border border-pink-100/70 shadow-2xs relative overflow-hidden transition-all">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    {/* Initial Avatar */}
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ayumi-primary to-rose-400 flex items-center justify-center text-white font-black text-xs shadow-inner shrink-0">
+                                        {(selectedPatient.full_name?.charAt(0) || '?').toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <p className="font-extrabold text-gray-900 leading-tight text-xs truncate max-w-[140px] sm:max-w-[200px]">{selectedPatient.full_name}</p>
+                                            <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border ${
+                                                (selectedPatientDetails?.crmStatus === 'Active') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                (selectedPatientDetails?.crmStatus === 'Warm') ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                (selectedPatientDetails?.crmStatus === 'Dormant') ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                'bg-blue-50 text-blue-700 border-blue-200'
+                                            }`}>
+                                                {selectedPatientDetails?.crmStatus || 'New'}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 mt-0.5 tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
+                                    </div>
                                 </div>
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                        <p className="font-extrabold text-gray-900 leading-tight text-xs truncate max-w-[140px] sm:max-w-[200px]">{selectedPatient.full_name}</p>
-                                        <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border ${
-                                            (selectedPatientDetails?.crmStatus === 'Active') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                            (selectedPatientDetails?.crmStatus === 'Warm') ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                            (selectedPatientDetails?.crmStatus === 'Dormant') ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                            'bg-blue-50 text-blue-700 border-blue-200'
-                                        }`}>
-                                            {selectedPatientDetails?.crmStatus || 'New'}
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedPatient(null)
+                                        setSelectedPatientDetails(null)
+                                        setCart([])
+                                        setDiscountValue(0)
+                                        setDiscountType('nominal')
+                                        setCashReceived('')
+                                        setNotes('')
+                                        setPatientHistoryData({ pastTreatments: [], pastProducts: [], transactions: [], records: [] })
+                                        if (pendingBills.length > 0) {
+                                            setLeftPanelTab('pending')
+                                        }
+                                    }} 
+                                    className="text-gray-400 hover:text-rose-600 p-1.5 bg-white hover:bg-rose-50 rounded-lg transition-all border border-gray-100 shadow-2xs shrink-0 cursor-pointer"
+                                    title="Ganti Pasien"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+
+                            {/* Tombol Pintas & Quick View Riwayat Perawatan/Produk Sebelumnya */}
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (selectedPatient?.id) {
+                                            fetchPatientHistory(selectedPatient.id)
+                                        }
+                                        setIsPatientHistoryModalOpen(true)
+                                    }}
+                                    className="flex-1 py-1.5 px-2.5 bg-gradient-to-r from-pink-50 to-orange-50 hover:from-pink-100 hover:to-orange-100 text-[#5c3316] font-extrabold text-[10.5px] rounded-xl border border-pink-200/90 flex items-center justify-between gap-1.5 transition-all shadow-2xs group cursor-pointer"
+                                    title="Lihat produk dan treatment yang pernah dibeli pasien ini sebelumnya"
+                                >
+                                    <span className="flex items-center gap-1.5">
+                                        <span>📜</span>
+                                        <span className="group-hover:text-ayumi-primary transition-colors">Riwayat Treatment & Produk</span>
+                                    </span>
+                                    <span className="text-[9px] bg-pink-500 text-white font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                                        {patientHistoryLoading ? '...' : `${(patientHistoryData.pastTreatments?.length || 0) + (patientHistoryData.pastProducts?.length || 0)} Item`} ↗
+                                    </span>
+                                </button>
+
+                                {selectedPatient.id && (
+                                    <Link
+                                        href={`/patients/${selectedPatient.id}`}
+                                        target="_blank"
+                                        className="py-1.5 px-2 bg-white hover:bg-gray-50 text-gray-600 font-bold text-[10px] rounded-xl border border-gray-200 flex items-center gap-1 transition-colors shrink-0 shadow-2xs"
+                                        title="Buka Rekam Medis Pasien Lengkap di Tab Baru"
+                                    >
+                                        <span>Medis</span>
+                                        <span className="text-[9px]">↗</span>
+                                    </Link>
+                                )}
+                            </div>
+
+                            {/* Micro-preview produk / treatment terakhir jika ada */}
+                            {(patientHistoryData.pastTreatments?.length > 0 || patientHistoryData.pastProducts?.length > 0) && (
+                                <div 
+                                    onClick={() => setIsPatientHistoryModalOpen(true)}
+                                    className="p-1.5 px-2 bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/80 rounded-lg text-[10px] text-amber-900 cursor-pointer transition-all flex items-center justify-between gap-1"
+                                    title="Klik untuk melihat detail & repeat order langsung ke kasir"
+                                >
+                                    <div className="truncate flex items-center gap-1 min-w-0">
+                                        <span className="font-extrabold text-amber-800 shrink-0">Terakhir:</span>
+                                        <span className="truncate font-bold text-gray-800">
+                                            {patientHistoryData.pastTreatments[0]?.name || patientHistoryData.pastProducts[0]?.name}
                                         </span>
                                     </div>
-                                    <p className="text-[10px] text-gray-500 mt-0.5 tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
+                                    <span className="text-amber-700 font-black shrink-0 text-[9px] bg-amber-200/80 px-1.5 py-0.2 rounded">Rincian ↗</span>
                                 </div>
-                            </div>
-                            <button 
-                                type="button"
-                                onClick={() => {
-                                    setSelectedPatient(null)
-                                    setSelectedPatientDetails(null)
-                                    setCart([])
-                                    setDiscountValue(0)
-                                    setDiscountType('nominal')
-                                    setCashReceived('')
-                                    setNotes('')
-                                    if (pendingBills.length > 0) {
-                                        setLeftPanelTab('pending')
-                                    }
-                                }} 
-                                className="text-gray-400 hover:text-rose-600 p-1.5 bg-white hover:bg-rose-50 rounded-lg transition-all border border-gray-100 shadow-2xs shrink-0"
-                                title="Ganti Pasien"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            )}
                         </div>
                     ) : isQuickAddInlineOpen ? (
                         /* Inline Quick Add Patient Form */
@@ -3023,6 +3291,343 @@ function PosPageContent() {
                                 type="button"
                                 onClick={() => setIsHeldModalOpen(false)}
                                 className="font-bold text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL RIWAYAT PASIEN (PRODUK, TREATMENT & TRANSAKSI SEBELUMNYA) */}
+            {isPatientHistoryModalOpen && selectedPatient && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-pink-200 flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="p-5 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-pink-50 via-rose-50 to-white shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-ayumi-primary to-rose-400 text-white flex items-center justify-center font-black text-base shadow-sm shrink-0">
+                                    {(selectedPatient.full_name?.charAt(0) || '?').toUpperCase()}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-lg sm:text-xl font-black text-gray-900">
+                                            {selectedPatient.full_name}
+                                        </h3>
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                            (selectedPatientDetails?.crmStatus === 'Active') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                            (selectedPatientDetails?.crmStatus === 'Warm') ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                            (selectedPatientDetails?.crmStatus === 'Dormant') ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                            'bg-blue-50 text-blue-700 border-blue-200'
+                                        }`}>
+                                            {selectedPatientDetails?.crmStatus || 'New'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 font-semibold mt-0.5">
+                                        {selectedPatient.whatsapp || 'No WhatsApp belum terisi'} • {patientHistoryData.transactions?.length || 0} Riwayat Kunjungan
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsPatientHistoryModalOpen(false)}
+                                className="text-gray-400 hover:text-red-500 p-2 rounded-xl hover:bg-white/80 transition-colors cursor-pointer"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Tabs Bar */}
+                        <div className="px-5 pt-3 bg-gray-50/70 border-b border-gray-100 flex items-center gap-2 shrink-0 overflow-x-auto">
+                            <button
+                                type="button"
+                                onClick={() => setPatientHistoryActiveTab('summary')}
+                                className={`pb-2.5 px-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    patientHistoryActiveTab === 'summary'
+                                        ? 'border-ayumi-primary text-ayumi-primary'
+                                        : 'border-transparent text-gray-500 hover:text-gray-800'
+                                }`}
+                            >
+                                <span>⭐ Ringkasan Produk & Treatment</span>
+                                <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.2 rounded-full font-extrabold">
+                                    {(patientHistoryData.pastTreatments?.length || 0) + (patientHistoryData.pastProducts?.length || 0)}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPatientHistoryActiveTab('transactions')}
+                                className={`pb-2.5 px-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    patientHistoryActiveTab === 'transactions'
+                                        ? 'border-ayumi-primary text-ayumi-primary'
+                                        : 'border-transparent text-gray-500 hover:text-gray-800'
+                                }`}
+                            >
+                                <span>🧾 Nota Transaksi Kasir</span>
+                                <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.2 rounded-full font-extrabold">
+                                    {patientHistoryData.transactions?.length || 0}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPatientHistoryActiveTab('records')}
+                                className={`pb-2.5 px-3 text-xs font-black border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    patientHistoryActiveTab === 'records'
+                                        ? 'border-ayumi-primary text-ayumi-primary'
+                                        : 'border-transparent text-gray-500 hover:text-gray-800'
+                                }`}
+                            >
+                                <span>📋 Rekam Medis Klinis</span>
+                                <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.2 rounded-full font-extrabold">
+                                    {patientHistoryData.records?.length || 0}
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+                            {patientHistoryLoading ? (
+                                <div className="text-center py-12 space-y-2">
+                                    <div className="w-10 h-10 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin mx-auto"></div>
+                                    <p className="text-xs text-gray-500 font-bold">Mengambil riwayat treatment & produk pasien...</p>
+                                </div>
+                            ) : patientHistoryActiveTab === 'summary' ? (
+                                <div className="space-y-6">
+                                    {/* Sesi Kupon Aktif */}
+                                    {patientActiveCoupons?.length > 0 && (
+                                        <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2.5">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-base">🎟️</span>
+                                                    <h4 className="font-extrabold text-xs text-amber-950 uppercase tracking-wider">
+                                                        Kupon & Sesi Aktif Dimiliki
+                                                    </h4>
+                                                </div>
+                                                <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                                                    {patientActiveCoupons.length} Sesi Siap Pakai
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {patientActiveCoupons.map(c => (
+                                                    <div key={c.id} className="p-2.5 bg-white rounded-xl border border-amber-200 shadow-2xs flex items-center justify-between gap-2">
+                                                        <div>
+                                                            <p className="font-extrabold text-xs text-gray-900">{c.treatments?.name}</p>
+                                                            <p className="text-[10px] text-gray-500">{c.patient_coupons?.coupon_packages?.name}</p>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold">
+                                                                Sisa {c.remaining_sessions} Sesi
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        {/* Kolom 1: Treatment yang Pernah Diambil */}
+                                        <div className="p-4 bg-pink-50/40 border border-pink-100 rounded-2xl space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-pink-100">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-base">💆</span>
+                                                    <h4 className="font-extrabold text-xs text-ayumi-secondary uppercase tracking-wider">
+                                                        Treatment Sebelumnya
+                                                    </h4>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-pink-700 bg-pink-100 px-2 py-0.5 rounded-full">
+                                                    {patientHistoryData.pastTreatments?.length || 0} Treatment
+                                                </span>
+                                            </div>
+
+                                            {patientHistoryData.pastTreatments?.length === 0 ? (
+                                                <p className="text-xs text-gray-400 py-6 text-center italic">Belum ada riwayat treatment.</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                                                    {patientHistoryData.pastTreatments.map((tr, idx) => (
+                                                        <div key={idx} className="p-3 bg-white hover:bg-pink-50/50 rounded-xl border border-gray-100 hover:border-pink-200 transition-all shadow-2xs flex items-center justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <p className="font-extrabold text-xs text-gray-900 truncate">{tr.name}</p>
+                                                                <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-0.5 flex-wrap">
+                                                                    <span>Terakhir: <strong className="text-gray-700">{new Date(tr.lastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                                                                    {tr.count > 1 && (
+                                                                        <span className="bg-pink-100 text-pink-800 font-bold px-1.5 py-0.2 rounded">
+                                                                            {tr.count}x
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {tr.price > 0 && (
+                                                                    <p className="text-[11px] font-black text-ayumi-primary mt-1">Rp {Number(tr.price).toLocaleString('id-ID')}</p>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    handleAddHistoryItemToCart(tr, 'treatment')
+                                                                }}
+                                                                className="px-2.5 py-1.5 rounded-lg bg-pink-50 hover:bg-pink-100 text-ayumi-primary font-black text-[10px] border border-pink-200 transition-colors shadow-2xs shrink-0 cursor-pointer flex items-center gap-1"
+                                                                title="Tambahkan treatment ini lagi ke keranjang kasir"
+                                                            >
+                                                                <span>+ Kasir</span>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Kolom 2: Produk Skin Care yang Pernah Dibeli */}
+                                        <div className="p-4 bg-cyan-50/40 border border-cyan-100 rounded-2xl space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-cyan-100">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-base">🧴</span>
+                                                    <h4 className="font-extrabold text-xs text-cyan-950 uppercase tracking-wider">
+                                                        Produk / Krim Sebelumnya
+                                                    </h4>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-cyan-800 bg-cyan-100 px-2 py-0.5 rounded-full">
+                                                    {patientHistoryData.pastProducts?.length || 0} Produk
+                                                </span>
+                                            </div>
+
+                                            {patientHistoryData.pastProducts?.length === 0 ? (
+                                                <p className="text-xs text-gray-400 py-6 text-center italic">Belum ada riwayat pembelian produk.</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                                                    {patientHistoryData.pastProducts.map((pr, idx) => (
+                                                        <div key={idx} className="p-3 bg-white hover:bg-cyan-50/50 rounded-xl border border-gray-100 hover:border-cyan-200 transition-all shadow-2xs flex items-center justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <p className="font-extrabold text-xs text-gray-900 truncate">{pr.name}</p>
+                                                                <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-0.5 flex-wrap">
+                                                                    <span>Terakhir: <strong className="text-gray-700">{new Date(pr.lastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                                                                    {pr.totalQty > 1 && (
+                                                                        <span className="bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.2 rounded">
+                                                                            Total {pr.totalQty} pcs
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {pr.price > 0 && (
+                                                                    <p className="text-[11px] font-black text-cyan-700 mt-1">Rp {Number(pr.price).toLocaleString('id-ID')}</p>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    handleAddHistoryItemToCart(pr, 'product')
+                                                                }}
+                                                                className="px-2.5 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-800 font-black text-[10px] border border-cyan-200 transition-colors shadow-2xs shrink-0 cursor-pointer flex items-center gap-1"
+                                                                title="Ulangi pembelian produk ini ke keranjang kasir"
+                                                            >
+                                                                <span>+ Kasir</span>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : patientHistoryActiveTab === 'transactions' ? (
+                                /* Tab 2: Nota Transaksi Kasir */
+                                <div className="space-y-3">
+                                    {patientHistoryData.transactions?.length === 0 ? (
+                                        <p className="text-xs text-gray-400 py-12 text-center italic">Belum ada riwayat transaksi kasir.</p>
+                                    ) : (
+                                        patientHistoryData.transactions.map(tx => (
+                                            <div key={tx.id} className="p-4 rounded-2xl border border-gray-200 hover:border-pink-200 bg-white shadow-2xs space-y-2">
+                                                <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-gray-100">
+                                                    <div>
+                                                        <span className="font-extrabold text-xs text-ayumi-primary">{tx.invoice_number || 'TRX-KASIR'}</span>
+                                                        <span className="text-[11px] text-gray-500 font-semibold ml-2">
+                                                            {new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                        {tx.branches?.name && (
+                                                            <span className="ml-2 text-[10px] bg-gray-100 text-gray-700 font-bold px-1.5 py-0.2 rounded">
+                                                                {tx.branches.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-black text-gray-900">
+                                                            Rp {Number(tx.total || 0).toLocaleString('id-ID')}
+                                                        </span>
+                                                        <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                                            {tx.payment_method || 'CASH'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {tx.transaction_items?.map((it, idx) => (
+                                                        <div key={idx} className="flex justify-between text-xs text-gray-700">
+                                                            <span>• {it.name} <strong className="text-gray-500">x{it.quantity || 1}</strong></span>
+                                                            <span className="font-semibold text-gray-900">Rp {Number(it.subtotal || 0).toLocaleString('id-ID')}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            ) : (
+                                /* Tab 3: Rekam Medis Klinis */
+                                <div className="space-y-3">
+                                    {patientHistoryData.records?.length === 0 ? (
+                                        <p className="text-xs text-gray-400 py-12 text-center italic">Belum ada catatan rekam medis tindakan.</p>
+                                    ) : (
+                                        patientHistoryData.records.map(rec => (
+                                            <div key={rec.id} className="p-4 rounded-2xl border border-gray-200 hover:border-pink-200 bg-white shadow-2xs space-y-2">
+                                                <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                                    <div>
+                                                        <span className="font-extrabold text-xs text-gray-900">
+                                                            {new Date(rec.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                        </span>
+                                                        {rec.branches?.name && (
+                                                            <span className="ml-2 text-[10px] bg-pink-100 text-pink-800 font-bold px-1.5 py-0.2 rounded">
+                                                                {rec.branches.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {rec.complaint && (
+                                                    <p className="text-xs text-gray-600"><strong className="text-gray-800">Keluhan:</strong> {rec.complaint}</p>
+                                                )}
+                                                {rec.diagnosis && (
+                                                    <p className="text-xs text-gray-600"><strong className="text-gray-800">Diagnosa / Kondisi:</strong> {rec.diagnosis}</p>
+                                                )}
+                                                {rec.treatment_record_items?.length > 0 && (
+                                                    <div className="space-y-1 pt-1">
+                                                        <p className="text-[11px] font-bold text-gray-500">Tindakan Dilakukan:</p>
+                                                        {rec.treatment_record_items.map((it, idx) => (
+                                                            <p key={idx} className="text-xs text-gray-700 font-semibold">• {it.treatments?.name || it.notes}</p>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {rec.notes && (
+                                                    <p className="text-[11px] text-gray-500 italic bg-gray-50 p-2 rounded-lg">Catatan: {rec.notes}</p>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
+                            <Link
+                                href={`/patients/${selectedPatient.id}`}
+                                target="_blank"
+                                className="px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                            >
+                                <span>📋 Rekam Medis Lengkap</span>
+                                <span className="text-[10px]">↗</span>
+                            </Link>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsPatientHistoryModalOpen(false)}
+                                className="btn-primary px-6 py-2 text-xs font-bold rounded-xl shadow-md cursor-pointer"
                             >
                                 Tutup
                             </button>
