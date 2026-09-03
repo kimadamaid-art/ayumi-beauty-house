@@ -97,7 +97,17 @@ export default function CouponsDashboardPage() {
         if (!error) fetchPackages()
     }
 
-    const filteredPackages = packages.filter(p => !masterCategoryFilter || p.category === masterCategoryFilter)
+    const [masterStatusFilter, setMasterStatusFilter] = useState('active') // 'active' | 'inactive' | 'all'
+
+    const filteredPackages = packages.filter(p => {
+        const matchesCategory = !masterCategoryFilter || p.category === masterCategoryFilter
+        const matchesStatus = masterStatusFilter === 'all' 
+            ? true 
+            : masterStatusFilter === 'active' 
+            ? p.is_active 
+            : !p.is_active
+        return matchesCategory && matchesStatus
+    })
     const categories = [...new Set(packages.map(p => p.category).filter(Boolean))]
 
     const fetchPatientCoupons = async () => {
@@ -389,11 +399,49 @@ export default function CouponsDashboardPage() {
             {/* TAB 1: MASTER PAKET */}
             {activeTab === 'master' && (
                 <div className="space-y-4">
-                    <div className="flex justify-end mb-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                        {/* Sub-tabs: Aktif vs Arsip */}
+                        <div className="flex items-center gap-1.5 bg-[#FAF6F0] p-1 rounded-xl border border-[#F2D8C3] shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => setMasterStatusFilter('active')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                    masterStatusFilter === 'active'
+                                        ? 'bg-[#D46221] text-white shadow-xs'
+                                        : 'text-[#4E2A12] hover:bg-[#FAF1E8]'
+                                }`}
+                            >
+                                ✨ Paket Aktif ({packages.filter(p => p.is_active).length})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMasterStatusFilter('inactive')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                    masterStatusFilter === 'inactive'
+                                        ? 'bg-[#4E2A12] text-white shadow-xs'
+                                        : 'text-[#4E2A12] hover:bg-[#FAF1E8]'
+                                }`}
+                            >
+                                📁 Arsip / Riwayat GD ({packages.filter(p => !p.is_active).length})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMasterStatusFilter('all')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                    masterStatusFilter === 'all'
+                                        ? 'bg-white text-gray-800 shadow-xs border border-gray-200'
+                                        : 'text-gray-500 hover:text-gray-900'
+                                }`}
+                            >
+                                Semua ({packages.length})
+                            </button>
+                        </div>
+
+                        {/* Filter Kategori */}
                         <select 
                             value={masterCategoryFilter} 
                             onChange={(e) => setMasterCategoryFilter(e.target.value)}
-                            className="input-ayumi bg-white w-48 text-sm"
+                            className="input-ayumi bg-white w-full sm:w-48 text-sm"
                         >
                             <option value="">Semua Kategori</option>
                             {categories.map(c => <option key={c} value={c}>{c}</option>)}
