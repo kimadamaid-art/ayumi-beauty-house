@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
