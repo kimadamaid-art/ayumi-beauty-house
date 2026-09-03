@@ -89,6 +89,11 @@ function PosPageContent() {
         records: []
     })
 
+    // Custom Transaction Date State (Khusus Owner Backdate Transaksi Susulan)
+    const [isBackdateEnabled, setIsBackdateEnabled] = useState(false)
+    const [backdateDate, setBackdateDate] = useState(() => new Date().toISOString().split('T')[0])
+    const [backdateTime, setBackdateTime] = useState(() => new Date().toTimeString().substring(0, 5))
+
     // Load held drafts and restore active draft on mount
     useEffect(() => {
         try {
@@ -1702,6 +1707,46 @@ function PosPageContent() {
                 }
             }
 
+            // 4. Update Backdate Timestamps (Khusus Owner Backdate Transaksi Susulan)
+            if (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) {
+                try {
+                    const customIso = new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString()
+                    
+                    // a. Update transactions created_at
+                    await supabase
+                        .from('transactions')
+                        .update({ created_at: customIso })
+                        .eq('id', trxData.id)
+
+                    // b. Update linked treatment records
+                    if (treatmentRecordId) {
+                        await supabase
+                            .from('treatment_records')
+                            .update({
+                                treatment_date: backdateDate,
+                                treatment_time: backdateTime || '12:00',
+                                created_at: customIso
+                            })
+                            .eq('id', treatmentRecordId)
+                    }
+
+                    // c. Update linked patient coupons
+                    await supabase
+                        .from('patient_coupons')
+                        .update({ created_at: customIso })
+                        .eq('transaction_id', trxData.id)
+
+                    // d. Update coupon usage logs
+                    await supabase
+                        .from('coupon_usage_logs')
+                        .update({ used_at: customIso })
+                        .eq('transaction_id', trxData.id)
+
+                } catch (bdErr) {
+                    console.warn('Warning updating backdate timestamps:', bdErr)
+                }
+            }
+
             // Pembayaran sudah tersimpan, jika ada sesi gagal beri tahu kasir
             if (failedCoupons.length > 0) {
                 alert(
@@ -1716,6 +1761,7 @@ function PosPageContent() {
                 localStorage.removeItem('ayumi_pos_active_draft')
             } catch (e) {}
             setSelectedTherapistId('')
+            setIsBackdateEnabled(false)
             router.push(`/kasir/transactions/${trxData.id}`)
             
         } catch (error) {
@@ -3160,6 +3206,73 @@ function PosPageContent() {
                             </div>
                         )}
                     </div>
+
+                    {/* FITUR KHUSUS OWNER: PILIH TANGGAL TRANSAKSI (BACKDATE) */}
+                    {dbUser?.role === 'owner' && (
+                        <div className="p-2.5 bg-amber-50/70 border border-amber-200/90 rounded-xl space-y-1.5 transition-all">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-extrabold text-amber-950 flex items-center gap-1 cursor-pointer">
+                                    <span>📅</span> Tanggal Transaksi (Khusus Owner):
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!isBackdateEnabled) {
+                                            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+                                            setBackdateDate(yesterday)
+                                            setBackdateTime('15:00')
+                                            setIsBackdateEnabled(true)
+                                        } else {
+                                            setIsBackdateEnabled(false)
+                                        }
+                                    }}
+                                    className={`text-[9.5px] font-black px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                                        isBackdateEnabled
+                                            ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                                            : 'bg-white text-gray-700 border-gray-200 hover:bg-amber-100'
+                                    }`}
+                                >
+                                    {isBackdateEnabled ? '⚡ Mode Backdate Aktif' : '+ Atur Tanggal Lalu'}
+                                </button>
+                            </div>
+
+                            {isBackdateEnabled && (
+                                <div className="pt-1.5 border-t border-amber-200/80 space-y-1.5 animate-fadeIn">
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        <div>
+                                            <label className="text-[9px] font-bold text-amber-900 block mb-0.5">Tanggal:</label>
+                                            <input
+                                                type="date"
+                                                value={backdateDate}
+                                                max={new Date().toISOString().split('T')[0]}
+                                                onChange={(e) => setBackdateDate(e.target.value)}
+                                                className="w-full text-xs font-black p-1 bg-white border border-amber-300 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold text-amber-900 block mb-0.5">Jam / Waktu:</label>
+                                            <input
+                                                type="time"
+                                                value={backdateTime}
+                                                onChange={(e) => setBackdateTime(e.target.value)}
+                                                className="w-full text-xs font-black p-1 bg-white border border-amber-300 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[9.5px] text-amber-900 font-bold bg-amber-100/80 px-2 py-1 rounded-md">
+                                        <span>Dibukukan pada: <strong>{new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} pk {backdateTime}</strong></span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsBackdateEnabled(false)}
+                                            className="text-rose-600 hover:underline font-extrabold cursor-pointer"
+                                        >
+                                            Kembali ke Live
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Tombol Aksi Bawah: PROSES & SIMPAN TAGIHAN */}
                     <div className="flex items-center gap-2 pt-1">
