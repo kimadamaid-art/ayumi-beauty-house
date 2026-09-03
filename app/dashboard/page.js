@@ -118,6 +118,49 @@ export default function Dashboard() {
     const [targetFormData, setTargetFormData] = useState({})
     const [isSavingTargets, setIsSavingTargets] = useState(false)
 
+    // Modal States for Coupon Session Usage Details
+    const [isCouponUsageModalOpen, setIsCouponUsageModalOpen] = useState(false)
+    const [couponUsageModalBranch, setCouponUsageModalBranch] = useState({ id: '', name: 'Semua Cabang' })
+    const [couponUsageLogsList, setCouponUsageLogsList] = useState([])
+    const [couponUsageSearch, setCouponUsageSearch] = useState('')
+
+    const formatLogDateTime = (isoString) => {
+        if (!isoString) return '-'
+        const d = new Date(isoString)
+        return d.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+    }
+
+    const openCouponUsageModal = (branchId = '', branchName = 'Semua Cabang') => {
+        setCouponUsageModalBranch({ id: branchId || '', name: branchName || 'Semua Cabang' })
+        setCouponUsageSearch('')
+        setIsCouponUsageModalOpen(true)
+    }
+
+    const filteredCouponLogs = useMemo(() => {
+        let list = couponUsageLogsList || []
+        if (couponUsageModalBranch.id) {
+            list = list.filter(l => l.branch_id === couponUsageModalBranch.id)
+        }
+        if (couponUsageSearch && couponUsageSearch.trim()) {
+            const q = couponUsageSearch.toLowerCase()
+            list = list.filter(l => 
+                (l.patients?.full_name || '').toLowerCase().includes(q) ||
+                (l.patients?.whatsapp || '').toLowerCase().includes(q) ||
+                (l.patient_coupon_items?.treatments?.name || '').toLowerCase().includes(q) ||
+                (l.patient_coupon_items?.patient_coupons?.coupon_packages?.name || '').toLowerCase().includes(q) ||
+                (l.users?.full_name || '').toLowerCase().includes(q) ||
+                (l.notes || '').toLowerCase().includes(q)
+            )
+        }
+        return list
+    }, [couponUsageLogsList, couponUsageModalBranch, couponUsageSearch])
+
     useEffect(() => {
         setIsMounted(true)
     }, [])
@@ -204,6 +247,7 @@ export default function Dashboard() {
                     productIncome: 0,
                     couponSalesIncome: 0,
                     couponUsedValue: 0,
+                    couponUsedSessions: 0,
                     otherIncome: 0,
                     cashIncome: 0,
                     totalIncome: 0,
@@ -229,6 +273,7 @@ export default function Dashboard() {
                         let txProduct = 0
                         let txCouponSales = 0
                         let txCouponUsed = 0
+                        let txCouponSessions = 0
                         let txOther = 0
 
                         if (tx.transaction_items && tx.transaction_items.length > 0) {
@@ -245,6 +290,7 @@ export default function Dashboard() {
                                 if (item.item_type === 'treatment') {
                                     if (isCouponUsed) {
                                         txCouponUsed += couponValue
+                                        txCouponSessions += itemQty
                                     } else {
                                         txTreatment += itemSub
                                     }
@@ -275,6 +321,7 @@ export default function Dashboard() {
                         branchObj.productIncome += txProduct
                         branchObj.couponSalesIncome += txCouponSales
                         branchObj.couponUsedValue += txCouponUsed
+                        branchObj.couponUsedSessions += txCouponSessions
                         branchObj.otherIncome += txOther
                         
                         const realCash = getNetTransactionRevenue(tx)
@@ -288,6 +335,58 @@ export default function Dashboard() {
                     }
                 })
             }
+
+            // Fetch coupon usage logs in the selected date range for rich breakdown modal
+            let couponLogsData = []
+            try {
+                const { data: usageLogs } = await supabase
+                    .from('coupon_usage_logs')
+                    .select(`
+                        id,
+                        used_at,
+                        notes,
+                        branch_id,
+                        transaction_id,
+                        treatment_record_id,
+                        branches (id, name),
+                        patients (id, full_name, whatsapp),
+                        patient_coupon_items (
+                            id,
+                            total_sessions,
+                            used_sessions,
+                            remaining_sessions,
+                            treatments (id, name, price),
+                            patient_coupons (
+                                id,
+                                coupon_packages (id, name)
+                            )
+                        ),
+                        users:users!coupon_usage_logs_used_by_fkey (id, full_name)
+                    `)
+                    .is('voided_at', null)
+                    .gte('used_at', new Date(`${sDate}T00:00:00`).toISOString())
+                    .lte('used_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                    .order('used_at', { ascending: false })
+
+                if (usageLogs) {
+                    couponLogsData = usageLogs
+                }
+            } catch (errLogs) {
+                console.warn('Warning fetching coupon_usage_logs for dashboard:', errLogs)
+            }
+
+            setCouponUsageLogsList(couponLogsData)
+
+            let grandCouponUsedSessions = 0
+
+            activeBranches.forEach(b => {
+                const bLogs = couponLogsData.filter(l => l.branch_id === b.id)
+                const logSessionCount = bLogs.length
+                const fallbackCount = rangeMap[b.id]?.couponUsedSessions || 0
+                const finalSessionCount = logSessionCount > 0 ? logSessionCount : fallbackCount
+                rangeMap[b.id].couponUsedSessions = finalSessionCount
+                grandCouponUsedSessions += finalSessionCount
+            })
 
             let topBranch = '-'
             let maxIncome = -1
@@ -383,6 +482,7 @@ export default function Dashboard() {
                 rangeIncome: grandTotalRange,
                 rangeCouponSalesIncome: grandCouponSalesRange,
                 rangeCouponUsedValue: grandCouponUsedRange,
+                rangeCouponUsedSessions: grandCouponUsedSessions,
                 rangeTxCount: totalTxCountRange,
                 topBranchName: topBranch !== '-' ? topBranch : (formattedRangeComp[0]?.branchName || '-')
             })
@@ -1503,12 +1603,23 @@ export default function Dashboard() {
                                                 </span>
                                                 <strong className="text-emerald-700 font-extrabold tracking-tight">Rp {b.couponSalesIncome.toLocaleString('id-ID')}</strong>
                                             </div>
-                                            <div className="flex justify-between items-center text-xs pt-1 border-t border-dashed border-gray-200">
+                                            <div 
+                                                onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
+                                                className="flex justify-between items-center text-xs pt-1 border-t border-dashed border-gray-200 hover:bg-amber-50/70 p-1 -mx-1 rounded-lg transition-all cursor-pointer group/sesi"
+                                                title="Klik untuk melihat rincian pemakaian sesi kupon"
+                                            >
                                                 <span className="text-amber-700 font-bold flex items-center gap-1.5">
                                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
                                                     Pemakaian Sesi:
                                                 </span>
-                                                <strong className="text-amber-700 font-extrabold tracking-tight">Rp {b.couponUsedValue.toLocaleString('id-ID')}</strong>
+                                                <div className="flex items-center gap-1.5">
+                                                    <strong className="text-amber-700 font-extrabold tracking-tight">
+                                                        {b.couponUsedSessions || 0} Sesi
+                                                    </strong>
+                                                    <span className="text-[10px] text-amber-700 bg-amber-100/90 group-hover/sesi:bg-amber-200 px-1.5 py-0.5 rounded font-bold transition-colors">
+                                                        Rincian ↗
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1518,10 +1629,14 @@ export default function Dashboard() {
                                             <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Omset Tunai</p>
                                             <p className="text-base font-black text-[#5c3316] tracking-tight">Rp {b.cashIncome.toLocaleString('id-ID')}</p>
                                         </div>
-                                        {b.couponUsedValue > 0 && (
-                                            <div className="text-right">
+                                        {b.couponUsedSessions > 0 && (
+                                            <div 
+                                                onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
+                                                className="text-right cursor-pointer hover:opacity-80 transition-opacity"
+                                                title="Klik untuk melihat rincian pemakaian sesi"
+                                            >
                                                 <p className="text-[9px] text-amber-600 font-bold uppercase">+ Pemakaian Sesi</p>
-                                                <p className="text-xs font-extrabold text-amber-600">Rp {b.couponUsedValue.toLocaleString('id-ID')}</p>
+                                                <p className="text-xs font-extrabold text-amber-600">{b.couponUsedSessions} Sesi</p>
                                             </div>
                                         )}
                                     </div>
@@ -1644,10 +1759,16 @@ export default function Dashboard() {
                                                     🎟️ Penjualan Kupon: Rp {(companyTotals.rangeCouponSalesIncome || 0).toLocaleString('id-ID')}
                                                 </span>
                                             )}
-                                            {(companyTotals.rangeCouponUsedValue || 0) > 0 && (
-                                                <span className="text-amber-700">
-                                                    🎟️ Pemakaian Sesi: Rp {(companyTotals.rangeCouponUsedValue || 0).toLocaleString('id-ID')}
-                                                </span>
+                                            {(companyTotals.rangeCouponUsedSessions || 0) > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openCouponUsageModal('', 'Semua Cabang')}
+                                                    className="text-amber-800 hover:text-amber-900 bg-amber-100/80 hover:bg-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                                                    title="Lihat rincian orang & pemakaian sesi kupon"
+                                                >
+                                                    <span>🎟️ Pemakaian Sesi: <strong>{(companyTotals.rangeCouponUsedSessions || 0)} Sesi</strong></span>
+                                                    <span className="text-[10px] bg-amber-200 text-amber-800 font-black px-1.5 py-0.5 rounded">Rincian ↗</span>
+                                                </button>
                                             )}
                                         </div>
                                     </div>
@@ -2397,6 +2518,216 @@ export default function Dashboard() {
                                 </div>
                             </div>
                         </form>
+                    </div>
+                </div>
+            {/* MODAL RINCIAN PEMAKAIAN SESI KUPON */}
+            {isCouponUsageModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-amber-200 flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="p-5 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-amber-50 via-orange-50 to-white shrink-0">
+                            <div>
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-sm shrink-0">
+                                        🎟️
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg sm:text-xl font-black text-gray-900">
+                                            Rincian Pemakaian Sesi Kupon
+                                        </h3>
+                                        <p className="text-xs text-amber-800 font-semibold mt-0.5">
+                                            Daftar pasien dan histori penukaran sesi kupon periode {startDate} s/d {endDate} ({couponUsageModalBranch.name})
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsCouponUsageModalOpen(false)} 
+                                className="text-gray-400 hover:text-red-500 p-2 rounded-xl hover:bg-white/80 transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Filter & Search Bar */}
+                        <div className="p-4 bg-gray-50/80 border-b border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                            {/* Branch filter tabs */}
+                            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setCouponUsageModalBranch({ id: '', name: 'Semua Cabang' })}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                        couponUsageModalBranch.id === ''
+                                            ? 'bg-amber-600 text-white shadow-sm'
+                                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                                    }`}
+                                >
+                                    Semua Cabang
+                                </button>
+                                {branches.filter(b => b.is_active !== false).map(b => (
+                                    <button
+                                        key={b.id}
+                                        type="button"
+                                        onClick={() => setCouponUsageModalBranch({ id: b.id, name: b.name })}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                            couponUsageModalBranch.id === b.id
+                                                ? 'bg-amber-600 text-white shadow-sm'
+                                                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                                        }`}
+                                    >
+                                        {b.name}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Search box */}
+                            <div className="relative w-full sm:w-64 shrink-0">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    value={couponUsageSearch}
+                                    onChange={(e) => setCouponUsageSearch(e.target.value)}
+                                    placeholder="Cari pasien / perawatan..."
+                                    className="w-full pl-9 pr-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Summary Pill */}
+                        <div className="px-5 py-2.5 bg-amber-50/50 border-b border-amber-100 flex items-center justify-between text-xs shrink-0">
+                            <span className="font-bold text-amber-900">
+                                Ditemukan: <strong className="text-amber-700 font-extrabold">{filteredCouponLogs.length} Sesi Terpakai</strong>
+                            </span>
+                            <span className="text-[11px] text-gray-500 font-medium">
+                                Cabang Terpilih: <strong>{couponUsageModalBranch.name}</strong>
+                            </span>
+                        </div>
+
+                        {/* Table Content */}
+                        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                            {filteredCouponLogs.length === 0 ? (
+                                <div className="text-center py-12 px-4 space-y-3">
+                                    <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto text-2xl">
+                                        🎟️
+                                    </div>
+                                    <p className="text-sm font-extrabold text-gray-700">Belum Ada Pemakaian Sesi Kupon</p>
+                                    <p className="text-xs text-gray-500 max-w-md mx-auto">
+                                        Tidak ditemukan transaksi atau klaim pemakaian sesi kupon untuk periode dan cabang yang dipilih.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                            <tr className="bg-amber-50/80 text-amber-900 font-extrabold border-b border-amber-100 uppercase tracking-wider text-[11px]">
+                                                <th className="p-3">Waktu</th>
+                                                <th className="p-3">Pasien</th>
+                                                <th className="p-3">Cabang</th>
+                                                <th className="p-3">Paket & Perawatan</th>
+                                                <th className="p-3 text-center">Status Sesi</th>
+                                                <th className="p-3">Petugas</th>
+                                                <th className="p-3">Catatan / Ref</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {filteredCouponLogs.map((log, idx) => {
+                                                const pkgName = log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
+                                                const trName = log.patient_coupon_items?.treatments?.name || 'Perawatan Sesi'
+                                                const used = log.patient_coupon_items?.used_sessions || 1
+                                                const total = log.patient_coupon_items?.total_sessions || 1
+                                                const remaining = log.patient_coupon_items?.remaining_sessions || 0
+
+                                                return (
+                                                    <tr key={log.id || idx} className="hover:bg-amber-50/40 transition-colors">
+                                                        <td className="p-3 font-semibold text-gray-600 whitespace-nowrap">
+                                                            {formatLogDateTime(log.used_at)}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            {log.patient_id ? (
+                                                                <Link
+                                                                    href={`/patients/${log.patient_id}`}
+                                                                    className="font-extrabold text-ayumi-primary hover:text-ayumi-secondary hover:underline inline-flex items-center gap-1 group/p"
+                                                                    title="Buka Profil Pasien"
+                                                                >
+                                                                    <span>{log.patients?.full_name || 'Pasien'}</span>
+                                                                    <span className="text-[10px] text-ayumi-primary group-hover/p:translate-x-0.5 transition-transform">↗</span>
+                                                                </Link>
+                                                            ) : (
+                                                                <span className="font-extrabold text-gray-900">{log.patients?.full_name || 'Walk-in'}</span>
+                                                            )}
+                                                            {log.patients?.whatsapp && (
+                                                                <p className="text-[10px] text-gray-400 font-medium">{log.patients.whatsapp}</p>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3 text-gray-600 font-bold whitespace-nowrap">
+                                                            <span className="px-2 py-0.5 rounded-lg bg-gray-100 text-gray-700 text-[10px] font-bold">
+                                                                {log.branches?.name || '-'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <p className="font-extrabold text-gray-900">{trName}</p>
+                                                            <p className="text-[10px] text-gray-500 font-semibold">{pkgName}</p>
+                                                        </td>
+                                                        <td className="p-3 text-center whitespace-nowrap">
+                                                            <div className="inline-flex flex-col items-center">
+                                                                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold">
+                                                                    Sesi ke-{used} dari {total}
+                                                                </span>
+                                                                <span className="text-[9px] text-gray-400 font-semibold mt-0.5">
+                                                                    (Sisa: {remaining} sesi)
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-3 text-gray-700 font-semibold whitespace-nowrap">
+                                                            {log.users?.full_name || '-'}
+                                                        </td>
+                                                        <td className="p-3 text-gray-500 text-[11px]">
+                                                            {log.transaction_id ? (
+                                                                <Link 
+                                                                    href={`/kasir/transactions/${log.transaction_id}`}
+                                                                    className="text-pink-600 hover:text-pink-700 hover:underline font-bold inline-flex items-center gap-1"
+                                                                    title="Buka Struk Kasir"
+                                                                >
+                                                                    <span>{log.notes || 'Lihat Struk'}</span>
+                                                                    <span className="text-[10px]">↗</span>
+                                                                </Link>
+                                                            ) : (
+                                                                <span>{log.notes || '-'}</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
+                            <Link
+                                href="/coupons"
+                                className="px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                            >
+                                <span>🎟️ Kelola Kupon Lengkap</span>
+                                <span className="text-[10px]">↗</span>
+                            </Link>
+
+                            <button 
+                                type="button"
+                                onClick={() => setIsCouponUsageModalOpen(false)}
+                                className="btn-primary px-6 py-2 text-xs font-bold rounded-xl shadow-md"
+                            >
+                                Tutup
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
