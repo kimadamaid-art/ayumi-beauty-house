@@ -453,7 +453,7 @@ function PosPageContent() {
                 .from('transactions')
                 .select(`
                     id,
-                    invoice_number,
+                    transaction_number,
                     created_at,
                     total,
                     subtotal,
@@ -478,9 +478,9 @@ function PosPageContent() {
                     id,
                     treatment_date,
                     treatment_time,
-                    notes,
-                    complaint,
-                    diagnosis,
+                    complaints,
+                    assessment,
+                    result_notes,
                     branches (id, name),
                     treatment_record_items (
                         id,
@@ -3683,7 +3683,7 @@ function PosPageContent() {
                                             <div key={tx.id} className="p-4 rounded-2xl border border-gray-200 hover:border-pink-200 bg-white shadow-2xs space-y-2">
                                                 <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-gray-100">
                                                     <div>
-                                                        <span className="font-extrabold text-xs text-ayumi-primary">{tx.invoice_number || 'TRX-KASIR'}</span>
+                                                        <span className="font-extrabold text-xs text-ayumi-primary">{tx.transaction_number || 'TRX-KASIR'}</span>
                                                         <span className="text-[11px] text-gray-500 font-semibold ml-2">
                                                             {new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                         </span>
@@ -3734,22 +3734,22 @@ function PosPageContent() {
                                                         )}
                                                     </div>
                                                 </div>
-                                                {rec.complaint && (
-                                                    <p className="text-xs text-gray-600"><strong className="text-gray-800">Keluhan:</strong> {rec.complaint}</p>
+                                                {rec.complaints && (
+                                                    <p className="text-xs text-gray-600"><strong className="text-gray-800">Keluhan:</strong> {rec.complaints}</p>
                                                 )}
-                                                {rec.diagnosis && (
-                                                    <p className="text-xs text-gray-600"><strong className="text-gray-800">Diagnosa / Kondisi:</strong> {rec.diagnosis}</p>
+                                                {rec.assessment && (
+                                                    <p className="text-xs text-gray-600"><strong className="text-gray-800">Diagnosa / Assessment:</strong> {rec.assessment}</p>
                                                 )}
                                                 {rec.treatment_record_items?.length > 0 && (
                                                     <div className="space-y-1 pt-1">
                                                         <p className="text-[11px] font-bold text-gray-500">Tindakan Dilakukan:</p>
                                                         {rec.treatment_record_items.map((it, idx) => (
-                                                            <p key={idx} className="text-xs text-gray-700 font-semibold">• {it.treatments?.name || it.notes}</p>
+                                                             <p key={idx} className="text-xs text-gray-700 font-semibold">• {it.treatments?.name || it.notes}</p>
                                                         ))}
                                                     </div>
                                                 )}
-                                                {rec.notes && (
-                                                    <p className="text-[11px] text-gray-500 italic bg-gray-50 p-2 rounded-lg">Catatan: {rec.notes}</p>
+                                                {rec.result_notes && (
+                                                    <p className="text-[11px] text-gray-500 italic bg-gray-50 p-2 rounded-lg">Catatan Hasil: {rec.result_notes}</p>
                                                 )}
                                             </div>
                                         ))
