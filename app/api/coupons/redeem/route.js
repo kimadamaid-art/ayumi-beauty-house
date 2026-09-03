@@ -40,7 +40,7 @@ export async function POST(request) {
         const currentUsed = Number(item.used_sessions || 0)
         const newUsed = currentUsed + Number(quantity)
         const newRemaining = Math.max(0, currentRemaining - Number(quantity))
-        const newStatus = newRemaining <= 0 ? 'completed' : 'active'
+        const newStatus = newRemaining <= 0 ? 'fully_used' : 'active'
 
         // 2. Update patient_coupon_items
         const { data: updatedItem, error: uErr } = await supabase
@@ -56,17 +56,17 @@ export async function POST(request) {
 
         if (uErr) throw uErr
 
-        // 3. Check if all items in parent coupon are completed
+        // 3. Check if all items in parent coupon are fully used
         const { data: allItems } = await supabase
             .from('patient_coupon_items')
             .select('remaining_sessions, status')
             .eq('patient_coupon_id', item.patient_coupon_id)
 
-        const allFinished = allItems?.every(it => (Number(it.remaining_sessions) <= 0) || it.status === 'completed')
+        const allFinished = allItems?.every(it => (Number(it.remaining_sessions) <= 0) || it.status === 'fully_used')
         if (allFinished) {
             await supabase
                 .from('patient_coupons')
-                .update({ status: 'completed' })
+                .update({ status: 'fully_used' })
                 .eq('id', item.patient_coupon_id)
         }
 
