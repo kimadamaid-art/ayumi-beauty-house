@@ -2213,23 +2213,20 @@ function PosPageContent() {
                                                                                 onClick={() => addToCart(t, 'treatment')}
                                                                                 className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
                                                                             >
-                                                                                <div className="space-y-1.5 mb-2">
-                                                                                    <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                                        <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
-                                                                                            Treatment
-                                                                                        </span>
-                                                                                        {hasDiscount && (
+                                                                                <div className="space-y-1 mb-2">
+                                                                                    {hasDiscount && (
+                                                                                        <div className="flex items-center justify-end mb-1">
                                                                                             <span className="bg-[#D46221] text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
                                                                                                 Diskon {t.discount_percent}%
                                                                                             </span>
-                                                                                        )}
-                                                                                    </div>
+                                                                                        </div>
+                                                                                    )}
                                                                                     <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
                                                                                         {t.name}
                                                                                     </h4>
                                                                                 </div>
 
-                                                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-2">
                                                                                     <div className="flex flex-col min-w-0">
                                                                                         {hasDiscount && (
                                                                                             <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
@@ -2246,10 +2243,12 @@ function PosPageContent() {
                                                                                             e.stopPropagation()
                                                                                             addToCart(t, 'treatment')
                                                                                         }}
-                                                                                        className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                                        className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center transition-all shrink-0 shadow-xs cursor-pointer active:scale-90 hover:scale-105"
                                                                                         title="Tambah ke keranjang"
                                                                                     >
-                                                                                        +
+                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                                                                                        </svg>
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
@@ -2329,23 +2328,20 @@ function PosPageContent() {
                                                                             onClick={() => addToCart(c, 'coupon')}
                                                                             className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
                                                                         >
-                                                                            <div className="space-y-1.5 mb-2">
-                                                                                <div className="flex items-center justify-between gap-1 flex-wrap">
-                                                                                    <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-2 py-0.5 rounded-md">
-                                                                                        Paket Kupon
-                                                                                    </span>
-                                                                                    {c.category && (
-                                                                                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                                                            <div className="space-y-1 mb-2">
+                                                                                {c.category && (
+                                                                                    <div className="flex items-center justify-start mb-1">
+                                                                                        <span className="bg-[#FAF1E8] text-[#B5531B] border border-[#F2D8C3] text-[9px] font-bold px-1.5 py-0.5 rounded-md">
                                                                                             {c.category}
                                                                                         </span>
-                                                                                    )}
-                                                                                </div>
+                                                                                    </div>
+                                                                                )}
                                                                                 <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
                                                                                     {c.name}
                                                                                 </h4>
                                                                             </div>
 
-                                                                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-1.5">
+                                                                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-2">
                                                                                 <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
                                                                                     Rp {c.price.toLocaleString('id-ID')}
                                                                                 </span>
@@ -2355,10 +2351,12 @@ function PosPageContent() {
                                                                                         e.stopPropagation()
                                                                                         addToCart(c, 'coupon')
                                                                                     }}
-                                                                                    className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center font-black text-sm transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+                                                                                    className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center transition-all shrink-0 shadow-xs cursor-pointer active:scale-90 hover:scale-105"
                                                                                     title="Tambah ke keranjang"
                                                                                 >
-                                                                                    +
+                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                                                                                    </svg>
                                                                                 </button>
                                                                             </div>
                                                                         </div>
