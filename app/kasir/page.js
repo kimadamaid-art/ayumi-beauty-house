@@ -1546,8 +1546,10 @@ function PosPageContent() {
                     thGroups.get(key).items.push(tItem)
                 })
 
-                const todayDateStr = new Date().toISOString().split('T')[0]
-                const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false })
+                const effectiveDateStr = (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) ? backdateDate : new Date().toISOString().split('T')[0]
+                const effectiveTimeStr = (isBackdateEnabled && dbUser?.role === 'owner' && backdateTime) ? backdateTime : new Date().toLocaleTimeString('en-US', { hour12: false })
+                const effectiveCustomIso = (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
+                const createdDirectTrIds = []
 
                 for (const [key, group] of thGroups.entries()) {
                     const { data: newTr, error: trErr } = await supabase
@@ -1558,13 +1560,15 @@ function PosPageContent() {
                             performed_by: group.performed_by,
                             complaints: group.isWorker ? '[INFUS - WORKER]' : null,
                             result_notes: group.isWorker ? 'Sesi Infus dikerjakan oleh Worker' : 'Tindakan Kasir Langsung',
-                            treatment_date: todayDateStr,
-                            treatment_time: timeStr
+                            treatment_date: effectiveDateStr,
+                            treatment_time: effectiveTimeStr,
+                            ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }])
                         .select()
                         .single()
 
                     if (trErr) throw trErr
+                    if (newTr?.id) createdDirectTrIds.push(newTr.id)
                     if (!treatmentRecordId) treatmentRecordId = newTr.id
 
                     // Simpan rincian treatment_record_items untuk kelompok terapis ini
@@ -1577,7 +1581,8 @@ function PosPageContent() {
                             discount_percent: it.discount_percent || 0,
                             commission_percent: it.commission_percent || 5,
                             notes: it.name,
-                            sort_order: sIdx + 1
+                            sort_order: sIdx + 1,
+                            ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }))
                         await supabase.from('treatment_record_items').insert(trItemPayloads)
                     }
@@ -1719,7 +1724,8 @@ function PosPageContent() {
                         .eq('id', trxData.id)
 
                     // b. Update linked treatment records
-                    if (treatmentRecordId) {
+                    const allTrIdsToUpdate = Array.from(new Set([treatmentRecordId, ...createdDirectTrIds].filter(Boolean)))
+                    if (allTrIdsToUpdate.length > 0) {
                         await supabase
                             .from('treatment_records')
                             .update({
@@ -1727,14 +1733,23 @@ function PosPageContent() {
                                 treatment_time: backdateTime || '12:00',
                                 created_at: customIso
                             })
-                            .eq('id', treatmentRecordId)
+                            .in('id', allTrIdsToUpdate)
                     }
 
-                    // c. Update linked patient coupons
-                    await supabase
+                    // c. Update linked patient coupons & coupon items
+                    const { data: linkedCoupons } = await supabase
                         .from('patient_coupons')
                         .update({ created_at: customIso })
                         .eq('transaction_id', trxData.id)
+                        .select('id')
+
+                    if (linkedCoupons && linkedCoupons.length > 0) {
+                        const couponIds = linkedCoupons.map(c => c.id)
+                        await supabase
+                            .from('patient_coupon_items')
+                            .update({ created_at: customIso })
+                            .in('patient_coupon_id', couponIds)
+                    }
 
                     // d. Update coupon usage logs
                     await supabase
