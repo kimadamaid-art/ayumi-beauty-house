@@ -87,6 +87,7 @@ export default function Dashboard() {
     // Financial Widget States (Non-owner)
     const [statTodayIncome, setStatTodayIncome] = useState(0)
     const [statTodayTx, setStatTodayTx] = useState(0)
+    const [statTodayCouponSessions, setStatTodayCouponSessions] = useState(0)
     const [statTopPaymentMethod, setStatTopPaymentMethod] = useState('-')
     const [sparklineData, setSparklineData] = useState([])
 
@@ -643,6 +644,43 @@ export default function Dashboard() {
                 .lte('created_at', new Date(`${todayDateStr}T23:59:59.999`).toISOString())
             trxTodayQuery = applyBranchFilter(trxTodayQuery)
 
+            // Coupon Sessions Redeemed Today (Admin Branch)
+            let couponLogsTodayQuery = supabase.from('coupon_usage_logs').select('id', { count: 'exact', head: true })
+                .is('voided_at', null)
+                .gte('used_at', new Date(`${todayDateStr}T00:00:00`).toISOString())
+                .lte('used_at', new Date(`${todayDateStr}T23:59:59.999`).toISOString())
+            couponLogsTodayQuery = applyBranchFilter(couponLogsTodayQuery)
+
+            // Recent Coupon Usage Logs for Admin Branch Modal
+            let adminUsageLogsQuery = supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    id,
+                    used_at,
+                    notes,
+                    branch_id,
+                    transaction_id,
+                    treatment_record_id,
+                    branches (id, name),
+                    patients (id, full_name, whatsapp),
+                    patient_coupon_items (
+                        id,
+                        total_sessions,
+                        used_sessions,
+                        remaining_sessions,
+                        treatments (id, name, price),
+                        patient_coupons (
+                            id,
+                            coupon_packages (id, name)
+                        )
+                    ),
+                    users:users!coupon_usage_logs_used_by_fkey (id, full_name)
+                `)
+                .is('voided_at', null)
+                .order('used_at', { ascending: false })
+                .limit(50)
+            adminUsageLogsQuery = applyBranchFilter(adminUsageLogsQuery)
+
             // Sparkline 7 Days
             const sevenDaysAgo = new Date()
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
@@ -662,6 +700,8 @@ export default function Dashboard() {
                 tableAptResult,
                 tableFuResult,
                 trxTodayResult,
+                couponLogsTodayResult,
+                adminLogsResult,
                 sparkResult
             ] = await Promise.all([
                 aptQuery,
@@ -673,6 +713,8 @@ export default function Dashboard() {
                 tableAptQuery,
                 tableFuQuery,
                 trxTodayQuery,
+                couponLogsTodayQuery,
+                adminUsageLogsQuery,
                 sparklineQuery
             ])
 
@@ -682,6 +724,11 @@ export default function Dashboard() {
             setStatDormant(dormantResult?.count || 0)
             setStatNewPatients(newPatResult?.count || 0)
             setStatExpiringCoupons(couponsResult?.count || 0)
+            setStatTodayCouponSessions(couponLogsTodayResult?.count || 0)
+
+            if (adminLogsResult?.data && adminLogsResult.data.length > 0) {
+                setCouponUsageLogsList(adminLogsResult.data)
+            }
 
             if (tableAptResult && tableAptResult.data) {
                 setRecentAppointments(tableAptResult.data)
@@ -1404,7 +1451,7 @@ export default function Dashboard() {
 
             {/* WIDGET KEUANGAN UTAMA (NON-OWNER / ADMIN ONLY) - TERHUBUNG INTERAKTIF */}
             {dbUser?.role !== 'owner' && (
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 mb-6">
                     {/* Card 1: Pendapatan Hari Ini */}
                     <div 
                         onClick={() => router.push('/transactions')}
@@ -1439,7 +1486,28 @@ export default function Dashboard() {
                         <span className="text-blue-400 group-hover:text-blue-600 font-extrabold text-xs group-hover:translate-x-1 transition-transform">➔</span>
                     </div>
 
-                    {/* Card 3: Top Metode Bayar */}
+                    {/* Card 3: Pemakaian Sesi Hari Ini (Khusus Admin Cabang) */}
+                    <div 
+                        onClick={() => openCouponUsageModal(dbUser?.branch_id || selectedBranch, userBranchName)}
+                        className="p-4 rounded-3xl bg-white border border-gray-200 hover:border-amber-300 hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-pointer group flex items-center justify-between"
+                        title="Klik untuk melihat rincian pemakaian sesi kupon cabang Anda"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center font-extrabold shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                🎟️
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-1.5">
+                                    <h3 className="text-base font-extrabold text-amber-900 tracking-tight">{statTodayCouponSessions} <span className="text-xs font-semibold text-amber-700">Sesi</span></h3>
+                                    <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-extrabold">Rincian ↗</span>
+                                </div>
+                                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sesi Kupon Hari Ini</p>
+                            </div>
+                        </div>
+                        <span className="text-amber-400 group-hover:text-amber-600 font-extrabold text-xs group-hover:translate-x-1 transition-transform">➔</span>
+                    </div>
+
+                    {/* Card 4: Top Metode Bayar */}
                     <div 
                         onClick={() => router.push('/transactions')}
                         className="p-4 rounded-3xl bg-white border border-gray-200 hover:border-rose-300 hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-pointer group flex items-center justify-between"
@@ -1456,13 +1524,13 @@ export default function Dashboard() {
                         <span className="text-rose-400 group-hover:text-rose-600 font-extrabold text-xs group-hover:translate-x-1 transition-transform">➔</span>
                     </div>
 
-                    {/* Card 4: Tren Pendapatan (7 Hari) */}
+                    {/* Card 5: Tren Pendapatan (7 Hari) */}
                     <div 
                         onClick={() => router.push('/reports/treatments')}
                         className="p-3.5 rounded-3xl bg-white border border-gray-200 hover:border-ayumi-primary hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-pointer group flex flex-col justify-between h-[80px]"
                     >
                         <div className="flex justify-between items-center">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Tren Pendapatan (7 Hari)</span>
+                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Tren (7 Hari)</span>
                             <span className="text-ayumi-primary group-hover:translate-x-1 transition-transform text-xs font-bold">➔</span>
                         </div>
                         <div className="h-8 w-full overflow-hidden">
@@ -2555,34 +2623,43 @@ export default function Dashboard() {
 
                         {/* Filter & Search Bar */}
                         <div className="p-4 bg-gray-50/80 border-b border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-                            {/* Branch filter tabs */}
-                            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setCouponUsageModalBranch({ id: '', name: 'Semua Cabang' })}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                                        couponUsageModalBranch.id === ''
-                                            ? 'bg-amber-600 text-white shadow-sm'
-                                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                                    }`}
-                                >
-                                    Semua Cabang
-                                </button>
-                                {branches.filter(b => b.is_active !== false).map(b => (
+                            {/* Branch filter tabs (Owner) / Assigned branch badge (Admin) */}
+                            {dbUser?.role === 'owner' ? (
+                                <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                                     <button
-                                        key={b.id}
                                         type="button"
-                                        onClick={() => setCouponUsageModalBranch({ id: b.id, name: b.name })}
+                                        onClick={() => setCouponUsageModalBranch({ id: '', name: 'Semua Cabang' })}
                                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                                            couponUsageModalBranch.id === b.id
+                                            couponUsageModalBranch.id === ''
                                                 ? 'bg-amber-600 text-white shadow-sm'
                                                 : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                                         }`}
                                     >
-                                        {b.name}
+                                        Semua Cabang
                                     </button>
-                                ))}
-                            </div>
+                                    {branches.filter(b => b.is_active !== false).map(b => (
+                                        <button
+                                            key={b.id}
+                                            type="button"
+                                            onClick={() => setCouponUsageModalBranch({ id: b.id, name: b.name })}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                                couponUsageModalBranch.id === b.id
+                                                    ? 'bg-amber-600 text-white shadow-sm'
+                                                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                                            }`}
+                                        >
+                                            {b.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] uppercase font-extrabold text-gray-500 tracking-wider">Cabang:</span>
+                                    <span className="px-3 py-1 rounded-xl bg-amber-100 text-amber-900 font-extrabold text-xs border border-amber-200 shadow-sm">
+                                        🏥 {userBranchName || 'Cabang Anda'}
+                                    </span>
+                                </div>
+                            )}
 
                             {/* Search box */}
                             <div className="relative w-full sm:w-64 shrink-0">
