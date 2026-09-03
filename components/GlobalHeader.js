@@ -62,20 +62,44 @@ export default function GlobalHeader({ onMenuToggle }) {
     }
 
     const playNotificationSound = () => {
+        // Hanya berbunyi untuk role admin dan therapist sesuai permintaan
+        const role = dbUser?.role
+        if (role !== 'admin' && role !== 'therapist') {
+            return
+        }
+
         try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-            const oscillator = audioCtx.createOscillator()
-            const gainNode = audioCtx.createGain()
+            const AudioContext = window.AudioContext || window.webkitAudioContext
+            if (!AudioContext) return
+            const audioCtx = new AudioContext()
 
-            oscillator.connect(gainNode)
-            gainNode.connect(audioCtx.destination)
+            const now = audioCtx.currentTime
 
-            oscillator.type = 'sine'
-            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime)
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime)
-            
-            oscillator.start()
-            oscillator.stop(audioCtx.currentTime + 0.15)
+            // Nada 1: D5 (587.33 Hz) - warm bell chime
+            const osc1 = audioCtx.createOscillator()
+            const gain1 = audioCtx.createGain()
+            osc1.type = 'sine'
+            osc1.frequency.setValueAtTime(587.33, now)
+            gain1.gain.setValueAtTime(0, now)
+            gain1.gain.linearRampToValueAtTime(0.2, now + 0.03)
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28)
+            osc1.connect(gain1)
+            gain1.connect(audioCtx.destination)
+            osc1.start(now)
+            osc1.stop(now + 0.28)
+
+            // Nada 2: A5 (880 Hz) - bright ringing chime
+            const osc2 = audioCtx.createOscillator()
+            const gain2 = audioCtx.createGain()
+            osc2.type = 'sine'
+            osc2.frequency.setValueAtTime(880, now + 0.12)
+            gain2.gain.setValueAtTime(0, now + 0.12)
+            gain2.gain.linearRampToValueAtTime(0.25, now + 0.16)
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55)
+            osc2.connect(gain2)
+            gain2.connect(audioCtx.destination)
+            osc2.start(now + 0.12)
+            osc2.stop(now + 0.55)
         } catch (e) {
             console.warn('Failed to play audio notification', e)
         }
@@ -152,42 +176,78 @@ export default function GlobalHeader({ onMenuToggle }) {
         return () => {
             supabase.removeChannel(channel)
         }
-    }, [user])
+    }, [user, dbUser])
+
+    const handleToggleDropdown = () => {
+        const nextState = !isDropdownOpen
+        setIsDropdownOpen(nextState)
+        // Otomatis bersihkan badge merah saat lonceng dibuka
+        if (nextState && unreadCount > 0 && user) {
+            setUnreadCount(0)
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+            supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('recipient_id', user.id)
+                .eq('is_read', false)
+                .then(() => {
+                    fetchNotifications(user.id)
+                })
+        }
+    }
 
     const handleMarkAsRead = async (id, appointmentId, type) => {
-        const { error } = await supabase
+        // Optimistic UI Update
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+        setUnreadCount(prev => Math.max(0, prev - 1))
+        setIsDropdownOpen(false)
+
+        await supabase
             .from('notifications')
             .update({ is_read: true })
             .eq('id', id)
-        if (!error) {
-            fetchNotifications(user.id)
-            fetchUnreadCount(user.id)
-            setIsDropdownOpen(false)
-            if (appointmentId) {
-                if (dbUser?.role === 'therapist') {
-                    if (type === 'patient_arrived') {
-                        router.push(`/therapist/treatment-input/${appointmentId}`)
-                    } else {
-                        router.push('/therapist/dashboard')
-                    }
-                } else if (type === 'treatment_completed') {
-                    router.push(`/kasir?appointmentId=${appointmentId}`)
+
+        if (appointmentId) {
+            if (dbUser?.role === 'therapist') {
+                if (type === 'patient_arrived') {
+                    router.push(`/therapist/treatment-input/${appointmentId}`)
                 } else {
-                    router.push('/appointments')
+                    router.push('/therapist/dashboard')
                 }
+            } else if (type === 'treatment_completed') {
+                router.push(`/kasir?appointmentId=${appointmentId}`)
+            } else {
+                router.push('/appointments')
             }
         }
     }
 
+    const handleDismissNotification = async (e, id) => {
+        e.stopPropagation()
+        setNotifications(prev => prev.filter(n => n.id !== id))
+        setUnreadCount(prev => Math.max(0, prev - 1))
+        await supabase.from('notifications').delete().eq('id', id)
+    }
+
+    const handleClearAllNotifications = async () => {
+        if (!user) return
+        setNotifications([])
+        setUnreadCount(0)
+        await supabase.from('notifications').delete().eq('recipient_id', user.id)
+        toast.success('Daftar notifikasi berhasil dibersihkan.')
+    }
+
     const handleMarkAllAsRead = async () => {
         if (!user) return
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+        setUnreadCount(0)
         const { error } = await supabase
             .from('notifications')
             .update({ is_read: true })
             .eq('recipient_id', user.id)
             .eq('is_read', false)
         if (!error) {
-            toast.success('Semua notifikasi ditandai dibaca.')
+            toast.success('Semua notifikasi ditandai sudah dibaca.')
             fetchNotifications(user.id)
             fetchUnreadCount(user.id)
         }
@@ -218,33 +278,38 @@ export default function GlobalHeader({ onMenuToggle }) {
         if (pathname.startsWith('/patients/new')) return 'Tambah Pasien Baru'
         if (pathname.match(/^\/patients\/[^/]+$/)) return 'Detail Pasien'
         if (pathname.startsWith('/patients')) return 'Manajemen Pasien'
-
-        if (pathname.startsWith('/appointments/new')) return 'Buat Janji Temu'
-        if (pathname.startsWith('/appointments')) return 'Janji Temu'
-
-        if (pathname.startsWith('/treatment-records/new')) return 'Tambah Rekam Medis'
-        if (pathname.startsWith('/treatment-records')) return 'Rekam Medis'
-
+        if (pathname.startsWith('/appointments/new')) return 'Buat Jadwal Janji Temu'
+        if (pathname.startsWith('/appointments')) return 'Jadwal Janji Temu Pasien'
+        if (pathname.startsWith('/treatment-records/new')) return 'Buat Rekam Medis'
+        if (pathname.startsWith('/treatment-records')) return 'Rekam Medis & Riwayat'
+        if (pathname.startsWith('/kasir/history')) return 'Riwayat Transaksi Kasir'
+        if (pathname.startsWith('/kasir')) return 'Kasir & POS Penjualan'
+        if (pathname.startsWith('/transactions')) return 'Laporan Transaksi'
         if (pathname.startsWith('/crm')) return 'Customer Relationship (CRM)'
-        if (pathname.startsWith('/transactions')) return 'Riwayat Transaksi & Laporan'
-        
-        if (pathname.startsWith('/settings/treatments')) return 'Layanan Treatment'
-        if (pathname.startsWith('/settings/treatment-categories')) return 'Kategori Treatment'
-        if (pathname.startsWith('/settings/branches')) return 'Cabang Klinik'
-        if (pathname.startsWith('/settings/users')) return 'Manajemen Pengguna'
+        if (pathname.startsWith('/coupons')) return 'Kupon & Loyalty'
+        if (pathname.startsWith('/reports/therapists')) return 'Laporan Komisi Terapis'
+        if (pathname.startsWith('/reports/treatments')) return 'Laporan Treatment'
+        if (pathname.startsWith('/reports')) return 'Laporan & Analitik'
+        if (pathname.startsWith('/settings/branches')) return 'Manajemen Cabang'
+        if (pathname.startsWith('/settings/users')) return 'Manajemen Karyawan'
+        if (pathname.startsWith('/settings/treatments')) return 'Master Layanan'
+        if (pathname.startsWith('/settings/products')) return 'Master Produk'
+        if (pathname.startsWith('/settings/product-stock')) return 'Stok Produk Cabang'
+        if (pathname.startsWith('/settings/backup')) return 'Backup & Keamanan Data'
         if (pathname.startsWith('/settings')) return 'Pengaturan Sistem'
-
+        if (pathname.startsWith('/therapist/dashboard')) return 'Dashboard Terapis'
+        if (pathname.startsWith('/therapist/appointments')) return 'Riwayat & Komisi Terapis'
         return 'Ayumi Beauty House'
     }
 
     return (
-        <header className="bg-white border-b border-gray-100 shadow-xs px-4 md:px-6 py-2.5 md:py-3 flex justify-between items-center z-30 sticky top-0 print-hide no-print">
+        <header className="bg-white border-b border-gray-100 h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
             <div className="flex items-center gap-3">
                 <button 
                     onClick={onMenuToggle}
-                    className="md:hidden text-gray-500 hover:text-ayumi-primary p-2 rounded-xl bg-gray-50 hover:bg-pink-50 transition-all border border-gray-100 flex items-center justify-center cursor-pointer"
+                    className="md:hidden text-gray-500 hover:text-ayumi-primary p-2 rounded-xl bg-gray-50 hover:bg-pink-50 transition-colors"
                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                 </button>
@@ -257,8 +322,9 @@ export default function GlobalHeader({ onMenuToggle }) {
                 {user && (
                     <div className="relative">
                         <button 
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="text-gray-500 hover:text-ayumi-primary p-2.5 rounded-xl bg-gray-50 hover:bg-pink-50 transition-all border border-gray-100 flex items-center justify-center relative"
+                            onClick={handleToggleDropdown}
+                            className="text-gray-500 hover:text-ayumi-primary p-2.5 rounded-xl bg-gray-50 hover:bg-pink-50 transition-all border border-gray-100 flex items-center justify-center relative cursor-pointer"
+                            title="Notifikasi Sistem"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -271,22 +337,42 @@ export default function GlobalHeader({ onMenuToggle }) {
                         </button>
                         
                         {isDropdownOpen && (
-                            <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in-up">
-                                <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50">
-                                    <h4 className="font-extrabold text-sm text-gray-800">Notifikasi</h4>
-                                    {unreadCount > 0 && (
-                                        <button 
-                                            onClick={handleMarkAllAsRead}
-                                            className="text-[10px] font-bold text-ayumi-primary hover:text-ayumi-secondary transition-colors"
-                                        >
-                                            Tandai Semua Dibaca
-                                        </button>
-                                    )}
+                            <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in-up">
+                                <div className="p-3.5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80">
+                                    <div className="flex items-center gap-1.5">
+                                        <h4 className="font-extrabold text-xs text-gray-800 uppercase tracking-wider">Notifikasi</h4>
+                                        {notifications.length > 0 && (
+                                            <span className="text-[10px] bg-pink-100 text-pink-700 font-black px-1.5 py-0.2 rounded-full">
+                                                {notifications.length}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {notifications.some(n => !n.is_read) && (
+                                            <button 
+                                                onClick={handleMarkAllAsRead}
+                                                className="text-[10.5px] font-bold text-ayumi-primary hover:underline transition-colors cursor-pointer"
+                                            >
+                                                Tandai Dibaca
+                                            </button>
+                                        )}
+                                        {notifications.length > 0 && (
+                                            <button 
+                                                onClick={handleClearAllNotifications}
+                                                className="text-[10.5px] font-bold text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                                                title="Hapus semua riwayat notifikasi"
+                                            >
+                                                Bersihkan
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 
-                                <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                                <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                                     {notifications.length === 0 ? (
-                                        <div className="p-6 text-center text-xs text-gray-400">Tidak ada notifikasi.</div>
+                                        <div className="p-8 text-center text-xs text-gray-400 italic">
+                                            <span>✨ Tidak ada notifikasi baru.</span>
+                                        </div>
                                     ) : (
                                         notifications.map(n => {
                                             const timeAgo = formatTimeAgo(n.created_at)
@@ -294,33 +380,50 @@ export default function GlobalHeader({ onMenuToggle }) {
                                                 <div 
                                                     key={n.id}
                                                     onClick={() => handleMarkAsRead(n.id, n.appointment_id, n.type)}
-                                                    className={`p-3.5 cursor-pointer hover:bg-gray-50 transition-colors flex gap-3 text-left ${!n.is_read ? 'bg-pink-50/40' : ''}`}
+                                                    className={`p-3.5 cursor-pointer hover:bg-gray-50 transition-colors flex gap-2.5 text-left group relative ${!n.is_read ? 'bg-pink-50/50' : ''}`}
                                                 >
                                                     <div className="shrink-0 mt-0.5">
                                                         {n.type === 'patient_arrived' ? (
-                                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                                            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shadow-2xs">
+                                                                🙋‍♀️
                                                             </div>
                                                         ) : n.type === 'therapist_ready' ? (
-                                                            <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <div className="w-8 h-8 rounded-xl bg-green-100 text-green-600 flex items-center justify-center font-bold text-xs shadow-2xs">
+                                                                💆‍♀️
                                                             </div>
                                                         ) : n.type === 'treatment_completed' ? (
-                                                            <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center">
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                                                            <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-xs shadow-2xs">
+                                                                🧾
                                                             </div>
                                                         ) : (
-                                                            <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center">
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <div className="w-8 h-8 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-xs shadow-2xs">
+                                                                🔔
                                                             </div>
                                                         )}
                                                     </div>
                                                     
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="text-xs font-bold text-gray-800 truncate">{n.title}</div>
-                                                        <div className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{n.message}</div>
-                                                        <div className="text-[9px] text-gray-400 mt-1 font-semibold">{timeAgo}</div>
+                                                    <div className="flex-1 min-w-0 pr-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-xs font-black text-gray-900 truncate">{n.title}</span>
+                                                            {!n.is_read && (
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0"></span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2 leading-tight">{n.message}</p>
+                                                        <span className="text-[9.5px] text-gray-400 mt-1 block font-semibold">{timeAgo}</span>
                                                     </div>
+
+                                                    {/* Tombol Hapus / Dismiss Per Notifikasi */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => handleDismissNotification(e, n.id)}
+                                                        className="absolute right-2.5 top-3 text-gray-300 hover:text-red-500 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                                        title="Hapus notifikasi ini"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
                                                 </div>
                                             )
                                         })
