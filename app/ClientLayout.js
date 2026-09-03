@@ -31,15 +31,33 @@ class ErrorBoundary extends Component {
                     <p className="text-sm text-red-600/80 max-w-md mx-auto">
                         Terjadi kesalahan saat memuat komponen halaman ini. Silakan coba muat ulang halaman atau hubungi administrator jika masalah berlanjut.
                     </p>
-                    <button 
-                        onClick={() => {
-                            this.setState({ hasError: false, error: null })
-                            window.location.reload()
-                        }}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-colors cursor-pointer inline-flex items-center gap-2"
-                    >
-                        Muat Ulang Halaman
-                    </button>
+                    {this.state.error?.message && (
+                        <div className="p-3 bg-white border border-red-200 rounded-xl text-xs text-red-700 font-mono text-left max-w-lg mx-auto overflow-x-auto">
+                            <strong>Detail Error:</strong> {this.state.error.message}
+                        </div>
+                    )}
+                    <div className="flex justify-center gap-3">
+                        <button 
+                            onClick={() => {
+                                this.setState({ hasError: false, error: null })
+                                window.location.reload()
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-colors cursor-pointer inline-flex items-center gap-2"
+                        >
+                            Muat Ulang Halaman
+                        </button>
+                        <button 
+                            onClick={() => {
+                                localStorage.removeItem('ayumi_pos_active_draft')
+                                localStorage.removeItem('ayumi_pos_held_transactions')
+                                this.setState({ hasError: false, error: null })
+                                window.location.reload()
+                            }}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors cursor-pointer"
+                        >
+                            Reset Draft & Cache
+                        </button>
+                    </div>
                 </div>
             )
         }

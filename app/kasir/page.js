@@ -1563,9 +1563,10 @@ function PosPageContent() {
                     thGroups.get(key).items.push(tItem)
                 })
 
-                const effectiveDateStr = (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) ? backdateDate : new Date().toISOString().split('T')[0]
-                const effectiveTimeStr = (isBackdateEnabled && dbUser?.role === 'owner' && backdateTime) ? backdateTime : new Date().toLocaleTimeString('en-US', { hour12: false })
-                const effectiveCustomIso = (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
+                const canBackdate = isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate
+                const effectiveDateStr = canBackdate ? backdateDate : new Date().toISOString().split('T')[0]
+                const effectiveTimeStr = canBackdate ? (backdateTime || new Date().toLocaleTimeString('en-US', { hour12: false })) : new Date().toLocaleTimeString('en-US', { hour12: false })
+                const effectiveCustomIso = canBackdate ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
                 const createdDirectTrIds = []
 
                 for (const [key, group] of thGroups.entries()) {
@@ -1729,8 +1730,8 @@ function PosPageContent() {
                 }
             }
 
-            // 4. Update Backdate Timestamps (Khusus Owner Backdate Transaksi Susulan)
-            if (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) {
+            // 4. Update Backdate Timestamps (Admin & Owner Backdate Transaksi Susulan)
+            if (isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate) {
                 try {
                     const customIso = new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString()
                     
@@ -2519,11 +2520,11 @@ function PosPageContent() {
                                         <span className="group-hover:text-ayumi-primary transition-colors">Riwayat Treatment & Produk</span>
                                     </span>
                                     <span className="text-[9px] bg-pink-500 text-white font-black px-1.5 py-0.5 rounded-full shadow-xs">
-                                        {patientHistoryLoading ? '...' : `${(patientHistoryData.pastTreatments?.length || 0) + (patientHistoryData.pastProducts?.length || 0)} Item`} ↗
+                                        {patientHistoryLoading ? '...' : `${(patientHistoryData?.pastTreatments?.length || 0) + (patientHistoryData?.pastProducts?.length || 0)} Item`} ↗
                                     </span>
                                 </button>
 
-                                {selectedPatient.id && (
+                                {selectedPatient?.id && (
                                     <Link
                                         href={`/patients/${selectedPatient.id}`}
                                         target="_blank"
@@ -2537,7 +2538,7 @@ function PosPageContent() {
                             </div>
 
                             {/* Micro-preview produk / treatment terakhir jika ada */}
-                            {(patientHistoryData.pastTreatments?.length > 0 || patientHistoryData.pastProducts?.length > 0) && (
+                            {((patientHistoryData?.pastTreatments?.length || 0) > 0 || (patientHistoryData?.pastProducts?.length || 0) > 0) && (
                                 <div 
                                     onClick={() => setIsPatientHistoryModalOpen(true)}
                                     className="p-1.5 px-2 bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/80 rounded-lg text-[10px] text-amber-900 cursor-pointer transition-all flex items-center justify-between gap-1"
@@ -2546,7 +2547,7 @@ function PosPageContent() {
                                     <div className="truncate flex items-center gap-1 min-w-0">
                                         <span className="font-extrabold text-amber-800 shrink-0">Terakhir:</span>
                                         <span className="truncate font-bold text-gray-800">
-                                            {patientHistoryData.pastTreatments[0]?.name || patientHistoryData.pastProducts[0]?.name}
+                                            {patientHistoryData?.pastTreatments?.[0]?.name || patientHistoryData?.pastProducts?.[0]?.name || '-'}
                                         </span>
                                     </div>
                                     <span className="text-amber-700 font-black shrink-0 text-[9px] bg-amber-200/80 px-1.5 py-0.2 rounded">Rincian ↗</span>
@@ -3239,12 +3240,12 @@ function PosPageContent() {
                         )}
                     </div>
 
-                    {/* FITUR KHUSUS OWNER: PILIH TANGGAL TRANSAKSI (BACKDATE) */}
-                    {dbUser?.role === 'owner' && (
+                    {/* FITUR ATUR TANGGAL TRANSAKSI (BACKDATE UNTUK ADMIN & OWNER) */}
+                    {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
                         <div className="p-2.5 bg-amber-50/70 border border-amber-200/90 rounded-xl space-y-1.5 transition-all">
                             <div className="flex items-center justify-between">
                                 <label className="text-[10px] font-extrabold text-amber-950 flex items-center gap-1 cursor-pointer">
-                                    <span>📅</span> Tanggal Transaksi (Khusus Owner):
+                                    <span>📅</span> Atur Tanggal Transaksi:
                                 </label>
                                 <button
                                     type="button"
@@ -3276,6 +3277,7 @@ function PosPageContent() {
                                             <input
                                                 type="date"
                                                 value={backdateDate}
+                                                min={dbUser?.role === 'owner' ? undefined : new Date(Date.now() - 86400000).toISOString().split('T')[0]}
                                                 max={new Date().toISOString().split('T')[0]}
                                                 onChange={(e) => setBackdateDate(e.target.value)}
                                                 className="w-full text-xs font-black p-1 bg-white border border-amber-300 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
@@ -3582,20 +3584,20 @@ function PosPageContent() {
                                                     </h4>
                                                 </div>
                                                 <span className="text-[10px] font-bold text-pink-700 bg-pink-100 px-2 py-0.5 rounded-full">
-                                                    {patientHistoryData.pastTreatments?.length || 0} Treatment
+                                                    {(patientHistoryData?.pastTreatments || []).length} Treatment
                                                 </span>
                                             </div>
 
-                                            {patientHistoryData.pastTreatments?.length === 0 ? (
+                                            {(patientHistoryData?.pastTreatments || []).length === 0 ? (
                                                 <p className="text-xs text-gray-400 py-6 text-center italic">Belum ada riwayat treatment.</p>
                                             ) : (
                                                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                                                    {patientHistoryData.pastTreatments.map((tr, idx) => (
+                                                    {(patientHistoryData?.pastTreatments || []).map((tr, idx) => (
                                                         <div key={idx} className="p-3 bg-white hover:bg-pink-50/50 rounded-xl border border-gray-100 hover:border-pink-200 transition-all shadow-2xs flex items-center justify-between gap-2">
                                                             <div className="min-w-0">
                                                                 <p className="font-extrabold text-xs text-gray-900 truncate">{tr.name}</p>
                                                                 <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-0.5 flex-wrap">
-                                                                    <span>Terakhir: <strong className="text-gray-700">{new Date(tr.lastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                                                                    <span>Terakhir: <strong className="text-gray-700">{tr.lastDate ? new Date(tr.lastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</strong></span>
                                                                     {tr.count > 1 && (
                                                                         <span className="bg-pink-100 text-pink-800 font-bold px-1.5 py-0.2 rounded">
                                                                             {tr.count}x
@@ -3632,28 +3634,28 @@ function PosPageContent() {
                                                     </h4>
                                                 </div>
                                                 <span className="text-[10px] font-bold text-cyan-800 bg-cyan-100 px-2 py-0.5 rounded-full">
-                                                    {patientHistoryData.pastProducts?.length || 0} Produk
+                                                    {(patientHistoryData?.pastProducts || []).length} Produk
                                                 </span>
                                             </div>
 
-                                            {patientHistoryData.pastProducts?.length === 0 ? (
+                                            {(patientHistoryData?.pastProducts || []).length === 0 ? (
                                                 <p className="text-xs text-gray-400 py-6 text-center italic">Belum ada riwayat pembelian produk.</p>
                                             ) : (
                                                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                                                    {patientHistoryData.pastProducts.map((pr, idx) => (
+                                                    {(patientHistoryData?.pastProducts || []).map((pr, idx) => (
                                                         <div key={idx} className="p-3 bg-white hover:bg-cyan-50/50 rounded-xl border border-gray-100 hover:border-cyan-200 transition-all shadow-2xs flex items-center justify-between gap-2">
                                                             <div className="min-w-0">
                                                                 <p className="font-extrabold text-xs text-gray-900 truncate">{pr.name}</p>
                                                                 <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-0.5 flex-wrap">
-                                                                    <span>Terakhir: <strong className="text-gray-700">{new Date(pr.lastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                                                                    <span>Terakhir: <strong className="text-gray-700">{pr.lastDate ? new Date(pr.lastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</strong></span>
                                                                     {pr.totalQty > 1 && (
                                                                         <span className="bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.2 rounded">
-                                                                            Total {pr.totalQty} pcs
+                                                                            {pr.totalQty} pcs
                                                                         </span>
                                                                     )}
                                                                 </div>
                                                                 {pr.price > 0 && (
-                                                                    <p className="text-[11px] font-black text-cyan-700 mt-1">Rp {Number(pr.price).toLocaleString('id-ID')}</p>
+                                                                    <p className="text-[11px] font-black text-cyan-900 mt-1">Rp {Number(pr.price).toLocaleString('id-ID')}</p>
                                                                 )}
                                                             </div>
                                                             <button
@@ -3661,8 +3663,8 @@ function PosPageContent() {
                                                                 onClick={() => {
                                                                     handleAddHistoryItemToCart(pr, 'product')
                                                                 }}
-                                                                className="px-2.5 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-800 font-black text-[10px] border border-cyan-200 transition-colors shadow-2xs shrink-0 cursor-pointer flex items-center gap-1"
-                                                                title="Ulangi pembelian produk ini ke keranjang kasir"
+                                                                className="px-2.5 py-1.5 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-900 font-black text-[10px] border border-cyan-300 transition-colors shadow-2xs shrink-0 cursor-pointer flex items-center gap-1"
+                                                                title="Tambahkan produk ini lagi ke keranjang kasir"
                                                             >
                                                                 <span>+ Kasir</span>
                                                             </button>
@@ -3676,16 +3678,16 @@ function PosPageContent() {
                             ) : patientHistoryActiveTab === 'transactions' ? (
                                 /* Tab 2: Nota Transaksi Kasir */
                                 <div className="space-y-3">
-                                    {patientHistoryData.transactions?.length === 0 ? (
+                                    {(patientHistoryData?.transactions || []).length === 0 ? (
                                         <p className="text-xs text-gray-400 py-12 text-center italic">Belum ada riwayat transaksi kasir.</p>
                                     ) : (
-                                        patientHistoryData.transactions.map(tx => (
+                                        (patientHistoryData?.transactions || []).map(tx => (
                                             <div key={tx.id} className="p-4 rounded-2xl border border-gray-200 hover:border-pink-200 bg-white shadow-2xs space-y-2">
                                                 <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-gray-100">
                                                     <div>
                                                         <span className="font-extrabold text-xs text-ayumi-primary">{tx.transaction_number || 'TRX-KASIR'}</span>
                                                         <span className="text-[11px] text-gray-500 font-semibold ml-2">
-                                                            {new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                            {tx.created_at ? new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                                                         </span>
                                                         {tx.branches?.name && (
                                                             <span className="ml-2 text-[10px] bg-gray-100 text-gray-700 font-bold px-1.5 py-0.2 rounded">
@@ -3703,7 +3705,7 @@ function PosPageContent() {
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1">
-                                                    {tx.transaction_items?.map((it, idx) => (
+                                                    {(tx.transaction_items || []).map((it, idx) => (
                                                         <div key={idx} className="flex justify-between text-xs text-gray-700">
                                                             <span>• {it.name} <strong className="text-gray-500">x{it.quantity || 1}</strong></span>
                                                             <span className="font-semibold text-gray-900">Rp {Number(it.subtotal || 0).toLocaleString('id-ID')}</span>
@@ -3717,15 +3719,15 @@ function PosPageContent() {
                             ) : (
                                 /* Tab 3: Rekam Medis Klinis */
                                 <div className="space-y-3">
-                                    {patientHistoryData.records?.length === 0 ? (
+                                    {(patientHistoryData?.records || []).length === 0 ? (
                                         <p className="text-xs text-gray-400 py-12 text-center italic">Belum ada catatan rekam medis tindakan.</p>
                                     ) : (
-                                        patientHistoryData.records.map(rec => (
+                                        (patientHistoryData?.records || []).map(rec => (
                                             <div key={rec.id} className="p-4 rounded-2xl border border-gray-200 hover:border-pink-200 bg-white shadow-2xs space-y-2">
                                                 <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                                                     <div>
                                                         <span className="font-extrabold text-xs text-gray-900">
-                                                            {new Date(rec.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                            {rec.treatment_date ? new Date(rec.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
                                                         </span>
                                                         {rec.branches?.name && (
                                                             <span className="ml-2 text-[10px] bg-pink-100 text-pink-800 font-bold px-1.5 py-0.2 rounded">
@@ -3740,10 +3742,10 @@ function PosPageContent() {
                                                 {rec.assessment && (
                                                     <p className="text-xs text-gray-600"><strong className="text-gray-800">Diagnosa / Assessment:</strong> {rec.assessment}</p>
                                                 )}
-                                                {rec.treatment_record_items?.length > 0 && (
+                                                {(rec.treatment_record_items || []).length > 0 && (
                                                     <div className="space-y-1 pt-1">
                                                         <p className="text-[11px] font-bold text-gray-500">Tindakan Dilakukan:</p>
-                                                        {rec.treatment_record_items.map((it, idx) => (
+                                                        {(rec.treatment_record_items || []).map((it, idx) => (
                                                              <p key={idx} className="text-xs text-gray-700 font-semibold">• {it.treatments?.name || it.notes}</p>
                                                         ))}
                                                     </div>
