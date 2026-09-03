@@ -72,9 +72,33 @@ export default function ItemVariantModal({
         })
     }
 
+    // Keyboard Shortcuts: Enter to Confirm, Escape to Close
+    useEffect(() => {
+        if (!isOpen) return
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                handleConfirm()
+            } else if (e.key === 'Escape') {
+                e.preventDefault()
+                onClose()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [isOpen, hasVariants, selectedVariant, qty, rawDisc, basePrice, totalPrice, item, itemType, discountType, onConfirm, onClose])
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-[#F2D8C3]">
+            <form 
+                onSubmit={(e) => {
+                    e.preventDefault()
+                    handleConfirm()
+                }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-[#F2D8C3]"
+            >
                 {/* Header */}
                 <div className="p-4 sm:p-5 border-b border-[#F2D8C3] flex items-center justify-between bg-[#FAF6F0]">
                     <div>
@@ -240,14 +264,14 @@ export default function ItemVariantModal({
                         Batal
                     </button>
                     <button
-                        type="button"
-                        onClick={handleConfirm}
+                        type="submit"
                         className="px-5 py-2.5 text-xs font-black text-white bg-[#D46221] hover:bg-[#B5531B] rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                         <span>Tambah ke Keranjang</span>
+                        <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono font-bold">↵ Enter</span>
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     )
 }
