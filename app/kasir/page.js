@@ -2842,37 +2842,37 @@ function PosPageContent() {
                                                 )
                                             })()}
                                         </div>
-                                        <div className="bg-pink-50/50 p-1.5 rounded-md border border-pink-200">
-                                            <label className="text-[8px] font-black uppercase text-pink-600 block">Harga Net</label>
+                                        <div className="bg-[#FAF1E8] p-1.5 rounded-md border border-[#F2D8C3]">
+                                            <label className="text-[8px] font-black uppercase text-[#B5531B] block">Harga Net</label>
                                             <input 
                                                 type="number" 
                                                 value={!item.price ? '' : item.price} 
                                                 onFocus={(e) => e.target.select()}
                                                 placeholder="0"
                                                 onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
-                                                className="w-full text-[11px] font-black bg-transparent border-none outline-none text-ayumi-primary p-0 text-right"
+                                                className="w-full text-[11px] font-black bg-transparent border-none outline-none text-[#D46221] p-0 text-right"
                                             />
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Bottom row: quantity controls & item subtotal */}
-                                <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-gray-100">
-                                    <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg p-0.5 border border-gray-100">
+                                {/* Bottom row: qty controller & subtotal */}
+                                <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100">
+                                    <div className="flex items-center gap-1.5 bg-gray-50 border border-[#F2D8C3] rounded-lg p-0.5">
                                         <button 
                                             type="button"
                                             onClick={() => updateCartQty(item.id, item.item_type, -1)} 
-                                            className="w-5 h-5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-xs"
+                                            className="w-5 h-5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-xs cursor-pointer"
                                         >-</button>
-                                        <span className="font-extrabold text-xs w-5 text-center text-gray-800">{item.quantity}</span>
+                                        <span className="text-xs font-black px-1.5 min-w-[20px] text-center text-[#2C1E16]">{item.quantity}</span>
                                         <button 
                                             type="button"
                                             onClick={() => updateCartQty(item.id, item.item_type, 1)} 
-                                            className="w-5 h-5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-xs"
+                                            className="w-5 h-5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-xs cursor-pointer"
                                         >+</button>
                                     </div>
                                     <div className="text-right">
-                                        <span className="font-black text-xs text-ayumi-secondary">
+                                        <span className="font-black text-xs text-[#D46221]">
                                             Rp {((item.price || 0) * item.quantity).toLocaleString('id-ID')}
                                         </span>
                                     </div>
@@ -2883,21 +2883,21 @@ function PosPageContent() {
                 </div>
 
                 {/* ─── SECTION BOTTOM: TOTALS & PAYMENT COMPACT ─── */}
-                <div className="border-t border-slate-200 bg-white p-3.5 shadow-md z-10 shrink-0 space-y-2.5">
+                <div className="border-t border-[#F2D8C3] bg-white p-3.5 shadow-md z-10 shrink-0 space-y-2.5">
                     {/* Subtotal & Diskon Global */}
-                    <div className="space-y-1.5 text-xs text-slate-600">
-                        <div className="flex justify-between items-center">
-                            <span>Subtotal ({cart.reduce((s,i)=>s+(i.quantity||1),0)} item)</span>
-                            <span className="font-bold text-slate-800">Rp {subtotal.toLocaleString('id-ID')}</span>
+                    <div className="space-y-1.5 text-xs text-[#4E2A12]">
+                        <div className="flex justify-between items-center font-medium">
+                            <span className="text-gray-500">Subtotal ({cart.reduce((s,i)=>s+(i.quantity||1),0)} item)</span>
+                            <span className="font-bold text-[#2C1E16]">Rp {subtotal.toLocaleString('id-ID')}</span>
                         </div>
                         
                         <div className="flex items-center justify-between gap-2">
-                            <span className="shrink-0">Diskon Nota</span>
+                            <span className="text-gray-500 font-medium shrink-0">Diskon Nota</span>
                             <div className="flex items-center gap-1 flex-1 max-w-[170px]">
                                 <select 
                                     value={discountType} 
                                     onChange={(e) => setDiscountType(e.target.value)}
-                                    className="input-ayumi bg-gray-50 py-0.5 px-1.5 text-[11px] w-14 font-bold"
+                                    className="bg-[#FAF6F0] border border-[#F2D8C3] text-[#4E2A12] rounded-lg py-1 px-1.5 text-[11px] w-14 font-black outline-none focus:border-[#D46221]"
                                 >
                                     <option value="nominal">Rp</option>
                                     <option value="percent">%</option>
@@ -2908,14 +2908,14 @@ function PosPageContent() {
                                     onFocus={(e) => e.target.select()}
                                     placeholder="0"
                                     onChange={(e) => setDiscountValue(e.target.value)}
-                                    className="input-ayumi py-0.5 px-2 text-right flex-1 bg-gray-50 text-xs font-bold"
+                                    className="py-1 px-2 text-right flex-1 bg-[#FAF6F0] border border-[#F2D8C3] text-xs font-black text-[#2C1E16] rounded-lg outline-none focus:border-[#D46221]"
                                     min="0"
                                 />
                             </div>
                         </div>
 
                         {discountAmount > 0 && (
-                            <div className="flex justify-between text-[11px] text-red-500 font-semibold">
+                            <div className="flex justify-between text-[11px] text-rose-600 font-bold bg-rose-50 px-2 py-1 rounded-lg">
                                 <span>Potongan Diskon</span>
                                 <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
                             </div>
@@ -2929,10 +2929,10 @@ function PosPageContent() {
                         )}
                     </div>
 
-                    {/* TOTAL BAYAR */}
-                    <div className="flex justify-between items-center border-t border-slate-100 pt-2">
-                        <span className="font-extrabold text-xs text-slate-700 tracking-wider">TOTAL BAYAR</span>
-                        <span className="font-black text-xl text-ayumi-secondary tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
+                    {/* TOTAL BAYAR CARD */}
+                    <div className="flex justify-between items-center bg-[#FAF6F0] border border-[#F2D8C3] p-2.5 px-3.5 rounded-xl shadow-2xs">
+                        <span className="font-black text-xs text-[#4E2A12] tracking-wider uppercase">TOTAL BAYAR</span>
+                        <span className="font-black text-xl text-[#D46221] tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
                     </div>
 
                     {/* Selector Terapis Global (Jika tindakan langsung belum punya terapis) */}
@@ -2941,7 +2941,7 @@ function PosPageContent() {
                             <select
                                 value={selectedTherapistId}
                                 onChange={(e) => setSelectedTherapistId(e.target.value)}
-                                className="w-full input-ayumi text-xs font-bold bg-pink-50/50 border-pink-200 py-1"
+                                className="w-full text-xs font-black bg-[#FAF1E8] border border-[#F2D8C3] text-[#4E2A12] py-1.5 px-2.5 rounded-xl outline-none focus:border-[#D46221]"
                             >
                                 <option value="">-- Pilih Terapis Tindakan * --</option>
                                 <option value="worker">💉 Worker (Tanpa Komisi)</option>
@@ -2952,28 +2952,76 @@ function PosPageContent() {
                         </div>
                     )}
 
-                    {/* Metode Pembayaran (6 Compact Buttons) */}
+                    {/* Metode Pembayaran (6 Compact Modern Buttons with SVG Icons) */}
                     <div>
-                        <div className="grid grid-cols-6 gap-1">
+                        <div className="grid grid-cols-6 gap-1.5">
                             {[
-                                { id: 'cash', label: 'Cash', icon: '💵' },
-                                { id: 'transfer', label: 'Bank', icon: '🏦' },
-                                { id: 'qris', label: 'QRIS', icon: '📱' },
-                                { id: 'debit', label: 'Debit', icon: '💳' },
-                                { id: 'credit', label: 'Kredit', icon: '💳' },
-                                { id: 'split', label: 'Split', icon: '🔀' }
+                                { 
+                                    id: 'cash', 
+                                    label: 'Cash', 
+                                    icon: (
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                    ) 
+                                },
+                                { 
+                                    id: 'transfer', 
+                                    label: 'Bank', 
+                                    icon: (
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                                        </svg>
+                                    ) 
+                                },
+                                { 
+                                    id: 'qris', 
+                                    label: 'QRIS', 
+                                    icon: (
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                        </svg>
+                                    ) 
+                                },
+                                { 
+                                    id: 'debit', 
+                                    label: 'Debit', 
+                                    icon: (
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                        </svg>
+                                    ) 
+                                },
+                                { 
+                                    id: 'credit', 
+                                    label: 'Kredit', 
+                                    icon: (
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                        </svg>
+                                    ) 
+                                },
+                                { 
+                                    id: 'split', 
+                                    label: 'Split', 
+                                    icon: (
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                        </svg>
+                                    ) 
+                                }
                             ].map(pm => (
                                 <button
                                     key={pm.id}
                                     type="button"
                                     onClick={() => setPaymentMethod(pm.id)}
-                                    className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-lg border text-[10px] font-extrabold transition-all cursor-pointer ${
+                                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-[10px] font-black transition-all cursor-pointer ${
                                         paymentMethod === pm.id
-                                            ? 'bg-pink-50 border-ayumi-primary text-ayumi-primary shadow-2xs scale-102'
-                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs scale-102 ring-2 ring-[#F2D8C3]'
+                                            : 'bg-white border-[#F2D8C3] text-[#4E2A12] hover:bg-[#FAF1E8]/70 hover:border-[#D46221]'
                                     }`}
                                 >
-                                    <span className="text-xs">{pm.icon}</span>
+                                    <span className="mb-0.5">{pm.icon}</span>
                                     <span className="truncate w-full text-center">{pm.label}</span>
                                 </button>
                             ))}
@@ -3146,23 +3194,24 @@ function PosPageContent() {
 
                         {/* Cash Payment Box (Compact & Sleek) */}
                         {paymentMethod === 'cash' && (
-                            <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5 animate-fadeIn">
+                            <div className="mt-3 p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-2 animate-fadeIn">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-[10px] font-extrabold text-emerald-950 flex items-center gap-1">
-                                        <span>💵</span> Uang Tunai Diterima:
+                                    <label className="text-[11px] font-black text-emerald-950 flex items-center gap-1.5">
+                                        <svg className="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                        Uang Tunai Diterima:
                                     </label>
                                     {(() => {
                                         const cVal = Number(cashReceived) || 0
                                         if (cVal > 0 && cVal >= total) {
                                             const change = cVal - total
                                             return (
-                                                <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.2 rounded-full border border-emerald-300">
+                                                <span className="text-[10px] font-black text-emerald-900 bg-emerald-200/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
                                                     Kembalian: Rp {change.toLocaleString('id-ID')}
                                                 </span>
                                             )
                                         } else if (cVal > 0 && cVal < total) {
                                             return (
-                                                <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.2 rounded-full">
+                                                <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">
                                                     Kurang: Rp {(total - cVal).toLocaleString('id-ID')}
                                                 </span>
                                             )
@@ -3171,35 +3220,35 @@ function PosPageContent() {
                                     })()}
                                 </div>
 
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-2">
                                     <div className="relative flex-1">
-                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">Rp</span>
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-700">Rp</span>
                                         <input
                                             type="number"
                                             value={cashReceived}
                                             onChange={(e) => setCashReceived(e.target.value)}
                                             onFocus={(e) => e.target.select()}
                                             placeholder={total ? total.toString() : '0'}
-                                            className="w-full pl-8 pr-2.5 py-1 bg-white border border-emerald-300 rounded-lg text-sm font-black text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-right"
+                                            className="w-full pl-9 pr-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-right shadow-inner"
                                         />
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => setCashReceived(total.toString())}
-                                        className="px-2.5 py-1 text-[10px] font-black bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-2xs shrink-0 cursor-pointer"
+                                        className="px-3 py-1.5 text-[11px] font-black bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-xs shrink-0 cursor-pointer active:scale-95"
                                     >
                                         ✓ Uang Pas
                                     </button>
                                 </div>
 
                                 {/* Quick Cash Chips (Tight Wrap) */}
-                                <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                                     {[50000, 100000, 200000, 500000].map(val => (
                                         <button
                                             key={val}
                                             type="button"
                                             onClick={() => setCashReceived(val.toString())}
-                                            className="px-2 py-0.5 text-[9px] font-bold bg-white border border-emerald-200 text-emerald-800 rounded-md hover:bg-emerald-100 transition-colors cursor-pointer"
+                                            className="px-2.5 py-1 text-[10px] font-black bg-white border border-emerald-200 text-emerald-800 rounded-lg hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-2xs cursor-pointer active:scale-95"
                                         >
                                             Rp {val.toLocaleString('id-ID')}
                                         </button>
@@ -3211,9 +3260,9 @@ function PosPageContent() {
 
                     {/* FITUR ATUR TANGGAL TRANSAKSI (BACKDATE UNTUK ADMIN & OWNER) */}
                     {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
-                        <div className="p-2.5 bg-amber-50/70 border border-amber-200/90 rounded-xl space-y-1.5 transition-all">
+                        <div className="p-2.5 bg-[#FAF1E8] border border-[#F2D8C3] rounded-2xl space-y-2 transition-all">
                             <div className="flex items-center justify-between">
-                                <label className="text-[10px] font-extrabold text-amber-950 flex items-center gap-1 cursor-pointer">
+                                <label className="text-[10px] font-black text-[#4E2A12] flex items-center gap-1 cursor-pointer uppercase tracking-wider">
                                     <span>📅</span> Atur Tanggal Transaksi:
                                 </label>
                                 <button
@@ -3228,10 +3277,10 @@ function PosPageContent() {
                                             setIsBackdateEnabled(false)
                                         }
                                     }}
-                                    className={`text-[9.5px] font-black px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                                    className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                                         isBackdateEnabled
-                                            ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                                            : 'bg-white text-gray-700 border-gray-200 hover:bg-amber-100'
+                                            ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs'
+                                            : 'bg-white text-[#B5531B] border-[#F2D8C3] hover:bg-[#FAF1E8]'
                                     }`}
                                 >
                                     {isBackdateEnabled ? '⚡ Mode Backdate Aktif' : '+ Atur Tanggal Lalu'}
@@ -3239,30 +3288,30 @@ function PosPageContent() {
                             </div>
 
                             {isBackdateEnabled && (
-                                <div className="pt-1.5 border-t border-amber-200/80 space-y-1.5 animate-fadeIn">
-                                    <div className="grid grid-cols-2 gap-1.5">
+                                <div className="pt-2 border-t border-[#F2D8C3] space-y-2 animate-fadeIn">
+                                    <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className="text-[9px] font-bold text-amber-900 block mb-0.5">Tanggal:</label>
+                                            <label className="text-[9px] font-black text-[#4E2A12] block mb-0.5">Tanggal:</label>
                                             <input
                                                 type="date"
                                                 value={backdateDate}
                                                 min={dbUser?.role === 'owner' ? undefined : new Date(Date.now() - 86400000).toISOString().split('T')[0]}
                                                 max={new Date().toISOString().split('T')[0]}
                                                 onChange={(e) => setBackdateDate(e.target.value)}
-                                                className="w-full text-xs font-black p-1 bg-white border border-amber-300 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                                className="w-full text-xs font-black p-1.5 bg-white border border-[#F2D8C3] rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[9px] font-bold text-amber-900 block mb-0.5">Jam / Waktu:</label>
+                                            <label className="text-[9px] font-black text-[#4E2A12] block mb-0.5">Jam / Waktu:</label>
                                             <input
                                                 type="time"
                                                 value={backdateTime}
                                                 onChange={(e) => setBackdateTime(e.target.value)}
-                                                className="w-full text-xs font-black p-1 bg-white border border-amber-300 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                                className="w-full text-xs font-black p-1.5 bg-white border border-[#F2D8C3] rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between text-[9.5px] text-amber-900 font-bold bg-amber-100/80 px-2 py-1 rounded-md">
+                                    <div className="flex items-center justify-between text-[9.5px] text-[#4E2A12] font-bold bg-[#FAF6F0] border border-[#F2D8C3] px-2.5 py-1.5 rounded-xl">
                                         <span>Dibukukan pada: <strong>{new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} pk {backdateTime}</strong></span>
                                         <button
                                             type="button"
@@ -3283,7 +3332,7 @@ function PosPageContent() {
                             <button
                                 type="button"
                                 onClick={handleHoldTransaction}
-                                className="px-3 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0 transition-all"
+                                className="px-3 py-3 bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] border border-[#F2D8C3] rounded-2xl text-xs font-black flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0 transition-all active:scale-95"
                                 title="Simpan / Tahan tagihan ini agar bisa melayani pelanggan lain"
                             >
                                 <span>⏸️</span>
@@ -3294,10 +3343,10 @@ function PosPageContent() {
                             type="button"
                             onClick={handleCheckout}
                             disabled={isProcessing || cart.length === 0 || !selectedBranch}
-                            className="flex-1 bg-ayumi-primary hover:bg-ayumi-primary-hover disabled:opacity-50 disabled:pointer-events-none text-white py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md shadow-pink-500/20 active:scale-[0.99] transition-all cursor-pointer"
+                            className="flex-1 bg-[#D46221] hover:bg-[#B5531B] disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 text-white py-3 rounded-2xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
                         >
                             {isProcessing ? (
-                                <span className="animate-pulse">Memproses...</span>
+                                <span className="animate-pulse">Memproses Transaksi...</span>
                             ) : (
                                 <>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
