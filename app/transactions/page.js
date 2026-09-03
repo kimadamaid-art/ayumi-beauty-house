@@ -66,6 +66,7 @@ export default function TransactionsPage() {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
     const [isEditingTx, setIsEditingTx] = useState(false)
     const [editTxData, setEditTxData] = useState({ payment_method: '', notes: '', created_at: '' })
+    const [isDeletingTx, setIsDeletingTx] = useState(false)
 
     // Tab-Specific Sub-filters
     const [dailyReportDate, setDailyReportDate] = useState(() => getLocalYYYYMMDD())
@@ -343,6 +344,47 @@ export default function TransactionsPage() {
         } catch (err) {
             console.error('Error voiding transaction:', err)
             alert('Gagal membatalkan transaksi: ' + (err.message || err.error_description || err))
+        }
+    }
+
+    const handleDeleteTx = async (tx) => {
+        if (!tx) return
+        if (dbUser?.role !== 'owner') {
+            toast.error('Hanya Owner yang memiliki izin menghapus transaksi.')
+            return
+        }
+
+        const confirmText = window.prompt(
+            `⚠️ PERINGATAN HAPUS PERMANEN (KHUSUS OWNER)\n\nApakah Anda yakin ingin menghapus transaksi "${tx.transaction_number}" secara permanen?\n\n- Data transaksi akan dihapus BERSIH dari database dan laporan omzet.\n- Stok produk yang terjual akan otomatis dikembalikan (jika belum di-void).\n\nKetik "HAPUS" untuk konfirmasi:`
+        )
+
+        if (confirmText !== 'HAPUS') {
+            if (confirmText !== null) {
+                toast.error('Penghapusan dibatalkan. Kata kunci konfirmasi tidak sesuai.')
+            }
+            return
+        }
+
+        setIsDeletingTx(true)
+        const loadToast = toast.loading(`Menghapus transaksi ${tx.transaction_number}...`)
+        try {
+            const res = await fetch(`/api/transactions/${tx.id}`, {
+                method: 'DELETE'
+            })
+            const resData = await res.json()
+
+            if (!res.ok) {
+                throw new Error(resData.error || 'Gagal menghapus transaksi.')
+            }
+
+            toast.success(resData.message || `Transaksi ${tx.transaction_number} berhasil dihapus.`, { id: loadToast })
+            closeDetailModal()
+            fetchTransactions()
+        } catch (err) {
+            console.error('Error deleting transaction:', err)
+            toast.error(err.message || 'Gagal menghapus transaksi.', { id: loadToast })
+        } finally {
+            setIsDeletingTx(false)
         }
     }
 
@@ -2890,6 +2932,19 @@ export default function TransactionsPage() {
                                                     title="Batalkan Transaksi (VOID) & Kembalikan Stok/Kupon"
                                                 >
                                                     Batalkan (Void)
+                                                </button>
+                                            )}
+                                            {dbUser?.role === 'owner' && (
+                                                <button
+                                                    onClick={() => handleDeleteTx(selectedTx)}
+                                                    disabled={isDeletingTx}
+                                                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                                                    title="Hapus Transaksi Permanen dari Database (Khusus Owner)"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                    <span>{isDeletingTx ? 'Menghapus...' : 'Hapus'}</span>
                                                 </button>
                                             )}
                                         </>

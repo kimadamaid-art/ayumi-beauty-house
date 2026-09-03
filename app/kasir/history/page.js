@@ -5,12 +5,14 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
 import { getNetTransactionRevenue } from '@/lib/paymentUtils'
+import toast from 'react-hot-toast'
 
 export default function TransactionsHistoryPage() {
     const [transactions, setTransactions] = useState([])
     const [branches, setBranches] = useState([])
     const [dbUser, setDbUser] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [isDeletingId, setIsDeletingId] = useState(null)
 
     // Filters
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
@@ -92,6 +94,46 @@ export default function TransactionsHistoryPage() {
         () => validTransactions.reduce((sum, trx) => sum + getNetTransactionRevenue(trx), 0),
         [validTransactions]
     )
+
+    const handleDeleteTx = async (trx) => {
+        if (!trx) return
+        if (dbUser?.role !== 'owner') {
+            toast.error('Hanya Owner yang memiliki izin menghapus transaksi.')
+            return
+        }
+
+        const confirmText = window.prompt(
+            `⚠️ PERINGATAN HAPUS PERMANEN (KHUSUS OWNER)\n\nApakah Anda yakin ingin menghapus transaksi "${trx.transaction_number}" secara permanen?\n\n- Data transaksi akan dihapus BERSIH dari database dan laporan omzet.\n- Stok produk yang terjual akan otomatis dikembalikan (jika belum di-void).\n\nKetik "HAPUS" untuk konfirmasi:`
+        )
+
+        if (confirmText !== 'HAPUS') {
+            if (confirmText !== null) {
+                toast.error('Penghapusan dibatalkan. Kata kunci konfirmasi tidak sesuai.')
+            }
+            return
+        }
+
+        setIsDeletingId(trx.id)
+        const loadToast = toast.loading(`Menghapus transaksi ${trx.transaction_number}...`)
+        try {
+            const res = await fetch(`/api/transactions/${trx.id}`, {
+                method: 'DELETE'
+            })
+            const resData = await res.json()
+
+            if (!res.ok) {
+                throw new Error(resData.error || 'Gagal menghapus transaksi.')
+            }
+
+            toast.success(resData.message || `Transaksi ${trx.transaction_number} berhasil dihapus.`, { id: loadToast })
+            fetchTransactions()
+        } catch (err) {
+            console.error('Error deleting transaction:', err)
+            toast.error(err.message || 'Gagal menghapus transaksi.', { id: loadToast })
+        } finally {
+            setIsDeletingId(null)
+        }
+    }
 
     const formatDate = (isoString) => {
         const date = new Date(isoString)
@@ -238,6 +280,19 @@ export default function TransactionsHistoryPage() {
                                                         Detail
                                                     </button>
                                                 </Link>
+                                                {dbUser?.role === 'owner' && (
+                                                    <button
+                                                        onClick={() => handleDeleteTx(trx)}
+                                                        disabled={isDeletingId === trx.id}
+                                                        className="text-rose-600 hover:text-rose-700 p-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors flex items-center gap-1 px-2.5 text-xs font-semibold disabled:opacity-50"
+                                                        title="Hapus Transaksi Permanen (Khusus Owner)"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                        <span>{isDeletingId === trx.id ? '...' : 'Hapus'}</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

@@ -16,6 +16,8 @@ export default function ReceiptPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false)
     const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+    const [dbUser, setDbUser] = useState(null)
+    const [isDeleting, setIsDeleting] = useState(false)
 
     async function fetchTransaction() {
         setIsLoading(true)
@@ -48,6 +50,56 @@ export default function ReceiptPage() {
     useEffect(() => {
         if (id) fetchTransaction()
     }, [id])
+
+    useEffect(() => {
+        async function checkUser() {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+                setDbUser(uData || { role: 'owner', id: user.id })
+            }
+        }
+        checkUser()
+    }, [])
+
+    const handleDelete = async () => {
+        if (!transaction) return
+        if (dbUser?.role !== 'owner') {
+            toast.error('Hanya Owner yang memiliki izin menghapus transaksi.')
+            return
+        }
+
+        const confirmText = window.prompt(
+            `⚠️ PERINGATAN HAPUS PERMANEN (KHUSUS OWNER)\n\nApakah Anda yakin ingin menghapus transaksi "${transaction.transaction_number}" secara permanen?\n\n- Data transaksi akan dihapus BERSIH dari database dan laporan omzet.\n- Stok produk yang terjual akan otomatis dikembalikan (jika belum di-void).\n\nKetik "HAPUS" untuk konfirmasi:`
+        )
+
+        if (confirmText !== 'HAPUS') {
+            if (confirmText !== null) {
+                toast.error('Penghapusan dibatalkan. Kata kunci konfirmasi tidak sesuai.')
+            }
+            return
+        }
+
+        setIsDeleting(true)
+        const loadToast = toast.loading(`Menghapus transaksi ${transaction.transaction_number}...`)
+        try {
+            const res = await fetch(`/api/transactions/${transaction.id}`, {
+                method: 'DELETE'
+            })
+            const resData = await res.json()
+
+            if (!res.ok) {
+                throw new Error(resData.error || 'Gagal menghapus transaksi.')
+            }
+
+            toast.success(resData.message || `Transaksi ${transaction.transaction_number} berhasil dihapus.`, { id: loadToast })
+            router.push('/kasir/history')
+        } catch (err) {
+            console.error('Error deleting transaction:', err)
+            toast.error(err.message || 'Gagal menghapus transaksi.', { id: loadToast })
+            setIsDeleting(false)
+        }
+    }
 
     useEffect(() => {
         if (transaction?.transaction_number) {
@@ -579,6 +631,18 @@ export default function ReceiptPage() {
                         <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                         <span>Cetak / PDF</span>
                     </button>
+
+                    {dbUser?.role === 'owner' && (
+                        <button 
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                            title="Hapus Transaksi Permanen dari Database (Khusus Owner)"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <span>{isDeleting ? 'Menghapus...' : 'Hapus'}</span>
+                        </button>
+                    )}
 
                     {/* Tombol Utama: Kirim Foto Struk WA */}
                     <button 
