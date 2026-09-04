@@ -14,6 +14,13 @@ import HorizontalCategoryRow from '@/components/pos/HorizontalCategoryRow'
 import ItemVariantModal from '@/components/pos/ItemVariantModal'
 import { getItemInitials, getItemCategory, getProductVariants, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
 
+const getLocalYYYYMMDD = (d = new Date()) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
 function PosPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -1046,6 +1053,17 @@ function PosPageContent() {
         const finalCart = newPackageItem ? [newPackageItem, ...processedTreatments] : processedTreatments
         setCart(finalCart)
         setSelectedTherapistId(bill.performed_by || 'worker')
+        setTreatmentRecordId(bill.id)
+
+        // Otomatis sinkronisasi Mode Backdate jika tindakan berasal dari tanggal lalu (untuk Owner & Admin)
+        const todayStr = getLocalYYYYMMDD()
+        if (bill.treatment_date && bill.treatment_date < todayStr && (dbUser?.role === 'owner' || dbUser?.role === 'admin')) {
+            setIsBackdateEnabled(true)
+            setBackdateDate(bill.treatment_date)
+            setBackdateTime(bill.treatment_time ? bill.treatment_time.substring(0, 5) : '15:00')
+            toast('📅 Mode Backdate otomatis aktif mengikuti tanggal tindakan: ' + bill.treatment_date, { icon: 'ℹ️' })
+        }
+
         setIsPendingModalOpen(false)
         setLeftPanelTab('catalog')
         toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dimuat ke keranjang!`)
@@ -1786,14 +1804,28 @@ function PosPageContent() {
             }
 
             // 4. Update Backdate Timestamps (Admin & Owner Backdate Transaksi Susulan)
-            if (isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate) {
+            let effectiveBackdateDate = (isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate) ? backdateDate : null
+            let effectiveBackdateTime = backdateTime || '12:00'
+
+            // Jika transaksi ini menyelesaikan tindakan rekam medis hari lalu, otomatis sinkronkan backdate
+            if (!effectiveBackdateDate && treatmentRecordId && (dbUser?.role === 'owner' || dbUser?.role === 'admin')) {
+                const linkedBill = pendingBills.find(b => b.id === treatmentRecordId)
+                const candidateDate = linkedBill?.treatment_date
+                const todayStr = getLocalYYYYMMDD()
+                if (candidateDate && candidateDate < todayStr) {
+                    effectiveBackdateDate = candidateDate
+                    effectiveBackdateTime = linkedBill.treatment_time ? linkedBill.treatment_time.substring(0, 5) : '15:00'
+                }
+            }
+
+            if (effectiveBackdateDate && (dbUser?.role === 'owner' || dbUser?.role === 'admin')) {
                 try {
                     const bdRes = await fetch(`/api/transactions/${trxData.id}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            backdateDate,
-                            backdateTime: backdateTime || '12:00'
+                            backdateDate: effectiveBackdateDate,
+                            backdateTime: effectiveBackdateTime
                         })
                     })
                     if (!bdRes.ok) {
@@ -3424,7 +3456,7 @@ function PosPageContent() {
                                     type="button"
                                     onClick={() => {
                                         if (!isBackdateEnabled) {
-                                            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+                                            const yesterday = getLocalYYYYMMDD(new Date(Date.now() - 86400000))
                                             setBackdateDate(yesterday)
                                             setBackdateTime('15:00')
                                             setIsBackdateEnabled(true)
@@ -3450,8 +3482,8 @@ function PosPageContent() {
                                             <input
                                                 type="date"
                                                 value={backdateDate}
-                                                min={dbUser?.role === 'owner' ? undefined : new Date(Date.now() - 86400000).toISOString().split('T')[0]}
-                                                max={new Date().toISOString().split('T')[0]}
+                                                min={dbUser?.role === 'owner' ? undefined : getLocalYYYYMMDD(new Date(Date.now() - 86400000))}
+                                                max={getLocalYYYYMMDD()}
                                                 onChange={(e) => setBackdateDate(e.target.value)}
                                                 className="w-full text-xs font-black p-1.5 bg-white border border-[#F2D8C3] rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />

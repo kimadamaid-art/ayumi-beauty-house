@@ -317,7 +317,13 @@ export async function PATCH(request, { params }) {
 
         if (updateTxErr) throw updateTxErr
 
-        // 5. Update linked treatment records
+        // 4.5. Update transaction_items created_at
+        await supabaseAdmin
+            .from('transaction_items')
+            .update({ created_at: customIso })
+            .eq('transaction_id', id)
+
+        // 5. Update linked treatment records and its items
         if (tx.treatment_record_id) {
             await supabaseAdmin
                 .from('treatment_records')
@@ -327,6 +333,11 @@ export async function PATCH(request, { params }) {
                     created_at: customIso
                 })
                 .eq('id', tx.treatment_record_id)
+
+            await supabaseAdmin
+                .from('treatment_record_items')
+                .update({ created_at: customIso })
+                .eq('treatment_record_id', tx.treatment_record_id)
         }
 
         // 6. Update linked patient coupons & coupon items
