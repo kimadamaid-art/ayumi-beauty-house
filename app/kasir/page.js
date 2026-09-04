@@ -1486,7 +1486,15 @@ function PosPageContent() {
         discountAmount = subtotal * ((Number(discountValue) || 0) / 100)
     }
     const afterDiscountTotal = Math.max(0, subtotal - discountAmount)
-    const qrisFee = paymentMethod === 'qris' ? Math.round(afterDiscountTotal * 0.003) : 0
+    let qrisFee = 0
+    if (paymentMethod === 'qris') {
+        qrisFee = Math.round(afterDiscountTotal * 0.003)
+    } else if (paymentMethod === 'split') {
+        const qVal = Number(splitAmounts.qris) || 0
+        if (qVal > 0) {
+            qrisFee = Math.round(qVal * 0.003)
+        }
+    }
     const total = afterDiscountTotal + qrisFee
 
     // --- Checkout ---
@@ -1532,20 +1540,25 @@ function PosPageContent() {
         } else if (paymentMethod === 'split') {
             const cashVal = Number(splitAmounts.cash) || 0
             const transferVal = Number(splitAmounts.transfer) || 0
-            const qrisVal = Number(splitAmounts.qris) || 0
+            const qrisBaseVal = Number(splitAmounts.qris) || 0
             const debitVal = Number(splitAmounts.debit) || 0
             const creditVal = Number(splitAmounts.credit) || 0
-            const splitSum = cashVal + transferVal + qrisVal + debitVal + creditVal
+            
+            // Hitung biaya layanan QRIS 0.3% pada komponen QRIS
+            const qrisFeeVal = qrisBaseVal > 0 ? Math.round(qrisBaseVal * 0.003) : 0
+            const qrisFinalVal = qrisBaseVal + qrisFeeVal
 
-            if (splitSum !== total) {
-                alert(`Total rincian split payment (Rp ${splitSum.toLocaleString('id-ID')}) belum sesuai dengan total tagihan (Rp ${total.toLocaleString('id-ID')}). Selisih: Rp ${Math.abs(total - splitSum).toLocaleString('id-ID')}`)
+            const splitBaseSum = cashVal + transferVal + qrisBaseVal + debitVal + creditVal
+
+            if (splitBaseSum !== afterDiscountTotal) {
+                alert(`Total rincian split payment (Rp ${splitBaseSum.toLocaleString('id-ID')}) belum sesuai dengan total tagihan (Rp ${afterDiscountTotal.toLocaleString('id-ID')}). Selisih: Rp ${Math.abs(afterDiscountTotal - splitBaseSum).toLocaleString('id-ID')}`)
                 return
             }
 
             const pairs = []
             if (cashVal > 0) pairs.push(`cash=${cashVal}`)
             if (transferVal > 0) pairs.push(`transfer=${transferVal}`)
-            if (qrisVal > 0) pairs.push(`qris=${qrisVal}`)
+            if (qrisFinalVal > 0) pairs.push(`qris=${qrisFinalVal}`)
             if (debitVal > 0) pairs.push(`debit=${debitVal}`)
             if (creditVal > 0) pairs.push(`credit=${creditVal}`)
 
@@ -1556,7 +1569,7 @@ function PosPageContent() {
             const methodEntries = [
                 { m: 'cash', amt: cashVal },
                 { m: 'transfer', amt: transferVal },
-                { m: 'qris', amt: qrisVal },
+                { m: 'qris', amt: qrisFinalVal },
                 { m: 'debit', amt: debitVal },
                 { m: 'credit', amt: creditVal }
             ]
@@ -2966,9 +2979,9 @@ function PosPageContent() {
                             </div>
                         )}
 
-                        {paymentMethod === 'qris' && (
+                        {qrisFee > 0 && (
                             <div className="flex justify-between text-[11px] text-blue-700 font-semibold bg-blue-50 p-1.5 rounded-lg">
-                                <span>📱 Biaya QRIS (0,3%)</span>
+                                <span>📱 Biaya Layanan QRIS (0,3%)</span>
                                 <span className="font-bold">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
                             </div>
                         )}
@@ -3087,10 +3100,10 @@ function PosPageContent() {
                                         const dVal = Number(splitAmounts.debit) || 0
                                         const crVal = Number(splitAmounts.credit) || 0
                                         const currentSum = cVal + tVal + qVal + dVal + crVal
-                                        const diff = total - currentSum
+                                        const diff = afterDiscountTotal - currentSum
 
                                         if (diff === 0 && currentSum > 0) {
-                                            return <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">✓ Jumlah Pas (Rp {total.toLocaleString('id-ID')})</span>
+                                            return <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">✓ Jumlah Pas (Total: Rp {total.toLocaleString('id-ID')})</span>
                                         } else if (diff > 0) {
                                             return <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">Sisa Belum Dibagi: Rp {diff.toLocaleString('id-ID')}</span>
                                         } else {
@@ -3134,6 +3147,13 @@ function PosPageContent() {
                                             />
                                         </div>
                                     </div>
+
+                                    {Number(splitAmounts.qris) > 0 && (
+                                        <div className="col-span-1 sm:col-span-2 -mt-1 px-2.5 py-1 flex items-center justify-between text-[10.5px] text-blue-800 font-bold bg-blue-50/90 rounded-lg border border-blue-200">
+                                            <span>📱 Biaya QRIS (0,3%): +Rp {Math.round(Number(splitAmounts.qris) * 0.003).toLocaleString('id-ID')}</span>
+                                            <span>Ditagihkan ke QRIS: Rp {(Number(splitAmounts.qris) + Math.round(Number(splitAmounts.qris) * 0.003)).toLocaleString('id-ID')}</span>
+                                        </div>
+                                    )}
 
                                     {/* 3. Transfer Bank */}
                                     <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
@@ -3195,7 +3215,7 @@ function PosPageContent() {
                                     const dVal = Number(splitAmounts.debit) || 0
                                     const crVal = Number(splitAmounts.credit) || 0
                                     const currentSum = cVal + tVal + qVal + dVal + crVal
-                                    const diff = total - currentSum
+                                    const diff = afterDiscountTotal - currentSum
 
                                     if (diff > 0) {
                                         return (

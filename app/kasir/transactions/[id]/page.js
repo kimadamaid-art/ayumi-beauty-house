@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { openWhatsApp } from '@/lib/whatsapp'
 import html2canvas from 'html2canvas'
 import { toast } from 'react-hot-toast'
+import { getQrisFee } from '@/lib/paymentUtils'
 
 export default function ReceiptPage() {
     const { id } = useParams()
@@ -254,7 +255,7 @@ export default function ReceiptPage() {
             }
 
             const netTotal = Math.max(0, subtotalVal - discountRupiah)
-            const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
+            const qrisFee = getQrisFee(transaction)
             if (qrisFee > 0) {
                 chunks.push(line(`QRIS(0.3%): +Rp ${qrisFee.toLocaleString('id-ID')}`))
             }
@@ -461,7 +462,7 @@ export default function ReceiptPage() {
             }
         }
         const netTotal = Math.max(0, subtotalVal - discountRupiah)
-        const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
+        const qrisFee = getQrisFee(transaction)
 
         const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
         const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0.3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
@@ -521,7 +522,7 @@ export default function ReceiptPage() {
     }
 
     const netTotal = Math.max(0, subtotalVal - discountRupiah)
-    const qrisFee = transaction.payment_method?.toLowerCase() === 'qris' ? Math.round(netTotal * 0.003) : 0
+    const qrisFee = getQrisFee(transaction)
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8">
