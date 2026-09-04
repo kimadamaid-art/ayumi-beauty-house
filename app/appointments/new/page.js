@@ -29,6 +29,8 @@ function NewAppointmentForm() {
     const [therapists, setTherapists] = useState([])
     const [infusTreatments, setInfusTreatments] = useState([])
     const [selectedInfusTreatmentId, setSelectedInfusTreatmentId] = useState('')
+    const [isPlusInfus, setIsPlusInfus] = useState(false)
+    const [selectedPlusInfusTreatmentId, setSelectedPlusInfusTreatmentId] = useState('')
     const [isOwner, setIsOwner] = useState(false)
     
     // Patient Search Hook (server-side, debounce 350ms, limit 20, sequence tracked)
@@ -281,6 +283,8 @@ function NewAppointmentForm() {
             let finalNotes = formData.notes || ''
             if (isWorker && !finalNotes.includes('[INFUS - WORKER]')) {
                 finalNotes = `[INFUS - WORKER] ${finalNotes}`.trim()
+            } else if (!isWorker && isPlusInfus && !finalNotes.includes('[PLUS-INFUS]')) {
+                finalNotes = `[PLUS-INFUS] ${finalNotes}`.trim()
             }
 
             // Insert Appointment
@@ -305,6 +309,11 @@ function NewAppointmentForm() {
                 await supabase.from('appointment_treatments').insert([{
                     appointment_id: createdApt.id,
                     treatment_id: selectedInfusTreatmentId
+                }])
+            } else if (!isWorker && isPlusInfus && selectedPlusInfusTreatmentId && createdApt?.id) {
+                await supabase.from('appointment_treatments').insert([{
+                    appointment_id: createdApt.id,
+                    treatment_id: selectedPlusInfusTreatmentId
                 }])
             }
 
@@ -498,6 +507,44 @@ function NewAppointmentForm() {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+                        )}
+
+                        {formData.therapist_id && formData.therapist_id !== 'worker' && (
+                            <div className="mt-3 p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2 transition-all">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={isPlusInfus}
+                                        onChange={(e) => setIsPlusInfus(e.target.checked)}
+                                        className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                                        <span>💉</span> Sekaligus Layanan Infus (Worker)
+                                    </span>
+                                </label>
+                                {isPlusInfus && (
+                                    <div className="pt-1.5 space-y-1.5 border-t border-purple-100">
+                                        <label className="block text-[11px] font-semibold text-purple-800">
+                                            Pilih Jenis Infus (Opsional)
+                                        </label>
+                                        <select
+                                            value={selectedPlusInfusTreatmentId}
+                                            onChange={(e) => setSelectedPlusInfusTreatmentId(e.target.value)}
+                                            className="input-ayumi focus:bg-white text-xs bg-white"
+                                        >
+                                            <option value="">-- Pilih Jenis Infus (Bisa ditentukan nanti) --</option>
+                                            {infusTreatments.map(t => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-purple-600 font-medium">
+                                            💡 Pasien akan tercatat di kolom Terapis (wajah) sekaligus muncul di kolom Layanan Infus (worker).
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

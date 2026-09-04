@@ -20,6 +20,7 @@ function EditAppointmentForm() {
     const [patients, setPatients] = useState([])
     const [branches, setBranches] = useState([])
     const [therapists, setTherapists] = useState([])
+    const [isPlusInfus, setIsPlusInfus] = useState(false)
     const [isOwner, setIsOwner] = useState(false)
     const [patientSearch, setPatientSearch] = useState('')
 
@@ -102,9 +103,10 @@ function EditAppointmentForm() {
                 appointment_date: aptData.appointment_date,
                 start_time: aptData.start_time ? aptData.start_time.substring(0, 5) : '08:00',
                 end_time: aptData.end_time ? aptData.end_time.substring(0, 5) : '10:00',
-                therapist_id: aptData.therapist_id || '',
+                therapist_id: aptData.therapist_id || (aptData.notes?.includes('[INFUS - WORKER]') ? 'worker' : ''),
                 notes: aptData.notes || ''
             })
+            setIsPlusInfus(Boolean(aptData.notes?.includes('[PLUS-INFUS]')))
             setPatientSearch(aptData.patients?.full_name || '')
 
             setIsLoadingAccess(false)
@@ -159,6 +161,12 @@ function EditAppointmentForm() {
             let finalNotes = formData.notes || ''
             if (isWorker && !finalNotes.includes('[INFUS - WORKER]')) {
                 finalNotes = `[INFUS - WORKER] ${finalNotes}`.trim()
+            } else if (!isWorker) {
+                if (isPlusInfus && !finalNotes.includes('[PLUS-INFUS]')) {
+                    finalNotes = `[PLUS-INFUS] ${finalNotes}`.trim()
+                } else if (!isPlusInfus && finalNotes.includes('[PLUS-INFUS]')) {
+                    finalNotes = finalNotes.replace(/\[PLUS-INFUS\]/g, '').trim()
+                }
             }
 
             const { error: aptErr } = await supabase
@@ -309,6 +317,21 @@ function EditAppointmentForm() {
                             <p className="text-[11px] text-emerald-700 mt-1.5 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
                                 💡 Sesi Infus oleh Worker bebas dari pengisian rekam medis SOAP terapis.
                             </p>
+                        )}
+                        {formData.therapist_id && formData.therapist_id !== 'worker' && (
+                            <div className="mt-2.5 p-2.5 bg-purple-50/70 border border-purple-200 rounded-xl">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={isPlusInfus}
+                                        onChange={(e) => setIsPlusInfus(e.target.checked)}
+                                        className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                                        <span>💉</span> Sekaligus Layanan Infus (Worker)
+                                    </span>
+                                </label>
+                            </div>
                         )}
                     </div>
 

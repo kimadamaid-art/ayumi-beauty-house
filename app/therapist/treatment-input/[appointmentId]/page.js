@@ -88,10 +88,17 @@ export default function TreatmentInputPage() {
         }
         setDbUser(userData)
 
-        // Fetch Appointment with full patient clinical profile
+        // Fetch Appointment with full patient clinical profile & appointment treatments
         const { data: aptData } = await supabase
             .from('appointments')
-            .select(`*, patients (id, full_name, gender, birth_date, allergies, notes, skin_type, medical_notes, skin_concerns), branches (name)`)
+            .select(`
+                *,
+                patients (id, full_name, gender, birth_date, allergies, notes, skin_type, medical_notes, skin_concerns),
+                branches (name),
+                appointment_treatments (
+                    id, treatment_id, treatments (id, name, price, commission_percent, followup_days, discount_percent)
+                )
+            `)
             .eq('id', appointmentId)
             .single()
 
@@ -139,16 +146,20 @@ export default function TreatmentInputPage() {
                 })
 
                 if (existingRecord.treatment_record_items?.length > 0) {
-                    setSelectedTreatments(existingRecord.treatment_record_items.map(item => ({
-                        treatment_id: item.treatment_id,
-                        name: item.treatments?.name || 'Treatment',
-                        price_at_time: item.price_at_time || 0,
-                        original_price: item.original_price || item.price_at_time || 0,
-                        discount_percent: item.discount_percent || 0,
-                        followup_days: item.treatments?.followup_days || 0,
-                        notes: item.notes || '',
-                        commission_percent: item.commission_percent || 0
-                    })))
+                    setSelectedTreatments(existingRecord.treatment_record_items.map(item => {
+                        const isWorkerItem = item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || ''))
+                        return {
+                            treatment_id: item.treatment_id,
+                            name: item.treatments?.name || 'Treatment',
+                            price_at_time: item.price_at_time || 0,
+                            original_price: item.original_price || item.price_at_time || 0,
+                            discount_percent: item.discount_percent || 0,
+                            followup_days: item.treatments?.followup_days || 0,
+                            notes: item.notes || '',
+                            commission_percent: isWorkerItem ? 0 : (item.commission_percent || 0),
+                            performer_type: isWorkerItem ? 'worker' : 'therapist'
+                        }
+                    }))
                 }
 
                 // Fetch Existing Photos for this Record
@@ -206,6 +217,31 @@ export default function TreatmentInputPage() {
                     client_skincare_routine: aptData.patients?.notes || '',
                     complaints: aptData.notes || ''
                 }))
+
+                if (aptData.appointment_treatments?.length > 0) {
+                    // Pre-populate treatments from appointment bookings (e.g. booked facial + booked infus)
+                    const prefilled = aptData.appointment_treatments.map(at => {
+                        const t = at.treatments
+                        if (!t) return null
+                        const isInfus = /infus/i.test(t.name || '')
+                        const originalPrice = t.price || 0
+                        const discountVal = t.discount_percent || 0
+                        const priceAtTime = discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice
+                        return {
+                            treatment_id: t.id,
+                            name: t.name,
+                            price_at_time: Math.round(priceAtTime),
+                            original_price: originalPrice,
+                            discount_percent: discountVal,
+                            followup_days: t.followup_days || 0,
+                            notes: isInfus ? '[WORKER]' : '',
+                            commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                            performer_type: isInfus ? 'worker' : 'therapist',
+                            mode: 'regular'
+                        }
+                    }).filter(Boolean)
+                    if (prefilled.length > 0) setSelectedTreatments(prefilled)
+                }
             }
         } else {
             toast.error('Jadwal tidak ditemukan')
@@ -342,6 +378,7 @@ export default function TreatmentInputPage() {
         const discountVal = t.discount_percent || 0
         const originalPrice = t.price || 0
         const priceAtTime = discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice
+        const isInfus = /infus/i.test(t.name) || /infus/i.test(t.treatment_categories?.name || '')
 
         setSelectedTreatments(prev => [
             ...prev,
@@ -352,11 +389,28 @@ export default function TreatmentInputPage() {
                 original_price: originalPrice,
                 discount_percent: discountVal,
                 followup_days: t.followup_days || 0,
-                notes: '',
-                commission_percent: t.commission_percent || 0,
+                notes: isInfus ? '[WORKER]' : '',
+                commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                performer_type: isInfus ? 'worker' : 'therapist',
                 mode: 'regular'
             }
         ])
+    }
+
+    const handleTogglePerformerType = (index) => {
+        setSelectedTreatments(prev => prev.map((item, idx) => {
+            if (idx !== index) return item
+            const nextType = item.performer_type === 'worker' ? 'therapist' : 'worker'
+            const baseComm = treatmentsMaster.find(t => t.id === item.treatment_id)?.commission_percent || 5
+            return {
+                ...item,
+                performer_type: nextType,
+                commission_percent: nextType === 'worker' ? 0 : baseComm,
+                notes: nextType === 'worker'
+                    ? (item.notes?.includes('[WORKER]') ? item.notes : `[WORKER] ${item.notes || ''}`.trim())
+                    : (item.notes || '').replace(/\[WORKER\]\s*/g, '').trim()
+            }
+        }))
     }
 
     const handleAddPackage = (pkg) => {
@@ -606,38 +660,45 @@ export default function TreatmentInputPage() {
             const queuesToInsert = []
 
             selectedTreatments.forEach((t, index) => {
+                const isWorkerItem = t.performer_type === 'worker'
+                const finalNotes = isWorkerItem && !t.notes?.includes('[WORKER]')
+                    ? `[WORKER] ${t.notes || ''}`.trim()
+                    : t.notes
+
                 itemsToInsert.push({
                     treatment_record_id: recordId,
                     treatment_id: t.treatment_id,
                     price_at_time: t.price_at_time,
                     original_price: t.original_price,
                     discount_percent: t.discount_percent,
-                    notes: t.notes,
+                    notes: finalNotes,
                     sort_order: index + 1,
-                    commission_percent: t.commission_percent || 0
+                    commission_percent: isWorkerItem ? 0 : (t.commission_percent || 0)
                 })
 
-                // Auto-schedule follow-up bertahap: 2 minggu, 3 minggu & 1 bulan
-                const baseDateStr = appointment.appointment_date || new Date().toISOString().split('T')[0]
-                const followupSteps = [
-                    { days: 14, type: 'followup_2minggu', priority: 'normal' },
-                    { days: 21, type: 'followup_3minggu', priority: 'normal' },
-                    { days: 30, type: 'followup_1bulan', priority: 'normal' }
-                ]
-                followupSteps.forEach(step => {
-                    const scheduledDate = new Date(baseDateStr + 'T00:00:00')
-                    scheduledDate.setDate(scheduledDate.getDate() + step.days)
-                    queuesToInsert.push({
-                        patient_id: appointment.patient_id,
-                        treatment_record_id: recordId,
-                        branch_id: appointment.branch_id || dbUser?.branch_id || null,
-                        assigned_to: dbUser.id,
-                        followup_type: step.type,
-                        scheduled_date: scheduledDate.toISOString().split('T')[0],
-                        priority: step.priority,
-                        status: 'pending'
+                // Auto-schedule follow-up bertahap hanya untuk tindakan terapis (skip worker infus)
+                if (!isWorkerItem) {
+                    const baseDateStr = appointment.appointment_date || new Date().toISOString().split('T')[0]
+                    const followupSteps = [
+                        { days: 14, type: 'followup_2minggu', priority: 'normal' },
+                        { days: 21, type: 'followup_3minggu', priority: 'normal' },
+                        { days: 30, type: 'followup_1bulan', priority: 'normal' }
+                    ]
+                    followupSteps.forEach(step => {
+                        const scheduledDate = new Date(baseDateStr + 'T00:00:00')
+                        scheduledDate.setDate(scheduledDate.getDate() + step.days)
+                        queuesToInsert.push({
+                            patient_id: appointment.patient_id,
+                            treatment_record_id: recordId,
+                            branch_id: appointment.branch_id || dbUser?.branch_id || null,
+                            assigned_to: dbUser.id,
+                            followup_type: step.type,
+                            scheduled_date: scheduledDate.toISOString().split('T')[0],
+                            priority: step.priority,
+                            status: 'pending'
+                        })
                     })
-                })
+                }
             })
 
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)
@@ -1333,7 +1394,24 @@ export default function TreatmentInputPage() {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            {/* Toggle Pelaksana: Terapis vs Worker */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTogglePerformerType(idx)}
+                                                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${
+                                                    item.performer_type === 'worker'
+                                                        ? 'bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-200'
+                                                        : 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100'
+                                                }`}
+                                                title="Klik untuk ubah pelaksana tindakan (Terapis vs Worker)"
+                                            >
+                                                <span>{item.performer_type === 'worker' ? '💉 Worker' : '👤 Terapis'}</span>
+                                                <span className="text-[10px] font-semibold opacity-75">
+                                                    {item.performer_type === 'worker' ? '(0%)' : '(Komisi)'}
+                                                </span>
+                                            </button>
+
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveTreatment(item.treatment_id)}

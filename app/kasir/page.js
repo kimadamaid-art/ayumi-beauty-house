@@ -985,8 +985,9 @@ function PosPageContent() {
                     quantity: 1,
                     subtotal: 0,
                     treatment_record_id: bill.id,
-                    therapist_id: bill.performed_by || 'worker',
-                    commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
+                    therapist_id: (item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || ''))) ? 'worker' : (bill.performed_by || 'worker'),
+                    commission_percent: (item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || ''))) ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : (item.treatments?.commission_percent || 0)),
+                    is_worker: item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || '')),
                     is_using_coupon: true,
                     coupon_already_deducted: true,
                     used_coupon_item_id: alreadyUsedLog.patient_coupon_item_id,
@@ -1007,6 +1008,7 @@ function PosPageContent() {
 
             if (matchedCouponItem) {
                 const pkgName = matchedCouponItem.patient_coupons?.coupon_packages?.name || 'Paket Kupon'
+                const isWorkerItem = item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || ''))
                 processedTreatments.push({
                     id: item.treatment_id,
                     item_type: 'treatment',
@@ -1017,8 +1019,9 @@ function PosPageContent() {
                     quantity: 1,
                     subtotal: 0,
                     treatment_record_id: bill.id,
-                    therapist_id: bill.performed_by || 'worker',
-                    commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
+                    therapist_id: isWorkerItem ? 'worker' : (bill.performed_by || 'worker'),
+                    commission_percent: isWorkerItem ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : (item.treatments?.commission_percent || 0)),
+                    is_worker: isWorkerItem,
                     is_using_coupon: true,
                     coupon_already_deducted: false,
                     used_coupon_item_id: matchedCouponItem.id,
@@ -1030,6 +1033,7 @@ function PosPageContent() {
 
             // Otherwise regular treatment price
             const price = Number(item.price_at_time || 0)
+            const isWorkerItem = item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || ''))
             processedTreatments.push({
                 id: item.treatment_id,
                 item_type: 'treatment',
@@ -1040,8 +1044,9 @@ function PosPageContent() {
                 quantity: 1,
                 subtotal: price,
                 treatment_record_id: bill.id,
-                therapist_id: bill.performed_by || 'worker',
-                commission_percent: item.commission_percent || item.treatments?.commission_percent || 0,
+                therapist_id: isWorkerItem ? 'worker' : (bill.performed_by || 'worker'),
+                commission_percent: isWorkerItem ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : (item.treatments?.commission_percent || 0)),
+                is_worker: isWorkerItem,
                 is_using_coupon: false,
                 coupon_already_deducted: false,
                 used_coupon_item_id: null,

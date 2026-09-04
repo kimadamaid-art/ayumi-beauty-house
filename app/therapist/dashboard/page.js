@@ -388,7 +388,7 @@ export default function TherapistDashboard() {
         const categoryNames = apt.appointment_treatments?.map(at => at.treatments?.treatment_categories?.name || '').join(' ').toLowerCase() || ''
         const notes = (apt.notes || '').toLowerCase()
 
-        return treatmentNames.includes('infus') || categoryNames.includes('infus') || notes.includes('infus')
+        return treatmentNames.includes('infus') || categoryNames.includes('infus') || notes.includes('infus') || notes.includes('[plus-infus]')
     }
 
     const getArrivalStatusBadgeAndActions = (apt) => {
@@ -840,7 +840,7 @@ export default function TherapistDashboard() {
                                                                 })
 
                                                                 const infusApts = hourApts.filter(a => isInfusAppointment(a))
-                                                                const treatmentApts = hourApts.filter(a => !isInfusAppointment(a))
+                                                                const treatmentApts = hourApts.filter(a => a.therapist_id || !isInfusAppointment(a))
 
                                                                 return (
                                                                     <div key={hourStr} className="flex items-stretch gap-3 py-2 border-b border-slate-100 hover:bg-slate-50/30 transition-colors min-h-[50px]">
@@ -963,6 +963,7 @@ export default function TherapistDashboard() {
                                                                                                             <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-2xs"></span>
                                                                                                             {startTime} - {endTime}
                                                                                                         </span>
+                                                                                                        <div className="flex items-center gap-1">
                                                                                                         {apt.therapist_id === dbUser?.id ? (
                                                                                                             <span className="text-[9.5px] font-bold bg-sky-200/80 text-sky-800 px-1.5 py-0.2 rounded">
                                                                                                                 Pasien Anda
@@ -972,6 +973,12 @@ export default function TherapistDashboard() {
                                                                                                                 Tersedia
                                                                                                             </span>
                                                                                                         ) : null}
+                                                                                                        {apt.notes?.includes('[PLUS-INFUS]') && (
+                                                                                                            <span className="text-[9px] font-bold bg-purple-100 text-purple-800 px-1 py-0.2 rounded flex items-center gap-0.5" title="Pasien juga mendapatkan layanan infus oleh Worker">
+                                                                                                                <span>💉</span>+Infus
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                        </div>
                                                                                                     </div>
 
                                                                                                     {/* Customer Name */}
