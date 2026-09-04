@@ -1937,8 +1937,14 @@ export default function TransactionsPage() {
                                             if (tx.payment_method === 'debit' || tx.payment_method === 'credit') payBadgeClass = "bg-purple-50 text-purple-700 border-purple-100"
 
                                             return (
-                                                <tr key={tx.id} onClick={() => openDetailModal(tx)} className="hover:bg-ayumi-table-hover transition-colors cursor-pointer group">
-                                                    <td className="p-4 font-bold text-gray-800 text-xs">{tx.transaction_number}</td>
+                                                <tr 
+                                                    key={tx.id} 
+                                                    onClick={() => openDetailModal(tx)} 
+                                                    className={`hover:bg-ayumi-table-hover transition-colors cursor-pointer group ${tx.payment_status === 'void' ? 'opacity-70 bg-rose-50/20' : ''}`}
+                                                >
+                                                    <td className="p-4 font-bold text-gray-800 text-xs">
+                                                        <span className={tx.payment_status === 'void' ? 'line-through text-gray-400' : ''}>{tx.transaction_number}</span>
+                                                    </td>
                                                     <td className="p-4 text-gray-600 text-xs">{formatDate(tx.created_at)}</td>
                                                     <td className="p-4">
                                                         {tx.patient_id ? (
@@ -1960,9 +1966,19 @@ export default function TransactionsPage() {
                                                     <td className="p-4 text-center">
                                                         <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${payBadgeClass}`}>{tx.payment_method}</span>
                                                     </td>
-                                                    <td className="p-4 text-right  font-bold text-gray-800">{formatCurrency(tx.total)}</td>
+                                                    <td className={`p-4 text-right font-bold ${tx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                                                        {formatCurrency(tx.total)}
+                                                    </td>
                                                     <td className="p-4 text-center">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800`}>LUNAS</span>
+                                                        {tx.payment_status === 'void' ? (
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-200">
+                                                                VOID
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800 border border-green-200">
+                                                                LUNAS
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td className="p-4 text-center">
                                                         <button 
@@ -2789,6 +2805,19 @@ export default function TransactionsPage() {
 
                         {/* Modal Content - Scrollable */}
                         <div className="p-4 md:p-6 overflow-y-auto space-y-4 text-xs font-semibold text-gray-700 flex-1">
+                            {/* Void Banner Notice */}
+                            {selectedTx.payment_status === 'void' && (
+                                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 flex items-start gap-2.5 text-rose-800">
+                                    <span className="text-rose-600 text-lg leading-none">🚫</span>
+                                    <div>
+                                        <p className="font-black text-rose-900 text-xs tracking-wide">STATUS: DIBATALKAN (VOID)</p>
+                                        <p className="text-[11px] font-medium text-rose-700 mt-0.5 leading-relaxed">
+                                            Transaksi ini telah dibatalkan dan tidak dihitung ke pendapatan/omzet klinik.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Transaction Info Grid */}
                             <div className="grid grid-cols-2 gap-3 border-b border-dashed border-gray-200 pb-3">
                                 <div>
