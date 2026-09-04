@@ -195,6 +195,7 @@ export default function Dashboard() {
                     id, 
                     transaction_number,
                     branch_id, 
+                    patient_id,
                     total,
                     subtotal,
                     discount,
@@ -234,6 +235,7 @@ export default function Dashboard() {
                         id, 
                         transaction_number,
                         branch_id, 
+                        patient_id,
                         total,
                         subtotal,
                         discount,
@@ -608,13 +610,13 @@ export default function Dashboard() {
             }
 
             // 1. Appointments Today
-            let aptQuery = supabase.from('appointments').select('id, start_time, end_time, status, patients(full_name, whatsapp)', { count: 'exact' })
+            let aptQuery = supabase.from('appointments').select('id, start_time, end_time, status, patient_id, patients(id, full_name, whatsapp)', { count: 'exact' })
                 .eq('appointment_date', todayDateStr)
                 .order('start_time', { ascending: true })
             aptQuery = applyBranch(aptQuery)
 
             // 2. Followups Pending
-            let fuQuery = supabase.from('followup_queue').select('id, followup_type, priority, scheduled_date, patients(full_name, whatsapp)', { count: 'exact' })
+            let fuQuery = supabase.from('followup_queue').select('id, followup_type, priority, scheduled_date, patient_id, patients(id, full_name, whatsapp)', { count: 'exact' })
                 .eq('status', 'pending')
                 .lte('scheduled_date', todayDateStr)
                 .order('priority', { ascending: false })
@@ -1217,6 +1219,8 @@ export default function Dashboard() {
                             <tbody className="divide-y divide-stone-100">
                                 {recentBranchTransactions.map(tx => {
                                     const isVoid = tx.payment_status === 'void'
+                                    const patientId = tx.patient_id || tx.patients?.id
+                                    const patientName = tx.patients?.full_name || 'Pasien Umum'
                                     return (
                                         <tr key={tx.id} className="hover:bg-stone-50/60 transition-colors">
                                             <td className="p-3 font-medium text-stone-500 whitespace-nowrap">
@@ -1227,8 +1231,19 @@ export default function Dashboard() {
                                                     {tx.transaction_number || tx.id.slice(0, 8)}
                                                 </Link>
                                             </td>
-                                            <td className="p-3 font-bold text-stone-900">
-                                                {tx.patients?.full_name || 'Pasien Umum'}
+                                            <td className="p-3 whitespace-nowrap">
+                                                {patientId ? (
+                                                    <Link 
+                                                        href={`/patients/${patientId}`}
+                                                        className="font-bold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/pat"
+                                                        title="Buka Profil & Riwayat Pasien"
+                                                    >
+                                                        <span>{patientName}</span>
+                                                        <span className="text-[11px] text-ayumi-primary font-bold group-hover/pat:translate-x-0.5 group-hover/pat:-translate-y-0.5 transition-transform">↗</span>
+                                                    </Link>
+                                                ) : (
+                                                    <span className="font-bold text-stone-900">{patientName}</span>
+                                                )}
                                             </td>
                                             <td className="p-3 text-stone-600">
                                                 {tx.transaction_items && tx.transaction_items.length > 0 ? (
@@ -1324,17 +1339,32 @@ export default function Dashboard() {
                             <p className="text-xs text-stone-400 font-medium py-6 text-center">Belum ada appointment terjadwal hari ini.</p>
                         ) : (
                             <div className="space-y-2">
-                                {recentAppointments.map(apt => (
-                                    <div key={apt.id} onClick={() => router.push('/appointments')} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer text-xs">
-                                        <div>
-                                            <p className="font-extrabold text-stone-900">{apt.patients?.full_name || 'Pasien'}</p>
-                                            <p className="text-[11px] text-stone-500">{apt.start_time?.slice(0, 5)} - {apt.end_time?.slice(0, 5)} WIB</p>
+                                {recentAppointments.map(apt => {
+                                    const aptPatientId = apt.patient_id || apt.patients?.id
+                                    return (
+                                        <div key={apt.id} onClick={() => router.push('/appointments')} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer text-xs">
+                                            <div>
+                                                {aptPatientId ? (
+                                                    <Link 
+                                                        href={`/patients/${aptPatientId}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="font-extrabold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/apt"
+                                                        title="Buka Profil & Riwayat Pasien"
+                                                    >
+                                                        <span>{apt.patients?.full_name || 'Pasien'}</span>
+                                                        <span className="text-[10px] text-ayumi-primary font-bold group-hover/apt:translate-x-0.5 group-hover/apt:-translate-y-0.5 transition-transform">↗</span>
+                                                    </Link>
+                                                ) : (
+                                                    <p className="font-extrabold text-stone-900">{apt.patients?.full_name || 'Pasien'}</p>
+                                                )}
+                                                <p className="text-[11px] text-stone-500">{apt.start_time?.slice(0, 5)} - {apt.end_time?.slice(0, 5)} WIB</p>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase border border-blue-200">
+                                                {apt.status}
+                                            </span>
                                         </div>
-                                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase border border-blue-200">
-                                            {apt.status}
-                                        </span>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
@@ -1349,17 +1379,32 @@ export default function Dashboard() {
                             <p className="text-xs text-stone-400 font-medium py-6 text-center">Semua tugas follow up pasien sudah selesai.</p>
                         ) : (
                             <div className="space-y-2">
-                                {recentFollowups.map(fu => (
-                                    <div key={fu.id} onClick={() => router.push('/crm')} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer text-xs">
-                                        <div>
-                                            <p className="font-extrabold text-stone-900">{fu.patients?.full_name || 'Pasien'}</p>
-                                            <p className="text-[11px] text-stone-500">Tipe: {fu.followup_type?.replace(/_/g, ' ') || 'Pesan'}</p>
+                                {recentFollowups.map(fu => {
+                                    const fuPatientId = fu.patient_id || fu.patients?.id
+                                    return (
+                                        <div key={fu.id} onClick={() => router.push('/crm')} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer text-xs">
+                                            <div>
+                                                {fuPatientId ? (
+                                                    <Link 
+                                                        href={`/patients/${fuPatientId}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="font-extrabold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/fu"
+                                                        title="Buka Profil & Riwayat Pasien"
+                                                    >
+                                                        <span>{fu.patients?.full_name || 'Pasien'}</span>
+                                                        <span className="text-[10px] text-ayumi-primary font-bold group-hover/fu:translate-x-0.5 group-hover/fu:-translate-y-0.5 transition-transform">↗</span>
+                                                    </Link>
+                                                ) : (
+                                                    <p className="font-extrabold text-stone-900">{fu.patients?.full_name || 'Pasien'}</p>
+                                                )}
+                                                <p className="text-[11px] text-stone-500">Tipe: {fu.followup_type?.replace(/_/g, ' ') || 'Pesan'}</p>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-700 text-[10px] font-bold uppercase border border-orange-200">
+                                                {fu.priority || 'Normal'}
+                                            </span>
                                         </div>
-                                        <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-700 text-[10px] font-bold uppercase border border-orange-200">
-                                            {fu.priority || 'Normal'}
-                                        </span>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
@@ -1439,7 +1484,20 @@ export default function Dashboard() {
                                         {filteredCouponLogs.map((log, idx) => (
                                             <tr key={log.id || idx} className="hover:bg-stone-50/50">
                                                 <td className="p-2.5 text-stone-500 whitespace-nowrap">{formatLogDateTime(log.used_at)}</td>
-                                                <td className="p-2.5 font-bold text-stone-900">{log.patients?.full_name || 'Pasien'}</td>
+                                                <td className="p-2.5 whitespace-nowrap">
+                                                    {log.patients?.id ? (
+                                                        <Link 
+                                                            href={`/patients/${log.patients.id}`}
+                                                            className="font-bold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/cp"
+                                                            title="Buka Profil & Riwayat Pasien"
+                                                        >
+                                                            <span>{log.patients?.full_name || 'Pasien'}</span>
+                                                            <span className="text-[11px] text-ayumi-primary font-bold group-hover/cp:translate-x-0.5 group-hover/cp:-translate-y-0.5 transition-transform">↗</span>
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="font-bold text-stone-900">{log.patients?.full_name || 'Pasien'}</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-2.5">
                                                     <p className="font-bold text-stone-900">{log.patient_coupon_items?.treatments?.name || 'Treatment'}</p>
                                                     <p className="text-[10px] text-stone-400">{log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || 'Paket'}</p>
