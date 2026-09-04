@@ -243,6 +243,10 @@ function PosPageContent() {
             setNotes('')
             setCashReceived('')
             setSelectedTherapistId('')
+            setSplitAmounts({ cash: '', transfer: '', qris: '', debit: '', credit: '' })
+            setPaymentMethod('cash')
+            setTreatmentRecordId(null)
+            setIsBackdateEnabled(false)
             try {
                 localStorage.removeItem('ayumi_pos_active_draft')
             } catch (err) {
@@ -1798,12 +1802,29 @@ function PosPageContent() {
                 )
             }
 
-            // Clear active draft from localStorage & Navigate to Receipt page
+            // Clear active draft from localStorage & reset all cart states
             try {
                 localStorage.removeItem('ayumi_pos_active_draft')
             } catch (e) {}
+
+            setCart([])
+            setSelectedPatient(null)
+            setSelectedPatientDetails(null)
+            setDiscountValue(0)
+            setNotes('')
+            setCashReceived('')
             setSelectedTherapistId('')
+            setSplitAmounts({ cash: '', transfer: '', qris: '', debit: '', credit: '' })
+            setPaymentMethod('cash')
             setIsBackdateEnabled(false)
+            setBackdateDate('')
+            setBackdateTime('')
+
+            if (treatmentRecordId) {
+                setPendingBills(prev => prev.filter(b => b.id !== treatmentRecordId))
+            }
+            setTreatmentRecordId(null)
+
             router.push(`/kasir/transactions/${trxData.id}`)
             
         } catch (error) {
