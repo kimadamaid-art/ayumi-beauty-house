@@ -271,15 +271,15 @@ function AddRecordForm() {
         if (!file) return
 
         // Validate formats
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-        if (!allowedTypes.includes(file.type)) {
-            toast.error('Format foto wajib JPG, PNG, atau WEBP.')
+        const isImage = file.type?.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || '')
+        if (!isImage) {
+            toast.error('Format foto wajib gambar (JPG, PNG, WEBP).')
             return
         }
 
-        // Validate size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('Ukuran foto maksimal 5MB.')
+        // Validate size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('Ukuran foto maksimal 10MB.')
             return
         }
 
@@ -1271,12 +1271,12 @@ function AddRecordForm() {
                                             <input 
                                                 type="file" 
                                                 ref={fileInputRefs[slot.key]}
-                                                accept="image/jpeg,image/png,image/webp" 
-                                                capture="environment"
+                                                accept="image/*" 
                                                 onChange={(e) => {
                                                     if (e.target.files && e.target.files[0]) {
                                                         handleFileChange(slot.key, e.target.files[0])
                                                     }
+                                                    e.target.value = ''
                                                 }}
                                                 className="hidden"
                                             />
