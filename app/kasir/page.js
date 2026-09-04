@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import BranchFilter from '@/components/ui/BranchFilter'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
@@ -307,9 +308,11 @@ function PosPageContent() {
             let query = supabase
                 .from('treatment_records')
                 .select(`
-                    id, treatment_time, treatment_date, branch_id,
+                    id, treatment_time, treatment_date, branch_id, performed_by,
+                    branches(name),
                     patients(id, full_name, whatsapp),
-                    treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent))
+                    treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
+                    coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name))))
                 `)
 
             if (pendingRecordId) {
@@ -805,7 +808,6 @@ function PosPageContent() {
     }, [selectedBranch])
 
     const fetchPendingBills = async (branchId) => {
-        const todayStr = new Date().toISOString().split('T')[0]
         let query = supabase
             .from('treatment_records')
             .select(`
@@ -813,10 +815,12 @@ function PosPageContent() {
                 branches(name),
                 patients(id, full_name, whatsapp),
                 treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
-                coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name))))
+                coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name)))),
+                transactions(id, transaction_number, payment_status, total)
             `)
-            .eq('treatment_date', todayStr)
-            .order('treatment_time', { ascending: true })
+            .order('treatment_date', { ascending: false })
+            .order('treatment_time', { ascending: false })
+            .limit(100)
 
         if (branchId) {
             query = query.eq('branch_id', branchId)
@@ -826,13 +830,11 @@ function PosPageContent() {
         if (!trData) return
 
         // Filter out already paid
-        const { data: txData } = await supabase
-            .from('transactions')
-            .select('treatment_record_id')
-            .gte('created_at', todayStr + 'T00:00:00Z')
+        const pending = trData.filter(tr => {
+            const hasPaidTx = tr.transactions && tr.transactions.some(tx => tx.payment_status === 'paid')
+            return !hasPaidTx
+        })
 
-        const txRecordIds = txData?.map(t => t.treatment_record_id).filter(Boolean) || []
-        const pending = trData.filter(tr => !txRecordIds.includes(tr.id))
         setPendingBills(pending)
         setLeftPanelTab(prev => (prev === 'pending' && pending.length === 0) ? 'catalog' : prev)
     }
@@ -1874,7 +1876,7 @@ function PosPageContent() {
                         ) : pendingBills.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-2 text-gray-400 my-auto text-center px-6">
                                 <svg className="w-10 h-10 text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <p className="text-sm font-bold text-gray-700">Semua tagihan hari ini sudah lunas</p>
+                                <p className="text-sm font-bold text-gray-700">Semua tagihan sudah lunas</p>
                                 <p className="text-xs text-gray-400 max-w-xs leading-relaxed">Tagihan baru dari terapis akan muncul otomatis setelah treatment selesai</p>
                             </div>
                         ) : (
@@ -1916,7 +1918,13 @@ function PosPageContent() {
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                     <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                                                        Hari ini, {bill.treatment_time?.substring(0,5) || '-'} WIB
+                                                        {(() => {
+                                                            const today = new Date().toISOString().split('T')[0]
+                                                            if (bill.treatment_date === today) {
+                                                                return `Hari ini, ${bill.treatment_time?.substring(0,5) || '-'} WIB`
+                                                            }
+                                                            return `${new Date(bill.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}, ${bill.treatment_time?.substring(0,5) || '-'} WIB`
+                                                        })()}
                                                     </span>
                                                     <span className="text-xs font-semibold text-gray-500">
                                                         {bill.treatment_record_items?.length || 0} Treatment
