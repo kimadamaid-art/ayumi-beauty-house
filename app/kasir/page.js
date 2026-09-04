@@ -839,6 +839,29 @@ function PosPageContent() {
         setLeftPanelTab(prev => (prev === 'pending' && pending.length === 0) ? 'catalog' : prev)
     }
 
+    const handleDeletePendingBill = async (bill, e) => {
+        if (e) e.stopPropagation()
+        if (!bill) return
+        if (dbUser?.role !== 'owner' && dbUser?.role !== 'admin') {
+            toast.error('Hanya Owner atau Admin yang dapat menghapus tagihan tindakan.')
+            return
+        }
+        if (!window.confirm(`Hapus tagihan "${bill.patients?.full_name || 'Pasien'}" (${bill.treatment_record_items?.length || 0} tindakan)? Tindakan ini akan dibatalkan.`)) {
+            return
+        }
+
+        try {
+            await supabase.from('treatment_record_items').delete().eq('treatment_record_id', bill.id)
+            const { error } = await supabase.from('treatment_records').delete().eq('id', bill.id)
+            if (error) throw error
+            toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dihapus.`)
+            fetchPendingBills(selectedBranch)
+        } catch (err) {
+            console.error('Error deleting pending bill:', err)
+            toast.error('Gagal menghapus tagihan: ' + (err.message || 'Terjadi kesalahan'))
+        }
+    }
+
     const handleOpenPendingModal = () => {
         fetchPendingBills(selectedBranch)
         setIsPendingModalOpen(true)
@@ -1958,18 +1981,32 @@ function PosPageContent() {
                                             </div>
 
                                             {/* Total + Action */}
-                                            <div className="text-right flex-shrink-0">
-                                                <p className=" font-black text-sm text-ayumi-secondary">
-                                                    Rp {totalBill.toLocaleString('id-ID')}
-                                                </p>
-                                                {isLoaded ? (
-                                                    <span className="text-[10px] text-emerald-600 font-extrabold flex items-center justify-end gap-0.5 mt-1">
-                                                        Di Keranjang ✓
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] text-ayumi-primary font-bold group-hover:underline flex items-center justify-end gap-0.5 mt-1">
-                                                        Klik untuk bayar →
-                                                    </span>
+                                            <div className="flex items-center gap-3 flex-shrink-0">
+                                                <div className="text-right">
+                                                    <p className="font-black text-sm text-ayumi-secondary">
+                                                        Rp {totalBill.toLocaleString('id-ID')}
+                                                    </p>
+                                                    {isLoaded ? (
+                                                        <span className="text-[10px] text-emerald-600 font-extrabold flex items-center justify-end gap-0.5 mt-1">
+                                                            Di Keranjang ✓
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-ayumi-primary font-bold group-hover:underline flex items-center justify-end gap-0.5 mt-1">
+                                                            Klik untuk bayar →
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => handleDeletePendingBill(bill, e)}
+                                                        title="Hapus / Batalkan Tagihan Tindakan Ini"
+                                                        className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
