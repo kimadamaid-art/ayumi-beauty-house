@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
 import BranchFilter from '@/components/ui/BranchFilter'
-import { getNetTransactionRevenue } from '@/lib/paymentUtils'
+import { getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 import { 
     BarChart, 
     Bar, 
@@ -95,6 +95,7 @@ export default function Dashboard() {
         couponSalesIncome: 0,
         couponUsedValue: 0,
         couponUsedSessions: 0,
+        qrisFee: 0,
         rangeTxCount: 0,
         topBranchName: '-'
     })
@@ -200,6 +201,7 @@ export default function Dashboard() {
                     payment_method,
                     payment_status,
                     created_at,
+                    notes,
                     patients (id, full_name, whatsapp),
                     branches (id, name),
                     transaction_items (
@@ -238,6 +240,7 @@ export default function Dashboard() {
                         payment_method,
                         payment_status,
                         created_at,
+                        notes,
                         patients (id, full_name, whatsapp),
                         branches (id, name),
                         transaction_items (
@@ -270,6 +273,7 @@ export default function Dashboard() {
             let grandProductRange = 0
             let grandCouponSalesRange = 0
             let grandCouponUsedRange = 0
+            let grandQrisFeeRange = 0
             let totalTxCountRange = 0
             const treatmentMap = {}
             const productMap = {}
@@ -286,6 +290,7 @@ export default function Dashboard() {
                     otherIncome: 0,
                     cashIncome: 0,
                     totalIncome: 0,
+                    qrisFee: 0,
                     transactionCount: 0
                 }
             })
@@ -342,7 +347,7 @@ export default function Dashboard() {
                                 }
                             })
                         } else {
-                            txTreatment += Number(tx.total || 0)
+                            txTreatment += getNetTransactionRevenue(tx)
                         }
 
                         branchObj.treatmentIncome += txTreatment
@@ -353,15 +358,19 @@ export default function Dashboard() {
                         branchObj.otherIncome += txOther
                         
                         const realCash = getNetTransactionRevenue(tx)
+                        const txQrisFee = getQrisFee(tx)
                         const totalValuation = realCash + txCouponUsed
 
                         branchObj.cashIncome += realCash
                         branchObj.totalIncome += totalValuation
+                        branchObj.qrisFee += txQrisFee
+
                         grandTotalRange += realCash
                         grandTreatmentRange += txTreatment
                         grandProductRange += txProduct
                         grandCouponSalesRange += txCouponSales
                         grandCouponUsedRange += txCouponUsed
+                        grandQrisFeeRange += txQrisFee
                     }
                 })
             }
@@ -516,6 +525,7 @@ export default function Dashboard() {
                 couponSalesIncome: grandCouponSalesRange,
                 couponUsedValue: grandCouponUsedRange,
                 couponUsedSessions: grandCouponUsedSessions,
+                qrisFee: grandQrisFeeRange,
                 rangeTxCount: totalTxCountRange,
                 topBranchName: topBranch !== '-' ? topBranch : (formattedRangeComp[0]?.branchName || '-')
             })
@@ -795,15 +805,15 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* 2. RINGKASAN OMSET FINANSIAL (4 KPI Cards) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 1. Total Omset */}
+            {/* 2. RINGKASAN PENDAPATAN & OMSET FINANSIAL (5 KPI Cards) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                {/* 1. Pendapatan */}
                 <div 
                     onClick={() => router.push('/transactions')}
                     className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-stone-400 transition-all cursor-pointer flex flex-col justify-between"
                 >
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Total Omset</span>
+                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Pendapatan</span>
                         <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">
                             {branchTotals.rangeTxCount} Transaksi
                         </span>
@@ -877,6 +887,27 @@ export default function Dashboard() {
                         </h3>
                         <p className="text-[11px] text-stone-500 font-medium mt-1">
                             Klaim sesi kupon perawatan periode ini
+                        </p>
+                    </div>
+                </div>
+
+                {/* 5. Biaya Tambahan QRIS */}
+                <div 
+                    onClick={() => router.push('/transactions')}
+                    className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-violet-300 transition-all cursor-pointer flex flex-col justify-between"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Biaya Tambahan QRIS</span>
+                        <span className="text-[11px] font-bold text-violet-800 bg-violet-50 border border-violet-200/80 px-2 py-0.5 rounded-md">
+                            0.3% MDR
+                        </span>
+                    </div>
+                    <div className="mt-4">
+                        <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
+                            Rp {branchTotals.qrisFee.toLocaleString('id-ID')}
+                        </h3>
+                        <p className="text-[11px] text-stone-500 font-medium mt-1">
+                            Biaya layanan QRIS periode ini
                         </p>
                     </div>
                 </div>
