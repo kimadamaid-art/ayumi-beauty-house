@@ -489,7 +489,8 @@ export default function Dashboard() {
                     branchId: b.id,
                     branchName: b.name,
                     monthlyTarget: targetVal,
-                    monthlyIncome: 0
+                    monthlyIncome: 0,
+                    monthlyQrisFee: 0
                 }
             })
 
@@ -497,7 +498,9 @@ export default function Dashboard() {
                 monthlyTrx.forEach(tx => {
                     if (tx && tx.branch_id && monthlyMap[tx.branch_id]) {
                         const amt = getNetTransactionRevenue(tx)
+                        const qFee = getQrisFee(tx)
                         monthlyMap[tx.branch_id].monthlyIncome += amt
+                        monthlyMap[tx.branch_id].monthlyQrisFee += qFee
                     }
                 })
             }
@@ -1006,6 +1009,13 @@ export default function Dashboard() {
                                             <span>Terkumpul: <strong className="text-stone-900 font-bold">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
                                             <span>Target: <strong className="text-stone-900 font-bold">Rp {item.monthlyTarget.toLocaleString('id-ID')}</strong></span>
                                         </div>
+
+                                        {item.monthlyQrisFee > 0 && (
+                                            <div className="flex justify-between items-center text-[10px] text-stone-400 font-medium pt-0.5">
+                                                <span>Biaya Tambahan QRIS (0.3%):</span>
+                                                <span className="font-bold text-violet-700">Rp {item.monthlyQrisFee.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        )}
 
                                         {isTargetSet && (
                                             <p className="text-[11px] font-semibold text-stone-600 pt-1">

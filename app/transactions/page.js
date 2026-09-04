@@ -10,7 +10,7 @@ import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
-import { parsePaymentSplits, getNetTransactionRevenue } from '@/lib/paymentUtils'
+import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -218,6 +218,7 @@ export default function TransactionsPage() {
     const mainSummary = useMemo(() => {
         let totalRevenue = 0
         let totalTx = 0
+        let totalQrisFee = 0
         let treatmentQty = 0
         let productQty = 0
         let couponQty = 0
@@ -228,6 +229,7 @@ export default function TransactionsPage() {
         filteredValidTransactions.forEach(tx => {
             totalTx += 1
             totalRevenue += getNetTransactionRevenue(tx)
+            totalQrisFee += getQrisFee(tx)
             tx.transaction_items?.forEach(item => {
                 const subtotal = Number(item.subtotal || 0)
                 if (item.item_type === 'treatment') {
@@ -248,6 +250,7 @@ export default function TransactionsPage() {
         return {
             totalRevenue,
             totalTx,
+            totalQrisFee,
             avgRevenue,
             treatmentQty,
             productQty,
@@ -1338,6 +1341,7 @@ export default function TransactionsPage() {
 
         txList.forEach(tx => {
             const txNet = getNetTransactionRevenue(tx)
+            const txFee = getQrisFee(tx)
             revenue += txNet
             const dayIdx = new Date(tx.created_at).getDay()
             dailyRevenue[dayIdx].pendapatan += txNet
@@ -1345,10 +1349,11 @@ export default function TransactionsPage() {
 
             const brName = tx.branches?.name || 'Tanpa Cabang'
             if (!branchBreakdown[brName]) {
-                branchBreakdown[brName] = { name: brName, count: 0, total: 0 }
+                branchBreakdown[brName] = { name: brName, count: 0, total: 0, qrisFee: 0 }
             }
             branchBreakdown[brName].count++
             branchBreakdown[brName].total += txNet
+            branchBreakdown[brName].qrisFee += txFee
         })
 
         // Sort chart starting from Monday
@@ -1462,11 +1467,13 @@ export default function TransactionsPage() {
 
             // Map branches
             const brName = tx.branches?.name || 'Tanpa Cabang'
+            const txFee = getQrisFee(tx)
             if (!branchesMap[brName]) {
-                branchesMap[brName] = { name: brName, count: 0, total: 0 }
+                branchesMap[brName] = { name: brName, count: 0, total: 0, qrisFee: 0 }
             }
             branchesMap[brName].count++
             branchesMap[brName].total += val
+            branchesMap[brName].qrisFee += txFee
 
             // Map top sellers
             tx.transaction_items?.forEach(item => {
@@ -1647,6 +1654,7 @@ export default function TransactionsPage() {
         })
 
         let revenue = 0
+        let totalQrisFee = 0
         let treatmentQty = 0
         let productQty = 0
         let couponQty = 0
@@ -1656,6 +1664,7 @@ export default function TransactionsPage() {
 
         txList.forEach(tx => {
             revenue += getNetTransactionRevenue(tx)
+            totalQrisFee += getQrisFee(tx)
             tx.transaction_items?.forEach(item => {
                 const subtotal = Number(item.subtotal || 0)
                 if (item.item_type === 'treatment') {
@@ -1674,6 +1683,7 @@ export default function TransactionsPage() {
         setCustomReportResult({
             txList,
             revenue,
+            totalQrisFee,
             totalTx: txList.length,
             avg: txList.length > 0 ? revenue / txList.length : 0,
             treatmentQty,
@@ -1784,7 +1794,7 @@ export default function TransactionsPage() {
             </div>
 
             {/* SUMMARY CARDS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
                 {/* Total Pendapatan */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm border border-emerald-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-inner shrink-0">
@@ -1803,7 +1813,7 @@ export default function TransactionsPage() {
                     </div>
                     <div>
                         <h4 className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Pendapatan Treatment</h4>
-                        <p className="text-xl font-black text-gray-800  mt-0.5">{formatCurrency(mainSummary.treatmentRevenue)}</p>
+                        <p className="text-xl font-black text-gray-800 mt-0.5">{formatCurrency(mainSummary.treatmentRevenue)}</p>
                     </div>
                 </div>
 
@@ -1813,8 +1823,22 @@ export default function TransactionsPage() {
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                     </div>
                     <div>
-                        <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Pendapatan Produk Skincare</h4>
-                        <p className="text-xl font-black text-gray-800  mt-0.5">{formatCurrency(mainSummary.productRevenue)}</p>
+                        <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Pendapatan Produk</h4>
+                        <p className="text-xl font-black text-gray-800 mt-0.5">{formatCurrency(mainSummary.productRevenue)}</p>
+                    </div>
+                </div>
+
+                {/* Biaya Tambahan QRIS */}
+                <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-violet-50/50 to-white shadow-sm border border-violet-100 hover:shadow-md transition-all duration-300">
+                    <div className="w-12 h-12 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center shadow-inner shrink-0">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-1.5">
+                            <h4 className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Biaya Tambahan QRIS</h4>
+                            <span className="text-[9px] font-extrabold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded">0.3% MDR</span>
+                        </div>
+                        <p className="text-xl font-extrabold text-violet-900 tracking-tight mt-0.5">{formatCurrency(mainSummary.totalQrisFee)}</p>
                     </div>
                 </div>
 
@@ -1836,12 +1860,12 @@ export default function TransactionsPage() {
                     </div>
                     <div>
                         <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rata-rata Penjualan</h4>
-                        <p className="text-xl font-black text-gray-800  mt-0.5">{formatCurrency(mainSummary.avgRevenue)}</p>
+                        <p className="text-xl font-black text-gray-800 mt-0.5">{formatCurrency(mainSummary.avgRevenue)}</p>
                     </div>
                 </div>
 
                 {/* Item Terjual */}
-                <div className="card-ayumi p-5 flex flex-col justify-center bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
+                <div className="card-ayumi p-5 flex flex-col justify-center bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300 sm:col-span-2 lg:col-span-2">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Kuantitas Item Terjual</h4>
                     <div className="flex justify-between items-center text-xs font-semibold text-gray-600">
                         <div className="flex flex-col items-center">
@@ -2270,6 +2294,7 @@ export default function TransactionsPage() {
                                             <th className="p-3">Cabang</th>
                                             <th className="p-3 text-center">Jumlah Transaksi</th>
                                             <th className="p-3 text-right">Total Pendapatan</th>
+                                            <th className="p-3 text-right text-violet-700">Biaya Tambahan QRIS (0.3%)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
@@ -2277,11 +2302,12 @@ export default function TransactionsPage() {
                                             <tr key={b.name} className="hover:bg-gray-50/50">
                                                 <td className="p-3 font-bold text-gray-700">{b.name}</td>
                                                 <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
-                                                <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                                <td className="p-3 text-right font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                                <td className="p-3 text-right font-bold text-violet-700">{formatCurrency(b.qrisFee || 0)}</td>
                                             </tr>
                                         ))}
                                         {weeklyData.branchBreakdown.length === 0 && (
-                                            <tr><td colSpan="3" className="p-3 text-center text-gray-400">Tidak ada data per cabang.</td></tr>
+                                            <tr><td colSpan="4" className="p-3 text-center text-gray-400">Tidak ada data per cabang.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -2478,6 +2504,7 @@ export default function TransactionsPage() {
                                         <th className="p-3">Cabang</th>
                                         <th className="p-3 text-center">Jumlah Transaksi</th>
                                         <th className="p-3 text-right">Total Pendapatan</th>
+                                        <th className="p-3 text-right text-violet-700">Biaya Tambahan QRIS (0.3%)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -2485,11 +2512,12 @@ export default function TransactionsPage() {
                                         <tr key={b.name} className="hover:bg-gray-50/50">
                                             <td className="p-3 font-bold text-gray-700">{b.name}</td>
                                             <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
-                                            <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                            <td className="p-3 text-right font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                            <td className="p-3 text-right font-bold text-violet-700">{formatCurrency(b.qrisFee || 0)}</td>
                                         </tr>
                                     ))}
                                     {monthlyData.branchBreakdown.length === 0 && (
-                                        <tr><td colSpan="3" className="p-3 text-center text-gray-400">Tidak ada data.</td></tr>
+                                        <tr><td colSpan="4" className="p-3 text-center text-gray-400">Tidak ada data.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -2704,7 +2732,7 @@ export default function TransactionsPage() {
                         {customReportResult ? (
                             <div className="space-y-6">
                                 {/* Custom summaries */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi</h5>
                                         <p className="text-xl font-black text-gray-800">{customReportResult.totalTx}</p>
@@ -2721,11 +2749,18 @@ export default function TransactionsPage() {
                                         <h5 className="text-[10px] font-bold text-orange-500 uppercase tracking-wider mb-1">Pendapatan Produk</h5>
                                         <p className="text-xl font-black text-orange-700 ">{formatCurrency(customReportResult.productRevenue)}</p>
                                     </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-violet-100 bg-violet-50/30 shadow-sm flex flex-col justify-center">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <h5 className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">Biaya QRIS</h5>
+                                            <span className="text-[9px] font-extrabold text-violet-700 bg-violet-100 px-1 py-0.2 rounded">0.3% MDR</span>
+                                        </div>
+                                        <p className="text-xl font-black text-violet-900">{formatCurrency(customReportResult.totalQrisFee)}</p>
+                                    </div>
                                     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rata-rata Penjualan</h5>
                                         <p className="text-xl font-black text-purple-700 ">{formatCurrency(customReportResult.avg)}</p>
                                     </div>
-                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center sm:col-span-2 lg:col-span-2">
                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 font-semibold text-gray-400">Total Item Terjual</h5>
                                         <div className="flex justify-between items-center text-[10px] font-bold text-gray-600 mt-1">
                                             <span>Trt: {customReportResult.treatmentQty}</span>

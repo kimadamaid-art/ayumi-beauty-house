@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
-import { getNetTransactionRevenue } from '@/lib/paymentUtils'
+import { getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 import toast from 'react-hot-toast'
 
 export default function TransactionsHistoryPage() {
@@ -95,6 +95,11 @@ export default function TransactionsHistoryPage() {
         [validTransactions]
     )
 
+    const totalQrisFee = useMemo(
+        () => validTransactions.reduce((sum, trx) => sum + getQrisFee(trx), 0),
+        [validTransactions]
+    )
+
     const handleDeleteTx = async (trx) => {
         if (!trx) return
         if (dbUser?.role !== 'owner') {
@@ -155,9 +160,18 @@ export default function TransactionsHistoryPage() {
                         <h2 className="text-xl font-bold text-gray-800">Riwayat Transaksi</h2>
                         <p className="text-sm text-gray-500">Pantau dan kelola laporan penjualan harian klinik.</p>
                     </div>
-                    <div className="bg-gradient-to-r from-pink-50 to-purple-50 px-6 py-3 rounded-xl border border-pink-100/50">
-                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Pendapatan</p>
-                        <p className="text-2xl font-extrabold text-ayumi-primary ">Rp {totalIncome.toLocaleString('id-ID')}</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="bg-gradient-to-r from-pink-50 to-purple-50 px-5 py-2.5 rounded-xl border border-pink-100/50">
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">Total Pendapatan</p>
+                            <p className="text-xl font-extrabold text-ayumi-primary">Rp {totalIncome.toLocaleString('id-ID')}</p>
+                        </div>
+                        <div className="bg-violet-50 px-5 py-2.5 rounded-xl border border-violet-100">
+                            <div className="flex items-center gap-1 mb-0.5">
+                                <p className="text-[10px] text-violet-600 font-bold uppercase tracking-wider">Biaya QRIS</p>
+                                <span className="text-[9px] font-extrabold text-violet-700 bg-violet-100 px-1 py-0.2 rounded">0.3%</span>
+                            </div>
+                            <p className="text-xl font-extrabold text-violet-900">Rp {totalQrisFee.toLocaleString('id-ID')}</p>
+                        </div>
                     </div>
                 </div>
 
