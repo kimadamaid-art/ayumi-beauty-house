@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -17,6 +17,9 @@ import { getItemInitials, getItemCategory, getProductVariants, DEFAULT_CATEGORY_
 function PosPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
+
+    // Concurrency guard to prevent double checkout submissions
+    const isCheckingOutRef = useRef(false)
 
     // Auth & Branches
     const [dbUser, setDbUser] = useState(null)
@@ -1503,6 +1506,11 @@ function PosPageContent() {
 
     // --- Checkout ---
     const handleCheckout = async () => {
+        // Prevent concurrent double-clicks
+        if (isCheckingOutRef.current || isProcessing) {
+            return
+        }
+
         if (cart.length === 0) {
             alert('Keranjang belanja kosong!')
             return
@@ -1581,7 +1589,9 @@ function PosPageContent() {
             finalPaymentMethod = methodEntries[0]?.m || 'cash'
         }
 
+        isCheckingOutRef.current = true
         setIsProcessing(true)
+        let savedTrxData = null
 
         try {
             // Extract treatment_record_id if we loaded from pending bills
@@ -1689,6 +1699,8 @@ function PosPageContent() {
             if (!trxData || !trxData.id) {
                 throw new Error('Gagal mendapatkan data transaksi dari database.')
             }
+
+            savedTrxData = trxData
 
             // Potong sesi kupon lewat Server API /api/coupons/redeem
             const failedCoupons = []
@@ -1828,8 +1840,31 @@ function PosPageContent() {
             router.push(`/kasir/transactions/${trxData.id}`)
             
         } catch (error) {
-            console.error(error)
-            alert('Terjadi kesalahan saat memproses pembayaran: ' + getFriendlyErrorMessage(error))
+            console.error('Checkout error:', error)
+            // Jika transaksi sebenarnya sudah berhasil tersimpan di database sebelum error, jangan katakan gagal
+            if (savedTrxData?.id) {
+                try {
+                    localStorage.removeItem('ayumi_pos_active_draft')
+                } catch (e) {}
+                setCart([])
+                setSelectedPatient(null)
+                setSelectedPatientDetails(null)
+                setDiscountValue(0)
+                setNotes('')
+                setCashReceived('')
+                setSelectedTherapistId('')
+                setSplitAmounts({ cash: '', transfer: '', qris: '', debit: '', credit: '' })
+                setPaymentMethod('cash')
+                setIsBackdateEnabled(false)
+                setBackdateDate('')
+                setBackdateTime('')
+                toast.success('Pembayaran telah berhasil tercatat!')
+                router.push(`/kasir/transactions/${savedTrxData.id}`)
+            } else {
+                alert('Terjadi kesalahan saat memproses pembayaran: ' + getFriendlyErrorMessage(error))
+            }
+        } finally {
+            isCheckingOutRef.current = false
             setIsProcessing(false)
         }
     }
