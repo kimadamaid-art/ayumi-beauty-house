@@ -8,1079 +8,1385 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        ayumi: {
-                            primary: '#D46221',
-                            'primary-hover': '#B5531B',
-                            secondary: '#4E2A12',
-                            accent: '#F2D8C3',
-                            bg: '#FAF6F0',
-                            card: '#FFFFFF',
-                            text: '#2C1E16',
-                            'text-muted': '#8C7D73',
-                            emerald: '#059669',
-                            rose: '#E11D48',
-                            purple: '#7C3AED',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    
     <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #FAF6F0;
-            color: #2C1E16;
+        /* ==================== RESET & CORE VARIABLES ==================== */
+        :root {
+            --ayumi-primary: #D46221;
+            --ayumi-primary-hover: #B5531B;
+            --ayumi-secondary: #4E2A12;
+            --ayumi-accent: #F2D8C3;
+            --ayumi-bg: #FAF6F0;
+            --ayumi-card: #FFFFFF;
+            --ayumi-text: #2C1E16;
+            --ayumi-text-muted: #8C7D73;
+            --emerald: #059669;
+            --emerald-bg: #ECFDF5;
+            --rose: #E11D48;
+            --rose-bg: #FFF1F2;
+            --purple: #7C3AED;
+            --purple-bg: #F5F3FF;
+            --amber: #D97706;
+            --amber-bg: #FFFBEB;
+            --blue: #2563EB;
+            --blue-bg: #EFF6FF;
+        }
+
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: var(--ayumi-bg);
+            color: var(--ayumi-text);
             overflow: hidden;
             height: 100vh;
             width: 100vw;
             user-select: none;
+            position: relative;
+            background-size: 32px 32px;
+            background-image: 
+                linear-gradient(to right, rgba(78, 42, 18, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(78, 42, 18, 0.04) 1px, transparent 1px);
         }
 
-        /* Slide Transition Container */
+        /* ==================== PROGRESS BAR ==================== */
+        #top-progress-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: rgba(242, 216, 195, 0.6);
+            z-index: 100;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 8.33%;
+            background: linear-gradient(90deg, var(--ayumi-primary), var(--rose));
+            transition: width 0.35s ease;
+        }
+
+        /* ==================== HEADER ==================== */
+        header {
+            position: fixed;
+            top: 14px;
+            left: 24px;
+            right: 24px;
+            z-index: 80;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .header-brand {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            padding: 8px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(242, 216, 195, 0.9);
+            box-shadow: 0 4px 15px -2px rgba(78, 42, 18, 0.06);
+        }
+
+        .brand-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--ayumi-secondary), var(--ayumi-primary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 900;
+            font-size: 14px;
+            letter-spacing: -0.5px;
+            box-shadow: 0 2px 6px rgba(212, 98, 33, 0.3);
+        }
+
+        .brand-title {
+            font-weight: 800;
+            font-size: 13px;
+            color: var(--ayumi-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+        }
+
+        .brand-subtitle {
+            font-size: 10px;
+            color: var(--ayumi-primary);
+            font-weight: 700;
+            background: rgba(242, 216, 195, 0.45);
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+
+        .header-controls {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-ctrl {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(242, 216, 195, 0.9);
+            color: var(--ayumi-secondary);
+            font-weight: 700;
+            font-size: 12px;
+            padding: 7px 14px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(78, 42, 18, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .btn-ctrl:hover {
+            background: #fff;
+            color: var(--ayumi-primary);
+            border-color: var(--ayumi-primary);
+            transform: translateY(-1px);
+        }
+
+        .kbd-badge {
+            background: #f1ede8;
+            color: #665b53;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 1px 5px;
+            border-radius: 4px;
+            border: 1px solid #dfd7cf;
+            font-family: monospace;
+        }
+
+        /* ==================== SLIDE CONTAINER ==================== */
+        #slides-viewport {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
         .slide {
+            display: none !important;
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: scale(0.98) translateY(12px);
-            display: flex;
+            padding: 75px 50px 75px 50px;
             flex-direction: column;
             justify-content: space-between;
-            padding: 2.5rem 3.5rem;
+            align-items: center;
             box-sizing: border-box;
+            opacity: 0;
+            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .slide.active {
+            display: flex !important;
             opacity: 1;
-            visibility: visible;
-            pointer-events: auto;
-            transform: scale(1) translateY(0);
             z-index: 10;
         }
 
-        /* Glassmorphic card styling */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(242, 216, 195, 0.8);
-            box-shadow: 0 10px 30px -10px rgba(78, 42, 18, 0.08);
+        .slide-content-wrapper {
+            max-width: 1080px;
+            width: 100%;
+            margin: auto 0;
+            display: flex;
+            flex-direction: column;
         }
 
-        .glass-dark {
-            background: rgba(44, 30, 22, 0.95);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(212, 98, 33, 0.3);
-            color: #FAF6F0;
+        /* ==================== TYPOGRAPHY & TAGS ==================== */
+        .section-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            width: fit-content;
         }
 
-        /* Background luxury grid pattern */
-        .bg-pattern {
-            background-size: 36px 36px;
-            background-image: 
-                linear-gradient(to right, rgba(78, 42, 18, 0.035) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(78, 42, 18, 0.035) 1px, transparent 1px);
-        }
-
-        /* Speaker notes drawer */
-        #speaker-notes-panel {
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-        }
-        #speaker-notes-panel.open {
-            transform: translateY(0);
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        /* Slide overview drawer */
-        #overview-modal {
-            transition: opacity 0.25s ease, visibility 0.25s;
-        }
-        #overview-modal.open {
-            opacity: 1;
-            visibility: visible;
-            pointer-events: auto;
-        }
-
-        /* Custom Scrollbars */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #E8B895;
+        .tag-primary {
+            color: var(--ayumi-primary);
+            background: rgba(212, 98, 33, 0.1);
+            border: 1px solid rgba(212, 98, 33, 0.25);
+            padding: 4px 12px;
             border-radius: 9999px;
         }
-        ::-webkit-scrollbar-track {
-            background: transparent;
+
+        .tag-therapist {
+            color: var(--rose);
+            background: rgba(225, 29, 72, 0.1);
+            border: 1px solid rgba(225, 29, 72, 0.25);
+            padding: 4px 12px;
+            border-radius: 9999px;
         }
 
-        /* Subtle pulsating badges */
-        @keyframes subtle-pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.04); }
+        .slide-heading {
+            font-size: 38px;
+            font-weight: 900;
+            color: var(--ayumi-secondary);
+            line-height: 1.18;
+            letter-spacing: -0.8px;
+            margin-bottom: 8px;
         }
-        .pulse-badge {
-            animation: subtle-pulse 2.5s infinite ease-in-out;
+
+        .slide-heading-gradient {
+            background: linear-gradient(135deg, var(--ayumi-secondary) 10%, var(--ayumi-primary) 70%, var(--rose) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .slide-subheading {
+            font-size: 15px;
+            color: var(--ayumi-text-muted);
+            font-weight: 500;
+            line-height: 1.5;
+            max-width: 820px;
+        }
+
+        /* ==================== CARDS & GRIDS ==================== */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(242, 216, 195, 0.85);
+            border-radius: 18px;
+            padding: 22px;
+            box-shadow: 0 8px 24px -6px rgba(78, 42, 18, 0.06);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px -6px rgba(78, 42, 18, 0.1);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+            margin-top: 24px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 22px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-top: 22px;
+        }
+
+        .grid-5 {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* ==================== MOCKUPS & STATUS BADGES ==================== */
+        .status-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid transparent;
+        }
+
+        .status-emerald {
+            background: var(--emerald-bg);
+            color: var(--emerald);
+            border-color: rgba(5, 150, 105, 0.2);
+        }
+
+        .status-rose {
+            background: var(--rose-bg);
+            color: var(--rose);
+            border-color: rgba(225, 29, 72, 0.2);
+        }
+
+        .status-purple {
+            background: var(--purple-bg);
+            color: var(--purple);
+            border-color: rgba(124, 58, 237, 0.2);
+        }
+
+        .status-amber {
+            background: var(--amber-bg);
+            color: var(--amber);
+            border-color: rgba(217, 119, 6, 0.2);
+        }
+
+        .status-blue {
+            background: var(--blue-bg);
+            color: var(--blue);
+            border-color: rgba(37, 99, 235, 0.2);
+        }
+
+        /* Table styling */
+        .ayumi-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+            text-align: left;
+        }
+
+        .ayumi-table th {
+            background: rgba(247, 238, 230, 0.85);
+            color: var(--ayumi-secondary);
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 11px;
+            padding: 12px 14px;
+            border-bottom: 2px solid rgba(242, 216, 195, 0.8);
+        }
+
+        .ayumi-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(242, 216, 195, 0.4);
+            vertical-align: middle;
+        }
+
+        .ayumi-table tr:hover td {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        /* Slide Footer Bar */
+        .slide-footer {
+            width: 100%;
+            max-width: 1080px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--ayumi-text-muted);
+            border-top: 1px solid rgba(242, 216, 195, 0.6);
+            padding-top: 12px;
+        }
+
+        /* ==================== BOTTOM CONTROLLER ==================== */
+        #bottom-nav {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 80;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(14px);
+            padding: 8px 18px;
+            border-radius: 9999px;
+            border: 1px solid rgba(242, 216, 195, 0.9);
+            box-shadow: 0 6px 20px -3px rgba(78, 42, 18, 0.12);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--ayumi-secondary);
+            font-size: 16px;
+            font-weight: 800;
+            transition: all 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background: var(--ayumi-accent);
+            color: var(--ayumi-primary);
+        }
+
+        .slide-counter {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--ayumi-secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .counter-current {
+            color: var(--ayumi-primary);
+            font-size: 15px;
+            font-weight: 900;
+        }
+
+        .btn-list {
+            background: transparent;
+            border: none;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ayumi-secondary);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-list:hover {
+            color: var(--ayumi-primary);
+            background: rgba(242, 216, 195, 0.3);
+        }
+
+        /* ==================== SPEAKER NOTES PANEL ==================== */
+        #speaker-notes-panel {
+            display: none;
+            position: fixed;
+            bottom: 74px;
+            right: 24px;
+            z-index: 90;
+            width: 380px;
+            max-height: 400px;
+            background: rgba(44, 30, 22, 0.96);
+            backdrop-filter: blur(18px);
+            border-radius: 20px;
+            border: 1px solid rgba(212, 98, 33, 0.4);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+            color: #FAF6F0;
+            padding: 20px;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #speaker-notes-panel.open {
+            display: flex;
+        }
+
+        .notes-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .notes-title {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--ayumi-accent);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .notes-close {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .notes-close:hover {
+            color: #fff;
+        }
+
+        #speaker-notes-body {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #e5dec9;
+            overflow-y: auto;
+            max-height: 250px;
+            padding-right: 4px;
+        }
+
+        /* ==================== OVERVIEW MODAL ==================== */
+        #overview-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            background: rgba(0, 0, 0, 0.72);
+            backdrop-filter: blur(8px);
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        #overview-modal.open {
+            display: flex;
+        }
+
+        .overview-box {
+            background: #fff;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 960px;
+            max-height: 85vh;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--ayumi-accent);
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            overflow-y: auto;
+            padding: 16px 4px;
+        }
+
+        .overview-card {
+            background: #faf7f2;
+            border: 1px solid #ecd8c5;
+            border-radius: 14px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 90px;
+        }
+
+        .overview-card:hover {
+            background: #fdf1e6;
+            border-color: var(--ayumi-primary);
+            transform: translateY(-2px);
+        }
+
+        .overview-card.active-card {
+            background: var(--ayumi-primary);
+            color: #fff;
+            border-color: var(--ayumi-primary);
+        }
+
+        .overview-card.active-card .ov-num,
+        .overview-card.active-card .ov-title {
+            color: #fff;
         }
     </style>
 </head>
-<body class="bg-pattern flex flex-col h-screen w-screen overflow-hidden">
+<body>
 
     <!-- TOP PROGRESS BAR -->
-    <div class="fixed top-0 left-0 w-full h-1.5 bg-ayumi-accent/40 z-50">
-        <div id="progress-bar" class="h-full bg-gradient-to-r from-ayumi-primary to-[#E11D48] transition-all duration-300 w-0"></div>
+    <div id="top-progress-container">
+        <div id="progress-bar"></div>
     </div>
 
-    <!-- PERSISTENT TOP HEADER -->
-    <header class="fixed top-2 left-6 right-6 z-40 flex items-center justify-between pointer-events-none">
-        <div class="flex items-center gap-3 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-ayumi-accent/60 shadow-sm pointer-events-auto">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-ayumi-secondary to-ayumi-primary flex items-center justify-center text-white font-extrabold text-sm shadow-sm">
-                ab
-            </div>
+    <!-- PERSISTENT HEADER -->
+    <header>
+        <div class="header-brand">
+            <div class="brand-logo">ab</div>
             <div>
-                <span class="font-extrabold text-xs text-ayumi-secondary tracking-wide uppercase">Ayumi Beauty House</span>
-                <span class="text-[10px] text-ayumi-primary font-bold ml-1.5 px-1.5 py-0.2 bg-ayumi-accent/50 rounded">System Architecture</span>
+                <span class="brand-title">Ayumi Beauty House</span>
+                <span class="brand-subtitle">System Presentation</span>
             </div>
         </div>
 
-        <div class="flex items-center gap-2 pointer-events-auto">
-            <button onclick="toggleSpeakerNotes()" id="btn-notes" class="px-3 py-1.5 rounded-xl bg-white/90 backdrop-blur-md border border-ayumi-accent/60 text-ayumi-secondary hover:text-ayumi-primary text-xs font-bold shadow-sm transition-all flex items-center gap-1.5" title="Buka Catatan Presenter (Shortcut: N)">
+        <div class="header-controls">
+            <button onclick="toggleSpeakerNotes()" class="btn-ctrl" title="Buka Catatan Pembicara (Shortcut: N)">
                 <span>🎙️</span>
-                <span class="hidden sm:inline">Poin Bicara</span>
-                <span class="text-[9px] bg-stone-100 text-stone-600 px-1 rounded font-mono">N</span>
+                <span>Poin Bicara</span>
+                <span class="kbd-badge">N</span>
             </button>
-            <button onclick="toggleOverview()" class="px-3 py-1.5 rounded-xl bg-white/90 backdrop-blur-md border border-ayumi-accent/60 text-ayumi-secondary hover:text-ayumi-primary text-xs font-bold shadow-sm transition-all flex items-center gap-1.5" title="Peta Seluruh Slide (Shortcut: O / Esc)">
+            <button onclick="toggleOverview()" class="btn-ctrl" title="Peta Seluruh Slide (Shortcut: O / Esc)">
                 <span>📑</span>
-                <span class="hidden sm:inline">Semua Slide</span>
-                <span class="text-[9px] bg-stone-100 text-stone-600 px-1 rounded font-mono">O</span>
+                <span>Semua Slide</span>
+                <span class="kbd-badge">O</span>
             </button>
-            <button onclick="toggleFullScreen()" class="p-1.5 px-2 rounded-xl bg-white/90 backdrop-blur-md border border-ayumi-accent/60 text-ayumi-secondary hover:text-ayumi-primary text-xs font-bold shadow-sm transition-all" title="Layar Penuh (Shortcut: F)">
-                ⛶
+            <button onclick="toggleFullScreen()" class="btn-ctrl" title="Layar Penuh (Shortcut: F)">
+                ⛶ Layar Penuh
             </button>
         </div>
     </header>
 
-    <!-- SLIDES CONTAINER -->
-    <main id="presentation-container" class="relative flex-1 w-full h-full overflow-hidden">
+    <!-- SLIDES VIEWPORT -->
+    <div id="slides-viewport">
 
-        <!-- ==================== SLIDE 1: COVER ==================== -->
-        <section class="slide active" data-title="Cover: Sistem Ayumi Beauty House">
-            <div class="flex-1 flex flex-col justify-center max-w-5xl mx-auto w-full pt-10">
-                <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-ayumi-primary/10 border border-ayumi-primary/30 text-ayumi-primary font-extrabold text-xs mb-6 w-fit pulse-badge">
-                    <span>✨</span> Multi-Cabang: Banjar • Tasikmalaya • Pangandaran • Ciamis
-                </div>
-                <h1 class="text-4xl md:text-6xl font-black text-ayumi-secondary tracking-tight leading-tight">
-                    Sistem Operasional & EMR Klinis<br>
-                    <span class="bg-gradient-to-r from-ayumi-primary via-[#D46221] to-[#E11D48] bg-clip-text text-transparent">
-                        Ayumi Beauty House
-                    </span>
+        <!-- ==================== SLIDE 1 ==================== -->
+        <section class="slide active" data-title="Cover: Sistem Operasional & EMR Ayumi Beauty House">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">✨ Multi-Cabang: Banjar • Tasikmalaya • Pangandaran • Ciamis</div>
+                <h1 class="slide-heading slide-heading-gradient" style="font-size: 46px; margin-top: 6px;">
+                    Sistem Operasional & EMR Klinis<br>Ayumi Beauty House
                 </h1>
-                <p class="text-lg md:text-xl text-ayumi-text-muted mt-4 font-medium max-w-3xl leading-relaxed">
-                    Presentasi Arsitektur Antarmuka & Sinergi Alur Kerja: <strong class="text-ayumi-secondary">Role Admin (Front Office & Kasir POS)</strong> dan <strong class="text-ayumi-secondary">Role Terapis (EMR, SOAP Medis, & Tindakan Klinis)</strong>.
+                <p class="slide-subheading" style="font-size: 16px; margin-top: 8px;">
+                    Presentasi Komprehensif Arsitektur Antarmuka & Alur Kerja: <strong style="color:var(--ayumi-secondary)">Role Admin (Front Office & Kasir POS)</strong> dan <strong style="color:var(--ayumi-secondary)">Role Terapis (EMR Medis, SOAP, & Tindakan Klinis)</strong>.
                 </p>
 
-                <!-- 2 Highlight Pillars -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-10">
-                    <div class="glass-card p-5 rounded-2xl border-l-4 border-l-ayumi-primary hover:shadow-md transition-shadow">
-                        <div class="flex items-center gap-3 mb-2">
-                            <span class="w-9 h-9 rounded-xl bg-orange-100 text-ayumi-primary flex items-center justify-center font-bold text-lg">👩‍💼</span>
-                            <h3 class="font-extrabold text-ayumi-secondary text-base">Portal Admin & Kasir POS</h3>
+                <div class="grid-2" style="margin-top: 28px;">
+                    <div class="glass-card" style="border-left: 5px solid var(--ayumi-primary);">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom: 8px;">
+                            <span style="font-size: 24px;">👩‍💼</span>
+                            <h3 style="font-size: 16px; font-weight: 800; color: var(--ayumi-secondary);">Portal Admin & Kasir POS</h3>
                         </div>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Pusat kendali klinik: manajemen antrean janji temu, transaksi POS, split payment otomatis dengan akurasi MDR QRIS 0.3%, dan otomasi CRM retensi pasien.
+                        <p style="font-size: 13px; color: #5a5048; line-height: 1.5;">
+                            Pusat operasional klinik: manajemen antrean janji temu, transaksi POS, split payment cerdas dengan akurasi MDR QRIS 0.3%, serta otomasi follow-up CRM via WhatsApp.
                         </p>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl border-l-4 border-l-[#E11D48] hover:shadow-md transition-shadow">
-                        <div class="flex items-center gap-3 mb-2">
-                            <span class="w-9 h-9 rounded-xl bg-pink-100 text-[#E11D48] flex items-center justify-center font-bold text-lg">🩺</span>
-                            <h3 class="font-extrabold text-ayumi-secondary text-base">Portal Terapis (Mobile Clinical)</h3>
+                    <div class="glass-card" style="border-left: 5px solid var(--rose);">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom: 8px;">
+                            <span style="font-size: 24px;">🩺</span>
+                            <h3 style="font-size: 16px; font-weight: 800; color: var(--ayumi-secondary);">Portal Terapis (Mobile Clinical)</h3>
                         </div>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Antarmuka ruang tindakan (tablet/HP): klaim pasien antrean, input SOAP medis standar klinik estetika, kamera live foto klinis, dan transparansi komisi.
+                        <p style="font-size: 13px; color: #5a5048; line-height: 1.5;">
+                            Antarmuka tablet/HP di ruang perawatan: klaim pasien antrean, input SOAP medis standar klinik kecantikan, kamera live foto klinis 3 sudut, dan transparansi komisi harian.
                         </p>
                     </div>
                 </div>
             </div>
 
-            <!-- Slide 1 Footer Info -->
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-4 max-w-5xl mx-auto w-full">
-                <span>Presenter: Executive Team Ayumi Beauty House</span>
-                <span>Tekan <strong class="text-ayumi-secondary font-mono bg-white px-1.5 py-0.5 rounded border border-stone-200">Space ➔</strong> untuk slide berikutnya</span>
+            <div class="slide-footer">
+                <span>Presenter: Team Leader Ayumi Beauty House</span>
+                <span>Gunakan tombol <strong style="background:#fff; border:1px solid #ddd; padding:2px 6px; border-radius:4px; font-family:monospace;">Space ➔</strong> untuk berpindah slide</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 2: LATAR BELAKANG & VISI ==================== -->
-        <section class="slide" data-title="Latar Belakang & Transformasi">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">Mengapa Sistem Ini Dibangun?</div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Transformasi Dari Konvensional Menuju Ekosistem Digital
-                </h2>
-                <p class="text-sm text-stone-600 mt-2 max-w-3xl">
-                    Sebelum adanya sistem ini, klinik menghadapi tantangan komunikasi antara resepsionis dan terapis, risiko salah input kupon, serta kalkulasi manual komisi dan biaya merchant.
+        <!-- ==================== SLIDE 2 ==================== -->
+        <section class="slide" data-title="Latar Belakang: Transformasi Sistem Klinik">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">Latar Belakang & Visi</div>
+                <h2 class="slide-heading">Transformasi Dari Manual Menuju Ekosistem Digital</h2>
+                <p class="slide-subheading">
+                    Mengapa sistem terintegrasi ini sangat penting untuk operasional harian klinik kecantikan modern.
                 </p>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                    <!-- Before Card -->
-                    <div class="p-6 rounded-2xl bg-rose-50/70 border border-rose-200">
-                        <div class="flex items-center gap-2 text-rose-800 font-extrabold text-sm mb-4">
-                            <span class="w-6 h-6 rounded-full bg-rose-200 text-rose-800 flex items-center justify-center text-xs">✕</span>
-                            Tantangan Sistem Lama (Manual)
+                <div class="grid-2" style="margin-top: 24px;">
+                    <div class="glass-card" style="background: rgba(255, 241, 242, 0.7); border-color: rgba(225, 29, 72, 0.3);">
+                        <div style="font-size: 14px; font-weight: 800; color: var(--rose); margin-bottom: 12px; display:flex; align-items:center; gap:6px;">
+                            <span>✕</span> Tantangan Sistem Manual Lama
                         </div>
-                        <ul class="space-y-3 text-xs text-stone-700">
-                            <li class="flex items-start gap-2">
-                                <span class="text-rose-500 font-bold">•</span>
-                                <span><strong>Pencatatan Rekam Medis Kertas:</strong> Rawan tercecer, sulit membandingkan foto before/after perkembangan kulit pasien.</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <span class="text-rose-500 font-bold">•</span>
-                                <span><strong>Miss-komunikasi Antrean:</strong> Front office harus bolak-balik ke ruang treatment untuk cek kesiapan bed dan terapis.</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <span class="text-rose-500 font-bold">•</span>
-                                <span><strong>Human Error Kupon & Paket:</strong> Sisa sesi perawatan multi-sesi sering salah hitung pada kartu fisik.</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <span class="text-rose-500 font-bold">•</span>
-                                <span><strong>Distorsi Biaya QRIS:</strong> Biaya admin 0.3% sering tercampur ke omset klinik sehingga pembukuan tidak balance.</span>
-                            </li>
+                        <ul style="font-size: 12.5px; color: #4e4038; line-height: 1.7; padding-left: 18px;">
+                            <li><strong>Rekam Medis Kertas:</strong> Dokumen fisik rawan tercecer, sulit melacak riwayat alergi dan perbandingan foto before/after.</li>
+                            <li><strong>Miss-Komunikasi Antrean:</strong> Resepsionis harus bolak-balik memeriksa kesiapan ruang dan terapis di dalam.</li>
+                            <li><strong>Risiko Salah Hitung Kupon:</strong> Sisa sesi paket treatment sering keliru dicatat pada kartu manual.</li>
+                            <li><strong>Distorsi Finansial QRIS:</strong> Biaya 0.3% MDR sering tercampur ke omset murni sehingga pembukuan tidak akurat.</li>
                         </ul>
                     </div>
 
-                    <!-- After Card -->
-                    <div class="p-6 rounded-2xl bg-emerald-50/70 border border-emerald-200 shadow-sm">
-                        <div class="flex items-center gap-2 text-emerald-900 font-extrabold text-sm mb-4">
-                            <span class="w-6 h-6 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center text-xs">✓</span>
-                            Solusi Terpadu Ayumi Beauty House
+                    <div class="glass-card" style="background: rgba(236, 253, 245, 0.7); border-color: rgba(5, 150, 105, 0.3);">
+                        <div style="font-size: 14px; font-weight: 800; color: var(--emerald); margin-bottom: 12px; display:flex; align-items:center; gap:6px;">
+                            <span>✓</span> Solusi Digital Terpadu Ayumi
                         </div>
-                        <ul class="space-y-3 text-xs text-stone-700">
-                            <li class="flex items-start gap-2">
-                                <span class="text-emerald-600 font-bold">•</span>
-                                <span><strong>Digital EMR & Kamera Terintegrasi:</strong> SOAP tersimpan rapi di cloud dengan 3 sudut foto klinis before-after.</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <span class="text-emerald-600 font-bold">•</span>
-                                <span><strong>Live Dispatch & Klaim Pasien:</strong> Status kedatangan real-time (Booked ➔ Arrived ➔ In Treatment ➔ Completed).</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <span class="text-emerald-600 font-bold">•</span>
-                                <span><strong>Tracking Kupon Otomatis:</strong> Sesi otomatis terpotong saat terapis menginput tindakan treatment.</span>
-                            </li>
-                            <li class="flex items-start gap-2">
-                                <span class="text-emerald-600 font-bold">•</span>
-                                <span><strong>Pemisahan Finansial Murni:</strong> QRIS Fee 0.3% MDR terisolasi khusus di luar omset pendapatan bersih klinik.</span>
-                            </li>
+                        <ul style="font-size: 12.5px; color: #36483f; line-height: 1.7; padding-left: 18px;">
+                            <li><strong>Digital EMR & Kamera Terintegrasi:</strong> Catatan SOAP dan 3 sudut foto klinis tersimpan rapi dan aman di cloud.</li>
+                            <li><strong>Live Antrean & Status Real-Time:</strong> Status kedatangan langsung sinkron (Booked ➔ Arrived ➔ In Treatment ➔ Selesai).</li>
+                            <li><strong>Tracking Sesi Kupon Otomatis:</strong> Kuota sesi paket otomatis terpotong saat tindakan dikerjakan oleh terapis.</li>
+                            <li><strong>Isolasi Biaya QRIS Murni:</strong> Fee 0.3% MDR dipisahkan otomatis di luar omset pendapatan bersih klinik.</li>
                         </ul>
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 1: Pengantar Sistem</span>
-                <span class="font-mono">Slide 02 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 02 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 3: END-TO-END FLOW ==================== -->
-        <section class="slide" data-title="Alur Pasien: End-to-End Clinic Flow">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">Alur Kerja Sistem</div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Siklus Lengkap Perjalanan Pasien di Klinik
-                </h2>
-                <p class="text-sm text-stone-600 mt-2 max-w-3xl">
-                    Bagaimana data mengalir secara mulus antara <strong class="text-ayumi-primary">Admin Front Office</strong> dan <strong class="text-[#E11D48]">Terapis</strong> sejak pasien datang hingga pasca perawatan.
+        <!-- ==================== SLIDE 3 ==================== -->
+        <section class="slide" data-title="Alur Pasien: Siklus Lengkap dari Pendaftaran hingga Selesai">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">End-to-End Clinic Flow</div>
+                <h2 class="slide-heading">Siklus Perjalanan Pasien di Klinik</h2>
+                <p class="slide-subheading">
+                    Bagaimana data pasien mengalir mulus antara Front Office, Ruang Tindakan Terapis, dan Kasir.
                 </p>
 
-                <!-- Visual Step Diagram -->
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mt-8">
-                    <!-- Step 1 -->
-                    <div class="glass-card p-4 rounded-xl flex flex-col justify-between border-t-4 border-t-amber-500">
-                        <div>
-                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">1. Booking / Datang</span>
-                            <h4 class="font-black text-ayumi-secondary text-sm mt-2">Pendaftaran & Janji Temu</h4>
-                            <p class="text-[11px] text-stone-600 mt-1">Admin mendaftarkan pasien baru atau memilih pasien lama via search instan.</p>
-                        </div>
-                        <div class="mt-3 text-[10px] font-bold text-amber-700 bg-amber-50 p-1.5 rounded">
-                            Aktor: <strong>Admin / FO</strong>
-                        </div>
+                <div class="grid-5" style="margin-top: 24px;">
+                    <div class="glass-card" style="padding: 16px; border-top: 4px solid var(--amber);">
+                        <span class="status-badge status-amber">1. Booking</span>
+                        <h4 style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Pendaftaran</h4>
+                        <p style="font-size: 11.5px; color: #665b53; line-height: 1.4;">Admin mendaftarkan janji temu atau walk-in pasien di slot kalender.</p>
+                        <div style="margin-top: 10px; font-size: 10px; font-weight: 800; color: var(--amber);">Role: Admin / FO</div>
                     </div>
 
-                    <!-- Step 2 -->
-                    <div class="glass-card p-4 rounded-xl flex flex-col justify-between border-t-4 border-t-blue-500">
-                        <div>
-                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800">2. Check-In</span>
-                            <h4 class="font-black text-ayumi-secondary text-sm mt-2">Kedatangan di Klinik</h4>
-                            <p class="text-[11px] text-stone-600 mt-1">Admin menandai status kedatangan <span class="bg-blue-100 px-1 rounded font-bold">Arrived</span>. Notifikasi muncul di tablet terapis.</p>
-                        </div>
-                        <div class="mt-3 text-[10px] font-bold text-blue-700 bg-blue-50 p-1.5 rounded">
-                            Aktor: <strong>Admin / Kasir</strong>
-                        </div>
+                    <div class="glass-card" style="padding: 16px; border-top: 4px solid var(--blue);">
+                        <span class="status-badge status-blue">2. Check-In</span>
+                        <h4 style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Kedatangan</h4>
+                        <p style="font-size: 11.5px; color: #665b53; line-height: 1.4;">Admin klik "Arrived". Pasien langsung muncul di radar tablet terapis.</p>
+                        <div style="margin-top: 10px; font-size: 10px; font-weight: 800; color: var(--blue);">Role: Admin / Kasir</div>
                     </div>
 
-                    <!-- Step 3 -->
-                    <div class="glass-card p-4 rounded-xl flex flex-col justify-between border-t-4 border-t-pink-500 shadow-md ring-2 ring-pink-500/20">
-                        <div>
-                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-pink-100 text-pink-800">3. Treatment</span>
-                            <h4 class="font-black text-ayumi-secondary text-sm mt-2">Klaim & Tindakan Medis</h4>
-                            <p class="text-[11px] text-stone-600 mt-1">Terapis klaim pasien, input SOAP medis, potong sesi kupon, dan ambil 3 foto klinis.</p>
-                        </div>
-                        <div class="mt-3 text-[10px] font-bold text-pink-700 bg-pink-50 p-1.5 rounded">
-                            Aktor: <strong>Terapis</strong>
-                        </div>
+                    <div class="glass-card" style="padding: 16px; border-top: 4px solid var(--rose); box-shadow: 0 6px 20px rgba(225, 29, 72, 0.15);">
+                        <span class="status-badge status-rose">3. Treatment</span>
+                        <h4 style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Klaim & EMR</h4>
+                        <p style="font-size: 11.5px; color: #665b53; line-height: 1.4;">Terapis klaim pasien, input SOAP, ambil 3 foto klinis & potong kupon.</p>
+                        <div style="margin-top: 10px; font-size: 10px; font-weight: 800; color: var(--rose);">Role: Terapis</div>
                     </div>
 
-                    <!-- Step 4 -->
-                    <div class="glass-card p-4 rounded-xl flex flex-col justify-between border-t-4 border-t-emerald-500">
-                        <div>
-                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">4. Pembayaran</span>
-                            <h4 class="font-black text-ayumi-secondary text-sm mt-2">Kasir POS & Checkout</h4>
-                            <p class="text-[11px] text-stone-600 mt-1">Kasir memproses item produk/layanan, split payment, dan cetak struk thermal.</p>
-                        </div>
-                        <div class="mt-3 text-[10px] font-bold text-emerald-700 bg-emerald-50 p-1.5 rounded">
-                            Aktor: <strong>Admin / Kasir</strong>
-                        </div>
+                    <div class="glass-card" style="padding: 16px; border-top: 4px solid var(--emerald);">
+                        <span class="status-badge status-emerald">4. Kasir POS</span>
+                        <h4 style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Pembayaran</h4>
+                        <p style="font-size: 11.5px; color: #665b53; line-height: 1.4;">Kasir checkout treatment/produk, split payment, dan cetak struk.</p>
+                        <div style="margin-top: 10px; font-size: 10px; font-weight: 800; color: var(--emerald);">Role: Admin / Kasir</div>
                     </div>
 
-                    <!-- Step 5 -->
-                    <div class="glass-card p-4 rounded-xl flex flex-col justify-between border-t-4 border-t-purple-500">
-                        <div>
-                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-purple-100 text-purple-800">5. Follow-Up</span>
-                            <h4 class="font-black text-ayumi-secondary text-sm mt-2">CRM WhatsApp Retensi</h4>
-                            <p class="text-[11px] text-stone-600 mt-1">Sistem otomatis memasukkan pasien ke antrean H+3 evaluasi kepuasan via WhatsApp.</p>
-                        </div>
-                        <div class="mt-3 text-[10px] font-bold text-purple-700 bg-purple-50 p-1.5 rounded">
-                            Aktor: <strong>Admin / CRM</strong>
-                        </div>
+                    <div class="glass-card" style="padding: 16px; border-top: 4px solid var(--purple);">
+                        <span class="status-badge status-purple">5. Retensi</span>
+                        <h4 style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">CRM WhatsApp</h4>
+                        <p style="font-size: 11.5px; color: #665b53; line-height: 1.4;">Otomasi antrean follow-up H+3 kepuasan dan reminder H+14 berkala.</p>
+                        <div style="margin-top: 10px; font-size: 10px; font-weight: 800; color: var(--purple);">Role: Admin CRM</div>
                     </div>
                 </div>
 
-                <!-- Info Alert -->
-                <div class="mt-6 p-3.5 rounded-xl bg-ayumi-secondary text-white flex items-center justify-between text-xs">
-                    <span class="flex items-center gap-2">
-                        <span class="text-base">⚡</span>
-                        <span><strong>Sinkronisasi Instan:</strong> Setiap perubahan status oleh Terapis di ruang tindakan langsung ter-update di layar Kasir tanpa perlu refresh halaman.</span>
+                <div class="glass-card" style="background: var(--ayumi-secondary); color:#fff; padding: 14px 20px; margin-top: 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size: 12.5px;">
+                        ⚡ <strong>Sinkronisasi Instan:</strong> Setiap aksi yang dilakukan Terapis di ruang perawatan langsung meng-update antrean kasir secara real-time.
                     </span>
-                    <span class="font-mono text-ayumi-accent text-[11px]">Real-time Database Sync</span>
+                    <span style="font-size: 11px; font-family:monospace; background: rgba(255,255,255,0.15); padding: 3px 8px; border-radius:6px;">Real-Time Database Sync</span>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 2: Alur Sistem Klinik</span>
-                <span class="font-mono">Slide 03 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 03 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 4: ROLE ADMIN - DASHBOARD ==================== -->
-        <section class="slide" data-title="Role Admin: Dashboard & KPI">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">
-                    <span class="px-2 py-0.5 rounded bg-orange-100 text-ayumi-primary">ROLE ADMIN</span>
-                    <span>Modul 01: Eksekutif Dashboard</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Pusat Kendali Operasional & Keuangan Klinik
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Dashboard yang bersih dan kaya metrik, dirancang khusus agar Admin dan Manajemen memiliki visibilitas penuh terhadap performa harian cabang.
+        <!-- ==================== SLIDE 4 ==================== -->
+        <section class="slide" data-title="Role Admin: Dashboard & KPI Ringkasan Eksekutif">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">Role Admin • Modul 01</div>
+                <h2 class="slide-heading">Pusat Kendali Operasional & Keuangan</h2>
+                <p class="slide-subheading">
+                    Dashboard kaya metrik bagi Admin dan Manajemen untuk memantau performa harian cabang secara presisi.
                 </p>
 
-                <!-- UI Mockup Dashboard Cards -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-6">
-                    <div class="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-sm">
-                        <span class="text-[10px] uppercase font-bold text-emerald-700">Pendapatan Bersih</span>
-                        <div class="text-base font-black text-stone-900 mt-1">Rp 2.109.000</div>
-                        <span class="text-[9px] text-emerald-600 font-semibold">Murni Omset Klinik</span>
+                <!-- 5 KPI Cards Mockup -->
+                <div class="grid-5" style="margin-top: 20px;">
+                    <div class="glass-card" style="padding: 14px; border-color: rgba(5, 150, 105, 0.4);">
+                        <div style="font-size: 10px; font-weight: 800; color: var(--emerald); text-transform:uppercase;">Pendapatan</div>
+                        <div style="font-size: 16px; font-weight: 900; color: var(--ayumi-secondary); margin-top: 4px;">Rp 2.109.000</div>
+                        <div style="font-size: 9.5px; color: #78716c; margin-top: 2px;">Omset Bersih Murni</div>
                     </div>
-                    <div class="bg-white p-3.5 rounded-xl border border-pink-200 shadow-sm">
-                        <span class="text-[10px] uppercase font-bold text-pink-700">Layanan Treatment</span>
-                        <div class="text-base font-black text-stone-900 mt-1">Rp 1.340.000</div>
-                        <span class="text-[9px] text-pink-600 font-semibold">Tindakan Selesai</span>
+
+                    <div class="glass-card" style="padding: 14px; border-color: rgba(225, 29, 72, 0.4);">
+                        <div style="font-size: 10px; font-weight: 800; color: var(--rose); text-transform:uppercase;">Treatment</div>
+                        <div style="font-size: 16px; font-weight: 900; color: var(--ayumi-secondary); margin-top: 4px;">Rp 1.340.000</div>
+                        <div style="font-size: 9.5px; color: #78716c; margin-top: 2px;">Tindakan Medis</div>
                     </div>
-                    <div class="bg-white p-3.5 rounded-xl border border-blue-200 shadow-sm">
-                        <span class="text-[10px] uppercase font-bold text-blue-700">Produk Skincare</span>
-                        <div class="text-base font-black text-stone-900 mt-1">Rp 769.000</div>
-                        <span class="text-[9px] text-blue-600 font-semibold">Penjualan Retail</span>
+
+                    <div class="glass-card" style="padding: 14px; border-color: rgba(37, 99, 235, 0.4);">
+                        <div style="font-size: 10px; font-weight: 800; color: var(--blue); text-transform:uppercase;">Produk Skincare</div>
+                        <div style="font-size: 16px; font-weight: 900; color: var(--ayumi-secondary); margin-top: 4px;">Rp 769.000</div>
+                        <div style="font-size: 9.5px; color: #78716c; margin-top: 2px;">Penjualan Retail</div>
                     </div>
-                    <div class="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm">
-                        <span class="text-[10px] uppercase font-bold text-amber-700">Sesi Terpakai</span>
-                        <div class="text-base font-black text-stone-900 mt-1">12 Sesi</div>
-                        <span class="text-[9px] text-amber-600 font-semibold">Kupon Digunakan</span>
+
+                    <div class="glass-card" style="padding: 14px; border-color: rgba(217, 119, 6, 0.4);">
+                        <div style="font-size: 10px; font-weight: 800; color: var(--amber); text-transform:uppercase;">Sesi Terpakai</div>
+                        <div style="font-size: 16px; font-weight: 900; color: var(--ayumi-secondary); margin-top: 4px;">12 Sesi</div>
+                        <div style="font-size: 9.5px; color: #78716c; margin-top: 2px;">Kupon Digunakan</div>
                     </div>
-                    <div class="bg-white p-3.5 rounded-xl border border-purple-200 shadow-sm">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[10px] uppercase font-bold text-purple-700">Biaya Tambahan QRIS</span>
-                            <span class="text-[8.5px] font-bold bg-purple-100 text-purple-700 px-1 rounded">0.3%</span>
+
+                    <div class="glass-card" style="padding: 14px; border-color: rgba(124, 58, 237, 0.5); background: rgba(245, 243, 255, 0.8);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size: 10px; font-weight: 800; color: var(--purple); text-transform:uppercase;">Biaya QRIS</span>
+                            <span style="font-size: 8px; font-weight:800; background:rgba(124, 58, 237, 0.15); color:var(--purple); padding:1px 4px; border-radius:4px;">0.3% MDR</span>
                         </div>
-                        <div class="text-base font-black text-purple-900 mt-1">Rp 150</div>
-                        <span class="text-[9px] text-purple-600 font-semibold">Terpisah dari Omset</span>
+                        <div style="font-size: 16px; font-weight: 900; color: var(--purple); margin-top: 4px;">Rp 150</div>
+                        <div style="font-size: 9.5px; color: var(--purple); margin-top: 2px;">Terpisah dari Omset</div>
                     </div>
                 </div>
 
-                <!-- Feature Breakdown -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                    <div class="glass-card p-4 rounded-xl space-y-2">
-                        <h4 class="font-extrabold text-sm text-ayumi-secondary flex items-center gap-1.5">
-                            <span class="text-ayumi-primary">↗</span> Akses Instan Riwayat Rekam Medis Pasien
+                <div class="grid-2" style="margin-top: 20px;">
+                    <div class="glass-card">
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 6px;">
+                            ↗ Akses Cepat Riwayat Pasien Langsung dari Tabel
                         </h4>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Di tabel transaksi terkini, setiap nama pasien dilengkapi tautan aktif <span class="font-bold text-ayumi-primary">↗</span>. Cukup satu klik dari dashboard, Admin langsung masuk ke profil lengkap pasien, riwayat perawatan terdahulu, dan catatan alergi.
+                        <p style="font-size: 12.5px; color: #5a5048; line-height: 1.5;">
+                            Pada tabel transaksi terkini, nama pasien seperti <em>sri mulyati, Sri Sulastri</em> kini dilengkapi ikon panah <strong>↗</strong>. Cukup 1 klik, Admin langsung masuk ke rekam medis dan riwayat belanja pasien tanpa membuka menu terpisah.
                         </p>
                     </div>
 
-                    <div class="glass-card p-4 rounded-xl space-y-2">
-                        <h4 class="font-extrabold text-sm text-ayumi-secondary flex items-center gap-1.5">
-                            <span class="text-ayumi-primary">📅</span> Monitor Antrean & Janji Temu Hari Ini
+                    <div class="glass-card">
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 6px;">
+                            📅 Pemantauan Janji Temu & Antrean CRM
                         </h4>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Panel kanan dashboard menyajikan jadwal janji temu jam per jam dan antrean follow-up CRM. Admin tahu persis siapa pasien yang akan datang berikutnya dan siapa yang perlu dihubungi.
+                        <p style="font-size: 12.5px; color: #5a5048; line-height: 1.5;">
+                            Panel samping menampilkan antrean janji temu per jam hari ini dan antrean tindak lanjut CRM. Admin dapat melihat siapa yang sedang berkunjung dan siapa yang perlu dihubungi hari ini.
                         </p>
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 3: Antarmuka Role Admin</span>
-                <span class="font-mono">Slide 04 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 04 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 5: ROLE ADMIN - KASIR POS ==================== -->
+        <!-- ==================== SLIDE 5 ==================== -->
         <section class="slide" data-title="Role Admin: Modul Kasir POS & Split Payment">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">
-                    <span class="px-2 py-0.5 rounded bg-orange-100 text-ayumi-primary">ROLE ADMIN</span>
-                    <span>Modul 02: Point of Sale (POS)</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Kasir Cerdas, Multi-Item & Split Payment Akurat
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Dirancang untuk kasir klinik kecantikan: menggabungkan transaksi tindakan medis, produk skincare retail, serta penukaran paket kupon sesi secara fleksibel.
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">Role Admin • Modul 02</div>
+                <h2 class="slide-heading">Kasir Modern POS & Split Payment Cerdas</h2>
+                <p class="slide-subheading">
+                    Sistem kasir fleksibel yang mendukung multi-kategori, potongan kupon, serta pembayaran ganda secara presisi.
                 </p>
 
-                <!-- 3 Key Features of POS -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                    <div class="glass-card p-5 rounded-2xl flex flex-col justify-between border-t-4 border-t-ayumi-primary">
-                        <div>
-                            <div class="w-8 h-8 rounded-lg bg-orange-100 text-ayumi-primary flex items-center justify-center font-bold mb-3">🛒</div>
-                            <h4 class="font-extrabold text-sm text-ayumi-secondary">Keranjang Fleksibel</h4>
-                            <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                                Mendukung multi-kategori dalam satu transaksi: Treatment klinik + Skincare bawa pulang + Pembelian Paket Kupon Berlangganan.
-                            </p>
-                        </div>
-                        <div class="mt-4 text-[11px] font-bold text-stone-500 bg-stone-100 p-2 rounded-lg">
-                            Otomatis cek stok gudang cabang
-                        </div>
+                <div class="grid-3" style="margin-top: 24px;">
+                    <div class="glass-card" style="border-top: 4px solid var(--ayumi-primary);">
+                        <div style="font-size: 22px; margin-bottom: 6px;">🛒</div>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 6px;">Keranjang Belanja Fleksibel</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Mendukung gabungan item dalam 1 transaksi: Treatment klinik + Skincare retail + Pembelian Paket Kupon Berlangganan, dengan validasi stok obat otomatis.
+                        </p>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl flex flex-col justify-between border-t-4 border-t-purple-500 shadow-sm ring-2 ring-purple-500/20">
-                        <div>
-                            <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold mb-3">💳</div>
-                            <h4 class="font-extrabold text-sm text-purple-900">Split Payment & QRIS MDR</h4>
-                            <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                                Pasien bisa membayar gabungan: sebagian Cash/Transfer + sebagian QRIS. Biaya tambahan 0.3% MDR QRIS dihitung otomatis secara terpisah tanpa mencemari omset murni klinik.
-                            </p>
-                        </div>
-                        <div class="mt-4 text-[11px] font-bold text-purple-800 bg-purple-50 p-2 rounded-lg">
-                            Contoh: Transfer Rp 349.000 + QRIS Rp 50.150
-                        </div>
+                    <div class="glass-card" style="border-top: 4px solid var(--purple); background: rgba(245, 243, 255, 0.5);">
+                        <div style="font-size: 22px; margin-bottom: 6px;">💳</div>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--purple); margin-bottom: 6px;">Split Payment & Fee QRIS 0.3%</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Pasien dapat membayar gabungan: sebagian Transfer + sebagian QRIS. Biaya tambahan 0.3% MDR QRIS dihitung otomatis terpisah dan tidak mengotori pendapatan bersih klinik.
+                        </p>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl flex flex-col justify-between border-t-4 border-t-emerald-500">
-                        <div>
-                            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold mb-3">🖨️</div>
-                            <h4 class="font-extrabold text-sm text-ayumi-secondary">Cetak Struk Thermal & Invoice</h4>
-                            <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                                Cetak instan ke printer Bluetooth/USB thermal ukuran 58mm atau 80mm, serta cetak PDF invoice resmi berlogo Ayumi Beauty House untuk kebutuhan administrasi pasien.
-                            </p>
-                        </div>
-                        <div class="mt-4 text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg">
-                            Support reprint & riwayat transaksi
-                        </div>
+                    <div class="glass-card" style="border-top: 4px solid var(--emerald);">
+                        <div style="font-size: 22px; margin-bottom: 6px;">🖨️</div>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 6px;">Cetak Struk Thermal & Invoice</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Cetak instan struk thermal ukuran 58mm/80mm untuk kasir, atau unduh PDF invoice resmi berlogo Ayumi Beauty House untuk kebutuhan administrasi pasien.
+                        </p>
                     </div>
                 </div>
 
-                <!-- Live Status Flow Bar -->
-                <div class="mt-6 p-3 rounded-xl bg-white border border-ayumi-accent/70 flex items-center justify-between text-xs">
-                    <span class="font-bold text-ayumi-secondary">Terintegrasi dengan:</span>
-                    <span class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-bold border border-amber-200">Redeem Kupon Pasien</span>
-                        <span class="text-stone-300">➔</span>
-                        <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-800 font-bold border border-blue-200">Potong Stok Otomatis</span>
-                        <span class="text-stone-300">➔</span>
-                        <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">Klaim Komisi Terapis</span>
+                <div class="glass-card" style="margin-top: 20px; padding: 14px 20px; display:flex; justify-content:space-between; align-items:center; background: #fff;">
+                    <span style="font-size: 12px; font-weight: 700; color: var(--ayumi-secondary);">Contoh Transaksi Kasir Nyata:</span>
+                    <span style="font-size: 12px; color: #4e4038;">
+                        Total Layanan: <strong>Rp 399.000</strong> ➔ Dibayar: <strong>Transfer Rp 349.000</strong> + <strong>QRIS Rp 50.150</strong> <span style="font-size: 11px; color: var(--purple); font-weight:700;">(+Rp 150 Fee MDR Terpisah)</span>
                     </span>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 3: Antarmuka Role Admin</span>
-                <span class="font-mono">Slide 05 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 05 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 6: ROLE ADMIN - APPOINTMENT & ANTREAN ==================== -->
-        <section class="slide" data-title="Role Admin: Janji Temu & Antrean Pasien">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">
-                    <span class="px-2 py-0.5 rounded bg-orange-100 text-ayumi-primary">ROLE ADMIN</span>
-                    <span>Modul 03: Appointment & Ruang Tunggu</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Manajemen Slot Waktu & Penugasan Terapis
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Mencegah penumpukan antrean pasien di lobi dan menghindari bentrok jadwal (double-booking) antar terapis dengan kalender visual interaktif.
+        <!-- ==================== SLIDE 6 ==================== -->
+        <section class="slide" data-title="Role Admin: Manajemen Janji Temu & Ruang Tunggu">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">Role Admin • Modul 03</div>
+                <h2 class="slide-heading">Manajemen Slot Janji Temu & Anti-Bentrok</h2>
+                <p class="slide-subheading">
+                    Mengatur alur kedatangan pasien di lobi dan mencegah jadwal terapis tumpang tindih secara cerdas.
                 </p>
 
-                <!-- 2 Side-by-side Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <div class="glass-card p-5 rounded-2xl space-y-4">
-                        <h4 class="font-black text-base text-ayumi-secondary flex items-center gap-2">
-                            <span>⏱️</span> Timeline Slot Jam per Cabang
+                <div class="grid-2" style="margin-top: 24px;">
+                    <div class="glass-card">
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 10px;">
+                            ⏱️ Kalender Timeline Slot Jam
                         </h4>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Admin dapat melihat seluruh slot waktu dari jam buka (09.00 WIB) hingga jam tutup. Setiap janji temu menampilkan nama pasien, terapis yang bertugas, estimasi durasi, dan layanan yang dipilih.
+                        <p style="font-size: 12.5px; color: #5a5048; line-height: 1.5; margin-bottom: 14px;">
+                            Admin dapat memantau ketersediaan slot waktu dari jam buka (09.00 WIB) sampai tutup. Terdapat status visual yang membedakan pasien:
                         </p>
-                        <div class="bg-stone-50 p-3 rounded-xl border border-stone-200 text-xs space-y-2 font-mono">
-                            <div class="flex justify-between items-center">
-                                <span>10.00 - 11.30 WIB</span>
-                                <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px]">BOOKED</span>
+                        <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
+                            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#f9f6f2; border-radius:8px;">
+                                <span>10.00 - 11.30 WIB • Facial Glowing</span>
+                                <span class="status-badge status-blue">Booked (Dipesan)</span>
                             </div>
-                            <div class="flex justify-between items-center">
-                                <span>13.00 - 14.00 WIB</span>
-                                <span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px]">ARRIVED (Hadir)</span>
+                            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#f9f6f2; border-radius:8px;">
+                                <span>13.00 - 14.00 WIB • Mesotherapy Melasma</span>
+                                <span class="status-badge status-emerald">Arrived (Pasien Hadir)</span>
                             </div>
-                            <div class="flex justify-between items-center">
-                                <span>15.00 - 16.30 WIB</span>
-                                <span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">IN TREATMENT</span>
+                            <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#f9f6f2; border-radius:8px;">
+                                <span>15.00 - 16.30 WIB • PRP Treatment</span>
+                                <span class="status-badge status-purple">In Treatment (Dirawat)</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl space-y-4">
-                        <h4 class="font-black text-base text-ayumi-secondary flex items-center gap-2">
-                            <span>🛡️</span> Smart Validation & Anti-Bentrok
+                    <div class="glass-card">
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 10px;">
+                            🛡️ Validasi Otomatis Jadwal Terapis
                         </h4>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Sistem secara otomatis mengecek ketersediaan terapis. Jika seorang terapis sudah dijadwalkan menangani tindakan PRP pada jam 14.00, sistem mencegah booking baru pada terapis yang sama di rentang jam tersebut.
+                        <p style="font-size: 12.5px; color: #5a5048; line-height: 1.5;">
+                            Sistem secara otomatis mendeteksi bentrok jadwal. Jika seorang terapis sedang menangani tindakan selama 90 menit, sistem menolak pemesanan lain pada terapis tersebut di rentang waktu yang sama.
                         </p>
-                        <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5">
-                            <div class="font-bold flex items-center gap-1.5">
-                                <span>⚡</span> Tombol Cepat Check-In:
-                            </div>
-                            <p class="text-[11px] leading-relaxed">
-                                Saat pasien melangkah masuk ke klinik, Admin cukup menekan tombol <strong>"Pasien Tiba (Arrived)"</strong>. Pasien langsung masuk ke radar antrean terapis secara instan.
+                        <div style="margin-top: 16px; background: rgba(254, 243, 199, 0.6); border: 1px solid #fcd34d; padding: 12px 16px; border-radius: 12px;">
+                            <div style="font-weight: 800; font-size: 12px; color: #92400e; margin-bottom: 4px;">⚡ Tombol Check-In Cepat:</div>
+                            <p style="font-size: 11.5px; color: #78350f; line-height: 1.4;">
+                                Ketika pasien tiba di resepsionis, Admin tinggal klik <strong>"Tandai Hadir (Arrived)"</strong>. Pasien langsung masuk ke radar antrean terapis tanpa panggilan telepon antar ruangan.
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 3: Antarmuka Role Admin</span>
-                <span class="font-mono">Slide 06 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 06 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 7: ROLE ADMIN - CRM RETENSI ==================== -->
-        <section class="slide" data-title="Role Admin: CRM WhatsApp & Retensi Pasien">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">
-                    <span class="px-2 py-0.5 rounded bg-orange-100 text-ayumi-primary">ROLE ADMIN</span>
-                    <span>Modul 04: CRM & Patient Loyalty</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Otomasi Follow-Up & Retensi Pasien via WhatsApp
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Pasien tidak hanya dirawat di klinik, tetapi juga diperhatikan pasca tindakan. CRM Ayumi Beauty House mengelola antrean follow-up secara otomatis.
+        <!-- ==================== SLIDE 7 ==================== -->
+        <section class="slide" data-title="Role Admin: CRM WhatsApp & Loyalitas Pasien">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">Role Admin • Modul 04</div>
+                <h2 class="slide-heading">Otomasi CRM WhatsApp & Retensi Pasien</h2>
+                <p class="slide-subheading">
+                    Menjaga hubungan erat pasca perawatan dengan reminder terjadwal otomatis dan template WhatsApp instan.
                 </p>
 
-                <!-- CRM Triggers Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                    <div class="glass-card p-5 rounded-2xl border-t-4 border-t-green-500">
-                        <div class="text-xs font-black uppercase text-green-700 bg-green-100 px-2 py-0.5 rounded w-fit mb-2">H+3 Tindakan</div>
-                        <h4 class="font-black text-sm text-ayumi-secondary">Follow-Up Kepuasan</h4>
-                        <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                            Mengecek kondisi kulit pasien setelah treatment (misal: kemerahan setelah peeling atau laser), memastikan pasien merasa dipedulikan secara profesional.
+                <div class="grid-3" style="margin-top: 24px;">
+                    <div class="glass-card" style="border-top: 4px solid var(--emerald);">
+                        <span class="status-badge status-emerald">H+3 Tindakan</span>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Follow-Up Kepuasan</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Mengecek kondisi kulit pasien pasca perawatan (misal: reaksi kemerahan atau sensasi perih) untuk memastikan pasien merasa aman dan diperhatikan.
                         </p>
-                        <div class="mt-3 text-[10px] text-green-800 bg-green-50 p-1.5 rounded font-mono">Template: Kepuasan & Edukasi</div>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl border-t-4 border-t-blue-500">
-                        <div class="text-xs font-black uppercase text-blue-700 bg-blue-100 px-2 py-0.5 rounded w-fit mb-2">H+14 & H+30</div>
-                        <h4 class="font-black text-sm text-ayumi-secondary">Reminder Treatment Ulang</h4>
-                        <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                            Mengingatkan jadwal perawatan berkala (facial rutin, mesotherapy rutin, atau refill skincare yang diperkirakan sudah habis).
+                    <div class="glass-card" style="border-top: 4px solid var(--blue);">
+                        <span class="status-badge status-blue">H+14 & H+30</span>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Reminder Perawatan Ulang</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Mengingatkan jadwal facial berkala, sesi treatment lanjutan dari kupon paket, atau refill produk skincare yang diperkirakan sudah habis.
                         </p>
-                        <div class="mt-3 text-[10px] text-blue-800 bg-blue-50 p-1.5 rounded font-mono">Template: Recall Pasien Aktif</div>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl border-t-4 border-t-pink-500">
-                        <div class="text-xs font-black uppercase text-pink-700 bg-pink-100 px-2 py-0.5 rounded w-fit mb-2">Bulan Ulang Tahun</div>
-                        <h4 class="font-black text-sm text-ayumi-secondary">Birthday Greeting & Promo</h4>
-                        <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                            Mengirim ucapan ulang tahun personal disertai voucher diskon khusus ulang tahun untuk menarik pasien kembali berkunjung.
+                    <div class="glass-card" style="border-top: 4px solid var(--rose);">
+                        <span class="status-badge status-rose">Bulan Ulang Tahun</span>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin: 8px 0 4px 0;">Ucapan Ultah & Promo</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Mengirim ucapan ulang tahun yang dipersonalisasi beserta voucher diskon spesial ulang tahun agar pasien kembali berkunjung ke klinik.
                         </p>
-                        <div class="mt-3 text-[10px] text-pink-800 bg-pink-50 p-1.5 rounded font-mono">Template: Birthday Promo Voucher</div>
                     </div>
                 </div>
 
-                <!-- 1-Click Action Highlight -->
-                <div class="mt-6 p-4 rounded-2xl bg-white border border-ayumi-accent shadow-sm flex items-center justify-between">
+                <div class="glass-card" style="margin-top: 20px; padding: 14px 20px; display:flex; justify-content:space-between; align-items:center; background: #fff;">
                     <div>
-                        <div class="font-extrabold text-xs text-ayumi-secondary">Fitur 1-Klik Kirim WhatsApp Web:</div>
-                        <p class="text-[11px] text-stone-600 mt-0.5">Admin tidak perlu mengetik nomor atau merangkai pesan manual. Cukup klik tombol <strong>"Kirim WA ↗"</strong>, pesan terformat langsung terbuka di WhatsApp Web dengan nama pasien yang sudah disesuaikan otomatis.</p>
+                        <div style="font-size: 12.5px; font-weight: 800; color: var(--ayumi-secondary);">Kirim Pesan WhatsApp Cukup 1 Klik:</div>
+                        <p style="font-size: 11.5px; color: #665b53; margin-top: 2px;">
+                            Admin tidak perlu repot mengetik nomor telepon atau menyalin pesan. Tombol <strong>"Kirim WA ↗"</strong> otomatis membuka WhatsApp Web dengan pesan yang sudah rapi.
+                        </p>
                     </div>
-                    <span class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shrink-0 shadow-sm">
+                    <span style="background: var(--emerald); color:#fff; font-weight:800; font-size:12px; padding:8px 16px; border-radius:10px; cursor:pointer;">
                         Kirim WA ↗
                     </span>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 3: Antarmuka Role Admin</span>
-                <span class="font-mono">Slide 07 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 07 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 8: ROLE TERAPIS - FILOSOFI UI ==================== -->
-        <section class="slide" data-title="Role Terapis: Filosofi UI Mobile-First">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-[#E11D48] mb-2">
-                    <span class="px-2 py-0.5 rounded bg-pink-100 text-[#E11D48]">ROLE TERAPIS</span>
-                    <span>Filosofi & Pendekatan Klinis</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Antarmuka Mobile-First untuk Ruang Tindakan
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Terapis bekerja di samping ranjang pasien (*bedside*), seringkali mengenakan sarung tangan medis (*gloves*). UI Terapis didesain dengan tombol besar, alur cepat, dan bebas dari distraksi menu kasir.
+        <!-- ==================== SLIDE 8 ==================== -->
+        <section class="slide" data-title="Role Terapis: Filosofi UI Mobile-First Ruang Tindakan">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-therapist">Role Terapis • Filosofi Desain</div>
+                <h2 class="slide-heading">Antarmuka Mobile-First Ruang Perawatan</h2>
+                <p class="slide-subheading">
+                    Terapis bekerja di samping ranjang pasien dengan sarung tangan. Antarmuka didesain ringkas, cepat, dan bebas distraksi menu kasir.
                 </p>
 
-                <!-- 3 Core Design Pillars for Therapist -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
-                    <div class="glass-card p-5 rounded-2xl border-t-4 border-t-[#E11D48]">
-                        <div class="text-2xl mb-2">📱</div>
-                        <h4 class="font-black text-sm text-ayumi-secondary">Optimasi Tablet & Smartphone</h4>
-                        <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                            Layout responsive yang nyaman dibuka di tablet klinik atau smartphone pribadi terapis. Navigasi sederhana dengan gesture tap yang presisi.
+                <div class="grid-3" style="margin-top: 24px;">
+                    <div class="glass-card" style="border-top: 4px solid var(--rose);">
+                        <div style="font-size: 24px; margin-bottom: 6px;">📱</div>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 6px;">Optimasi Tablet & HP</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Tombol berukuran besar, alur kerja vertikal yang nyaman di-tap dengan satu tangan di samping kasur pasien (*bedside clinical interface*).
                         </p>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl border-t-4 border-t-amber-500">
-                        <div class="text-2xl mb-2">⚡</div>
-                        <h4 class="font-black text-sm text-ayumi-secondary">Zero Administrative Friction</h4>
-                        <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                            Terapis tidak dibebani input harga, diskon, atau penagihan kasir. Mereka hanya fokus pada: <em>Siapa pasiennya? Apa tindakannya? Bagaimana kondisi kulitnya?</em>
+                    <div class="glass-card" style="border-top: 4px solid var(--amber);">
+                        <div style="font-size: 24px; margin-bottom: 6px;">⚡</div>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 6px;">Bebas Kerumitan Administrasi</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Terapis tidak dibebani input nota kasir atau metode pembayaran. Fokus 100% pada: <em>Siapa pasiennya? Apa keluhannya? Dan apa tindakannya?</em>
                         </p>
                     </div>
 
-                    <div class="glass-card p-5 rounded-2xl border-t-4 border-t-blue-500">
-                        <div class="text-2xl mb-2">🔒</div>
-                        <h4 class="font-black text-sm text-ayumi-secondary">Perlindungan Privasi Pasien</h4>
-                        <p class="text-xs text-stone-600 mt-2 leading-relaxed">
-                            Nomor WhatsApp pasien <strong>disembunyikan otomatis</strong> di layar terapis. Menjaga etika privasi medis dan mencegah kontak di luar koridor resmi klinik.
+                    <div class="glass-card" style="border-top: 4px solid var(--purple);">
+                        <div style="font-size: 24px; margin-bottom: 6px;">🔒</div>
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--purple); margin-bottom: 6px;">Proteksi Privasi Pasien</h4>
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5;">
+                            Nomor kontak WhatsApp pasien <strong>disembunyikan otomatis</strong> di layar terapis demi menjaga etika privasi medis dan keamanan data klinik.
                         </p>
                     </div>
                 </div>
 
-                <div class="mt-6 p-4 rounded-xl bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white text-xs flex items-center justify-between shadow-md">
-                    <span>
-                        <strong>Standar Kerja Terapis:</strong> Datang ke ruangan ➔ Cek Riwayat Alergi Pasien ➔ Lakukan Tindakan ➔ Ambil Foto Klinis ➔ Selesai.
+                <div class="glass-card" style="background: linear-gradient(135deg, var(--ayumi-secondary), var(--ayumi-primary)); color:#fff; padding: 14px 20px; margin-top: 20px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size: 12.5px;">
+                        ⏱️ <strong>Target Kecepatan:</strong> Waktu yang dibutuhkan terapis untuk input rekam medis tindakan kurang dari <strong>2 menit</strong>.
                     </span>
-                    <span class="text-ayumi-accent font-bold px-2 py-1 rounded bg-white/10 shrink-0">Waktu Input &lt; 2 Menit</span>
+                    <span style="font-size: 11px; font-family:monospace; background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius:6px;">High Efficiency</span>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 4: Antarmuka Role Terapis</span>
-                <span class="font-mono">Slide 08 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 08 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 9: ROLE TERAPIS - DASHBOARD & KLAIM ==================== -->
-        <section class="slide" data-title="Role Terapis: Dashboard & Klaim Pasien">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-[#E11D48] mb-2">
-                    <span class="px-2 py-0.5 rounded bg-pink-100 text-[#E11D48]">ROLE TERAPIS</span>
-                    <span>Modul 01: Antrean & Klaim Pasien</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Antrean Pasien Live & Transparansi Komisi
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Begitu membuka aplikasi, terapis langsung melihat pasien mana yang sudah tiba di ruang tunggu dan siap dipanggil ke ruang perawatan.
+        <!-- ==================== SLIDE 9 ==================== -->
+        <section class="slide" data-title="Role Terapis: Antrean Pasien & Transparansi Komisi">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-therapist">Role Terapis • Modul 01</div>
+                <h2 class="slide-heading">Antrean Pasien Live & Transparansi Komisi</h2>
+                <p class="slide-subheading">
+                    Terapis langsung melihat pasien yang sudah tiba di ruang tunggu dan memiliki rekapitulasi komisi kerja otomatis.
                 </p>
 
-                <!-- UI Mockup & Flow -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <!-- Queue Card Mockup -->
-                    <div class="glass-card p-5 rounded-2xl space-y-3">
-                        <div class="flex justify-between items-center pb-2 border-b border-stone-200">
-                            <span class="font-black text-sm text-ayumi-secondary">Antrean Pasien Hadir (Ready)</span>
-                            <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold">Live</span>
+                <div class="grid-2" style="margin-top: 24px;">
+                    <!-- Queue Mockup -->
+                    <div class="glass-card">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; border-bottom:1px solid #ebd8c8; padding-bottom:6px;">
+                            <span style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary);">Antrean Pasien Hadir (Ready)</span>
+                            <span class="status-badge status-emerald">Live Queue</span>
                         </div>
 
-                        <!-- Patient Row 1 -->
-                        <div class="p-3 rounded-xl bg-white border border-stone-200 flex items-center justify-between">
+                        <div style="background:#fff; border:1px solid #ebd8c8; border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
                             <div>
-                                <div class="font-black text-xs text-stone-900">Sri Sulastri</div>
-                                <div class="text-[11px] text-stone-500">Mesotherapy Exclusive Melasma</div>
-                                <div class="text-[10px] text-emerald-600 font-bold mt-0.5">Tiba: 10 menit lalu</div>
+                                <div style="font-size: 13px; font-weight: 800; color: #1c1917;">Sri Sulastri</div>
+                                <div style="font-size: 11px; color: #78716c;">Mesotherapy Melasma • Sesi 1</div>
+                                <div style="font-size: 10px; color: var(--emerald); font-weight: 700; margin-top: 2px;">Tiba: 10 Menit lalu</div>
                             </div>
-                            <button class="px-3 py-1.5 rounded-xl bg-[#E11D48] hover:bg-[#be123c] text-white font-bold text-xs shadow-sm transition-all">
+                            <button style="background:var(--rose); color:#fff; border:none; padding:8px 14px; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer;">
                                 Ambil Tindakan ➔
                             </button>
                         </div>
 
-                        <!-- Patient Row 2 -->
-                        <div class="p-3 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-between">
+                        <div style="background:#fcfaf7; border:1px solid #ebd8c8; border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
                             <div>
-                                <div class="font-black text-xs text-stone-900">Mala Mardiana</div>
-                                <div class="text-[11px] text-stone-500">PRP Treatment (Kupon Sesi 2/3)</div>
-                                <div class="text-[10px] text-stone-400 font-bold mt-0.5">Menunggu giliran</div>
+                                <div style="font-size: 13px; font-weight: 800; color: #1c1917;">Mala Mardiana</div>
+                                <div style="font-size: 11px; color: #78716c;">PRP Treatment • Sesi 2/3 Kupon</div>
+                                <div style="font-size: 10px; color: #a8a29e; font-weight: 700; margin-top: 2px;">Menunggu giliran</div>
                             </div>
-                            <button class="px-3 py-1.5 rounded-xl bg-stone-200 text-stone-600 font-bold text-xs cursor-not-allowed">
+                            <span style="background:#e7e5e4; color:#78716c; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700;">
                                 Antrean
-                            </button>
+                            </span>
                         </div>
                     </div>
 
-                    <!-- Commission Transparency Card -->
-                    <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+                    <!-- Commission Mockup -->
+                    <div class="glass-card" style="display:flex; flex-direction:column; justify-content:space-between;">
                         <div>
-                            <div class="flex justify-between items-center pb-2 border-b border-stone-200">
-                                <span class="font-black text-sm text-ayumi-secondary">Rekapitulasi Komisi Terapis</span>
-                                <span class="text-[10px] font-bold text-stone-500">Bulan Ini</span>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; border-bottom:1px solid #ebd8c8; padding-bottom:6px;">
+                                <span style="font-size: 13px; font-weight: 800; color: var(--ayumi-secondary);">Transparansi Komisi Terapis</span>
+                                <span style="font-size: 11px; color: #78716c; font-weight:700;">Bulan Ini</span>
                             </div>
-                            <p class="text-xs text-stone-600 mt-3 leading-relaxed">
-                                Terapis memiliki motivasi kerja yang tinggi karena setiap tindakan yang selesai langsung tercatat komisinya secara transparan dan akurat.
+                            <p style="font-size: 12.5px; color: #5a5048; line-height: 1.5; margin-bottom: 14px;">
+                                Terapis memiliki motivasi tinggi karena setiap tindakan yang selesai otomatis menambah saldo komisi harian secara adil dan transparan.
                             </p>
-                            <div class="grid grid-cols-2 gap-3 mt-4">
-                                <div class="p-3 rounded-xl bg-amber-50 border border-amber-200">
-                                    <span class="text-[10px] uppercase font-bold text-amber-800">Total Tindakan</span>
-                                    <div class="text-lg font-black text-stone-900 mt-0.5">48 Pasien</div>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                                <div style="background:var(--amber-bg); border:1px solid #fde68a; padding:12px; border-radius:12px;">
+                                    <div style="font-size: 10px; font-weight:800; color: var(--amber); text-transform:uppercase;">Total Tindakan</div>
+                                    <div style="font-size: 20px; font-weight:900; color: #1c1917; margin-top:2px;">48 Pasien</div>
                                 </div>
-                                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                                    <span class="text-[10px] uppercase font-bold text-emerald-800">Estimasi Komisi</span>
-                                    <div class="text-lg font-black text-emerald-900 mt-0.5">Rp 1.440.000</div>
+                                <div style="background:var(--emerald-bg); border:1px solid #a7f3d0; padding:12px; border-radius:12px;">
+                                    <div style="font-size: 10px; font-weight:800; color: var(--emerald); text-transform:uppercase;">Estimasi Komisi</div>
+                                    <div style="font-size: 20px; font-weight:900; color: var(--emerald); margin-top:2px;">Rp 1.440.000</div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="text-[11px] text-stone-500 italic mt-3">
-                            *Tidak ada lagi rekap manual buku komisi di akhir bulan. Semua otomatis terekam dari data tindakan.
+                        <div style="font-size: 11px; color: #8c7d73; font-style: italic; margin-top: 14px;">
+                            *Bebas rekap manual buku komisi di akhir bulan. Semua otomatis tercatat dari data tindakan.
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 4: Antarmuka Role Terapis</span>
-                <span class="font-mono">Slide 09 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 09 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 10: ROLE TERAPIS - EMR & KAMERA ==================== -->
-        <section class="slide" data-title="Role Terapis: EMR (SOAP) & Live Camera Medis">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="flex items-center gap-2 text-xs uppercase font-extrabold tracking-widest text-[#E11D48] mb-2">
-                    <span class="px-2 py-0.5 rounded bg-pink-100 text-[#E11D48]">ROLE TERAPIS</span>
-                    <span>Modul 02: Rekam Medis (EMR/SOAP)</span>
-                </div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Standar SOAP Klinis & Dokumentasi Foto 3 Sudut
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Klinik kecantikan modern wajib memiliki bukti dokumentasi klinis sebelum dan sesudah tindakan untuk membuktikan hasil perawatan kulit kepada pasien.
+        <!-- ==================== SLIDE 10 ==================== -->
+        <section class="slide" data-title="Role Terapis: EMR SOAP & Live Kamera Foto Klinis">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-therapist">Role Terapis • Modul 02</div>
+                <h2 class="slide-heading">Standar SOAP & Dokumentasi Foto 3 Sudut</h2>
+                <p class="slide-subheading">
+                    Pencatatan medis terstruktur dan bukti dokumentasi visual before-after untuk mengukur progres kulit pasien.
                 </p>
 
-                <!-- 2 Main EMR Features -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <!-- SOAP Standard -->
-                    <div class="glass-card p-5 rounded-2xl space-y-3">
-                        <h4 class="font-black text-sm text-ayumi-secondary flex items-center gap-2">
-                            <span>📋</span> Format SOAP Terstandar
+                <div class="grid-2" style="margin-top: 24px;">
+                    <!-- SOAP Format -->
+                    <div class="glass-card">
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 12px;">
+                            📋 Format SOAP Terstandar Medis
                         </h4>
-                        <div class="space-y-2 text-xs">
-                            <div class="p-2 rounded-lg bg-stone-50 border border-stone-200">
-                                <strong class="text-ayumi-primary font-mono">S (Subjective):</strong>
-                                <span class="text-stone-600 ml-1">Keluhan pasien (misal: flek hitam bertambah di pipi kanan).</span>
+                        <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
+                            <div style="background:#faf7f2; border:1px solid #ebd8c8; border-radius:8px; padding:8px 12px;">
+                                <strong style="color:var(--ayumi-primary);">S (Subjective):</strong>
+                                <span style="color:#5a5048; margin-left:4px;">Keluhan pasien (misal: flek hitam bertambah di pipi kanan).</span>
                             </div>
-                            <div class="p-2 rounded-lg bg-stone-50 border border-stone-200">
-                                <strong class="text-ayumi-primary font-mono">O (Objective):</strong>
-                                <span class="text-stone-600 ml-1">Hasil observasi kulit (kering, berminyak, sensitif, bekas jerawat).</span>
+                            <div style="background:#faf7f2; border:1px solid #ebd8c8; border-radius:8px; padding:8px 12px;">
+                                <strong style="color:var(--ayumi-primary);">O (Objective):</strong>
+                                <span style="color:#5a5048; margin-left:4px;">Observasi kulit (kering, berminyak, sensitif, bekas jerawat).</span>
                             </div>
-                            <div class="p-2 rounded-lg bg-stone-50 border border-stone-200">
-                                <strong class="text-ayumi-primary font-mono">A (Assessment):</strong>
-                                <span class="text-stone-600 ml-1">Diagnosa tindakan estetika yang direkomendasikan.</span>
+                            <div style="background:#faf7f2; border:1px solid #ebd8c8; border-radius:8px; padding:8px 12px;">
+                                <strong style="color:var(--ayumi-primary);">A (Assessment):</strong>
+                                <span style="color:#5a5048; margin-left:4px;">Diagnosa tindakan estetika yang direkomendasikan.</span>
                             </div>
-                            <div class="p-2 rounded-lg bg-stone-50 border border-stone-200">
-                                <strong class="text-ayumi-primary font-mono">P (Plan):</strong>
-                                <span class="text-stone-600 ml-1">Prosedur treatment hari ini & saran perawatan rumah (homecare).</span>
+                            <div style="background:#faf7f2; border:1px solid #ebd8c8; border-radius:8px; padding:8px 12px;">
+                                <strong style="color:var(--ayumi-primary);">P (Plan):</strong>
+                                <span style="color:#5a5048; margin-left:4px;">Prosedur tindakan hari ini & saran perawatan lanjutan.</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Live Camera & Angle -->
-                    <div class="glass-card p-5 rounded-2xl space-y-3">
-                        <h4 class="font-black text-sm text-ayumi-secondary flex items-center gap-2">
-                            <span>📷</span> Live Camera Capture (Depan • Kiri • Kanan)
+                    <!-- Live Camera Mockup -->
+                    <div class="glass-card">
+                        <h4 style="font-size: 14px; font-weight: 800; color: var(--ayumi-secondary); margin-bottom: 10px;">
+                            📷 Live Camera Capture (3 Sudut Klinis)
                         </h4>
-                        <p class="text-xs text-stone-600 leading-relaxed">
-                            Terapis dapat mengambil foto langsung dari kamera tablet/smartphone dengan 3 sudut standar klinis estetika:
+                        <p style="font-size: 12px; color: #5a5048; line-height: 1.5; margin-bottom: 12px;">
+                            Terapis mengambil foto langsung dari kamera tablet dengan 3 sudut standar klinis estetika:
                         </p>
-                        <div class="grid grid-cols-3 gap-2 text-center text-xs">
-                            <div class="p-2.5 rounded-xl bg-pink-50 border border-pink-200">
-                                <div class="text-base mb-1">👤</div>
-                                <span class="font-bold text-stone-800 text-[11px]">Wajah Depan</span>
+                        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; text-align:center;">
+                            <div style="background:var(--rose-bg); border:1px solid rgba(225,29,72,0.2); padding:10px; border-radius:12px;">
+                                <div style="font-size: 20px; margin-bottom:4px;">👤</div>
+                                <div style="font-size: 11px; font-weight:800; color:#1c1917;">Wajah Depan</div>
                             </div>
-                            <div class="p-2.5 rounded-xl bg-pink-50 border border-pink-200">
-                                <div class="text-base mb-1">👈</div>
-                                <span class="font-bold text-stone-800 text-[11px]">Profil Kiri</span>
+                            <div style="background:var(--rose-bg); border:1px solid rgba(225,29,72,0.2); padding:10px; border-radius:12px;">
+                                <div style="font-size: 20px; margin-bottom:4px;">👈</div>
+                                <div style="font-size: 11px; font-weight:800; color:#1c1917;">Profil Kiri</div>
                             </div>
-                            <div class="p-2.5 rounded-xl bg-pink-50 border border-pink-200">
-                                <div class="text-base mb-1">👉</div>
-                                <span class="font-bold text-stone-800 text-[11px]">Profil Kanan</span>
+                            <div style="background:var(--rose-bg); border:1px solid rgba(225,29,72,0.2); padding:10px; border-radius:12px;">
+                                <div style="font-size: 20px; margin-bottom:4px;">👉</div>
+                                <div style="font-size: 11px; font-weight:800; color:#1c1917;">Profil Kanan</div>
                             </div>
                         </div>
-                        <div class="p-2.5 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-[11px] font-semibold">
-                            ✓ Foto tersimpan aman di cloud Supabase Storage terenkripsi dan dapat dibandingkan berdampingan (*Side-by-Side Before-After*).
+                        <div style="margin-top: 14px; background:var(--emerald-bg); border:1px solid #a7f3d0; padding:10px 12px; border-radius:10px; font-size:11.5px; color:#065f46; font-weight:600;">
+                            ✓ Foto tersimpan aman di cloud terenkripsi & bisa dibandingkan secara side-by-side (*Before-After*).
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 4: Antarmuka Role Terapis</span>
-                <span class="font-mono">Slide 10 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 10 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 11: SINERGI ADMIN <-> TERAPIS ==================== -->
-        <section class="slide" data-title="Sinergi: Kolaborasi Admin & Terapis">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8">
-                <div class="text-xs uppercase font-extrabold tracking-widest text-ayumi-primary mb-2">Matriks Peran & Kolaborasi</div>
-                <h2 class="text-3xl md:text-4xl font-black text-ayumi-secondary tracking-tight">
-                    Sinergi Tanpa Celah: Admin & Terapis
-                </h2>
-                <p class="text-sm text-stone-600 mt-1 max-w-3xl">
-                    Perbandingan tanggung jawab dan bagaimana sistem menghubungkan kedua peran ini secara harmonis untuk efisiensi klinik maksimal.
+        <!-- ==================== SLIDE 11 ==================== -->
+        <section class="slide" data-title="Sinergi: Matriks Kolaborasi Admin vs Terapis">
+            <div class="slide-content-wrapper">
+                <div class="section-tag tag-primary">Matriks Kolaborasi</div>
+                <h2 class="slide-heading">Sinergi Tanpa Celah: Admin & Terapis</h2>
+                <p class="slide-subheading">
+                    Pembagian tanggung jawab yang jelas untuk menjamin efisiensi dan mencegah kesalahan manusia (*human error*).
                 </p>
 
-                <!-- Comparison Table -->
-                <div class="glass-card rounded-2xl overflow-hidden mt-6 shadow-sm">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-stone-100/90 text-stone-700 font-extrabold border-b border-stone-200 uppercase text-[10.5px]">
+                <div class="glass-card" style="margin-top: 20px; padding: 0; overflow:hidden;">
+                    <table class="ayumi-table">
+                        <thead>
                             <tr>
-                                <th class="p-3.5">Fungsi / Modul</th>
-                                <th class="p-3.5 text-ayumi-primary">Role Admin (Front Office & Kasir)</th>
-                                <th class="p-3.5 text-[#E11D48]">Role Terapis (Klinis)</th>
+                                <th style="width: 26%;">Fungsi / Modul</th>
+                                <th style="width: 37%; color:var(--ayumi-primary);">Role Admin (Front Office & Kasir)</th>
+                                <th style="width: 37%; color:var(--rose);">Role Terapis (Klinis)</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-stone-100 text-stone-700">
-                            <tr class="hover:bg-white/50">
-                                <td class="p-3.5 font-bold">Pendaftaran & Booking</td>
-                                <td class="p-3.5">Input data pasien baru, nomor WhatsApp, & jadwal jam temu</td>
-                                <td class="p-3.5 text-stone-400">Hanya melihat antrean pasien yang dijadwalkan</td>
+                        <tbody>
+                            <tr>
+                                <td><strong>Pendaftaran & Booking</strong></td>
+                                <td>Input data pasien baru, WhatsApp, dan pilih slot jam temu</td>
+                                <td style="color:#78716c;">Melihat antrean pasien yang dijadwalkan</td>
                             </tr>
-                            <tr class="hover:bg-white/50">
-                                <td class="p-3.5 font-bold">Rekam Medis (EMR)</td>
-                                <td class="p-3.5">Melihat riwayat melalui tombol link <strong class="text-ayumi-primary">↗</strong></td>
-                                <td class="p-3.5 font-bold text-[#E11D48]">Input SOAP, klaim tindakan, ambil foto live kamera</td>
+                            <tr>
+                                <td><strong>Rekam Medis (EMR/SOAP)</strong></td>
+                                <td>Melihat riwayat melalui tombol link <strong>↗</strong></td>
+                                <td style="font-weight:800; color:var(--rose);">Input SOAP, tindakan medis, & 3 foto live camera</td>
                             </tr>
-                            <tr class="hover:bg-white/50">
-                                <td class="p-3.5 font-bold">Paket Kupon Perawatan</td>
-                                <td class="p-3.5">Menjual paket kupon baru & cetak invoice</td>
-                                <td class="p-3.5 font-bold text-[#E11D48]">Memilih kupon pasien untuk pemotongan sesi</td>
+                            <tr>
+                                <td><strong>Paket Kupon Perawatan</strong></td>
+                                <td>Menjual paket baru & cetak invoice</td>
+                                <td style="font-weight:800; color:var(--rose);">Memilih paket pasien untuk pengurangan sesi otomatis</td>
                             </tr>
-                            <tr class="hover:bg-white/50">
-                                <td class="p-3.5 font-bold">Kasir & Pembayaran</td>
-                                <td class="p-3.5 font-bold text-ayumi-primary">Hitung total, diskon, split payment, cetak struk</td>
-                                <td class="p-3.5 text-stone-400">Tidak ada akses keuangan kasir</td>
+                            <tr>
+                                <td><strong>Kasir & Pembayaran</strong></td>
+                                <td style="font-weight:800; color:var(--ayumi-primary);">Hitung total, diskon, split payment, cetak struk</td>
+                                <td style="color:#78716c;">Tidak memiliki akses finansial kasir</td>
                             </tr>
-                            <tr class="hover:bg-white/50">
-                                <td class="p-3.5 font-bold">CRM WhatsApp & Retensi</td>
-                                <td class="p-3.5 font-bold text-ayumi-primary">Follow-up H+3, reminder H+14/30, ucapan ultah</td>
-                                <td class="p-3.5 text-stone-400">Nomor kontak pasien disamarkan demi privasi</td>
+                            <tr>
+                                <td><strong>CRM & Retensi WhatsApp</strong></td>
+                                <td style="font-weight:800; color:var(--ayumi-primary);">Kirim pesan H+3 kepuasan, reminder H+14, promo ultah</td>
+                                <td style="color:#78716c;">Nomor WA pasien disamarkan demi privasi</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                <div class="mt-4 p-3 rounded-xl bg-stone-100 text-stone-700 text-xs flex items-center justify-between">
-                    <span>💡 <strong>Hasil Nyata:</strong> Beban kerja front office berkurang 40%, waktu tunggu pasien turun drastis, dan kepuasan pasien meningkat pesat.</span>
+                <div class="glass-card" style="margin-top: 16px; padding: 12px 18px; background: #fff; display:flex; align-items:center; gap:8px;">
+                    <span style="font-size: 16px;">💡</span>
+                    <span style="font-size: 12px; color:#44403c;">
+                        <strong>Hasil Kolaborasi:</strong> Waktu tunggu pasien berkurang drastis, staf kasir tidak salah memotong sesi kupon, dan komisi terapis tercatat otomatis.
+                    </span>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Bagian 5: Sinergi Sistem</span>
-                <span class="font-mono">Slide 11 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 11 / 12</span>
             </div>
         </section>
 
-        <!-- ==================== SLIDE 12: KESIMPULAN & Q&A ==================== -->
-        <section class="slide" data-title="Kesimpulan & Sesi Tanya Jawab">
-            <div class="max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center pt-8 text-center">
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold mx-auto mb-4">
-                    <span>🏆</span> Siap Operasional Penuh Multi-Cabang
-                </div>
-                <h2 class="text-3xl md:text-5xl font-black text-ayumi-secondary tracking-tight">
-                    Membawa Ayumi Beauty House<br>
-                    Menuju Standar Klinik Modern & Skalabel
+        <!-- ==================== SLIDE 12 ==================== -->
+        <section class="slide" data-title="Kesimpulan: 4 Nilai Utama & Sesi Tanya Jawab">
+            <div class="slide-content-wrapper" style="text-align:center; align-items:center;">
+                <div class="section-tag tag-primary" style="margin: 0 auto 8px auto;">🏆 Siap Operasional Skala Penuh</div>
+                <h2 class="slide-heading slide-heading-gradient" style="font-size: 42px;">
+                    Ayumi Beauty House:<br>Standar Klinik Modern & Skalabel
                 </h2>
-                <p class="text-base text-stone-600 mt-3 max-w-2xl mx-auto leading-relaxed">
-                    Satu sistem yang menyatukan resepsionis, ruang tindakan terapis, dan pembukuan manajemen secara harmonis, akurat, dan profesional.
+                <p class="slide-subheading" style="margin: 0 auto; text-align:center;">
+                    Satu ekosistem yang menyatukan resepsionis, ruang perawatan terapis, dan pembukuan manajemen secara harmonis.
                 </p>
 
-                <!-- 4 Value Pillars -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 text-left">
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-l-ayumi-primary">
-                        <div class="font-black text-base text-ayumi-primary">01. Akurasi</div>
-                        <p class="text-xs text-stone-600 mt-1">Pembagian fee QRIS 0.3% murni, stok skincare sinkron, sisa kupon otomatis terhitung.</p>
+                <div class="grid-4" style="margin-top: 24px; text-align:left; width:100%;">
+                    <div class="glass-card" style="padding:16px; border-left:4px solid var(--ayumi-primary);">
+                        <div style="font-weight:900; font-size:14px; color:var(--ayumi-primary);">01. Akurasi</div>
+                        <p style="font-size:11.5px; color:#5a5048; margin-top:4px; line-height:1.4;">
+                            Pemisahan fee QRIS 0.3% murni, stok skincare realtime, sisa kupon otomatis.
+                        </p>
                     </div>
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-l-[#E11D48]">
-                        <div class="font-black text-base text-[#E11D48]">02. Kecepatan</div>
-                        <p class="text-xs text-stone-600 mt-1">Check-in instan, input rekam medis cepat di tablet, dan checkout kasir dalam hitungan detik.</p>
+
+                    <div class="glass-card" style="padding:16px; border-left:4px solid var(--rose);">
+                        <div style="font-weight:900; font-size:14px; color:var(--rose);">02. Kecepatan</div>
+                        <p style="font-size:11.5px; color:#5a5048; margin-top:4px; line-height:1.4;">
+                            Check-in instan, input SOAP klinis di tablet &lt; 2 menit, kasir checkout cepat.
+                        </p>
                     </div>
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-l-blue-500">
-                        <div class="font-black text-base text-blue-600">03. Loyalitas</div>
-                        <p class="text-xs text-stone-600 mt-1">Retensi pasien terjaga dengan CRM terotomasi follow-up H+3 dan reminder berkala.</p>
+
+                    <div class="glass-card" style="padding:16px; border-left:4px solid var(--blue);">
+                        <div style="font-weight:900; font-size:14px; color:var(--blue);">03. Loyalitas</div>
+                        <p style="font-size:11.5px; color:#5a5048; margin-top:4px; line-height:1.4;">
+                            Pasien diperhatikan dengan CRM WhatsApp follow-up H+3 dan promo ultah.
+                        </p>
                     </div>
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-l-emerald-500">
-                        <div class="font-black text-base text-emerald-600">04. Skalabilitas</div>
-                        <p class="text-xs text-stone-600 mt-1">Mendukung ekspansi cabang baru kapan saja dengan kontrol tersentralisasi bagi Owner.</p>
+
+                    <div class="glass-card" style="padding:16px; border-left:4px solid var(--emerald);">
+                        <div style="font-weight:900; font-size:14px; color:var(--emerald);">04. Skalabilitas</div>
+                        <p style="font-size:11.5px; color:#5a5048; margin-top:4px; line-height:1.4;">
+                            Mendukung ekspansi cabang baru kapan saja dengan kontrol terpusat bagi Owner.
+                        </p>
                     </div>
                 </div>
 
-                <!-- Q&A Box -->
-                <div class="mt-8 p-6 rounded-2xl bg-gradient-to-r from-ayumi-secondary via-[#4E2A12] to-ayumi-primary text-white shadow-xl max-w-xl mx-auto w-full">
-                    <h3 class="text-xl font-black tracking-tight">Sesi Tanya Jawab (Q&A)</h3>
-                    <p class="text-xs text-ayumi-accent mt-1">Silakan jika ada pertanyaan mengenai alur antarmuka Admin & Terapis.</p>
-                    <div class="mt-4 text-[11px] font-mono bg-white/10 px-3 py-1.5 rounded-lg inline-block">
+                <!-- Q&A Banner -->
+                <div class="glass-card" style="background: linear-gradient(135deg, var(--ayumi-secondary) 20%, var(--ayumi-primary) 100%); color:#fff; width:100%; max-width:600px; padding:20px; margin-top:24px; text-align:center;">
+                    <h3 style="font-size: 20px; font-weight: 900;">Sesi Tanya Jawab (Q&A)</h3>
+                    <p style="font-size: 13px; color: var(--ayumi-accent); margin-top: 4px;">
+                        Silakan jika ada pertanyaan mengenai alur antarmuka Admin & Terapis.
+                    </p>
+                    <div style="display:inline-block; margin-top:10px; background:rgba(255,255,255,0.15); padding:4px 14px; border-radius:8px; font-size:11px; font-family:monospace;">
                         Terima Kasih • Ayumi Beauty House
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center text-xs text-ayumi-text-muted border-t border-ayumi-accent/50 pt-3 max-w-5xl mx-auto w-full">
+            <div class="slide-footer">
                 <span>Penutup & Sesi Tanya Jawab</span>
-                <span class="font-mono">Slide 12 / 12</span>
+                <span style="font-family:monospace; font-weight:700;">Slide 12 / 12</span>
             </div>
         </section>
 
-    </main>
+    </div>
 
-    <!-- BOTTOM FLOATING CONTROLLER BAR -->
-    <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md px-5 py-2.5 rounded-full border border-ayumi-accent/80 shadow-lg flex items-center gap-4">
-        <button onclick="prevSlide()" id="btn-prev" class="p-2 rounded-full hover:bg-stone-100 text-stone-700 transition-colors cursor-pointer" title="Slide Sebelumnya (Panah Kiri)">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
-        </button>
-
-        <div class="flex items-center gap-1.5 text-xs font-extrabold text-stone-700">
-            <span id="current-slide-num" class="text-ayumi-primary text-sm font-black">01</span>
-            <span class="text-stone-300">/</span>
-            <span id="total-slide-num">12</span>
+    <!-- BOTTOM FLOATING NAVIGATOR -->
+    <nav id="bottom-nav">
+        <button onclick="prevSlide()" class="nav-btn" id="btn-prev" title="Slide Sebelumnya (Panah Kiri)">❮</button>
+        <div class="slide-counter">
+            <span class="counter-current" id="counter-current">01</span>
+            <span style="color:#d4c4b5;">/</span>
+            <span id="counter-total">12</span>
         </div>
-
-        <button onclick="nextSlide()" id="btn-next" class="p-2 rounded-full hover:bg-stone-100 text-stone-700 transition-colors cursor-pointer" title="Slide Berikutnya (Panah Kanan / Space)">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
-        </button>
-
-        <div class="h-4 w-[1px] bg-stone-200"></div>
-
-        <button onclick="toggleOverview()" class="text-xs font-bold text-stone-600 hover:text-ayumi-primary transition-colors flex items-center gap-1 cursor-pointer">
-            <span>Daftar</span>
+        <button onclick="nextSlide()" class="nav-btn" id="btn-next" title="Slide Berikutnya (Panah Kanan / Space)">❯</button>
+        <div style="width:1px; height:18px; background:#ebd8c8;"></div>
+        <button onclick="toggleOverview()" class="btn-list" title="Buka Daftar Semua Slide (O / Esc)">
+            <span>📑</span>
+            <span>Daftar Slide</span>
         </button>
     </nav>
 
-    <!-- SPEAKER NOTES DRAWER (PRESS 'N') -->
-    <div id="speaker-notes-panel" class="fixed bottom-16 right-6 z-50 w-96 max-h-[420px] glass-dark rounded-2xl shadow-2xl p-5 border border-ayumi-primary/40 transform translate-y-8 opacity-0 pointer-events-none flex flex-col justify-between">
+    <!-- SPEAKER NOTES DRAWER (N) -->
+    <div id="speaker-notes-panel">
         <div>
-            <div class="flex items-center justify-between pb-2 border-b border-white/10 mb-3">
-                <div class="flex items-center gap-2">
-                    <span class="text-lg">🎙️</span>
-                    <h4 class="font-extrabold text-xs text-white uppercase tracking-wider">Contekan Pembicara (Speaker Notes)</h4>
-                </div>
-                <button onclick="toggleSpeakerNotes()" class="text-white/60 hover:text-white text-xs font-bold">✕</button>
+            <div class="notes-header">
+                <span class="notes-title">🎙️ Poin Bicara (Slide <span id="notes-num">1</span>)</span>
+                <button onclick="toggleSpeakerNotes()" class="notes-close">✕</button>
             </div>
-            <div id="speaker-notes-content" class="text-xs text-stone-200 leading-relaxed space-y-2 overflow-y-auto max-h-60 pr-1">
-                <!-- Notes injected dynamically based on active slide -->
-            </div>
+            <div id="speaker-notes-body"></div>
         </div>
-        <div class="pt-3 border-t border-white/10 text-[10px] text-white/50 flex justify-between">
+        <div style="font-size:10px; color:rgba(255,255,255,0.4); border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; display:flex; justify-content:space-between;">
             <span>Shortcut: Tekan <strong>N</strong></span>
-            <span>Slide <span id="notes-slide-num">1</span></span>
+            <span>Speaker Cue</span>
         </div>
     </div>
 
-    <!-- SLIDE OVERVIEW MODAL (PRESS 'O' / ESC) -->
-    <div id="overview-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none flex items-center justify-center p-6">
-        <div class="bg-white rounded-3xl p-6 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-ayumi-accent">
-            <div class="flex justify-between items-center pb-3 border-b border-stone-100">
+    <!-- OVERVIEW MODAL (O / ESC) -->
+    <div id="overview-modal">
+        <div class="overview-box">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ebd8c8; padding-bottom:12px;">
                 <div>
-                    <h3 class="font-extrabold text-base text-ayumi-secondary">Peta Seluruh Slide Presentasi</h3>
-                    <p class="text-xs text-stone-500">Klik slide mana saja untuk melompat langsung</p>
+                    <h3 style="font-size:16px; font-weight:900; color:var(--ayumi-secondary);">Peta Seluruh Slide Presentasi</h3>
+                    <p style="font-size:12px; color:#78716c;">Klik slide mana saja untuk melompat langsung</p>
                 </div>
-                <button onclick="toggleOverview()" class="p-2 rounded-xl bg-stone-100 text-stone-600 hover:bg-stone-200 font-bold text-xs cursor-pointer">
+                <button onclick="toggleOverview()" class="btn-ctrl" style="padding:6px 12px; font-size:12px;">
                     Tutup (Esc)
                 </button>
             </div>
-            <div id="overview-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 py-4 overflow-y-auto flex-1">
-                <!-- Injected via JavaScript -->
-            </div>
+            <div class="overview-grid" id="overview-grid"></div>
         </div>
     </div>
 
-    <!-- PRESENTATION JAVASCRIPT ENGINE -->
+    <!-- JAVASCRIPT CONTROLLER (NO EXTERNAL SCRIPT NEEDED) -->
     <script>
-        // Speaker notes repository for presenter talking points
         const speakerNotes = [
-            // Slide 1
             "Buka dengan salam hangat: 'Selamat pagi/siang rekan-rekan. Hari ini saya akan mempresentasikan sistem operasional dan rekam medis digital terpadu Ayumi Beauty House, dengan fokus khusus pada antarmuka Role Admin dan Role Terapis yang menjadi ujung tombak klinik kita.'",
-            // Slide 2
-            "Jelaskan kontras masa lalu vs sekarang: 'Sebelumnya kita menghadapi masalah umum klinik kecantikan: rekam medis fisik rawan hilang, kartu kupon sesi sering keliru dihitung, dan kasir kesulitan memisahkan biaya merchant QRIS 0.3%. Sistem ini menyelesaikan itu semua secara otomatis.'",
-            // Slide 3
-            "Jelaskan aliran 5 langkah pasien: 'Data mengalir dari booking di front office -> check-in tiba -> langsung masuk ke tablet terapis -> tindakan selesai -> kasir checkout -> CRM follow up otomatis H+3. Tidak ada jeda atau telepon antar ruangan.'",
-            // Slide 4
-            "Sorot metrik pendapatan & link pasien: 'Di Dashboard Admin, perhatikan kartu Biaya Tambahan QRIS 0.3% kini terpisah murni di samping Sesi Terpakai sehingga omset klinik 100% akurat. Dan setiap nama pasien di tabel ada ikon panah ↗ untuk langsung membuka rekam medis dengan satu klik.'",
-            // Slide 5
+            "Jelaskan kontras masa lalu vs sekarang: 'Sebelumnya kita menghadapi masalah umum klinik: rekam medis fisik rawan tercecer, kartu kupon sesi sering keliru dihitung, dan kasir kesulitan memisahkan biaya merchant QRIS 0.3%. Sistem ini menyelesaikan itu semua secara otomatis.'",
+            "Jelaskan 5 langkah siklus pasien: 'Data mengalir dari booking di front office -> check-in tiba -> langsung masuk ke tablet terapis -> tindakan selesai -> kasir checkout -> CRM follow up otomatis H+3. Tidak ada jeda atau telepon antar ruangan.'",
+            "Sorot metrik pendapatan & link pasien: 'Di Dashboard Admin, kartu Biaya Tambahan QRIS 0.3% kini terpisah murni di samping Sesi Terpakai sehingga omset klinik 100% akurat. Dan setiap nama pasien di tabel ada ikon panah ↗ untuk langsung membuka rekam medis dengan satu klik.'",
             "Jelaskan kehebatan POS kasir: 'Kasir bisa menangani gabungan produk skincare dan treatment. Fitur paling favorit adalah Split Payment: pasien bisa bayar sebagian tunai dan sebagian QRIS, dan sistem otomatis menghitung 0.3% MDR hanya untuk nominal QRIS-nya.'",
-            // Slide 6
             "Jelaskan kalender janji temu: 'Kalender slot jam mencegah dokter atau terapis mengalami double booking. Begitu pasien tiba di lobi, admin klik tombol Arrived, dan nama pasien langsung meluncur ke layar terapis.'",
-            // Slide 7
             "Jelaskan retensi pasien: 'Pasien adalah aset berharga. CRM otomatis menjadwalkan evaluasi kepuasan di H+3, reminder perawatan ulang di H+14 dan H+30, serta promo ulang tahun. Admin cukup klik tombol Kirim WA, pesan langsung terkirim tanpa ketik manual.'",
-            // Slide 8
             "Transisi ke Terapis: 'Sekarang kita masuk ke Portal Terapis. Mengapa antarmukanya berbeda? Karena terapis memegang alat dan sarung tangan, mereka butuh UI yang sangat sederhana di smartphone atau tablet tanpa menu kasir yang membingungkan. Selain itu, nomor WA pasien disamarkan demi etika privasi.'",
-            // Slide 9
             "Jelaskan antrean & komisi terapis: 'Terapis langsung melihat antrean pasien yang sudah hadir. Tinggal klik Ambil Tindakan. Selain itu, komisi terhitung otomatis per tindakan sehingga terapis sangat transparan dan termotivasi bekerja.'",
-            // Slide 10
             "Jelaskan standar medis SOAP & foto: 'Dokumentasi adalah hukum wajib klinik estetika. Terapis mencatat Subjective, Objective, Assessment, Plan dan mengambil 3 sudut foto (depan, kiri, kanan) langsung via kamera tablet untuk evaluasi before-after.'",
-            // Slide 11
             "Bandingkan peran: 'Tabel ini menunjukkan pembagian tugas yang jelas. Admin mengurusi finansial dan jadwal, Terapis mengurusi medis dan tindakan. Keduanya saling melengkapi tanpa saling tumpang tindih.'",
-            // Slide 12
             "Closing statement: 'Dengan arsitektur ini, Ayumi Beauty House siap diekspansi ke berbagai cabang baru dengan kendali terpusat. Terima kasih, mari kita buka sesi tanya jawab.'"
         ];
 
@@ -1089,33 +1395,27 @@
         const totalSlides = slides.length;
 
         const progressBar = document.getElementById('progress-bar');
-        const currentNumEl = document.getElementById('current-slide-num');
-        const totalNumEl = document.getElementById('total-slide-num');
+        const counterCurrent = document.getElementById('counter-current');
+        const counterTotal = document.getElementById('counter-total');
         const notesPanel = document.getElementById('speaker-notes-panel');
-        const notesContent = document.getElementById('speaker-notes-content');
-        const notesSlideNum = document.getElementById('notes-slide-num');
+        const notesBody = document.getElementById('speaker-notes-body');
+        const notesNum = document.getElementById('notes-num');
         const overviewModal = document.getElementById('overview-modal');
         const overviewGrid = document.getElementById('overview-grid');
 
-        totalNumEl.textContent = totalSlides;
+        counterTotal.textContent = totalSlides;
 
         function updateSlide() {
-            slides.forEach((slide, index) => {
-                slide.classList.toggle('active', index === currentSlide);
+            slides.forEach((slide, idx) => {
+                slide.classList.toggle('active', idx === currentSlide);
             });
 
-            // Update bottom counter
-            currentNumEl.textContent = String(currentSlide + 1).padStart(2, '0');
+            counterCurrent.textContent = String(currentSlide + 1).padStart(2, '0');
+            progressBar.style.width = `${((currentSlide + 1) / totalSlides) * 100}%`;
 
-            // Update Progress Bar
-            const percent = ((currentSlide + 1) / totalSlides) * 100;
-            progressBar.style.width = `${percent}%`;
+            notesBody.innerHTML = speakerNotes[currentSlide] || 'Tidak ada catatan untuk slide ini.';
+            notesNum.textContent = currentSlide + 1;
 
-            // Update Speaker Notes
-            notesContent.innerHTML = `<p>${speakerNotes[currentSlide] || 'Tidak ada catatan untuk slide ini.'}</p>`;
-            notesSlideNum.textContent = currentSlide + 1;
-
-            // Update button states
             document.getElementById('btn-prev').style.opacity = currentSlide === 0 ? '0.3' : '1';
             document.getElementById('btn-next').style.opacity = currentSlide === totalSlides - 1 ? '0.3' : '1';
         }
@@ -1134,9 +1434,9 @@
             }
         }
 
-        function goToSlide(index) {
-            if (index >= 0 && index < totalSlides) {
-                currentSlide = index;
+        function goToSlide(idx) {
+            if (idx >= 0 && idx < totalSlides) {
+                currentSlide = idx;
                 updateSlide();
                 closeOverview();
             }
@@ -1159,15 +1459,11 @@
             slides.forEach((slide, idx) => {
                 const title = slide.getAttribute('data-title') || `Slide ${idx + 1}`;
                 const card = document.createElement('div');
-                card.className = `p-3 rounded-2xl border transition-all cursor-pointer text-left flex flex-col justify-between h-24 ${
-                    idx === currentSlide 
-                    ? 'bg-ayumi-primary text-white border-ayumi-primary shadow-md scale-105' 
-                    : 'bg-stone-50 hover:bg-stone-100 text-stone-800 border-stone-200'
-                }`;
+                card.className = `overview-card ${idx === currentSlide ? 'active-card' : ''}`;
                 card.onclick = () => goToSlide(idx);
                 card.innerHTML = `
-                    <div class="text-[10px] font-black uppercase tracking-wider opacity-70">Slide ${idx + 1}</div>
-                    <div class="font-extrabold text-xs line-clamp-2">${title}</div>
+                    <div class="ov-num" style="font-size:10px; font-weight:800; text-transform:uppercase; color:#9c8e82;">Slide ${idx + 1}</div>
+                    <div class="ov-title" style="font-size:11.5px; font-weight:800; line-height:1.3; margin-top:4px;">${title}</div>
                 `;
                 overviewGrid.appendChild(card);
             });
@@ -1181,21 +1477,16 @@
         function toggleFullScreen() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
-                    console.log('Error attempting fullscreen:', err.message);
+                    console.log(err.message);
                 });
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen();
             }
         }
 
-        // Keyboard navigation
         window.addEventListener('keydown', (e) => {
             if (overviewModal.classList.contains('open')) {
-                if (e.key === 'Escape' || e.key === 'o' || e.key === 'O') {
-                    closeOverview();
-                }
+                if (e.key === 'Escape' || e.key === 'o' || e.key === 'O') closeOverview();
                 return;
             }
 
@@ -1216,7 +1507,7 @@
                     break;
                 case 'o':
                 case 'O':
-                    openOverview();
+                    toggleOverview();
                     break;
                 case 'f':
                 case 'F':
