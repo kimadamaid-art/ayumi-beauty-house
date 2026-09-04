@@ -690,8 +690,10 @@ export default function PatientDetailPage() {
                                             ].filter(Boolean).join(', ') || '0 Item'
 
                                             return (
-                                                <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="p-3 font-bold text-gray-800 ">{tx.transaction_number}</td>
+                                                <tr key={tx.id} className={`hover:bg-gray-50/50 transition-colors ${tx.payment_status === 'void' ? 'opacity-70 bg-rose-50/20' : ''}`}>
+                                                    <td className="p-3 font-bold text-gray-800 ">
+                                                        <span className={tx.payment_status === 'void' ? 'line-through text-gray-400' : ''}>{tx.transaction_number}</span>
+                                                    </td>
                                                     <td className="p-3 text-gray-500">
                                                         {new Date(tx.created_at).toLocaleDateString('id-ID', {
                                                             day: 'numeric',
@@ -704,9 +706,16 @@ export default function PatientDetailPage() {
                                                     <td className="p-3 text-gray-600 font-semibold">{tx.branches?.name || '-'}</td>
                                                     <td className="p-3 text-gray-600 font-semibold">{itemsSummary}</td>
                                                     <td className="p-3 text-center">
-                                                        <span className="bg-pink-50 text-ayumi-primary border border-pink-100 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">{tx.payment_method}</span>
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <span className="bg-pink-50 text-ayumi-primary border border-pink-100 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">{tx.payment_method}</span>
+                                                            {tx.payment_status === 'void' && (
+                                                                <span className="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">VOID</span>
+                                                            )}
+                                                        </div>
                                                     </td>
-                                                    <td className="p-3 text-right  font-bold text-gray-800">Rp {tx.total.toLocaleString('id-ID')}</td>
+                                                    <td className={`p-3 text-right font-bold ${tx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                                                        Rp {tx.total.toLocaleString('id-ID')}
+                                                    </td>
                                                     <td className="p-3 text-center">
                                                         <Link href={`/kasir/transactions/${tx.id}`}>
                                                             <button className="text-ayumi-primary hover:text-ayumi-secondary bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors font-bold text-[10px] uppercase">
