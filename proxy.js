@@ -45,8 +45,13 @@ export async function proxy(request) {
 
     const url = request.nextUrl.clone()
 
-    // Jika belum login, dan mencoba mengakses halaman selain login
-    if (!session && url.pathname !== '/login') {
+    const isPublic = 
+        url.pathname === '/login' || 
+        url.pathname.startsWith('/presentasi') || 
+        url.pathname.endsWith('.html')
+
+    // Jika belum login, dan mencoba mengakses halaman privat selain login & public
+    if (!session && !isPublic) {
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
@@ -68,8 +73,8 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - static assets (.svg, .png, .jpg, .jpeg, .gif, .webp, .ico)
+         * - static assets (.svg, .png, .jpg, .jpeg, .gif, .webp, .ico, .html)
          */
-        '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|html)$).*)',
     ],
 }

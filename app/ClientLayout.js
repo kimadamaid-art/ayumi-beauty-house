@@ -140,9 +140,9 @@ export default function ClientLayout({ children }) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isSidebarHovered, setIsSidebarHovered] = useState(false)
 
-    const isLogin = pathname === '/login' || pathname === '/' // Assuming / redirects to login or is public
+    const isBarePage = pathname === '/login' || pathname === '/' || pathname.startsWith('/presentasi')
 
-    if (isLogin) {
+    if (isBarePage) {
         return <>{children}</>
     }
 
