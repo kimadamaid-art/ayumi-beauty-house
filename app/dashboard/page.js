@@ -372,10 +372,12 @@ export default function Dashboard() {
                         grandCouponUsedRange += txCouponUsed
                         grandQrisFeeRange += txQrisFee
 
-                        parsePaymentSplits(tx).forEach(split => {
-                            const pMethod = (split.method || 'CASH').toUpperCase()
-                            const amt = Number(split.amount || 0)
-                            methodMap[pMethod] = (methodMap[pMethod] || 0) + amt
+                        const splits = parsePaymentSplits(tx)
+                        Object.entries(splits).forEach(([method, amt]) => {
+                            if (amt > 0) {
+                                const pMethod = method.toUpperCase()
+                                methodMap[pMethod] = (methodMap[pMethod] || 0) + amt
+                            }
                         })
                     }
                 })
