@@ -338,12 +338,23 @@ export default function TherapistDashboard() {
         setClaimingAptId(aptId)
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('appointments')
-                .update({ therapist_id: dbUser.id })
+                .update({ 
+                    therapist_id: dbUser.id,
+                    updated_at: new Date().toISOString()
+                })
                 .eq('id', aptId)
+                .is('therapist_id', null)
+                .select('id, therapist_id')
 
             if (error) throw error
+
+            if (!data || data.length === 0) {
+                toast.error('Pasien ini sudah dipilih oleh terapis lain.')
+                fetchAppointments()
+                return
+            }
 
             toast.success('Jadwal berhasil Anda ambil! Silakan tangani pasien.')
             fetchAppointments()

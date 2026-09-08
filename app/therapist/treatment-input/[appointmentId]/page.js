@@ -725,10 +725,14 @@ export default function TreatmentInputPage() {
                 }
             }
 
-            // 4. Update Appointment Status to completed
+            // 4. Update Appointment Status to completed & lock therapist
             await supabase
                 .from('appointments')
-                .update({ status: 'completed' })
+                .update({ 
+                    status: 'completed',
+                    therapist_id: performer,
+                    updated_at: new Date().toISOString()
+                })
                 .eq('id', appointment.id)
 
             // 4.5 Kirim notifikasi realtime ke seluruh Admin, Kasir, dan Owner
