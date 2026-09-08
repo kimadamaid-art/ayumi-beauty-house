@@ -919,8 +919,9 @@ function PosPageContent() {
     const handleDeletePendingBill = async (bill, e) => {
         if (e) e.stopPropagation()
         if (!bill) return
-        if (dbUser?.role !== 'owner' && dbUser?.role !== 'admin') {
-            toast.error('Hanya Owner atau Admin yang dapat menghapus tagihan tindakan.')
+        const allowedRoles = ['owner', 'admin', 'kasir']
+        if (!allowedRoles.includes(dbUser?.role)) {
+            toast.error('Hanya Owner, Admin, atau Kasir yang dapat membatalkan tagihan tindakan.')
             return
         }
         if (!window.confirm(`Hapus tagihan "${bill.patients?.full_name || 'Pasien'}" (${bill.treatment_record_items?.length || 0} tindakan)? Tindakan ini akan dibatalkan.`)) {
@@ -972,11 +973,19 @@ function PosPageContent() {
             await supabase.from('patient_photos').delete().eq('treatment_record_id', bill.id)
             await supabase.from('treatment_record_items').delete().eq('treatment_record_id', bill.id)
 
-            // 3. Hapus rekam medis tindakan
+            // 3. Batalkan appointment terkait jika ada
+            if (bill.appointment_id) {
+                await supabase
+                    .from('appointments')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                    .eq('id', bill.appointment_id)
+            }
+
+            // 4. Hapus rekam medis tindakan
             const { error } = await supabase.from('treatment_records').delete().eq('id', bill.id)
             if (error) throw error
 
-            toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dihapus.`)
+            toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dibatalkan.`)
             fetchPendingBills(selectedBranch)
         } catch (err) {
             console.error('Error deleting pending bill:', err)

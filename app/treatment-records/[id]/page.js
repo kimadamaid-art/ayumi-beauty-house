@@ -114,6 +114,14 @@ export default function TreatmentRecordDetailPage() {
 
             if (deleteErr) throw deleteErr
 
+            // 6. Update linked appointment to cancelled if present
+            if (record?.appointment_id) {
+                await supabase
+                    .from('appointments')
+                    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                    .eq('id', record.appointment_id)
+            }
+
             toast.success('Rekam medis berhasil dihapus.')
             router.push('/treatment-records')
             router.refresh()
