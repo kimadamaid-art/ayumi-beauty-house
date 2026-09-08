@@ -136,7 +136,8 @@ function EditRecordForm() {
                 complaints: recData.complaints || '',
                 skin_condition: recData.skin_condition || '',
                 result_notes: recData.result_notes || '',
-                recommendation: recData.recommendation || ''
+                recommendation: recData.recommendation || '',
+                appointment_id: recData.appointment_id || ''
             })
 
             // Fetch Items
@@ -334,6 +335,7 @@ function EditRecordForm() {
                 patient_id: formData.patient_id,
                 branch_id: formData.branch_id,
                 performed_by: formData.performed_by || null,
+                therapist_id: formData.performed_by || null,
                 treatment_date: formData.treatment_date,
                 treatment_time: formData.treatment_time,
                 skin_type: formData.skin_type || null,
@@ -361,6 +363,21 @@ function EditRecordForm() {
                     .update(updatePayload)
                     .eq('id', id)
                 if (fallbackErr) throw fallbackErr
+            }
+
+            // Sync to appointment therapist_id if linked
+            if (formData.appointment_id && formData.performed_by) {
+                try {
+                    await supabase
+                        .from('appointments')
+                        .update({
+                            therapist_id: formData.performed_by,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', formData.appointment_id)
+                } catch (apptErr) {
+                    console.warn('Sync appointment therapist note:', apptErr)
+                }
             }
 
             // Sync to master patient record

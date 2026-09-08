@@ -373,6 +373,15 @@ export default function TreatmentRecordsPage() {
                                                         </Link>
 
                                                         {(isOwner || userRole === 'admin') && (
+                                                            <Link href={`/treatment-records/${r.id}/edit`}>
+                                                                <button className="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 px-2.5 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1" title="Edit Rekam Medis & Terapis">
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                                    Edit
+                                                                </button>
+                                                            </Link>
+                                                        )}
+
+                                                        {(isOwner || userRole === 'admin') && (
                                                             paidTx ? (
                                                                 <Link href={`/kasir/transactions/${paidTx.id}`}>
                                                                     <button className="text-xs bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1">
