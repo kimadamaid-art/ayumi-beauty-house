@@ -2532,13 +2532,15 @@ function PosPageContent() {
                                             </div>
                                         )}
 
-                                        {/* 2. PRODUK (Berkategori + Horizontal Scrolling + Modal Varian) */}
+                                        {/* 2. PRODUK (Berkategori dengan Option 1 Banner Elegan Ivory & Terracotta + 3-Column Card Grid) */}
                                         {showProducts && (
-                                            <div className="space-y-4">
+                                            <div className="space-y-6">
                                                 {showAll && (
-                                                    <h3 className="font-black text-xs text-[#4E2A12] tracking-wider uppercase px-1">
-                                                        Produk Skincare ({filteredProducts.length})
-                                                    </h3>
+                                                    <div className="flex items-center gap-2 pb-1 border-b border-[#F2D8C3]">
+                                                        <h2 className="font-black text-xs sm:text-sm text-[#4E2A12] tracking-wider uppercase px-1">
+                                                            Katalog Produk Skincare ({filteredProducts.length})
+                                                        </h2>
+                                                    </div>
                                                 )}
                                                 {groupedProductCategories.length === 0 ? (
                                                     <div className="py-8 text-center text-xs text-gray-400 space-y-2">
@@ -2554,14 +2556,101 @@ function PosPageContent() {
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div className="space-y-5">
+                                                    <div className="space-y-6">
                                                         {groupedProductCategories.map(group => (
-                                                            <HorizontalCategoryRow
-                                                                key={group.name}
-                                                                categoryName={group.name}
-                                                                items={group.items}
-                                                                onItemClick={(item, type) => handleOpenItemModal(item, type)}
-                                                            />
+                                                            <div key={group.name} className="space-y-3">
+                                                                {/* Option 1 Banner Header */}
+                                                                <div className="flex items-center justify-between bg-[#FAF1E8] border border-[#F2D8C3] border-l-4 border-l-[#D46221] px-4 py-2.5 rounded-xl shadow-2xs">
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        <span className="w-2 h-2 rounded-full bg-[#D46221]"></span>
+                                                                        <h3 className="font-black text-xs sm:text-sm text-[#4E2A12] tracking-wider uppercase">
+                                                                            {group.name}
+                                                                        </h3>
+                                                                    </div>
+                                                                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white text-[#B5531B] border border-[#F2D8C3] shadow-2xs">
+                                                                        {group.items.length} Produk
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* 3-Column Card Grid */}
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+                                                                    {group.items.map(p => {
+                                                                        const hasDiscount = p.discount_percent > 0
+                                                                        const price = hasDiscount ? p.price * (1 - p.discount_percent / 100) : p.price
+                                                                        const variants = getProductVariants(p)
+                                                                        const hasVariants = variants.length > 0
+
+                                                                        return (
+                                                                            <div
+                                                                                key={`pr-${p.id}`}
+                                                                                onClick={() => {
+                                                                                    if (hasVariants) {
+                                                                                        handleOpenItemModal(p, 'product')
+                                                                                    } else {
+                                                                                        addToCart(p, 'product')
+                                                                                    }
+                                                                                }}
+                                                                                className="bg-white p-3.5 rounded-2xl border border-[#F2D8C3] shadow-2xs flex flex-col justify-between hover:border-[#D46221] hover:shadow-md transition-all cursor-pointer group relative hover:-translate-y-0.5"
+                                                                            >
+                                                                                <div className="space-y-1 mb-2">
+                                                                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                                                                        {p.quantity !== undefined && (
+                                                                                            <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md ${
+                                                                                                p.quantity > 5 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                                                                            }`}>
+                                                                                                Stok: {p.quantity}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {hasVariants && (
+                                                                                            <span className="text-[8.5px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded-md">
+                                                                                                {variants.length} Varian
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {hasDiscount && (
+                                                                                            <span className="bg-[#D46221] text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs ml-auto">
+                                                                                                Diskon {p.discount_percent}%
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <h4 className="font-extrabold text-xs sm:text-sm text-[#2C1E16] line-clamp-2 leading-snug group-hover:text-[#D46221] transition-colors">
+                                                                                        {p.name}
+                                                                                    </h4>
+                                                                                </div>
+
+                                                                                <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto gap-2">
+                                                                                    <div className="flex flex-col min-w-0">
+                                                                                        {hasDiscount && (
+                                                                                            <span className="text-[9px] line-through text-gray-400 font-semibold whitespace-nowrap">
+                                                                                                Rp {p.price.toLocaleString('id-ID')}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        <span className="font-black text-xs sm:text-sm text-[#D46221] whitespace-nowrap">
+                                                                                            Rp {price.toLocaleString('id-ID')}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            if (hasVariants) {
+                                                                                                handleOpenItemModal(p, 'product')
+                                                                                            } else {
+                                                                                                addToCart(p, 'product')
+                                                                                            }
+                                                                                        }}
+                                                                                        className="w-7 h-7 rounded-xl bg-[#D46221] hover:bg-[#B5531B] text-white flex items-center justify-center transition-all shrink-0 shadow-xs cursor-pointer active:scale-90 hover:scale-105"
+                                                                                        title="Tambah ke keranjang"
+                                                                                    >
+                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                                                                                        </svg>
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            </div>
                                                         ))}
                                                     </div>
                                                 )}
