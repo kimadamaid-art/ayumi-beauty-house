@@ -888,9 +888,54 @@ function PosPageContent() {
         }
 
         try {
+            // 1. Kembalikan kupon jika tindakan ini menggunakan kupon
+            const { data: cLogs } = await supabase
+                .from('coupon_usage_logs')
+                .select('id, patient_coupon_item_id')
+                .eq('treatment_record_id', bill.id)
+
+            if (cLogs && cLogs.length > 0) {
+                for (const log of cLogs) {
+                    if (log.patient_coupon_item_id) {
+                        const { data: itemData } = await supabase
+                            .from('patient_coupon_items')
+                            .select('id, used_sessions, remaining_sessions, patient_coupon_id')
+                            .eq('id', log.patient_coupon_item_id)
+                            .maybeSingle()
+
+                        if (itemData) {
+                            const newUsed = Math.max(0, (itemData.used_sessions || 1) - 1)
+                            const newRem = (itemData.remaining_sessions || 0) + 1
+                            await supabase
+                                .from('patient_coupon_items')
+                                .update({
+                                    used_sessions: newUsed,
+                                    remaining_sessions: newRem,
+                                    status: 'active'
+                                })
+                                .eq('id', itemData.id)
+
+                            if (itemData.patient_coupon_id) {
+                                await supabase
+                                    .from('patient_coupons')
+                                    .update({ status: 'active' })
+                                    .eq('id', itemData.patient_coupon_id)
+                            }
+                        }
+                    }
+                }
+                await supabase.from('coupon_usage_logs').delete().eq('treatment_record_id', bill.id)
+            }
+
+            // 2. Hapus referensi antrean followup, foto klinis, dan item tindakan
+            await supabase.from('followup_queue').delete().eq('treatment_record_id', bill.id)
+            await supabase.from('patient_photos').delete().eq('treatment_record_id', bill.id)
             await supabase.from('treatment_record_items').delete().eq('treatment_record_id', bill.id)
+
+            // 3. Hapus rekam medis tindakan
             const { error } = await supabase.from('treatment_records').delete().eq('id', bill.id)
             if (error) throw error
+
             toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dihapus.`)
             fetchPendingBills(selectedBranch)
         } catch (err) {
