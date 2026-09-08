@@ -470,7 +470,7 @@ export default function Dashboard() {
             setTopTreatments(sortedTreatments)
             setTopProducts(sortedProducts)
 
-            // 2. Fetch selected month transactions for monthly target calculation
+            // 2. Fetch selected month transactions for monthly target calculation (Khusus Treatment & Kupon)
             const [tYearStr, tMonthStr] = (tMonth || '').split('-')
             const tYear = parseInt(tYearStr, 10) || new Date().getFullYear()
             const tMonthIdx = (parseInt(tMonthStr, 10) || (new Date().getMonth() + 1)) - 1
@@ -480,7 +480,25 @@ export default function Dashboard() {
 
             let monthlyTrxQuery = supabase
                 .from('transactions')
-                .select('id, branch_id, total, subtotal, discount, payment_method, notes')
+                .select(`
+                    id, 
+                    branch_id, 
+                    total, 
+                    subtotal, 
+                    discount, 
+                    payment_method, 
+                    notes,
+                    transaction_items (
+                        id,
+                        item_type,
+                        name,
+                        subtotal,
+                        quantity,
+                        price,
+                        discount_percent,
+                        original_price
+                    )
+                `)
                 .eq('payment_status', 'paid')
                 .gte('created_at', startOfMonth)
                 .lte('created_at', endOfMonth)
@@ -493,6 +511,7 @@ export default function Dashboard() {
 
             const monthlyMap = {}
             let totalCompanyTarget = 0
+            let totalMonthlyTargetIncome = 0
 
             targetBranches.forEach(b => {
                 const targetVal = Number(b.monthly_target || 0)
@@ -502,6 +521,8 @@ export default function Dashboard() {
                     branchName: b.name,
                     monthlyTarget: targetVal,
                     monthlyIncome: 0,
+                    monthlyTreatmentIncome: 0,
+                    monthlyCouponSalesIncome: 0,
                     monthlyQrisFee: 0
                 }
             })
@@ -509,10 +530,34 @@ export default function Dashboard() {
             if (monthlyTrx) {
                 monthlyTrx.forEach(tx => {
                     if (tx && tx.branch_id && monthlyMap[tx.branch_id]) {
-                        const amt = getNetTransactionRevenue(tx)
+                        let txTargetIncome = 0
+                        let txTreatmentIncome = 0
+                        let txCouponSalesIncome = 0
+
+                        if (tx.transaction_items && tx.transaction_items.length > 0) {
+                            tx.transaction_items.forEach(item => {
+                                const itemSub = Number(item.subtotal || 0)
+                                // Target HANYA untuk Treatment dan Kupon
+                                if (item.item_type === 'treatment') {
+                                    txTreatmentIncome += itemSub
+                                    txTargetIncome += itemSub
+                                } else if (item.item_type === 'coupon') {
+                                    txCouponSalesIncome += itemSub
+                                    txTargetIncome += itemSub
+                                }
+                            })
+                        } else {
+                            // Fallback jika tidak ada breakdown items
+                            txTargetIncome = getNetTransactionRevenue(tx)
+                            txTreatmentIncome = txTargetIncome
+                        }
+
                         const qFee = getQrisFee(tx)
-                        monthlyMap[tx.branch_id].monthlyIncome += amt
+                        monthlyMap[tx.branch_id].monthlyIncome += txTargetIncome
+                        monthlyMap[tx.branch_id].monthlyTreatmentIncome += txTreatmentIncome
+                        monthlyMap[tx.branch_id].monthlyCouponSalesIncome += txCouponSalesIncome
                         monthlyMap[tx.branch_id].monthlyQrisFee += qFee
+                        totalMonthlyTargetIncome += txTargetIncome
                     }
                 })
             }
@@ -534,6 +579,7 @@ export default function Dashboard() {
 
             setBranchTotals({
                 monthlyTarget: totalCompanyTarget,
+                monthlyTargetIncome: totalMonthlyTargetIncome,
                 rangeIncome: grandTotalRange,
                 treatmentIncome: grandTreatmentRange,
                 productIncome: grandProductRange,
@@ -1458,9 +1504,9 @@ export default function Dashboard() {
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                                     </div>
                                     <div>
-                                        <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Ringkasan Total Perusahaan</p>
+                                        <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Ringkasan Target Perusahaan (Treatment & Kupon)</p>
                                         <p className="text-sm font-extrabold text-gray-900 mt-0.5">
-                                            Total Omset Tunai: <span className="text-emerald-700 font-bold">Rp {branchTotals.rangeIncome?.toLocaleString('id-ID') || 0}</span> <span className="text-gray-500 font-normal text-xs">/ Rp {branchTotals.monthlyTarget.toLocaleString('id-ID')}</span>
+                                            Total Capaian: <span className="text-emerald-700 font-bold">Rp {(branchTotals.monthlyTargetIncome || 0).toLocaleString('id-ID')}</span> <span className="text-gray-500 font-normal text-xs">/ Rp {branchTotals.monthlyTarget.toLocaleString('id-ID')}</span>
                                         </p>
                                         <div className="flex flex-wrap gap-x-4 text-xs font-bold mt-1">
                                             {(branchTotals.couponSalesIncome || 0) > 0 && (
@@ -1486,13 +1532,13 @@ export default function Dashboard() {
                                     <div>
                                         <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Pencapaian Global</p>
                                         <p className="text-base font-extrabold text-amber-900">
-                                            {((branchTotals.rangeIncome / branchTotals.monthlyTarget) * 100).toFixed(1)}%
+                                            {branchTotals.monthlyTarget > 0 ? (((branchTotals.monthlyTargetIncome || 0) / branchTotals.monthlyTarget) * 100).toFixed(1) : 0}%
                                         </p>
                                     </div>
                                     <div className="w-32 h-2.5 bg-amber-200/60 rounded-full overflow-hidden">
                                         <div 
                                             className="h-full bg-amber-600 rounded-full transition-all duration-500"
-                                            style={{ width: `${Math.min(100, Math.max(0, (branchTotals.rangeIncome / branchTotals.monthlyTarget) * 100))}%` }}
+                                            style={{ width: `${Math.min(100, Math.max(0, branchTotals.monthlyTarget > 0 ? (((branchTotals.monthlyTargetIncome || 0) / branchTotals.monthlyTarget) * 100) : 0))}%` }}
                                         ></div>
                                     </div>
                                 </div>
@@ -1521,7 +1567,7 @@ export default function Dashboard() {
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <h4 className="font-extrabold text-base text-gray-900">{item.branchName}</h4>
-                                                <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional Cabang</p>
+                                                <p className="text-xs text-gray-500 font-semibold mt-0.5">Target Operasional (Treatment & Kupon)</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className={`text-xs font-bold px-3 py-1 rounded-lg border ${badgeStyle}`}>
