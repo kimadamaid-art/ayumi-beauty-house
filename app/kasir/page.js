@@ -1877,10 +1877,11 @@ function PosPageContent() {
                 }
             }
 
-            // 2. Potong sesi kupon aktif lama
-            for (const cartItem of cart) {
-                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && !cartItem.is_first_session_of_new_coupon && selectedPatient) {
-                    try {
+            // 2. Potong sesi kupon aktif lama (secara paralel untuk efisiensi waktu)
+            const couponRedeemItems = cart.filter(cartItem => cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && !cartItem.is_first_session_of_new_coupon && selectedPatient)
+            if (couponRedeemItems.length > 0) {
+                const redeemResults = await Promise.allSettled(
+                    couponRedeemItems.map(async (cartItem) => {
                         const res = await fetch('/api/coupons/redeem', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1899,15 +1900,20 @@ function PosPageContent() {
                         if (!res.ok || resJson.error) {
                             throw new Error(resJson.error || 'Gagal memotong sesi kupon')
                         }
-                    } catch (redeemErr) {
-                        console.error('Gagal memotong sesi kupon:', redeemErr)
-                        failedCoupons.push(`${cartItem.name}: ${redeemErr.message}`)
+                        return cartItem.name
+                    })
+                )
+
+                redeemResults.forEach((result, idx) => {
+                    if (result.status === 'rejected') {
+                        console.error('Gagal memotong sesi kupon:', result.reason)
+                        failedCoupons.push(`${couponRedeemItems[idx].name}: ${result.reason?.message || 'Error'}`)
                     }
-                }
+                })
             }
 
-            // 3. Pastikan treatment_record_id terhubung ke transaksi jika ada
-            if (treatmentRecordId && trxData.id) {
+            // 3. Pastikan treatment_record_id terhubung ke transaksi jika ada dan belum terisi oleh RPC
+            if (treatmentRecordId && trxData.id && trxData.treatment_record_id !== treatmentRecordId) {
                 try {
                     await supabase
                         .from('transactions')
@@ -1961,6 +1967,32 @@ function PosPageContent() {
                 )
             }
 
+            // Simpan snapshot nota lengkap ke sessionStorage agar halaman nota langsung muncul INSTAN (0 detik) tanpa menunggu round-trip query
+            const branchObj = branches.find(b => b.id === selectedBranch) || { name: 'Ayumi Clinic' }
+            const patientObj = selectedPatient ? { full_name: selectedPatient.name, whatsapp: selectedPatient.whatsapp || '' } : null
+            const preloadedReceipt = {
+                ...trxData,
+                branches: branchObj,
+                patients: patientObj,
+                users: { full_name: dbUser?.full_name || 'Kasir' },
+                transaction_items: cart.map((it, idx) => ({
+                    id: it.id || `item-${idx}`,
+                    transaction_id: trxData.id,
+                    item_type: it.item_type,
+                    name: it.name,
+                    price: it.price,
+                    quantity: it.quantity,
+                    subtotal: it.subtotal || (it.price * it.quantity),
+                    discount_percent: it.discount_percent || 0,
+                    original_price: it.original_price || it.price,
+                    treatments: it.item_type === 'treatment' ? { price: it.original_price || it.price } : null,
+                    products: it.item_type === 'product' ? { price: it.original_price || it.price } : null
+                }))
+            }
+            try {
+                sessionStorage.setItem(`ayumi_receipt_${trxData.id}`, JSON.stringify(preloadedReceipt))
+            } catch (e) {}
+
             // Clear active draft from localStorage & reset all cart states
             try {
                 localStorage.removeItem('ayumi_pos_active_draft')
@@ -1990,6 +2022,31 @@ function PosPageContent() {
             console.error('Checkout error:', error)
             // Jika transaksi sebenarnya sudah berhasil tersimpan di database sebelum error, jangan katakan gagal
             if (savedTrxData?.id) {
+                const branchObj = branches.find(b => b.id === selectedBranch) || { name: 'Ayumi Clinic' }
+                const patientObj = selectedPatient ? { full_name: selectedPatient.name, whatsapp: selectedPatient.whatsapp || '' } : null
+                const preloadedReceipt = {
+                    ...savedTrxData,
+                    branches: branchObj,
+                    patients: patientObj,
+                    users: { full_name: dbUser?.full_name || 'Kasir' },
+                    transaction_items: cart.map((it, idx) => ({
+                        id: it.id || `item-${idx}`,
+                        transaction_id: savedTrxData.id,
+                        item_type: it.item_type,
+                        name: it.name,
+                        price: it.price,
+                        quantity: it.quantity,
+                        subtotal: it.subtotal || (it.price * it.quantity),
+                        discount_percent: it.discount_percent || 0,
+                        original_price: it.original_price || it.price,
+                        treatments: it.item_type === 'treatment' ? { price: it.original_price || it.price } : null,
+                        products: it.item_type === 'product' ? { price: it.original_price || it.price } : null
+                    }))
+                }
+                try {
+                    sessionStorage.setItem(`ayumi_receipt_${savedTrxData.id}`, JSON.stringify(preloadedReceipt))
+                } catch (e) {}
+
                 try {
                     localStorage.removeItem('ayumi_pos_active_draft')
                 } catch (e) {}
@@ -4117,6 +4174,17 @@ function PosPageContent() {
                 onClose={handleCloseItemModal}
                 onConfirm={handleConfirmModalSelection}
             />
+
+            {/* Overlay Proses Checkout Cepat */}
+            {isProcessing && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
+                    <div className="bg-white rounded-2xl p-6 shadow-2xl border border-[#F2D8C3] flex flex-col items-center gap-3 text-center max-w-xs w-full">
+                        <div className="w-10 h-10 border-4 border-[#F2D8C3] border-t-[#D46221] rounded-full animate-spin"></div>
+                        <h4 className="font-extrabold text-sm text-[#4E2A12]">Memproses Pembayaran</h4>
+                        <p className="text-xs text-gray-500 font-medium">Menyimpan transaksi dan menyiapkan nota struk...</p>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

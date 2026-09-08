@@ -13,15 +13,31 @@ export default function ReceiptPage() {
     const { id } = useParams()
     const router = useRouter()
     
-    const [transaction, setTransaction] = useState(null)
-    const [isLoading, setIsLoading] = useState(true)
+    const [transaction, setTransaction] = useState(() => {
+        if (typeof window !== 'undefined' && id) {
+            try {
+                const cached = sessionStorage.getItem(`ayumi_receipt_${id}`)
+                if (cached) return JSON.parse(cached)
+            } catch (e) {}
+        }
+        return null
+    })
+    const [isLoading, setIsLoading] = useState(() => {
+        if (typeof window !== 'undefined' && id) {
+            try {
+                const cached = sessionStorage.getItem(`ayumi_receipt_${id}`)
+                if (cached) return false
+            } catch (e) {}
+        }
+        return true
+    })
     const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false)
     const [isGeneratingImage, setIsGeneratingImage] = useState(false)
     const [dbUser, setDbUser] = useState(null)
     const [isDeleting, setIsDeleting] = useState(false)
 
     async function fetchTransaction() {
-        setIsLoading(true)
+        if (!transaction) setIsLoading(true)
         const { data, error } = await supabase
             .from('transactions')
             .select(`
@@ -40,7 +56,10 @@ export default function ReceiptPage() {
             
         if (data) {
             setTransaction(data)
-        } else {
+            try {
+                sessionStorage.setItem(`ayumi_receipt_${id}`, JSON.stringify(data))
+            } catch (e) {}
+        } else if (!transaction) {
             console.error(error)
             alert('Transaksi tidak ditemukan!')
             router.push('/kasir')
