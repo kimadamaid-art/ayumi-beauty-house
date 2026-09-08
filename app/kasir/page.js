@@ -272,10 +272,11 @@ function PosPageContent() {
         setIsLoading(true)
         
         // Fetch User and Master Data in parallel (eliminate waterfall lag)
-        const [userRes, brRes, trRes, cpRes, thRes, catRes] = await Promise.all([
+        const [userRes, brRes, trRes, prodRes, cpRes, thRes, catRes] = await Promise.all([
             supabase.auth.getUser(),
             supabase.from('branches').select('id, name').eq('is_active', true),
             supabase.from('treatments').select('*, treatment_categories(id, name, sort_order)').eq('is_active', true).order('name', { ascending: true }),
+            supabase.from('products').select('id, name, description, price, is_active').eq('is_active', true).order('name', { ascending: true }),
             supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true }),
             supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name'),
             supabase.from('treatment_categories').select('*').eq('is_active', true).order('sort_order', { ascending: true })
@@ -323,6 +324,11 @@ function PosPageContent() {
         if (cpRes.data) setCoupons(cpRes.data)
         if (thRes.data) setTherapists(thRes.data)
         if (catRes.data) setCategories(catRes.data)
+
+        // Initial mapping of products
+        if (prodRes.data) {
+            setProducts(prodRes.data.map(p => ({ ...p, quantity: 0 })))
+        }
 
         await fetchProducts(initialBranchId)
         if (initialBranchId) {
@@ -381,12 +387,12 @@ function PosPageContent() {
         // Fetch all active products and attach stock for current branch
         const { data: prodData, error: prodErr } = await supabase
             .from('products')
-            .select('id, name, description, price, is_active, discount_percent')
+            .select('id, name, description, price, is_active')
             .eq('is_active', true)
             .order('name', { ascending: true })
 
         if (prodErr || !prodData) {
-            setProducts([])
+            console.error('Error fetching products:', prodErr)
             return
         }
 
