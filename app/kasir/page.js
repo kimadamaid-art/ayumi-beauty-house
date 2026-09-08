@@ -3237,21 +3237,22 @@ function PosPageContent() {
                 </div>
 
                 {/* ─── SECTION BOTTOM: TOTALS & PAYMENT (COMPACT & SLEEK) ─── */}
-                <div className="border-t border-[#F2D8C3] bg-white p-3 shadow-md z-10 shrink-0 space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar">
-                    {/* Subtotal & Diskon Global */}
-                    <div className="space-y-1 text-xs text-[#4E2A12]">
-                        <div className="flex justify-between items-center font-medium">
-                            <span className="text-gray-500">Subtotal ({cart.reduce((s,i)=>s+(i.quantity||1),0)} item)</span>
-                            <span className="font-bold text-[#2C1E16]">Rp {subtotal.toLocaleString('id-ID')}</span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-gray-500 font-medium shrink-0">Diskon Nota</span>
-                            <div className="flex items-center gap-1 flex-1 max-w-[160px]">
+                <div className="border-t border-[#F2D8C3] bg-white p-2.5 shadow-md z-10 shrink-0 space-y-1.5 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                    {/* Ringkasan Subtotal, Diskon & Total Bayar (Kompak, Rapi & Elegan) */}
+                    <div className="bg-[#FAF6F0] p-2 px-2.5 rounded-xl border border-[#F2D8C3] space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] text-[#4E2A12]">
+                            <div className="flex items-center gap-1 font-medium">
+                                <span className="text-gray-500">Subtotal ({cart.reduce((s,i)=>s+(i.quantity||1),0)}):</span>
+                                <span className="font-bold text-[#2C1E16]">Rp {subtotal.toLocaleString('id-ID')}</span>
+                            </div>
+                            
+                            {/* Diskon Nota Inline */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-gray-500 text-[10px] font-medium">Diskon:</span>
                                 <select 
                                     value={discountType} 
                                     onChange={(e) => setDiscountType(e.target.value)}
-                                    className="bg-[#FAF6F0] border border-[#F2D8C3] text-[#4E2A12] rounded-lg py-0.5 px-1 text-[10.5px] w-12 font-black outline-none focus:border-[#D46221]"
+                                    className="bg-white border border-[#F2D8C3] text-[#4E2A12] rounded py-0.5 px-1 text-[10px] font-black outline-none focus:border-[#D46221]"
                                 >
                                     <option value="nominal">Rp</option>
                                     <option value="percent">%</option>
@@ -3262,31 +3263,33 @@ function PosPageContent() {
                                     onFocus={(e) => e.target.select()}
                                     placeholder="0"
                                     onChange={(e) => setDiscountValue(e.target.value)}
-                                    className="py-0.5 px-2 text-right flex-1 bg-[#FAF6F0] border border-[#F2D8C3] text-xs font-black text-[#2C1E16] rounded-lg outline-none focus:border-[#D46221]"
+                                    className="py-0.5 px-1.5 text-right w-16 bg-white border border-[#F2D8C3] text-[11px] font-black text-[#2C1E16] rounded outline-none focus:border-[#D46221]"
                                     min="0"
                                 />
                             </div>
                         </div>
 
-                        {discountAmount > 0 && (
-                            <div className="flex justify-between text-[10.5px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-lg">
-                                <span>Potongan Diskon</span>
-                                <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                        {/* Potongan Diskon & QRIS Info (Jika ada) */}
+                        {(discountAmount > 0 || qrisFee > 0) && (
+                            <div className="flex items-center justify-between gap-1 text-[9.5px] pt-1 border-t border-[#F2D8C3]/50">
+                                {discountAmount > 0 && (
+                                    <span className="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.2 rounded border border-rose-100">
+                                        Diskon: -Rp {discountAmount.toLocaleString('id-ID')}
+                                    </span>
+                                )}
+                                {qrisFee > 0 && (
+                                    <span className="text-blue-700 font-semibold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100 ml-auto">
+                                        QRIS (0,3%): +Rp {qrisFee.toLocaleString('id-ID')}
+                                    </span>
+                                )}
                             </div>
                         )}
 
-                        {qrisFee > 0 && (
-                            <div className="flex justify-between text-[10.5px] text-blue-700 font-semibold bg-blue-50 p-1 rounded-lg">
-                                <span>📱 Biaya QRIS (0,3%)</span>
-                                <span className="font-bold">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* TOTAL BAYAR CARD */}
-                    <div className="flex justify-between items-center bg-[#FAF6F0] border border-[#F2D8C3] p-2 px-3 rounded-xl shadow-2xs">
-                        <span className="font-black text-[11px] text-[#4E2A12] tracking-wider uppercase">TOTAL BAYAR</span>
-                        <span className="font-black text-lg text-[#D46221] tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
+                        {/* TOTAL BAYAR ROW */}
+                        <div className="flex items-center justify-between pt-1 border-t border-[#F2D8C3]">
+                            <span className="font-black text-[10px] text-[#4E2A12] tracking-wider uppercase">TOTAL BAYAR</span>
+                            <span className="font-black text-base text-[#D46221] tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
+                        </div>
                     </div>
 
                     {/* Selector Terapis Global (Jika tindakan langsung belum punya terapis) */}
@@ -3295,7 +3298,7 @@ function PosPageContent() {
                             <select
                                 value={selectedTherapistId}
                                 onChange={(e) => setSelectedTherapistId(e.target.value)}
-                                className="w-full text-[11px] font-black bg-[#FAF1E8] border border-[#F2D8C3] text-[#4E2A12] py-1 px-2 rounded-xl outline-none focus:border-[#D46221]"
+                                className="w-full text-[10.5px] font-black bg-[#FAF1E8] border border-[#F2D8C3] text-[#4E2A12] py-1 px-2 rounded-xl outline-none focus:border-[#D46221]"
                             >
                                 <option value="">-- Pilih Terapis Tindakan * --</option>
                                 <option value="worker">💉 Worker (Tanpa Komisi)</option>
@@ -3369,7 +3372,7 @@ function PosPageContent() {
                                     key={pm.id}
                                     type="button"
                                     onClick={() => setPaymentMethod(pm.id)}
-                                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-[9.5px] font-black transition-all cursor-pointer ${
+                                    className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-lg border text-[9px] font-black transition-all cursor-pointer ${
                                         paymentMethod === pm.id
                                             ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs ring-1 ring-[#F2D8C3]'
                                             : 'bg-white border-[#F2D8C3] text-[#4E2A12] hover:bg-[#FAF1E8]/70 hover:border-[#D46221]'
@@ -3383,11 +3386,11 @@ function PosPageContent() {
 
                         {/* Split Payment UI */}
                         {paymentMethod === 'split' && (
-                            <div className="mt-2 p-2.5 bg-gradient-to-br from-pink-50/60 via-purple-50/30 to-amber-50/40 border border-pink-200/80 rounded-xl space-y-2 shadow-xs animate-fadeIn">
+                            <div className="mt-1.5 p-2 bg-gradient-to-br from-pink-50/60 via-purple-50/30 to-amber-50/40 border border-pink-200/80 rounded-xl space-y-1.5 shadow-xs animate-fadeIn">
                                 <div className="flex items-center justify-between pb-1 border-b border-pink-100">
                                     <div className="flex items-center gap-1">
                                         <span className="text-xs">🔀</span>
-                                        <span className="text-[11px] font-black text-slate-800">Pembagian Pembayaran (Split)</span>
+                                        <span className="text-[10.5px] font-black text-slate-800">Pembagian Pembayaran (Split)</span>
                                     </div>
                                     {(() => {
                                         const cVal = Number(splitAmounts.cash) || 0
@@ -3399,104 +3402,104 @@ function PosPageContent() {
                                         const diff = afterDiscountTotal - currentSum
 
                                         if (diff === 0 && currentSum > 0) {
-                                            return <span className="text-[9.5px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded-full border border-emerald-300">✓ Pas: Rp {total.toLocaleString('id-ID')}</span>
+                                            return <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded-full border border-emerald-300">✓ Pas: Rp {total.toLocaleString('id-ID')}</span>
                                         } else if (diff > 0) {
-                                            return <span className="text-[9.5px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded-full border border-rose-200">Sisa: Rp {diff.toLocaleString('id-ID')}</span>
+                                            return <span className="text-[9px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded-full border border-rose-200">Sisa: Rp {diff.toLocaleString('id-ID')}</span>
                                         } else {
-                                            return <span className="text-[9.5px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded-full border border-amber-300">Lebih: Rp {Math.abs(diff).toLocaleString('id-ID')}</span>
+                                            return <span className="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded-full border border-amber-300">Lebih: Rp {Math.abs(diff).toLocaleString('id-ID')}</span>
                                         }
                                     })()}
                                 </div>
 
                                 {/* 5 Input Nominal Pembayaran */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                                     {/* 1. Cash */}
-                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
-                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                    <div className="bg-white p-1 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1">
+                                        <label className="text-[9.5px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
                                             <span>💵</span> Tunai:
                                         </label>
                                         <div className="flex items-center gap-1 flex-1">
                                             <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
-                                                type="number"
+                                                type="number" 
                                                 value={splitAmounts.cash}
                                                 placeholder="0"
                                                 onChange={(e) => setSplitAmounts(prev => ({ ...prev, cash: e.target.value }))}
-                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-[11px] text-right focus:text-pink-600"
                                             />
                                         </div>
                                     </div>
 
                                     {/* 2. QRIS */}
-                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
-                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                    <div className="bg-white p-1 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1">
+                                        <label className="text-[9.5px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
                                             <span>📱</span> QRIS:
                                         </label>
                                         <div className="flex items-center gap-1 flex-1">
                                             <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
-                                                type="number"
+                                                type="number" 
                                                 value={splitAmounts.qris}
                                                 placeholder="0"
                                                 onChange={(e) => setSplitAmounts(prev => ({ ...prev, qris: e.target.value }))}
-                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-[11px] text-right focus:text-pink-600"
                                             />
                                         </div>
                                     </div>
 
                                     {Number(splitAmounts.qris) > 0 && (
-                                        <div className="col-span-1 sm:col-span-2 px-2 py-0.5 flex items-center justify-between text-[9.5px] text-blue-800 font-bold bg-blue-50/90 rounded border border-blue-200">
+                                        <div className="col-span-1 sm:col-span-2 px-2 py-0.5 flex items-center justify-between text-[9px] text-blue-800 font-bold bg-blue-50/90 rounded border border-blue-200">
                                             <span>📱 QRIS (+0,3%): Rp {(Number(splitAmounts.qris) + Math.round(Number(splitAmounts.qris) * 0.003)).toLocaleString('id-ID')}</span>
                                         </div>
                                     )}
 
                                     {/* 3. Transfer Bank */}
-                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
-                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                    <div className="bg-white p-1 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1">
+                                        <label className="text-[9.5px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
                                             <span>🏦</span> Bank:
                                         </label>
                                         <div className="flex items-center gap-1 flex-1">
                                             <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
-                                                type="number"
+                                                type="number" 
                                                 value={splitAmounts.transfer}
                                                 placeholder="0"
                                                 onChange={(e) => setSplitAmounts(prev => ({ ...prev, transfer: e.target.value }))}
-                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-[11px] text-right focus:text-pink-600"
                                             />
                                         </div>
                                     </div>
 
                                     {/* 4. Debit */}
-                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
-                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                    <div className="bg-white p-1 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1">
+                                        <label className="text-[9.5px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
                                             <span>💳</span> Debit:
                                         </label>
                                         <div className="flex items-center gap-1 flex-1">
                                             <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
-                                                type="number"
+                                                type="number" 
                                                 value={splitAmounts.debit}
                                                 placeholder="0"
                                                 onChange={(e) => setSplitAmounts(prev => ({ ...prev, debit: e.target.value }))}
-                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-[11px] text-right focus:text-pink-600"
                                             />
                                         </div>
                                     </div>
 
                                     {/* 5. Kredit */}
-                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5 sm:col-span-2">
-                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                    <div className="bg-white p-1 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1 sm:col-span-2">
+                                        <label className="text-[9.5px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
                                             <span>💳</span> Kredit:
                                         </label>
                                         <div className="flex items-center gap-1 flex-1">
                                             <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
-                                                type="number"
+                                                type="number" 
                                                 value={splitAmounts.credit}
                                                 placeholder="0"
                                                 onChange={(e) => setSplitAmounts(prev => ({ ...prev, credit: e.target.value }))}
-                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-xs text-right focus:text-pink-600"
+                                                className="w-full font-black text-slate-900 p-0 border-none outline-none text-[11px] text-right focus:text-pink-600"
                                             />
                                         </div>
                                     </div>
@@ -3554,10 +3557,10 @@ function PosPageContent() {
 
                         {/* Cash Payment Box (Compact & Sleek) */}
                         {paymentMethod === 'cash' && (
-                            <div className="mt-2 p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1.5 animate-fadeIn">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[10.5px] font-black text-emerald-950 flex items-center gap-1">
-                                        <svg className="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            <div className="mt-1.5 p-2 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1.5 animate-fadeIn">
+                                <div className="flex items-center justify-between text-[10px]">
+                                    <label className="font-black text-emerald-950 flex items-center gap-1">
+                                        <svg className="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                                         Uang Tunai Diterima:
                                     </label>
                                     {(() => {
@@ -3565,13 +3568,13 @@ function PosPageContent() {
                                         if (cVal > 0 && cVal >= total) {
                                             const change = cVal - total
                                             return (
-                                                <span className="text-[9.5px] font-black text-emerald-900 bg-emerald-200/90 px-2 py-0.2 rounded-full border border-emerald-300">
+                                                <span className="text-[9px] font-black text-emerald-900 bg-emerald-200/90 px-1.5 py-0.2 rounded-full border border-emerald-300">
                                                     Kembalian: Rp {change.toLocaleString('id-ID')}
                                                 </span>
                                             )
                                         } else if (cVal > 0 && cVal < total) {
                                             return (
-                                                <span className="text-[9.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.2 rounded-full border border-rose-200">
+                                                <span className="text-[9px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded-full border border-rose-200">
                                                     Kurang: Rp {(total - cVal).toLocaleString('id-ID')}
                                                 </span>
                                             )
@@ -3580,35 +3583,35 @@ function PosPageContent() {
                                     })()}
                                 </div>
 
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1">
                                     <div className="relative flex-1">
-                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-700">Rp</span>
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10.5px] font-black text-emerald-700">Rp</span>
                                         <input
                                             type="number"
                                             value={cashReceived}
                                             onChange={(e) => setCashReceived(e.target.value)}
                                             onFocus={(e) => e.target.select()}
                                             placeholder={total ? total.toString() : '0'}
-                                            className="w-full pl-8 pr-2.5 py-1 bg-white border border-emerald-300 rounded-lg text-xs font-black text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-400 text-right"
+                                            className="w-full pl-7 pr-2 py-0.5 bg-white border border-emerald-300 rounded-lg text-xs font-black text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-400 text-right"
                                         />
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => setCashReceived(total.toString())}
-                                        className="px-2.5 py-1 text-[10.5px] font-black bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-xs shrink-0 cursor-pointer active:scale-95"
+                                        className="px-2 py-0.5 text-[10px] font-black bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-2xs shrink-0 cursor-pointer active:scale-95"
                                     >
                                         ✓ Pas
                                     </button>
                                 </div>
 
-                                {/* Quick Cash Chips (Tight Wrap) */}
-                                <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                {/* Quick Cash Chips (Single tight flex row) */}
+                                <div className="flex items-center gap-1 pt-0.5">
                                     {[50000, 100000, 200000, 500000].map(val => (
                                         <button
                                             key={val}
                                             type="button"
                                             onClick={() => setCashReceived(val.toString())}
-                                            className="px-2 py-0.5 text-[9.5px] font-black bg-white border border-emerald-200 text-emerald-800 rounded hover:bg-emerald-100 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                            className="flex-1 py-0.5 text-[9px] font-black bg-white border border-emerald-200 text-emerald-800 rounded hover:bg-emerald-100 transition-all shadow-2xs cursor-pointer active:scale-95 text-center truncate"
                                         >
                                             Rp {val.toLocaleString('id-ID')}
                                         </button>
@@ -3620,9 +3623,9 @@ function PosPageContent() {
 
                     {/* FITUR ATUR TANGGAL TRANSAKSI (BACKDATE KHUSUS OWNER) */}
                     {dbUser?.role === 'owner' && (
-                        <div className="p-2 bg-[#FAF1E8] border border-[#F2D8C3] rounded-xl space-y-1.5 transition-all">
+                        <div className="p-1.5 bg-[#FAF1E8] border border-[#F2D8C3] rounded-xl space-y-1 transition-all">
                             <div className="flex items-center justify-between">
-                                <label className="text-[9.5px] font-black text-[#4E2A12] flex items-center gap-1 cursor-pointer uppercase tracking-wider">
+                                <label className="text-[9px] font-black text-[#4E2A12] flex items-center gap-1 cursor-pointer uppercase tracking-wider">
                                     <span>📅</span> Tanggal Transaksi:
                                 </label>
                                 <button
@@ -3637,7 +3640,7 @@ function PosPageContent() {
                                             setIsBackdateEnabled(false)
                                         }
                                     }}
-                                    className={`text-[9.5px] font-black px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                                    className={`text-[9px] font-black px-1.5 py-0.2 rounded border transition-all cursor-pointer ${
                                         isBackdateEnabled
                                             ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs'
                                             : 'bg-white text-[#B5531B] border-[#F2D8C3] hover:bg-[#FAF1E8]'
@@ -3648,35 +3651,35 @@ function PosPageContent() {
                             </div>
 
                             {isBackdateEnabled && (
-                                <div className="pt-1.5 border-t border-[#F2D8C3] space-y-1.5 animate-fadeIn">
-                                    <div className="grid grid-cols-2 gap-1.5">
+                                <div className="pt-1 border-t border-[#F2D8C3] space-y-1 animate-fadeIn">
+                                    <div className="grid grid-cols-2 gap-1">
                                         <div>
-                                            <label className="text-[8.5px] font-black text-[#4E2A12] block mb-0.5">Tanggal:</label>
+                                            <label className="text-[8px] font-black text-[#4E2A12] block mb-0.5">Tanggal:</label>
                                             <input
                                                 type="date"
                                                 value={backdateDate}
                                                 min={dbUser?.role === 'owner' ? undefined : getLocalYYYYMMDD(new Date(Date.now() - 86400000))}
                                                 max={getLocalYYYYMMDD()}
                                                 onChange={(e) => setBackdateDate(e.target.value)}
-                                                className="w-full text-xs font-black p-1 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
+                                                className="w-full text-xs font-black p-0.5 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[8.5px] font-black text-[#4E2A12] block mb-0.5">Jam / Waktu:</label>
+                                            <label className="text-[8px] font-black text-[#4E2A12] block mb-0.5">Jam / Waktu:</label>
                                             <input
                                                 type="time"
                                                 value={backdateTime}
                                                 onChange={(e) => setBackdateTime(e.target.value)}
-                                                className="w-full text-xs font-black p-1 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
+                                                className="w-full text-xs font-black p-0.5 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between text-[9px] text-[#4E2A12] font-bold bg-[#FAF6F0] border border-[#F2D8C3] px-2 py-1 rounded-lg">
+                                    <div className="flex items-center justify-between text-[8.5px] text-[#4E2A12] font-bold bg-[#FAF6F0] border border-[#F2D8C3] px-1.5 py-0.5 rounded">
                                         <span>Dibukukan: <strong>{new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} pk {backdateTime}</strong></span>
                                         <button
                                             type="button"
                                             onClick={() => setIsBackdateEnabled(false)}
-                                            className="text-rose-600 hover:underline font-extrabold cursor-pointer text-[8.5px]"
+                                            className="text-rose-600 hover:underline font-extrabold cursor-pointer text-[8px]"
                                         >
                                             Live
                                         </button>
@@ -3692,18 +3695,18 @@ function PosPageContent() {
                             <button
                                 type="button"
                                 onClick={handleHoldTransaction}
-                                className="px-2.5 py-2.5 bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] border border-[#F2D8C3] rounded-xl text-xs font-black flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0 transition-all active:scale-95"
+                                className="px-2.5 py-2 bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] border border-[#F2D8C3] rounded-xl text-xs font-black flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0 transition-all active:scale-95"
                                 title="Simpan / Tahan tagihan ini agar bisa melayani pelanggan lain"
                             >
                                 <span>⏸️</span>
-                                <span className="hidden sm:inline">Simpan</span>
+                                <span className="hidden sm:inline text-[11px]">Simpan</span>
                             </button>
                         )}
                         <button 
                             type="button" 
                             onClick={handleCheckout}
                             disabled={isProcessing || cart.length === 0}
-                            className="flex-1 bg-[#D46221] hover:bg-[#B5531B] disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 text-white py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
+                            className="flex-1 bg-[#D46221] hover:bg-[#B5531B] disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 text-white py-2 rounded-xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
                         >
                             {isProcessing ? (
                                 <span className="animate-pulse">Memproses...</span>
