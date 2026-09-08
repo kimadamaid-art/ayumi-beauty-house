@@ -48,9 +48,6 @@ export default function ItemVariantModal({
 
     const handleQuantityChange = (delta) => {
         const newQty = Math.max(1, qty + delta)
-        if (itemType === 'product' && item?.quantity !== undefined && newQty > item.quantity) {
-            return
-        }
         setQuantity(newQty)
     }
 
@@ -144,8 +141,7 @@ export default function ItemVariantModal({
                             <button
                                 type="button"
                                 onClick={() => handleQuantityChange(1)}
-                                disabled={itemType === 'product' && item.quantity !== undefined && qty >= item.quantity}
-                                className="w-10 h-10 rounded-xl bg-[#D46221] hover:bg-[#B5531B] active:bg-[#914214] disabled:opacity-40 text-white font-black text-lg flex items-center justify-center transition-colors shadow-xs cursor-pointer select-none"
+                                className="w-10 h-10 rounded-xl bg-[#D46221] hover:bg-[#B5531B] active:bg-[#914214] text-white font-black text-lg flex items-center justify-center transition-colors shadow-xs cursor-pointer select-none"
                             >
                                 +
                             </button>

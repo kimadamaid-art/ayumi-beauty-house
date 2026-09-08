@@ -43,6 +43,7 @@ function PosPageContent() {
     const [pendingBills, setPendingBills] = useState([])
     const [therapists, setTherapists] = useState([])
     const [selectedTherapistId, setSelectedTherapistId] = useState('')
+    const [treatmentRecordId, setTreatmentRecordId] = useState(null)
     
     // Patient Search Hook (server-side, debounce 350ms, limit 20, sequence tracked)
     const {
@@ -1225,6 +1226,9 @@ function PosPageContent() {
 
                 return [...prev, {
                     id: item.id,
+                    product_id: type === 'product' ? item.id : null,
+                    treatment_id: type === 'treatment' ? item.id : null,
+                    coupon_id: type === 'coupon' ? item.id : null,
                     item_type: type,
                     name: item.name,
                     price: price,
@@ -1313,11 +1317,6 @@ function PosPageContent() {
                 const existing = prev[existingIdx]
                 const newQty = existing.quantity + qty
 
-                if (itemType === 'product' && item.quantity !== undefined && newQty > item.quantity) {
-                    alert(`Stok tidak mencukupi. Tersedia: ${item.quantity}`)
-                    return prev
-                }
-
                 const updated = [...prev]
                 updated[existingIdx] = {
                     ...existing,
@@ -1325,11 +1324,6 @@ function PosPageContent() {
                     subtotal: existing.price * newQty
                 }
                 return updated
-            }
-
-            if (itemType === 'product' && item.quantity !== undefined && qty > item.quantity) {
-                alert(`Stok tidak mencukupi. Tersedia: ${item.quantity}`)
-                return prev
             }
 
             return [
@@ -1340,10 +1334,10 @@ function PosPageContent() {
                     treatment_id: itemType === 'treatment' ? item.id : null,
                     coupon_id: itemType === 'coupon' ? item.id : null,
                     item_type: itemType,
-                    name: cartItemName,
+                    name: cartItemName || item.name || 'Produk',
                     variant_name: selectedVariant ? selectedVariant.name : null,
                     price: unitPrice,
-                    original_price: basePrice,
+                    original_price: basePrice || item.price,
                     quantity: qty,
                     maxQuantity: itemType === 'product' ? item.quantity : null,
                     discount_percent: discountPercent,
