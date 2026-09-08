@@ -299,14 +299,24 @@ function PosPageContent() {
             }
         }
         
-        const initialBranchId = currentUData?.branch_id || (brRes.data && brRes.data.length > 0 ? brRes.data[0].id : '')
+        let savedBranch = ''
+        if (typeof window !== 'undefined') {
+            savedBranch = localStorage.getItem('ayumi_kasir_branch') || ''
+        }
+        const isValidSavedBranch = brRes.data?.some(b => b.id === savedBranch)
+
+        let initialBranchId = ''
+        if (currentUData?.role !== 'owner') {
+            initialBranchId = currentUData?.branch_id || ''
+        } else {
+            initialBranchId = isValidSavedBranch 
+                ? savedBranch 
+                : (currentUData?.branch_id || (brRes.data && brRes.data.length > 0 ? brRes.data[0].id : ''))
+        }
+
         if (brRes.data) {
             setBranches(brRes.data)
-            // Auto-default branch untuk Owner jika belum terpilih
-            setSelectedBranch(prev => {
-                if (prev) return prev
-                return initialBranchId
-            })
+            setSelectedBranch(initialBranchId)
         }
         if (trRes.data) setTreatments(trRes.data)
         if (cpRes.data) setCoupons(cpRes.data)
@@ -773,15 +783,22 @@ function PosPageContent() {
         }
     }
 
+    const handleBranchChange = (newBranchId) => {
+        setSelectedBranch(newBranchId)
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('ayumi_kasir_branch', newBranchId)
+        }
+    }
+
     // When branch changes, fetch available products for that branch and refresh pending bills
     useEffect(() => {
         if (selectedBranch) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
-            fetchProducts()
+            fetchProducts(selectedBranch)
             fetchPendingBills(selectedBranch)
             setCart(prev => prev.filter(item => item.item_type !== 'product')) // Clear products from cart if branch changes
         } else {
-            setProducts([])
+            fetchProducts(null)
             fetchPendingBills(null)
         }
     }, [selectedBranch])
@@ -970,7 +987,7 @@ function PosPageContent() {
             if (!bill) return
 
             if (bill.branch_id && bill.branch_id !== selectedBranch) {
-                setSelectedBranch(bill.branch_id)
+                handleBranchChange(bill.branch_id)
             }
 
             // Selalu reset diskon nota dan pembayaran agar tidak membawa input draft sebelumnya
@@ -2006,35 +2023,42 @@ function PosPageContent() {
             <div className="w-full lg:w-3/5 flex flex-col gap-3 overflow-y-auto custom-scrollbar pb-2">
 
                 {/* ── Top bar: cabang + refresh ── */}
-                <div className="bg-white rounded-xl border border-gray-100 shadow-xs p-3 sm:p-3.5 flex flex-col sm:flex-row justify-between items-center gap-2.5">
-                    <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gradient-to-br from-ayumi-primary to-rose-400 rounded-lg flex items-center justify-center">
-                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
+                <div className="bg-white rounded-xl border border-[#F2D8C3] shadow-2xs p-3 sm:p-3.5 flex flex-col sm:flex-row justify-between items-center gap-2.5">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#D46221] to-[#B5531B] text-white rounded-xl flex items-center justify-center shadow-2xs shrink-0">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 5h2a2 2 0 002-2v-1a2 2 0 00-2-2h-2a2 2 0 00-2 2v1a2 2 0 002 2z" /></svg>
                         </div>
                         <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none">Cabang Aktif</p>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none">Cabang Aktif</p>
                             {dbUser?.role === 'owner' ? (
-                                <select 
-                                    value={selectedBranch}
-                                    onChange={(e) => setSelectedBranch(e.target.value)}
-                                    className="text-xs sm:text-sm font-bold text-ayumi-secondary bg-transparent border-none outline-none cursor-pointer mt-0.5"
-                                >
-                                    <option value="" disabled>-- Pilih Cabang --</option>
-                                    {branches.map(b => (
-                                        <option key={b.id} value={b.id}>{b.name}</option>
-                                    ))}
-                                </select>
+                                <div className="mt-1">
+                                    <select 
+                                        value={selectedBranch}
+                                        onChange={(e) => handleBranchChange(e.target.value)}
+                                        className="text-xs sm:text-sm font-black text-[#2C1E16] bg-[#FAF1E8] border border-[#F2D8C3] hover:border-[#D46221] focus:border-[#D46221] rounded-lg px-2.5 py-1 outline-none cursor-pointer transition-all shadow-2xs"
+                                    >
+                                        <option value="" disabled>-- Pilih Cabang --</option>
+                                        {branches.map(b => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             ) : (
-                                <p className="text-xs sm:text-sm font-bold text-ayumi-secondary mt-0.5">{branches.find(b => b.id === selectedBranch)?.name || 'Cabang'}</p>
+                                <p className="text-xs sm:text-sm font-black text-[#2C1E16] mt-0.5">
+                                    {branches.find(b => b.id === selectedBranch)?.name || 'Cabang'}
+                                </p>
                             )}
                         </div>
                     </div>
                     <button
-                        onClick={() => fetchPendingBills(selectedBranch)}
-                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-ayumi-primary bg-gray-100 hover:bg-pink-50 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                        onClick={() => {
+                            fetchPendingBills(selectedBranch)
+                            fetchProducts(selectedBranch)
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-bold text-[#4E2A12] hover:text-[#D46221] bg-[#FAF1E8] hover:bg-[#F2D8C3] border border-[#F2D8C3] px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-2xs"
                     >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        Refresh
+                        <svg className="w-3.5 h-3.5 text-[#D46221]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        Refresh Data
                     </button>
                 </div>
 
