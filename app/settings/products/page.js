@@ -468,64 +468,78 @@ export default function ProductsPage() {
     return (
         <div className="space-y-6">
             {/* Header & Controls */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800">Master & Stok Produk Skincare</h2>
-                    <p className="text-sm text-ayumi-text-muted">
-                        {dbUser?.role === 'owner' 
-                            ? 'Kelola katalog produk, harga jual, dan jumlah stok di seluruh cabang klinik.'
-                            : `Kelola stok produk untuk cabang ${userBranchName || 'Anda'}.`
-                        }
-                    </p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                    {/* Branch Filter */}
-                    <select
-                        value={selectedBranchFilter}
-                        onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                        disabled={dbUser?.role !== 'owner'}
-                        className="input-ayumi bg-white text-sm disabled:bg-gray-100 disabled:cursor-not-allowed shrink-0 min-w-[200px]"
-                    >
-                        {dbUser?.role === 'owner' && <option value="">Semua Cabang (Stok Total)</option>}
-                        {branches
-                            .filter(b => dbUser?.role === 'owner' || b.id === dbUser?.branch_id)
-                            .map(b => (
-                                <option key={b.id} value={b.id}>{b.name}</option>
-                            ))
-                        }
-                    </select>
-
-                    {/* Search Input */}
-                    <div className="relative w-full sm:w-64 md:w-72 shrink-0">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        </span>
-                        <input
-                            type="text"
-                            placeholder="Cari nama, kategori, sku..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input-ayumi pl-9 pr-8 bg-white w-full text-sm"
-                        />
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchQuery('')}
-                                className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
-                                title="Hapus pencarian"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        )}
+            <div className="space-y-4 mb-6">
+                {/* Row 1: Title & Action Button */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800">Master & Stok Produk Skincare</h2>
+                        <p className="text-sm text-ayumi-text-muted">
+                            {dbUser?.role === 'owner' 
+                                ? 'Kelola katalog produk, harga jual, dan jumlah stok di seluruh cabang klinik.'
+                                : `Kelola stok produk untuk cabang ${userBranchName || 'Anda'}.`
+                            }
+                        </p>
                     </div>
-
                     <button
                         onClick={() => handleOpenModal('add')}
-                        className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm justify-center whitespace-nowrap bg-orange-500 hover:bg-orange-600 border-orange-500 hover:border-orange-600 shadow-sm shrink-0"
+                        className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm justify-center whitespace-nowrap bg-orange-500 hover:bg-orange-600 border-orange-500 hover:border-orange-600 shadow-sm shrink-0 self-start sm:self-auto cursor-pointer"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                         Tambah Produk
                     </button>
+                </div>
+
+                {/* Row 2: Search & Filter Toolbar Card */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-100 shadow-2xs">
+                    {/* Left: Branch Filter */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap shrink-0">Cabang:</span>
+                        <select
+                            value={selectedBranchFilter}
+                            onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                            disabled={dbUser?.role !== 'owner'}
+                            className="input-ayumi bg-gray-50/70 hover:bg-white focus:bg-white text-sm py-2 px-3 disabled:bg-gray-100 disabled:cursor-not-allowed w-full sm:w-60 border-gray-200"
+                        >
+                            {dbUser?.role === 'owner' && <option value="">Semua Cabang (Stok Total)</option>}
+                            {branches
+                                .filter(b => dbUser?.role === 'owner' || b.id === dbUser?.branch_id)
+                                .map(b => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                ))
+                            }
+                        </select>
+                    </div>
+
+                    {/* Right: Search Box */}
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        {searchQuery && (
+                            <span className="text-xs text-gray-500 hidden md:inline whitespace-nowrap">
+                                Ditemukan: <strong className="text-ayumi-primary">{displayedProducts.length}</strong> produk
+                            </span>
+                        )}
+                        <div className="relative w-full sm:w-80">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            </span>
+                            <input
+                                type="text"
+                                placeholder="Cari nama produk, kategori, sku..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="input-ayumi pl-9 pr-8 bg-gray-50/70 hover:bg-white focus:bg-white w-full text-sm py-2 border-gray-200"
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                    title="Hapus pencarian"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
