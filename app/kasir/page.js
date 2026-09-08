@@ -2639,8 +2639,8 @@ function PosPageContent() {
                                 </button>
                             </div>
 
-                            {/* Tombol Pintas & Quick View Riwayat Perawatan/Produk Sebelumnya */}
-                            <div className="flex items-center gap-1.5">
+                            {/* Quick View Riwayat Perawatan/Produk Sebelumnya - Rapi, Simpel, & Elegan */}
+                            <div className="flex items-center gap-1.5 pt-1 border-t border-pink-100/60">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -2649,14 +2649,25 @@ function PosPageContent() {
                                         }
                                         setIsPatientHistoryModalOpen(true)
                                     }}
-                                    className="flex-1 py-1.5 px-2.5 bg-gradient-to-r from-pink-50 to-orange-50 hover:from-pink-100 hover:to-orange-100 text-[#5c3316] font-extrabold text-[10.5px] rounded-xl border border-pink-200/90 flex items-center justify-between gap-1.5 transition-all shadow-2xs group cursor-pointer"
-                                    title="Lihat produk dan treatment yang pernah dibeli pasien ini sebelumnya"
+                                    className="flex-1 py-1.5 px-2.5 bg-pink-50/60 hover:bg-pink-100/80 text-[#5c3316] font-bold text-[11px] rounded-xl border border-pink-200/70 flex items-center justify-between gap-2 transition-all shadow-2xs group cursor-pointer text-left min-w-0"
+                                    title="Klik untuk melihat detail riwayat treatment & produk pasien"
                                 >
-                                    <span className="flex items-center gap-1.5">
-                                        <span>📜</span>
-                                        <span className="group-hover:text-ayumi-primary transition-colors">Riwayat Treatment & Produk</span>
+                                    <span className="truncate flex items-center gap-1.5 min-w-0">
+                                        <span className="shrink-0 text-xs">📜</span>
+                                        <span className="truncate text-gray-800">
+                                            {patientHistoryLoading ? (
+                                                'Memuat riwayat...'
+                                            ) : (patientHistoryData?.pastTreatments?.[0]?.name || patientHistoryData?.pastProducts?.[0]?.name) ? (
+                                                <>
+                                                    <span className="text-pink-700 font-extrabold mr-1">Terakhir:</span>
+                                                    <span>{patientHistoryData?.pastTreatments?.[0]?.name || patientHistoryData?.pastProducts?.[0]?.name}</span>
+                                                </>
+                                            ) : (
+                                                <span className="text-gray-500 font-medium">Riwayat Treatment & Produk</span>
+                                            )}
+                                        </span>
                                     </span>
-                                    <span className="text-[9px] bg-pink-500 text-white font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                                    <span className="text-[10px] bg-pink-500 text-white font-black px-1.5 py-0.5 rounded-md shrink-0 shadow-2xs">
                                         {patientHistoryLoading ? '...' : `${(patientHistoryData?.pastTreatments?.length || 0) + (patientHistoryData?.pastProducts?.length || 0)} Item`} ↗
                                     </span>
                                 </button>
@@ -2665,31 +2676,14 @@ function PosPageContent() {
                                     <Link
                                         href={`/patients/${selectedPatient.id}`}
                                         target="_blank"
-                                        className="py-1.5 px-2 bg-white hover:bg-gray-50 text-gray-600 font-bold text-[10px] rounded-xl border border-gray-200 flex items-center gap-1 transition-colors shrink-0 shadow-2xs"
-                                        title="Buka Rekam Medis Pasien Lengkap di Tab Baru"
+                                        className="py-1.5 px-2 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-800 font-bold text-[10.5px] rounded-xl border border-gray-200 flex items-center gap-1 transition-colors shrink-0 shadow-2xs"
+                                        title="Buka Rekam Medis Pasien di Tab Baru"
                                     >
                                         <span>Medis</span>
-                                        <span>↗</span>
+                                        <span className="text-[9px]">↗</span>
                                     </Link>
                                 )}
                             </div>
-
-                            {/* Micro-preview produk / treatment terakhir jika ada */}
-                            {((patientHistoryData?.pastTreatments?.length || 0) > 0 || (patientHistoryData?.pastProducts?.length || 0) > 0) && (
-                                <div 
-                                    onClick={() => setIsPatientHistoryModalOpen(true)}
-                                    className="p-1.5 px-2 bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/80 rounded-lg text-[10px] text-amber-900 cursor-pointer transition-all flex items-center justify-between gap-1"
-                                    title="Klik untuk melihat detail & repeat order langsung ke kasir"
-                                >
-                                    <div className="truncate flex items-center gap-1 min-w-0">
-                                        <span className="font-extrabold text-amber-800 shrink-0">Terakhir:</span>
-                                        <span className="truncate font-bold text-gray-800">
-                                            {patientHistoryData?.pastTreatments?.[0]?.name || patientHistoryData?.pastProducts?.[0]?.name || '-'}
-                                        </span>
-                                    </div>
-                                    <span className="text-amber-700 font-black shrink-0 text-[9px] bg-amber-200/80 px-1.5 py-0.2 rounded">Rincian ↗</span>
-                                </div>
-                            )}
                         </div>
                     ) : isQuickAddInlineOpen ? (
                         /* Inline Quick Add Patient Form */
