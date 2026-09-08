@@ -22,6 +22,8 @@ export default function PatientDetailPage() {
     const [filterTreatmentBranch, setFilterTreatmentBranch] = useState('All')
     const [branches, setBranches] = useState([]) // For the filter dropdown
     const [photos, setPhotos] = useState([])
+    const [photoAngleFilter, setPhotoAngleFilter] = useState('all') // 'all' | 'depan' | 'kiri' | 'kanan'
+    const [selectedPhotoZoom, setSelectedPhotoZoom] = useState(null)
     const [crmHistory, setCrmHistory] = useState([])
     const [pendingFollowups, setPendingFollowups] = useState([])
     const [patientCoupons, setPatientCoupons] = useState([])
@@ -32,6 +34,22 @@ export default function PatientDetailPage() {
     const [editExpiryModal, setEditExpiryModal] = useState({ isOpen: false, coupon: null, newDate: '' })
     const [editSessionModal, setEditSessionModal] = useState({ isOpen: false, item: null, coupon: null, usedSessions: 0, totalSessions: 0 })
     const [isUpdating, setIsUpdating] = useState(false)
+
+    const getPhotoAngleCategory = (caption, storagePath) => {
+        const raw = (caption || storagePath || '').toLowerCase()
+        if (raw.includes('depan') || raw.includes('front')) return 'depan'
+        if (raw.includes('kiri') || raw.includes('left')) return 'kiri'
+        if (raw.includes('kanan') || raw.includes('right')) return 'kanan'
+        return 'other'
+    }
+
+    const formatPhotoLabel = (caption, storagePath) => {
+        const cat = getPhotoAngleCategory(caption, storagePath)
+        if (cat === 'depan') return 'Foto Depan'
+        if (cat === 'kiri') return 'Foto Samping Kiri'
+        if (cat === 'kanan') return 'Foto Samping Kanan'
+        return caption || 'Foto Dokumentasi'
+    }
 
     const handleUpdateExpiry = async () => {
         if (!editExpiryModal.newDate || !editExpiryModal.coupon) return
@@ -163,11 +181,33 @@ export default function PatientDetailPage() {
             // 3. Fetch Photos (Before After)
             const { data: phData } = await supabase
                 .from('patient_photos')
-                .select('*')
+                .select(`
+                    *,
+                    treatment_records (
+                        id,
+                        treatment_date,
+                        branches (name)
+                    )
+                `)
                 .eq('patient_id', id)
                 .order('created_at', { ascending: false })
             
-            if (phData) setPhotos(phData)
+            if (phData) {
+                const photosWithUrls = phData.map(photo => {
+                    let fullUrl = photo.storage_path || photo.photo_url || photo.image_url
+                    if (fullUrl && !fullUrl.startsWith('http')) {
+                        const { data: pubData } = supabase.storage
+                            .from('patient-photos')
+                            .getPublicUrl(fullUrl)
+                        fullUrl = pubData?.publicUrl || fullUrl
+                    }
+                    return {
+                        ...photo,
+                        fullUrl
+                    }
+                })
+                setPhotos(photosWithUrls)
+            }
 
             // 4. Fetch CRM Follow-up Logs & Pending Queue
             const { data: crmData } = await supabase
@@ -481,27 +521,145 @@ export default function PatientDetailPage() {
 
                 {/* GALLERY TAB */}
                 {activeTab === 'gallery' && (
-                    <div>
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-bold text-ayumi-secondary">Galeri Before After</h3>
-                        </div>
-                        {photos.length === 0 ? (
-                            <div className="text-center p-10 bg-gray-50 rounded-2xl">
-                                <p className="text-gray-500">Belum ada foto dokumentasi untuk pasien ini.</p>
+                    <div className="space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-bold text-ayumi-secondary">Galeri Before After</h3>
+                                <p className="text-xs text-gray-500">Dokumentasi progres dan foto klinis pasien</p>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {photos.map((photo) => (
-                                    <div key={photo.id} className="bg-gray-100 aspect-square rounded-2xl overflow-hidden relative group">
-                                        <div className="absolute inset-0 flex items-center justify-center text-gray-400">Image {photo.id}</div>
-                                        {/* If image URL exists: <img src={photo.image_url} alt="BA" className="object-cover w-full h-full" /> */}
-                                        <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs p-2 translate-y-full group-hover:translate-y-0 transition-transform">
-                                            {new Date(photo.created_at).toLocaleDateString('id-ID')} - {photo.label || 'Treatment'}
-                                        </div>
-                                    </div>
+                            
+                            {/* Filter Angle */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                                {[
+                                    { key: 'all', label: 'Semua Foto' },
+                                    { key: 'depan', label: 'Tampak Depan' },
+                                    { key: 'kiri', label: 'Samping Kiri' },
+                                    { key: 'kanan', label: 'Samping Kanan' }
+                                ].map(btn => (
+                                    <button
+                                        key={btn.key}
+                                        type="button"
+                                        onClick={() => setPhotoAngleFilter(btn.key)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                                            photoAngleFilter === btn.key
+                                                ? 'bg-ayumi-primary text-white shadow-xs font-black'
+                                                : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                                        }`}
+                                    >
+                                        <span>{btn.label}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                            photoAngleFilter === btn.key ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-700'
+                                        }`}>
+                                            {btn.key === 'all' 
+                                                ? photos.length 
+                                                : photos.filter(p => getPhotoAngleCategory(p.caption, p.storage_path) === btn.key).length
+                                            }
+                                        </span>
+                                    </button>
                                 ))}
                             </div>
-                        )}
+                        </div>
+
+                        {(() => {
+                            const filtered = photos.filter(p => {
+                                if (photoAngleFilter === 'all') return true
+                                return getPhotoAngleCategory(p.caption, p.storage_path) === photoAngleFilter
+                            })
+
+                            if (filtered.length === 0) {
+                                return (
+                                    <div className="text-center p-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                                        <div className="text-4xl mb-2">📸</div>
+                                        <p className="font-bold text-gray-700 text-sm">
+                                            {photoAngleFilter === 'all'
+                                                ? 'Belum ada foto dokumentasi untuk pasien ini.'
+                                                : `Tidak ada foto dengan sudut "${photoAngleFilter}".`}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">Foto otomatis tersimpan saat terapis mengisi rekam medis (SOAP).</p>
+                                    </div>
+                                )
+                            }
+
+                            return (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                    {filtered.map((photo) => {
+                                        const label = formatPhotoLabel(photo.caption, photo.storage_path)
+                                        const angle = getPhotoAngleCategory(photo.caption, photo.storage_path)
+                                        const dateStr = photo.treatment_records?.treatment_date 
+                                            ? new Date(photo.treatment_records.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                            : new Date(photo.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+
+                                        return (
+                                            <div 
+                                                key={photo.id}
+                                                onClick={() => setSelectedPhotoZoom(photo)}
+                                                className="bg-white rounded-2xl border border-gray-100 shadow-xs hover:shadow-md hover:border-pink-200 transition-all overflow-hidden flex flex-col group cursor-pointer relative"
+                                            >
+                                                <div className="relative aspect-square overflow-hidden bg-gray-100 flex items-center justify-center">
+                                                    {photo.fullUrl ? (
+                                                        <img 
+                                                            src={photo.fullUrl} 
+                                                            alt={photo.caption || 'Foto Dokumentasi'} 
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                            onError={(e) => {
+                                                                e.target.onerror = null
+                                                                e.target.style.display = 'none'
+                                                                if (e.target.nextSibling) {
+                                                                    e.target.nextSibling.style.display = 'flex'
+                                                                }
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    <div 
+                                                        style={{ display: photo.fullUrl ? 'none' : 'flex' }}
+                                                        className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 p-2 text-center"
+                                                    >
+                                                        <span className="text-2xl mb-1">🖼️</span>
+                                                        <span className="text-[10px]">{photo.caption || 'Foto'}</span>
+                                                    </div>
+
+                                                    {/* Badge Sudut */}
+                                                    <div className="absolute top-2 left-2">
+                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow-xs text-white ${
+                                                            angle === 'depan' ? 'bg-blue-600' : angle === 'kiri' ? 'bg-emerald-600' : angle === 'kanan' ? 'bg-amber-600' : 'bg-gray-700'
+                                                        }`}>
+                                                            {label}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Overlay Zoom */}
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                        Perbesar
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-3 bg-white flex flex-col justify-between flex-1 border-t border-gray-50">
+                                                    <div className="flex items-center justify-between text-xs">
+                                                        <span className="font-bold text-gray-700">{dateStr}</span>
+                                                        {photo.treatment_records?.branches?.name && (
+                                                            <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
+                                                                {photo.treatment_records.branches.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {photo.treatment_record_id && (
+                                                        <Link 
+                                                            href={`/treatment-records/${photo.treatment_record_id}`}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="text-[11px] font-bold text-ayumi-primary hover:underline mt-1.5 inline-flex items-center gap-1"
+                                                        >
+                                                            <span>Lihat SOAP</span>
+                                                            <span>→</span>
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )
+                        })()}
                     </div>
                 )}
 
@@ -963,6 +1121,61 @@ export default function PatientDetailPage() {
                             >
                                 {isUpdating ? 'Menyimpan...' : 'Simpan Sesi'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal Zoom / Preview Foto Dokumentasi */}
+            {selectedPhotoZoom && (
+                <div 
+                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"
+                    onClick={() => setSelectedPhotoZoom(null)}
+                >
+                    <div 
+                        className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <div>
+                                <h4 className="font-bold text-gray-900 text-sm">
+                                    {formatPhotoLabel(selectedPhotoZoom.caption, selectedPhotoZoom.storage_path)}
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {selectedPhotoZoom.treatment_records?.treatment_date 
+                                        ? new Date(selectedPhotoZoom.treatment_records.treatment_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                                        : new Date(selectedPhotoZoom.created_at).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                    {selectedPhotoZoom.treatment_records?.branches?.name && ` • ${selectedPhotoZoom.treatment_records.branches.name}`}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedPhotoZoom(null)}
+                                className="text-gray-400 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="bg-black/95 flex items-center justify-center p-2 min-h-[300px] max-h-[65vh] overflow-hidden">
+                            <img 
+                                src={selectedPhotoZoom.fullUrl} 
+                                alt={selectedPhotoZoom.caption || 'Foto Dokumentasi'} 
+                                className="max-h-[60vh] max-w-full object-contain rounded-lg"
+                            />
+                        </div>
+                        <div className="p-4 bg-white border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-xs text-gray-500">
+                                Diambil: {new Date(selectedPhotoZoom.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                            </span>
+                            {selectedPhotoZoom.treatment_record_id && (
+                                <Link 
+                                    href={`/treatment-records/${selectedPhotoZoom.treatment_record_id}`}
+                                    className="btn-ayumi py-1.5 px-3 text-xs"
+                                >
+                                    Buka Rekam Medis (SOAP)
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>
