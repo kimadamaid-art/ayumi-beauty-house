@@ -28,10 +28,19 @@ export async function POST(request) {
         )
 
         // 1. Authenticate caller (Support Bearer Token header & Cookies)
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0cmd4Z3V0Y3V6bnJ4ZmxtcHprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTE1Nzg0MCwiZXhwIjoyMDk2NzMzODQwfQ.WOPtOGXib-rj4dWmVt2GhSPBXePFc3sLEOR8rEacvgU'
-        
+        // Kunci service role dibaca dari environment saja. Sebelumnya ada nilai cadangan
+        // yang ditulis langsung di file ini; kunci itu menembus seluruh RLS, ikut tersimpan
+        // di riwayat git, dan karena itu harus dirotasi -- bukan sekadar dihapus dari sini.
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (!serviceRoleKey) {
+            return NextResponse.json(
+                { error: 'SUPABASE_SERVICE_ROLE_KEY tidak terkonfigurasi di server.' },
+                { status: 500 }
+            )
+        }
+
         const supabaseAdmin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dtrgxgutcuznrxflmpzk.supabase.co',
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
             serviceRoleKey,
             { auth: { autoRefreshToken: false, persistSession: false } }
         )
@@ -53,8 +62,16 @@ export async function POST(request) {
             }
         }
 
-        // Fallback: If still no user, allow request if called with valid session
-        const currentUserId = user?.id || 'system-admin'
+        // Endpoint ini memakai service role untuk menulis ke Storage dan tabel foto,
+        // sehingga menembus RLS. Tanpa pemeriksaan ini, siapa pun tanpa login bisa
+        // mengunggah berkas ke bucket pasien -- dan karena upload memakai upsert,
+        // menimpa foto pasien yang sudah ada.
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Unauthorized: Sesi tidak ditemukan atau kedaluwarsa.' },
+                { status: 401 }
+            )
+        }
 
         // 2. Read Multipart FormData
         const formData = await request.formData()
