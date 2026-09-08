@@ -303,8 +303,8 @@ export default function TreatmentInputPage() {
             .order('full_name')
         if (thList) {
             setTherapistsList(thList)
-            if (!aptData?.therapist_id && userData.role !== 'therapist' && thList.length > 0) {
-                setSelectedPerformerId(prev => prev || thList[0].id)
+            if (aptData?.therapist_id) {
+                setSelectedPerformerId(prev => prev || aptData.therapist_id)
             }
         }
 
