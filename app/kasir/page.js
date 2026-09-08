@@ -1877,11 +1877,10 @@ function PosPageContent() {
                 }
             }
 
-            // 2. Potong sesi kupon aktif lama (secara paralel untuk efisiensi waktu)
-            const couponRedeemItems = cart.filter(cartItem => cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && !cartItem.is_first_session_of_new_coupon && selectedPatient)
-            if (couponRedeemItems.length > 0) {
-                const redeemResults = await Promise.allSettled(
-                    couponRedeemItems.map(async (cartItem) => {
+            // 2. Potong sesi kupon aktif lama (secara berurutan demi akurasi 100% sisa kupon tanpa race condition)
+            for (const cartItem of cart) {
+                if (cartItem.is_using_coupon && cartItem.used_coupon_item_id && !cartItem.coupon_already_deducted && !cartItem.is_first_session_of_new_coupon && selectedPatient) {
+                    try {
                         const res = await fetch('/api/coupons/redeem', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1900,16 +1899,11 @@ function PosPageContent() {
                         if (!res.ok || resJson.error) {
                             throw new Error(resJson.error || 'Gagal memotong sesi kupon')
                         }
-                        return cartItem.name
-                    })
-                )
-
-                redeemResults.forEach((result, idx) => {
-                    if (result.status === 'rejected') {
-                        console.error('Gagal memotong sesi kupon:', result.reason)
-                        failedCoupons.push(`${couponRedeemItems[idx].name}: ${result.reason?.message || 'Error'}`)
+                    } catch (redeemErr) {
+                        console.error('Gagal memotong sesi kupon:', redeemErr)
+                        failedCoupons.push(`${cartItem.name}: ${redeemErr.message}`)
                     }
-                })
+                }
             }
 
             // 3. Pastikan treatment_record_id terhubung ke transaksi jika ada dan belum terisi oleh RPC
