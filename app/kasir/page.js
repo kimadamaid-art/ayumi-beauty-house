@@ -3003,27 +3003,108 @@ function PosPageContent() {
                                     </div>
                                 )}
 
-                                {/* Bottom row: qty stepper & subtotal price */}
+                                {/* Bottom row: qty stepper, discount toggle & subtotal price */}
                                 <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                                    <div className="flex items-center gap-1 bg-gray-50 border border-[#F2D8C3] rounded-lg p-0.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1 bg-gray-50 border border-[#F2D8C3] rounded-lg p-0.5">
+                                            <button 
+                                                type="button"
+                                                onClick={() => updateCartQty(item.id, item.item_type, -1)} 
+                                                className="w-4.5 h-4.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-[11px] cursor-pointer"
+                                            >-</button>
+                                            <span className="text-[11px] font-black px-1.5 min-w-[18px] text-center text-[#2C1E16]">{item.quantity}</span>
+                                            <button 
+                                                type="button"
+                                                onClick={() => updateCartQty(item.id, item.item_type, 1)} 
+                                                className="w-4.5 h-4.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-[11px] cursor-pointer"
+                                            >+</button>
+                                        </div>
+
+                                        {/* Tombol Diskon Item Rapi */}
                                         <button 
-                                            type="button"
-                                            onClick={() => updateCartQty(item.id, item.item_type, -1)} 
-                                            className="w-4.5 h-4.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-[11px] cursor-pointer"
-                                        >-</button>
-                                        <span className="text-[11px] font-black px-1.5 min-w-[18px] text-center text-[#2C1E16]">{item.quantity}</span>
-                                        <button 
-                                            type="button"
-                                            onClick={() => updateCartQty(item.id, item.item_type, 1)} 
-                                            className="w-4.5 h-4.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-[11px] cursor-pointer"
-                                        >+</button>
+                                            type="button" 
+                                            onClick={() => setExpandedCartItem(prev => prev === `${item.id}-${item.item_type}` ? null : `${item.id}-${item.item_type}`)}
+                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-all cursor-pointer flex items-center gap-0.5 ${
+                                                expandedCartItem === `${item.id}-${item.item_type}`
+                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                    : (item.discount_percent > 0 || (item.original_price && item.price < item.original_price))
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 font-extrabold'
+                                                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-orange-50 hover:text-orange-700'
+                                            }`}
+                                        >
+                                            🏷️ {expandedCartItem === `${item.id}-${item.item_type}` ? 'Tutup' : item.discount_percent > 0 ? `Diskon ${item.discount_percent}%` : 'Diskon Item'}
+                                        </button>
                                     </div>
+
                                     <div className="text-right">
+                                        {(item.discount_percent > 0 || (item.original_price && item.price < item.original_price)) && (
+                                            <span className="block text-[9.5px] text-gray-400 line-through">
+                                                Rp {((item.original_price || item.price) * item.quantity).toLocaleString('id-ID')}
+                                            </span>
+                                        )}
                                         <span className="font-black text-xs text-[#D46221]">
                                             Rp {((item.price || 0) * item.quantity).toLocaleString('id-ID')}
                                         </span>
                                     </div>
                                 </div>
+
+                                {/* Form Diskon Item Bersih (Ketika Tombol Diskon Item Diklik) */}
+                                {expandedCartItem === `${item.id}-${item.item_type}` && (
+                                    <div className="grid grid-cols-2 gap-1.5 p-2 bg-[#FAF6F0] rounded-lg border border-[#F2D8C3] animate-fadeIn">
+                                        <div className="bg-white p-1 rounded-md border border-gray-200">
+                                            <label className="text-[7.5px] font-black uppercase text-gray-400 block">Harga Awal (Rp)</label>
+                                            <input 
+                                                type="number" 
+                                                value={!item.original_price ? '' : item.original_price} 
+                                                onFocus={(e) => e.target.select()}
+                                                placeholder="0"
+                                                onChange={(e) => handleCartItemOriginalPriceChange(item.id, item.item_type, e.target.value)}
+                                                className="w-full text-[10.5px] font-bold bg-transparent border-none outline-none text-gray-700 p-0"
+                                            />
+                                        </div>
+                                        <div className="bg-white p-1 rounded-md border border-gray-200">
+                                            <label className="text-[7.5px] font-black uppercase text-gray-400 block">Diskon (%)</label>
+                                            <input 
+                                                type="number" 
+                                                value={!item.discount_percent ? '' : item.discount_percent} 
+                                                onFocus={(e) => e.target.select()}
+                                                placeholder="0"
+                                                onChange={(e) => handleCartItemDiscountChange(item.id, item.item_type, e.target.value)}
+                                                className="w-full text-[10.5px] font-bold bg-transparent border-none outline-none text-gray-700 p-0 text-right"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </div>
+                                        <div className="bg-white p-1 rounded-md border border-gray-200">
+                                            <label className="text-[7.5px] font-black uppercase text-gray-400 block">Potongan (Rp)</label>
+                                            {(() => {
+                                                const potNom = Math.max(0, (item.original_price || 0) - (item.price || 0))
+                                                return (
+                                                    <input 
+                                                        type="number" 
+                                                        value={!potNom ? '' : potNom} 
+                                                        onFocus={(e) => e.target.select()}
+                                                        placeholder="0"
+                                                        onChange={(e) => handleCartItemDiscountNominalChange(item.id, item.item_type, e.target.value)}
+                                                        className="w-full text-[10.5px] font-bold bg-transparent border-none outline-none text-gray-700 p-0 text-right"
+                                                        min="0"
+                                                    />
+                                                )
+                                            })()}
+                                        </div>
+                                        <div className="bg-[#FAF1E8] p-1 rounded-md border border-[#F2D8C3]">
+                                            <label className="text-[7.5px] font-black uppercase text-[#B5531B] block">Harga Net (Rp)</label>
+                                            <input 
+                                                type="number" 
+                                                value={!item.price ? '' : item.price} 
+                                                onFocus={(e) => e.target.select()}
+                                                placeholder="0"
+                                                onChange={(e) => handleCartItemPriceChange(item.id, item.item_type, e.target.value)}
+                                                className="w-full text-[10.5px] font-black bg-transparent border-none outline-none text-[#D46221] p-0 text-right"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}
