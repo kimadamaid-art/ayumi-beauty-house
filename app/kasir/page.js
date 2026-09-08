@@ -1071,7 +1071,10 @@ function PosPageContent() {
                     subtotal: 0,
                     treatment_record_id: bill.id,
                     therapist_id: bill.performed_by || 'worker',
-                    commission_percent: item.commission_percent || item.treatments?.commission_percent || 5,
+                    // Memakai ?? bukan ||. Dengan ||, komisi yang sengaja diatur 0% terbaca
+                    // sebagai "belum diisi" lalu diganti 5%, sehingga terapis dibayar komisi
+                    // yang seharusnya tidak ada. ?? hanya melompat bila nilainya null/undefined.
+                    commission_percent: item.commission_percent ?? item.treatments?.commission_percent ?? 5,
                     is_using_coupon: true,
                     is_first_session_of_new_coupon: true,
                     new_coupon_package_id: pkgId,
