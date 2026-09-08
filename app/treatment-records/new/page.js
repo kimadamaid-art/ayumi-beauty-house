@@ -484,6 +484,28 @@ function AddRecordForm() {
                     .eq('id', urlTransactionId)
             }
 
+            // Catat terapis pelaksana pada jadwalnya juga. Halaman ini sebelumnya hanya
+            // membaca tabel appointments, sehingga tindakan yang diinput dari sini membuat
+            // jadwalnya selesai tanpa nama terapis -- dan dashboard terapis menampilkannya
+            // sebagai "Tersedia" padahal pasiennya sudah ditangani.
+            // Syarat therapist_id kosong menjaga agar terapis yang sudah klaim duluan
+            // tidak tertimpa.
+            if (urlAppointmentId && formData.performed_by) {
+                const { error: aptErr } = await supabase
+                    .from('appointments')
+                    .update({
+                        therapist_id: formData.performed_by,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', urlAppointmentId)
+                    .is('therapist_id', null)
+
+                if (aptErr) {
+                    // Bukan alasan membatalkan penyimpanan rekam medis yang sudah berhasil.
+                    console.warn('Gagal mencatat terapis pada jadwal:', aptErr.message)
+                }
+            }
+
             // 2. Insert Record Items & Followup Queue & Coupon Logs
             const itemsToInsert = []
             const queuesToInsert = []

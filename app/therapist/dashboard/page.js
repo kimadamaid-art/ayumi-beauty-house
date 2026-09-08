@@ -979,7 +979,11 @@ export default function TherapistDashboard() {
                                                                                                             <span className="text-[9.5px] font-bold bg-sky-200/80 text-sky-800 px-1.5 py-0.2 rounded">
                                                                                                                 Pasien Anda
                                                                                                             </span>
-                                                                                                        ) : !apt.therapist_id ? (
+                                                                                                        ) : (!apt.therapist_id && apt.status !== 'completed' && apt.status !== 'cancelled') ? (
+                                                                                                            // Jadwal yang sudah selesai atau dibatalkan tidak lagi "tersedia", walaupun
+                                                                                                            // kolom terapisnya kosong -- misalnya saat tindakannya diinput admin lewat
+                                                                                                            // Rekam Medis Baru. Penjagaan ini menyamai getArrivalStatusBadgeAndActions,
+                                                                                                            // yang memang sudah menyembunyikan tombol "Pilih Pasien" untuk kedua status itu.
                                                                                                             <span className="text-[9.5px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">
                                                                                                                 Tersedia
                                                                                                             </span>
