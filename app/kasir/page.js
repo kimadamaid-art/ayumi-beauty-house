@@ -280,23 +280,34 @@ function PosPageContent() {
         ])
 
         const user = userRes.data?.user
+        let currentUData = null
         if (user) {
             const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+            currentUData = uData
             if (uData) {
                 if (uData.role === 'therapist') {
                     router.push('/therapist/dashboard')
                     return
                 }
                 setDbUser(uData)
-                if (uData.role !== 'owner') {
-                    setSelectedBranch(uData.branch_id || '')
+                if (uData.role !== 'owner' && uData.branch_id) {
+                    setSelectedBranch(uData.branch_id)
                 }
             } else {
                 setDbUser({ role: 'owner', id: user.id })
             }
         }
         
-        if (brRes.data) setBranches(brRes.data)
+        if (brRes.data) {
+            setBranches(brRes.data)
+            // Auto-default branch untuk Owner jika belum terpilih
+            setSelectedBranch(prev => {
+                if (prev) return prev
+                if (currentUData?.branch_id) return currentUData.branch_id
+                if (brRes.data.length > 0) return brRes.data[0].id
+                return ''
+            })
+        }
         if (trRes.data) setTreatments(trRes.data)
         if (cpRes.data) setCoupons(cpRes.data)
         if (thRes.data) setTherapists(thRes.data)
@@ -3415,7 +3426,7 @@ function PosPageContent() {
                         <button 
                             type="button" 
                             onClick={handleCheckout}
-                            disabled={isProcessing || cart.length === 0 || !selectedBranch}
+                            disabled={isProcessing || cart.length === 0}
                             className="flex-1 bg-[#D46221] hover:bg-[#B5531B] disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 text-white py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
                         >
                             {isProcessing ? (
