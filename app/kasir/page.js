@@ -1060,9 +1060,9 @@ function PosPageContent() {
         setSelectedTherapistId(bill.performed_by || 'worker')
         setTreatmentRecordId(bill.id)
 
-        // Otomatis sinkronisasi Mode Backdate jika tindakan berasal dari tanggal lalu (untuk Owner & Admin)
+        // Otomatis sinkronisasi Mode Backdate jika tindakan berasal dari tanggal lalu (Khusus Owner)
         const todayStr = getLocalYYYYMMDD()
-        if (bill.treatment_date && bill.treatment_date < todayStr && (dbUser?.role === 'owner' || dbUser?.role === 'admin')) {
+        if (bill.treatment_date && bill.treatment_date < todayStr && dbUser?.role === 'owner') {
             setIsBackdateEnabled(true)
             setBackdateDate(bill.treatment_date)
             setBackdateTime(bill.treatment_time ? bill.treatment_time.substring(0, 5) : '15:00')
@@ -1639,7 +1639,7 @@ function PosPageContent() {
                     thGroups.get(key).items.push(tItem)
                 })
 
-                const canBackdate = isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate
+                const canBackdate = isBackdateEnabled && dbUser?.role === 'owner' && backdateDate
                 const effectiveDateStr = canBackdate ? backdateDate : new Date().toISOString().split('T')[0]
                 const effectiveTimeStr = canBackdate ? (backdateTime || new Date().toLocaleTimeString('en-US', { hour12: false })) : new Date().toLocaleTimeString('en-US', { hour12: false })
                 const effectiveCustomIso = canBackdate ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
@@ -1808,12 +1808,12 @@ function PosPageContent() {
                 }
             }
 
-            // 4. Update Backdate Timestamps (Admin & Owner Backdate Transaksi Susulan)
-            let effectiveBackdateDate = (isBackdateEnabled && (dbUser?.role === 'owner' || dbUser?.role === 'admin') && backdateDate) ? backdateDate : null
+            // 4. Update Backdate Timestamps (Khusus Owner Backdate Transaksi Susulan)
+            let effectiveBackdateDate = (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) ? backdateDate : null
             let effectiveBackdateTime = backdateTime || '12:00'
 
-            // Jika transaksi ini menyelesaikan tindakan rekam medis hari lalu, otomatis sinkronkan backdate
-            if (!effectiveBackdateDate && treatmentRecordId && (dbUser?.role === 'owner' || dbUser?.role === 'admin')) {
+            // Jika transaksi ini menyelesaikan tindakan rekam medis hari lalu, otomatis sinkronkan backdate (Khusus Owner)
+            if (!effectiveBackdateDate && treatmentRecordId && dbUser?.role === 'owner') {
                 const linkedBill = pendingBills.find(b => b.id === treatmentRecordId)
                 const candidateDate = linkedBill?.treatment_date
                 const todayStr = getLocalYYYYMMDD()
@@ -1823,7 +1823,7 @@ function PosPageContent() {
                 }
             }
 
-            if (effectiveBackdateDate && (dbUser?.role === 'owner' || dbUser?.role === 'admin')) {
+            if (effectiveBackdateDate && dbUser?.role === 'owner') {
                 try {
                     const bdRes = await fetch(`/api/transactions/${trxData.id}`, {
                         method: 'PATCH',
@@ -3450,8 +3450,8 @@ function PosPageContent() {
                         )}
                     </div>
 
-                    {/* FITUR ATUR TANGGAL TRANSAKSI (BACKDATE UNTUK ADMIN & OWNER) */}
-                    {(dbUser?.role === 'owner' || dbUser?.role === 'admin') && (
+                    {/* FITUR ATUR TANGGAL TRANSAKSI (BACKDATE KHUSUS OWNER) */}
+                    {dbUser?.role === 'owner' && (
                         <div className="p-2.5 bg-[#FAF1E8] border border-[#F2D8C3] rounded-2xl space-y-2 transition-all">
                             <div className="flex items-center justify-between">
                                 <label className="text-[10px] font-black text-[#4E2A12] flex items-center gap-1 cursor-pointer uppercase tracking-wider">

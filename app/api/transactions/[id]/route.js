@@ -242,15 +242,15 @@ export async function PATCH(request, { params }) {
             return NextResponse.json({ error: 'Unauthorized: Sesi tidak valid.' }, { status: 401 })
         }
 
-        // 2. Verify Role (Admin or Owner)
+        // 2. Verify Role (Khusus Owner)
         const { data: userData } = await supabase
             .from('users')
             .select('role')
             .eq('id', user.id)
             .maybeSingle()
 
-        if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
-            return NextResponse.json({ error: 'Forbidden: Hanya Admin dan Owner yang dapat mengatur tanggal transaksi.' }, { status: 403 })
+        if (!userData || userData.role !== 'owner') {
+            return NextResponse.json({ error: 'Forbidden: Hanya Owner yang berhak mengatur tanggal transaksi (backdate).' }, { status: 403 })
         }
 
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
