@@ -591,8 +591,18 @@ export default function TreatmentsReportPage() {
                             placeholder={activeTab === 'treatments' ? "Cari treatment..." : "Cari produk..."}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="input-ayumi pl-9 text-xs py-2 border-gray-300 w-full"
+                            className="input-ayumi pl-9 pr-8 text-xs py-2 border-gray-300 w-full"
                         />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchTerm('')}
+                                className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                title="Hapus pencarian"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        )}
                     </div>
                 </div>
 
