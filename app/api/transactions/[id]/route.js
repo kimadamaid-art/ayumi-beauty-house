@@ -242,15 +242,15 @@ export async function PATCH(request, { params }) {
             return NextResponse.json({ error: 'Unauthorized: Sesi tidak valid.' }, { status: 401 })
         }
 
-        // 2. Verify Role (Khusus Owner)
+        // 2. Verify Role & Permissions
         const { data: userData } = await supabase
             .from('users')
             .select('role')
             .eq('id', user.id)
             .maybeSingle()
 
-        if (!userData || userData.role !== 'owner') {
-            return NextResponse.json({ error: 'Forbidden: Hanya Owner yang berhak mengatur tanggal transaksi (backdate).' }, { status: 403 })
+        if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
+            return NextResponse.json({ error: 'Forbidden: Akses tidak diizinkan.' }, { status: 403 })
         }
 
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -273,6 +273,22 @@ export async function PATCH(request, { params }) {
 
         if (txErr || !tx) {
             return NextResponse.json({ error: 'Transaksi tidak ditemukan.' }, { status: 404 })
+        }
+
+        // Jika Role Admin: Hanya boleh sinkron otomatis mengikuti rekam medis tindakan yang sah
+        if (userData.role === 'admin') {
+            if (!tx.treatment_record_id) {
+                return NextResponse.json({ error: 'Forbidden: Admin tidak memiliki izin mengubah tanggal transaksi manual.' }, { status: 403 })
+            }
+            const { data: trRecord } = await supabaseAdmin
+                .from('treatment_records')
+                .select('treatment_date')
+                .eq('id', tx.treatment_record_id)
+                .maybeSingle()
+
+            if (!trRecord || trRecord.treatment_date !== backdateDate) {
+                return NextResponse.json({ error: 'Forbidden: Admin hanya dapat menyinkronkan tanggal transaksi mengikuti tanggal rekam medis.' }, { status: 403 })
+            }
         }
 
         const customIso = new Date(`${backdateDate}T${backdateTime || '12:00'}:00+07:00`).toISOString()

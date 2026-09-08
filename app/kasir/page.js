@@ -1812,8 +1812,8 @@ function PosPageContent() {
             let effectiveBackdateDate = (isBackdateEnabled && dbUser?.role === 'owner' && backdateDate) ? backdateDate : null
             let effectiveBackdateTime = backdateTime || '12:00'
 
-            // Jika transaksi ini menyelesaikan tindakan rekam medis hari lalu, otomatis sinkronkan backdate (Khusus Owner)
-            if (!effectiveBackdateDate && treatmentRecordId && dbUser?.role === 'owner') {
+            // Jika transaksi ini menyelesaikan tindakan rekam medis hari lalu, otomatis sinkronkan tanggal transaksi persis mengikuti tanggal rekam medis tindakan
+            if (!effectiveBackdateDate && treatmentRecordId) {
                 const linkedBill = pendingBills.find(b => b.id === treatmentRecordId)
                 const candidateDate = linkedBill?.treatment_date
                 const todayStr = getLocalYYYYMMDD()
@@ -1823,7 +1823,7 @@ function PosPageContent() {
                 }
             }
 
-            if (effectiveBackdateDate && dbUser?.role === 'owner') {
+            if (effectiveBackdateDate) {
                 try {
                     const bdRes = await fetch(`/api/transactions/${trxData.id}`, {
                         method: 'PATCH',
