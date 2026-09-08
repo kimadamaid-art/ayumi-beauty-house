@@ -22,6 +22,9 @@ export default function PatientDetailPage() {
     const [filterTreatmentBranch, setFilterTreatmentBranch] = useState('All')
     const [branches, setBranches] = useState([]) // For the filter dropdown
     const [photos, setPhotos] = useState([])
+    const [galleryViewMode, setGalleryViewMode] = useState('sessions') // 'sessions' | 'compare'
+    const [comparePhoto1, setComparePhoto1] = useState(null)
+    const [comparePhoto2, setComparePhoto2] = useState(null)
     const [photoAngleFilter, setPhotoAngleFilter] = useState('all') // 'all' | 'depan' | 'kiri' | 'kanan'
     const [selectedPhotoZoom, setSelectedPhotoZoom] = useState(null)
     const [crmHistory, setCrmHistory] = useState([])
@@ -207,6 +210,12 @@ export default function PatientDetailPage() {
                     }
                 })
                 setPhotos(photosWithUrls)
+                if (photosWithUrls.length >= 2) {
+                    setComparePhoto1(photosWithUrls[photosWithUrls.length - 1])
+                    setComparePhoto2(photosWithUrls[0])
+                } else if (photosWithUrls.length === 1) {
+                    setComparePhoto1(photosWithUrls[0])
+                }
             }
 
             // 4. Fetch CRM Follow-up Logs & Pending Queue
@@ -521,145 +530,424 @@ export default function PatientDetailPage() {
 
                 {/* GALLERY TAB */}
                 {activeTab === 'gallery' && (
-                    <div className="space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-6">
+                        {/* Gallery Control Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
                             <div>
-                                <h3 className="text-lg font-bold text-ayumi-secondary">Galeri Before After</h3>
-                                <p className="text-xs text-gray-500">Dokumentasi progres dan foto klinis pasien</p>
+                                <h3 className="text-lg font-extrabold text-ayumi-secondary flex items-center gap-2">
+                                    <span>📸</span> Galeri Before After
+                                </h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Dokumentasi klinis terorganisir otomatis per sesi treatment (Tampak Depan, Samping Kiri & Kanan)</p>
                             </div>
-                            
-                            {/* Filter Angle */}
-                            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-                                {[
-                                    { key: 'all', label: 'Semua Foto' },
-                                    { key: 'depan', label: 'Tampak Depan' },
-                                    { key: 'kiri', label: 'Samping Kiri' },
-                                    { key: 'kanan', label: 'Samping Kanan' }
-                                ].map(btn => (
+
+                            <div className="flex items-center gap-2">
+                                {photos.length >= 2 && (
                                     <button
-                                        key={btn.key}
                                         type="button"
-                                        onClick={() => setPhotoAngleFilter(btn.key)}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                                            photoAngleFilter === btn.key
-                                                ? 'bg-ayumi-primary text-white shadow-xs font-black'
-                                                : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                                        onClick={() => setGalleryViewMode(galleryViewMode === 'compare' ? 'sessions' : 'compare')}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                                            galleryViewMode === 'compare'
+                                                ? 'bg-purple-700 text-white shadow-purple-200'
+                                                : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200'
                                         }`}
                                     >
-                                        <span>{btn.label}</span>
-                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                                            photoAngleFilter === btn.key ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-700'
-                                        }`}>
-                                            {btn.key === 'all' 
-                                                ? photos.length 
-                                                : photos.filter(p => getPhotoAngleCategory(p.caption, p.storage_path) === btn.key).length
-                                            }
-                                        </span>
+                                        <span>🔬</span>
+                                        <span>{galleryViewMode === 'compare' ? 'Kembali ke Galeri Sesi' : 'Mode Bandingkan (Before-After)'}</span>
                                     </button>
-                                ))}
+                                )}
                             </div>
                         </div>
 
-                        {(() => {
-                            const filtered = photos.filter(p => {
-                                if (photoAngleFilter === 'all') return true
-                                return getPhotoAngleCategory(p.caption, p.storage_path) === photoAngleFilter
-                            })
-
-                            if (filtered.length === 0) {
-                                return (
-                                    <div className="text-center p-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                                        <div className="text-4xl mb-2">📸</div>
-                                        <p className="font-bold text-gray-700 text-sm">
-                                            {photoAngleFilter === 'all'
-                                                ? 'Belum ada foto dokumentasi untuk pasien ini.'
-                                                : `Tidak ada foto dengan sudut "${photoAngleFilter}".`}
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-1">Foto otomatis tersimpan saat terapis mengisi rekam medis (SOAP).</p>
+                        {/* MODE 1: KOMPARASI BEFORE-AFTER */}
+                        {galleryViewMode === 'compare' ? (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="bg-gradient-to-r from-purple-50 via-pink-50/50 to-white p-4 sm:p-5 rounded-3xl border border-purple-100 shadow-xs space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-100 pb-3">
+                                        <div>
+                                            <h4 className="font-extrabold text-purple-950 text-sm flex items-center gap-1.5">
+                                                <span>🔬</span> Komparasi Progress Klinis Pasien
+                                            </h4>
+                                            <p className="text-xs text-purple-700 mt-0.5">
+                                                Pilih dua foto dari tanggal / sudut berbeda untuk melihat perubahan kondisi kulit secara berdampingan.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const temp = comparePhoto1
+                                                setComparePhoto1(comparePhoto2)
+                                                setComparePhoto2(temp)
+                                            }}
+                                            className="px-3 py-1.5 bg-white hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
+                                        >
+                                            <span>⇄</span> Tukar Posisi
+                                        </button>
                                     </div>
-                                )
-                            }
 
-                            return (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                    {filtered.map((photo) => {
-                                        const label = formatPhotoLabel(photo.caption, photo.storage_path)
-                                        const angle = getPhotoAngleCategory(photo.caption, photo.storage_path)
-                                        const dateStr = photo.treatment_records?.treatment_date 
-                                            ? new Date(photo.treatment_records.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-                                            : new Date(photo.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-
-                                        return (
-                                            <div 
-                                                key={photo.id}
-                                                onClick={() => setSelectedPhotoZoom(photo)}
-                                                className="bg-white rounded-2xl border border-gray-100 shadow-xs hover:shadow-md hover:border-pink-200 transition-all overflow-hidden flex flex-col group cursor-pointer relative"
+                                    {/* Dropdown Pemilih Foto */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="bg-white p-3 rounded-2xl border border-indigo-100 shadow-2xs space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">Foto 1 (Sebelum / Sesi Awal)</label>
+                                            <select
+                                                value={comparePhoto1?.id || ''}
+                                                onChange={(e) => {
+                                                    const match = photos.find(p => p.id === e.target.value)
+                                                    if (match) setComparePhoto1(match)
+                                                }}
+                                                className="w-full text-xs font-bold border border-gray-200 rounded-xl p-2 bg-gray-50 focus:bg-white text-gray-800 outline-none"
                                             >
-                                                <div className="relative aspect-square overflow-hidden bg-gray-100 flex items-center justify-center">
-                                                    {photo.fullUrl ? (
-                                                        <img 
-                                                            src={photo.fullUrl} 
-                                                            alt={photo.caption || 'Foto Dokumentasi'} 
-                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                            onError={(e) => {
-                                                                e.target.onerror = null
-                                                                e.target.style.display = 'none'
-                                                                if (e.target.nextSibling) {
-                                                                    e.target.nextSibling.style.display = 'flex'
-                                                                }
-                                                            }}
-                                                        />
-                                                    ) : null}
+                                                <option value="" disabled>-- Pilih Foto 1 --</option>
+                                                {photos.map((p) => {
+                                                    const pDate = p.treatment_records?.treatment_date || p.created_at?.split('T')[0]
+                                                    return (
+                                                        <option key={p.id} value={p.id}>
+                                                            {pDate} - {formatPhotoLabel(p.caption, p.storage_path)}
+                                                        </option>
+                                                    )
+                                                })}
+                                            </select>
+                                        </div>
+
+                                        <div className="bg-white p-3 rounded-2xl border border-purple-100 shadow-2xs space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-purple-700 tracking-wider">Foto 2 (Sesudah / Sesi Terbaru)</label>
+                                            <select
+                                                value={comparePhoto2?.id || ''}
+                                                onChange={(e) => {
+                                                    const match = photos.find(p => p.id === e.target.value)
+                                                    if (match) setComparePhoto2(match)
+                                                }}
+                                                className="w-full text-xs font-bold border border-gray-200 rounded-xl p-2 bg-gray-50 focus:bg-white text-gray-800 outline-none"
+                                            >
+                                                <option value="" disabled>-- Pilih Foto 2 --</option>
+                                                {photos.map((p) => {
+                                                    const pDate = p.treatment_records?.treatment_date || p.created_at?.split('T')[0]
+                                                    return (
+                                                        <option key={p.id} value={p.id}>
+                                                            {pDate} - {formatPhotoLabel(p.caption, p.storage_path)}
+                                                        </option>
+                                                    )
+                                                })}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Preview Side by Side */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                        {/* Frame Foto 1 */}
+                                        <div className="bg-white rounded-2xl p-4 border-2 border-indigo-100 shadow-xs space-y-3">
+                                            {comparePhoto1 ? (
+                                                <div className="space-y-2">
                                                     <div 
-                                                        style={{ display: photo.fullUrl ? 'none' : 'flex' }}
-                                                        className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 p-2 text-center"
+                                                        onClick={() => setSelectedPhotoZoom(comparePhoto1)}
+                                                        className="relative w-full aspect-[4/5] bg-gray-950/5 rounded-xl overflow-hidden border border-gray-200 shadow-inner cursor-pointer group flex items-center justify-center"
                                                     >
-                                                        <span className="text-2xl mb-1">🖼️</span>
-                                                        <span className="text-[10px]">{photo.caption || 'Foto'}</span>
+                                                        <img
+                                                            src={comparePhoto1.fullUrl}
+                                                            alt="Foto 1"
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                                            <span>🔍 Perbesar Foto</span>
+                                                        </div>
                                                     </div>
-
-                                                    {/* Badge Sudut */}
-                                                    <div className="absolute top-2 left-2">
-                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow-xs text-white ${
-                                                            angle === 'depan' ? 'bg-blue-600' : angle === 'kiri' ? 'bg-emerald-600' : angle === 'kanan' ? 'bg-amber-600' : 'bg-gray-700'
-                                                        }`}>
-                                                            {label}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Overlay Zoom */}
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                                                        Perbesar
-                                                    </div>
-                                                </div>
-
-                                                <div className="p-3 bg-white flex flex-col justify-between flex-1 border-t border-gray-50">
-                                                    <div className="flex items-center justify-between text-xs">
-                                                        <span className="font-bold text-gray-700">{dateStr}</span>
-                                                        {photo.treatment_records?.branches?.name && (
-                                                            <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
-                                                                {photo.treatment_records.branches.name}
+                                                    <div className="bg-indigo-50/60 p-3 rounded-xl text-xs space-y-1 border border-indigo-100">
+                                                        <div className="flex justify-between font-bold text-gray-800">
+                                                            <span className="text-indigo-900 font-extrabold">{formatPhotoLabel(comparePhoto1.caption, comparePhoto1.storage_path)}</span>
+                                                            <span className="text-indigo-600 font-semibold">
+                                                                {comparePhoto1.treatment_records?.treatment_date 
+                                                                    ? new Date(comparePhoto1.treatment_records.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                                    : new Date(comparePhoto1.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                                }
                                                             </span>
+                                                        </div>
+                                                        {comparePhoto1.treatment_records?.branches?.name && (
+                                                            <p className="text-[11px] text-gray-500">Cabang: {comparePhoto1.treatment_records.branches.name}</p>
                                                         )}
                                                     </div>
-                                                    {photo.treatment_record_id && (
-                                                        <Link 
-                                                            href={`/treatment-records/${photo.treatment_record_id}`}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            className="text-[11px] font-bold text-ayumi-primary hover:underline mt-1.5 inline-flex items-center gap-1"
-                                                        >
-                                                            <span>Lihat SOAP</span>
-                                                            <span>→</span>
-                                                        </Link>
-                                                    )}
                                                 </div>
+                                            ) : (
+                                                <div className="aspect-[4/5] border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
+                                                    <span className="text-3xl mb-2">📸</span>
+                                                    <span className="text-xs font-bold">Pilih foto pertama di atas</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Frame Foto 2 */}
+                                        <div className="bg-white rounded-2xl p-4 border-2 border-purple-100 shadow-xs space-y-3">
+                                            {comparePhoto2 ? (
+                                                <div className="space-y-2">
+                                                    <div 
+                                                        onClick={() => setSelectedPhotoZoom(comparePhoto2)}
+                                                        className="relative w-full aspect-[4/5] bg-gray-950/5 rounded-xl overflow-hidden border border-gray-200 shadow-inner cursor-pointer group flex items-center justify-center"
+                                                    >
+                                                        <img
+                                                            src={comparePhoto2.fullUrl}
+                                                            alt="Foto 2"
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                                            <span>🔍 Perbesar Foto</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-purple-50/60 p-3 rounded-xl text-xs space-y-1 border border-purple-100">
+                                                        <div className="flex justify-between font-bold text-gray-800">
+                                                            <span className="text-purple-900 font-extrabold">{formatPhotoLabel(comparePhoto2.caption, comparePhoto2.storage_path)}</span>
+                                                            <span className="text-purple-600 font-semibold">
+                                                                {comparePhoto2.treatment_records?.treatment_date 
+                                                                    ? new Date(comparePhoto2.treatment_records.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                                    : new Date(comparePhoto2.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        {comparePhoto2.treatment_records?.branches?.name && (
+                                                            <p className="text-[11px] text-gray-500">Cabang: {comparePhoto2.treatment_records.branches.name}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="aspect-[4/5] border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 p-4 text-center">
+                                                    <span className="text-3xl mb-2">📸</span>
+                                                    <span className="text-xs font-bold">Pilih foto kedua di atas</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* MODE 2: GALERI SESI KLINIS (AUTO STRUCTURED PER SESI) */
+                            <div className="space-y-6">
+                                {/* Angle Filters */}
+                                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                                    {[
+                                        { key: 'all', label: 'Semua Sudut (Per Sesi)', icon: '🖼️' },
+                                        { key: 'depan', label: 'Tampak Depan', icon: '👤' },
+                                        { key: 'kiri', label: 'Samping Kiri', icon: '👈' },
+                                        { key: 'kanan', label: 'Samping Kanan', icon: '👉' }
+                                    ].map(btn => (
+                                        <button
+                                            key={btn.key}
+                                            type="button"
+                                            onClick={() => setPhotoAngleFilter(btn.key)}
+                                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                                                photoAngleFilter === btn.key
+                                                    ? 'bg-ayumi-primary text-white shadow-xs font-black'
+                                                    : 'bg-white hover:bg-gray-100 text-gray-600 border border-gray-200'
+                                            }`}
+                                        >
+                                            <span>{btn.icon}</span>
+                                            <span>{btn.label}</span>
+                                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                                photoAngleFilter === btn.key ? 'bg-white/30 text-white' : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                                {btn.key === 'all' 
+                                                    ? photos.length 
+                                                    : photos.filter(p => getPhotoAngleCategory(p.caption, p.storage_path) === btn.key).length
+                                                }
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {photos.length === 0 ? (
+                                    <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-gray-200 shadow-xs">
+                                        <div className="text-4xl mb-2">📸</div>
+                                        <p className="font-extrabold text-gray-800 text-sm">Belum Ada Foto Dokumentasi</p>
+                                        <p className="text-xs text-gray-400 mt-1">Foto klinis otomatis tersimpan saat terapis mengisi rekam medis (SOAP).</p>
+                                    </div>
+                                ) : photoAngleFilter !== 'all' ? (
+                                    /* TAMPILAN FILTER SINGLE ANGLE across all sessions */
+                                    (() => {
+                                        const anglePhotos = photos.filter(p => getPhotoAngleCategory(p.caption, p.storage_path) === photoAngleFilter)
+                                        if (anglePhotos.length === 0) {
+                                            return (
+                                                <div className="text-center p-10 bg-white rounded-3xl border border-gray-100">
+                                                    <p className="text-sm font-bold text-gray-600">Tidak ada foto dengan sudut "{photoAngleFilter}".</p>
+                                                </div>
+                                            )
+                                        }
+                                        return (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                                {anglePhotos.map(photo => {
+                                                    const label = formatPhotoLabel(photo.caption, photo.storage_path)
+                                                    const dateStr = photo.treatment_records?.treatment_date 
+                                                        ? new Date(photo.treatment_records.treatment_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                        : new Date(photo.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+
+                                                    return (
+                                                        <div 
+                                                            key={photo.id}
+                                                            onClick={() => setSelectedPhotoZoom(photo)}
+                                                            className="bg-white rounded-2xl border border-gray-100 shadow-xs hover:shadow-md hover:border-pink-300 transition-all overflow-hidden flex flex-col group cursor-pointer relative"
+                                                        >
+                                                            <div className="relative aspect-[4/5] overflow-hidden bg-gray-100 flex items-center justify-center">
+                                                                <img 
+                                                                    src={photo.fullUrl} 
+                                                                    alt={label} 
+                                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                                                    <span>🔍 Perbesar</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-3 bg-white flex flex-col justify-between flex-1 border-t border-gray-50">
+                                                                <div className="flex items-center justify-between text-xs">
+                                                                    <span className="font-bold text-gray-800">{dateStr}</span>
+                                                                    {photo.treatment_records?.branches?.name && (
+                                                                        <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
+                                                                            {photo.treatment_records.branches.name}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {photo.treatment_record_id && (
+                                                                    <Link 
+                                                                        href={`/treatment-records/${photo.treatment_record_id}`}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        className="text-[11px] font-bold text-ayumi-primary hover:underline mt-1.5 inline-flex items-center gap-1"
+                                                                    >
+                                                                        <span>Lihat SOAP</span>
+                                                                        <span>→</span>
+                                                                    </Link>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
                                             </div>
                                         )
-                                    })}
-                                </div>
-                            )
-                        })()}
+                                    })()
+                                ) : (
+                                    /* TAMPILAN AUTO-STRUCTURED PER SESI (DEPAN, KIRI, KANAN) */
+                                    (() => {
+                                        // Group photos by treatment_record_id or date
+                                        const sessionsMap = {}
+                                        photos.forEach(photo => {
+                                            const key = photo.treatment_record_id || (photo.created_at ? photo.created_at.split('T')[0] : 'other')
+                                            if (!sessionsMap[key]) {
+                                                sessionsMap[key] = {
+                                                    id: photo.treatment_record_id,
+                                                    date: photo.treatment_records?.treatment_date || photo.created_at?.split('T')[0],
+                                                    branch: photo.treatment_records?.branches?.name || null,
+                                                    photos: []
+                                                }
+                                            }
+                                            sessionsMap[key].photos.push(photo)
+                                        })
+
+                                        const sessions = Object.values(sessionsMap).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+
+                                        return (
+                                            <div className="space-y-6">
+                                                {sessions.map((session, sIdx) => {
+                                                    const dateDisplay = session.date 
+                                                        ? new Date(session.date + (session.date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                                                        : 'Dokumentasi Klinis'
+
+                                                    const slotSpecs = [
+                                                        { key: 'depan', label: 'Tampak Depan', icon: '👤', color: 'text-blue-700 bg-blue-50 border-blue-200' },
+                                                        { key: 'kiri', label: 'Samping Kiri', icon: '👈', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+                                                        { key: 'kanan', label: 'Samping Kanan', icon: '👉', color: 'text-amber-700 bg-amber-50 border-amber-200' }
+                                                    ]
+
+                                                    return (
+                                                        <div key={session.id || sIdx} className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-xs space-y-4">
+                                                            {/* Session Header */}
+                                                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-ayumi-primary text-white flex items-center justify-center font-black text-base shadow-sm">
+                                                                        🗓️
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <h4 className="font-extrabold text-gray-900 text-sm sm:text-base">
+                                                                                {dateDisplay}
+                                                                            </h4>
+                                                                            {session.branch && (
+                                                                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-pink-50 text-ayumi-primary border border-pink-100">
+                                                                                    {session.branch}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-400 mt-0.5">
+                                                                            Total {session.photos.length} foto klinis tercatat pada sesi ini
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {session.id && (
+                                                                    <Link 
+                                                                        href={`/treatment-records/${session.id}`}
+                                                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-ayumi-primary hover:text-white bg-pink-50 hover:bg-ayumi-primary px-3.5 py-2 rounded-xl transition-all shadow-2xs"
+                                                                    >
+                                                                        <span>📋 Lihat Rekam Medis (SOAP)</span>
+                                                                        <span>→</span>
+                                                                    </Link>
+                                                                )}
+                                                            </div>
+
+                                                            {/* 3 Structured Columns: Depan, Kiri, Kanan */}
+                                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                                {slotSpecs.map(slot => {
+                                                                    const photo = session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === slot.key)
+
+                                                                    if (photo) {
+                                                                        return (
+                                                                            <div 
+                                                                                key={slot.key}
+                                                                                onClick={() => setSelectedPhotoZoom(photo)}
+                                                                                className="bg-gray-50/80 rounded-2xl p-3 border border-gray-100 hover:border-pink-300 hover:shadow-md transition-all cursor-pointer group flex flex-col space-y-2.5"
+                                                                            >
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md border flex items-center gap-1 ${slot.color}`}>
+                                                                                        <span>{slot.icon}</span>
+                                                                                        <span>{slot.label}</span>
+                                                                                    </span>
+                                                                                    <span className="text-[10px] text-gray-400 font-medium">
+                                                                                        {new Date(photo.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                                                                                    </span>
+                                                                                </div>
+
+                                                                                <div className="relative aspect-[4/5] rounded-xl overflow-hidden bg-gray-900/5 border border-gray-100 flex items-center justify-center">
+                                                                                    <img 
+                                                                                        src={photo.fullUrl} 
+                                                                                        alt={slot.label} 
+                                                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                                                    />
+                                                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                                                        Perbesar Foto
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )
+                                                                    } else {
+                                                                        return (
+                                                                            <div 
+                                                                                key={slot.key}
+                                                                                className="bg-gray-50/40 rounded-2xl p-4 border border-dashed border-gray-200 flex flex-col items-center justify-center text-center aspect-[4/5] space-y-2"
+                                                                            >
+                                                                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border text-gray-400 bg-gray-100 border-gray-200`}>
+                                                                                    {slot.icon} {slot.label}
+                                                                                </span>
+                                                                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-300 text-lg">
+                                                                                    📷
+                                                                                </div>
+                                                                                <p className="text-[11px] font-semibold text-gray-400">Tidak ada foto</p>
+                                                                            </div>
+                                                                        )
+                                                                    }
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )
+                                    })()
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
