@@ -299,20 +299,24 @@ function PosPageContent() {
             }
         }
         
+        const initialBranchId = currentUData?.branch_id || (brRes.data && brRes.data.length > 0 ? brRes.data[0].id : '')
         if (brRes.data) {
             setBranches(brRes.data)
             // Auto-default branch untuk Owner jika belum terpilih
             setSelectedBranch(prev => {
                 if (prev) return prev
-                if (currentUData?.branch_id) return currentUData.branch_id
-                if (brRes.data.length > 0) return brRes.data[0].id
-                return ''
+                return initialBranchId
             })
         }
         if (trRes.data) setTreatments(trRes.data)
         if (cpRes.data) setCoupons(cpRes.data)
         if (thRes.data) setTherapists(thRes.data)
         if (catRes.data) setCategories(catRes.data)
+
+        await fetchProducts(initialBranchId)
+        if (initialBranchId) {
+            fetchPendingBills(initialBranchId)
+        }
 
         setIsLoading(false)
     }
@@ -362,28 +366,40 @@ function PosPageContent() {
         loadAutoBill()
     }, [isLoading, searchParams])
 
-    async function fetchProducts() {
-        // Fetch products that are active and have stock > 0 in selected branch
-        const { data, error } = await supabase
-            .from('product_stock')
-            .select(`
-                quantity,
-                product_id,
-                products (id, name, description, price, is_active)
-            `)
-            .eq('branch_id', selectedBranch)
-            .gt('quantity', 0)
-            
-        if (data) {
-            const availableProducts = data
-                .filter(item => item.products && item.products.is_active)
-                .map(item => ({
-                    ...item.products,
-                    quantity: item.quantity
-                }))
-                .sort((a, b) => a.name.localeCompare(b.name))
-            setProducts(availableProducts)
+    async function fetchProducts(targetBranchId = selectedBranch) {
+        // Fetch all active products and attach stock for current branch
+        const { data: prodData, error: prodErr } = await supabase
+            .from('products')
+            .select('id, name, description, price, is_active, discount_percent')
+            .eq('is_active', true)
+            .order('name', { ascending: true })
+
+        if (prodErr || !prodData) {
+            setProducts([])
+            return
         }
+
+        const branchToQuery = targetBranchId || selectedBranch
+        let stockMap = {}
+        if (branchToQuery) {
+            const { data: stockData } = await supabase
+                .from('product_stock')
+                .select('product_id, quantity')
+                .eq('branch_id', branchToQuery)
+            
+            if (stockData) {
+                stockData.forEach(s => {
+                    stockMap[s.product_id] = s.quantity
+                })
+            }
+        }
+
+        const availableProducts = prodData.map(p => ({
+            ...p,
+            quantity: stockMap[p.id] !== undefined ? stockMap[p.id] : 0
+        }))
+
+        setProducts(availableProducts)
     }
 
     async function handleSelectPatient(patient) {
@@ -2386,6 +2402,14 @@ function PosPageContent() {
                                                             Kupon ({filteredCoupons.length})
                                                         </button>
                                                     )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSearchQuery('')}
+                                                        className="text-xs bg-white border border-[#F2D8C3] hover:bg-[#FAF1E8] text-[#D46221] px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                                                        title="Hapus kata kunci pencarian"
+                                                    >
+                                                        ✕ Hapus Filter
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -2401,8 +2425,17 @@ function PosPageContent() {
                                                     </div>
                                                 )}
                                                 {groupedTreatmentCategories.length === 0 ? (
-                                                    <div className="py-8 text-center text-xs text-gray-400">
-                                                        Tidak ada treatment ditemukan.
+                                                    <div className="py-8 text-center text-xs text-gray-400 space-y-2">
+                                                        <p>Tidak ada treatment ditemukan{q ? ` untuk kata kunci "${searchQuery}"` : ''}.</p>
+                                                        {q && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSearchQuery('')}
+                                                                className="text-xs bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#D46221] font-bold px-3 py-1.5 rounded-lg border border-[#F2D8C3] cursor-pointer"
+                                                            >
+                                                                Hapus Pencarian
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <div className="space-y-6">
@@ -2490,8 +2523,17 @@ function PosPageContent() {
                                                     </h3>
                                                 )}
                                                 {groupedProductCategories.length === 0 ? (
-                                                    <div className="py-8 text-center text-xs text-gray-400">
-                                                        Tidak ada produk aktif di cabang ini.
+                                                    <div className="py-8 text-center text-xs text-gray-400 space-y-2">
+                                                        <p>Tidak ada produk yang cocok{q ? ` dengan kata kunci "${searchQuery}"` : ' di cabang ini'}.</p>
+                                                        {q && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSearchQuery('')}
+                                                                className="text-xs bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#D46221] font-bold px-3 py-1.5 rounded-lg border border-[#F2D8C3] cursor-pointer"
+                                                            >
+                                                                Hapus Pencarian & Tampilkan Semua Produk
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <div className="space-y-5">
