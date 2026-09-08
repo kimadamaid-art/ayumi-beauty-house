@@ -2528,14 +2528,14 @@ function PosPageContent() {
             </div>
 
             {/* ─── PANEL KANAN: KERANJANG & CHECKOUT RINGKAS ─── */}
-            <div className="w-full lg:w-2/5 flex flex-col bg-white rounded-3xl shadow-lg border border-gray-100 relative overflow-hidden max-h-[calc(100vh-100px)]">
+            <div className="w-full lg:w-2/5 flex flex-col bg-white rounded-3xl shadow-lg border border-gray-100 relative overflow-hidden h-full lg:h-[calc(100vh-80px)] min-h-[600px]">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-ayumi-secondary to-ayumi-primary"></div>
                 
                 {/* Patient Selector */}
-                <div className="p-3.5 border-b border-gray-100 pt-4 bg-white shrink-0">
+                <div className="p-3 border-b border-gray-100 pt-3.5 bg-white shrink-0">
                     <div className="flex items-center justify-between gap-1.5 mb-1.5 flex-wrap">
                         <div className="flex items-center gap-2">
-                            <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider">
+                            <label className="text-[10.5px] font-black text-gray-500 uppercase tracking-wider">
                                 Pelanggan (Wajib Diisi)
                             </label>
                             {!selectedPatient && !isQuickAddInlineOpen && (
@@ -2546,7 +2546,7 @@ function PosPageContent() {
                                         setIsQuickAddInlineOpen(true)
                                         setIsPatientDropdownOpen(false)
                                     }}
-                                    className="px-2 py-0.5 rounded-lg text-[10.5px] font-black bg-pink-50 text-ayumi-primary hover:bg-pink-100 border border-pink-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                                    className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-pink-50 text-ayumi-primary hover:bg-pink-100 border border-pink-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
                                     title="Tambah Pasien Baru Langsung di Kasir"
                                 >
                                     <span>+</span>
@@ -2560,7 +2560,7 @@ function PosPageContent() {
                                 <button
                                     type="button"
                                     onClick={() => setIsHeldModalOpen(true)}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-black bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-all shadow-2xs cursor-pointer animate-pulse"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-black bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-all shadow-2xs cursor-pointer animate-pulse"
                                     title="Buka daftar transaksi yang sedang ditahan"
                                 >
                                     <span>📂</span>
@@ -2573,11 +2573,11 @@ function PosPageContent() {
                                 <button
                                     type="button"
                                     onClick={handleHoldTransaction}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 transition-all shadow-2xs cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-extrabold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 transition-all shadow-2xs cursor-pointer"
                                     title="Simpan / Tahan tagihan ini sementara agar bisa melayani pasien lain"
                                 >
                                     <span>⏸️</span>
-                                    <span>Simpan Tagihan</span>
+                                    <span>Simpan</span>
                                 </button>
                             )}
 
@@ -2596,16 +2596,16 @@ function PosPageContent() {
                     </div>
                     {selectedPatient ? (
                         <div className="space-y-1.5">
-                            <div className="flex justify-between items-center bg-pink-50/50 p-2.5 rounded-xl border border-pink-100/70 shadow-2xs relative overflow-hidden transition-all">
-                                <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex justify-between items-center bg-pink-50/50 p-2 rounded-xl border border-pink-100/70 shadow-2xs relative overflow-hidden transition-all">
+                                <div className="flex items-center gap-2 min-w-0">
                                     {/* Initial Avatar */}
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ayumi-primary to-rose-400 flex items-center justify-center text-white font-black text-xs shadow-inner shrink-0">
+                                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-ayumi-primary to-rose-400 flex items-center justify-center text-white font-black text-xs shadow-inner shrink-0">
                                         {(selectedPatient.full_name?.charAt(0) || '?').toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                            <p className="font-extrabold text-gray-900 leading-tight text-xs truncate max-w-[140px] sm:max-w-[200px]">{selectedPatient.full_name}</p>
-                                            <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border ${
+                                            <p className="font-extrabold text-gray-900 leading-tight text-xs truncate max-w-[140px] sm:max-w-[180px]">{selectedPatient.full_name}</p>
+                                            <span className={`text-[8.5px] font-extrabold px-1.5 py-0.2 rounded-full border ${
                                                 (selectedPatientDetails?.crmStatus === 'Active') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                 (selectedPatientDetails?.crmStatus === 'Warm') ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                 (selectedPatientDetails?.crmStatus === 'Dormant') ? 'bg-rose-50 text-rose-700 border-rose-200' :
@@ -2614,11 +2614,11 @@ function PosPageContent() {
                                                 {selectedPatientDetails?.crmStatus || 'New'}
                                             </span>
                                         </div>
-                                        <p className="text-[10px] text-gray-500 mt-0.5 tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
+                                        <p className="text-[9.5px] text-gray-500 mt-0.5 tracking-tight">{selectedPatient.whatsapp || 'No HP tidak ada'}</p>
                                     </div>
                                 </div>
                                 <button 
-                                    type="button"
+                                    type="button" 
                                     onClick={() => {
                                         setSelectedPatient(null)
                                         setSelectedPatientDetails(null)
@@ -2632,7 +2632,7 @@ function PosPageContent() {
                                             setLeftPanelTab('pending')
                                         }
                                     }} 
-                                    className="text-gray-400 hover:text-rose-600 p-1.5 bg-white hover:bg-rose-50 rounded-lg transition-all border border-gray-100 shadow-2xs shrink-0 cursor-pointer"
+                                    className="text-gray-400 hover:text-rose-600 p-1 bg-white hover:bg-rose-50 rounded-lg transition-all border border-gray-100 shadow-2xs shrink-0 cursor-pointer"
                                     title="Ganti Pasien"
                                 >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2640,7 +2640,7 @@ function PosPageContent() {
                             </div>
 
                             {/* Quick View Riwayat Perawatan/Produk Sebelumnya - Rapi, Simpel, & Elegan */}
-                            <div className="flex items-center gap-1.5 pt-1 border-t border-pink-100/60">
+                            <div className="flex items-center gap-1.5 pt-0.5">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -2649,11 +2649,11 @@ function PosPageContent() {
                                         }
                                         setIsPatientHistoryModalOpen(true)
                                     }}
-                                    className="flex-1 py-1.5 px-2.5 bg-pink-50/60 hover:bg-pink-100/80 text-[#5c3316] font-bold text-[11px] rounded-xl border border-pink-200/70 flex items-center justify-between gap-2 transition-all shadow-2xs group cursor-pointer text-left min-w-0"
+                                    className="flex-1 py-1 px-2 bg-pink-50/60 hover:bg-pink-100/80 text-[#5c3316] font-bold text-[10.5px] rounded-lg border border-pink-200/70 flex items-center justify-between gap-1.5 transition-all shadow-2xs group cursor-pointer text-left min-w-0"
                                     title="Klik untuk melihat detail riwayat treatment & produk pasien"
                                 >
                                     <span className="truncate flex items-center gap-1.5 min-w-0">
-                                        <span className="shrink-0 text-xs">📜</span>
+                                        <span className="shrink-0 text-[11px]">📜</span>
                                         <span className="truncate text-gray-800">
                                             {patientHistoryLoading ? (
                                                 'Memuat riwayat...'
@@ -2667,7 +2667,7 @@ function PosPageContent() {
                                             )}
                                         </span>
                                     </span>
-                                    <span className="text-[10px] bg-pink-500 text-white font-black px-1.5 py-0.5 rounded-md shrink-0 shadow-2xs">
+                                    <span className="text-[9.5px] bg-pink-500 text-white font-black px-1.5 py-0.2 rounded shrink-0 shadow-2xs">
                                         {patientHistoryLoading ? '...' : `${(patientHistoryData?.pastTreatments?.length || 0) + (patientHistoryData?.pastProducts?.length || 0)} Item`} ↗
                                     </span>
                                 </button>
@@ -2676,169 +2676,106 @@ function PosPageContent() {
                                     <Link
                                         href={`/patients/${selectedPatient.id}`}
                                         target="_blank"
-                                        className="py-1.5 px-2 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-800 font-bold text-[10.5px] rounded-xl border border-gray-200 flex items-center gap-1 transition-colors shrink-0 shadow-2xs"
+                                        className="py-1 px-2 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-800 font-bold text-[10px] rounded-lg border border-gray-200 flex items-center gap-0.5 transition-colors shrink-0 shadow-2xs"
                                         title="Buka Rekam Medis Pasien di Tab Baru"
                                     >
                                         <span>Medis</span>
-                                        <span className="text-[9px]">↗</span>
+                                        <span className="text-[8.5px]">↗</span>
                                     </Link>
                                 )}
                             </div>
                         </div>
                     ) : isQuickAddInlineOpen ? (
                         /* Inline Quick Add Patient Form */
-                        <form onSubmit={handleQuickAddPatient} className="bg-pink-50/30 p-3 rounded-xl border border-pink-100/60 shadow-2xs space-y-2 transition-all">
+                        <form onSubmit={handleQuickAddPatient} className="bg-pink-50/30 p-2.5 rounded-xl border border-pink-100/60 shadow-2xs space-y-2 transition-all">
                             <div className="flex justify-between items-center">
-                                <h3 className="font-extrabold text-[11px] text-ayumi-secondary uppercase tracking-wider">Tambah Pasien Cepat</h3>
+                                <h3 className="font-extrabold text-[10.5px] text-ayumi-secondary uppercase tracking-wider">Tambah Pasien Cepat</h3>
                                 <button 
                                     type="button" 
                                     onClick={() => {
                                         setIsQuickAddInlineOpen(false)
                                         setQuickAddError('')
                                     }} 
-                                    className="text-[11px] text-gray-400 hover:text-gray-600 font-bold"
+                                    className="text-[10px] text-gray-400 hover:text-gray-600 font-bold"
                                 >
                                     Batal
                                 </button>
                             </div>
                             
-                            {quickAddConflict && (
-                                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg space-y-1 text-left">
-                                    <p className="text-[10px] font-bold text-amber-900">⚠️ Nomor WhatsApp Sudah Terdaftar</p>
-                                    <p className="text-[10px] text-amber-800 leading-tight">
-                                        Nomor <span className="font-mono font-bold">{quickAddConflict.whatsapp}</span> atas nama <strong>{quickAddConflict.full_name}</strong>.
-                                    </p>
-                                    <div className="flex items-center gap-1.5 pt-0.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                handleSelectPatient(quickAddConflict)
-                                                setQuickAddConflict(null)
-                                                setQuickAddForm({ full_name: '', whatsapp: '' })
-                                                setIsQuickAddInlineOpen(false)
-                                            }}
-                                            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold py-1 px-2 rounded-md transition-all"
-                                        >
-                                            ✓ Pakai Pasien Ini
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setQuickAddConflict(null)}
-                                            className="bg-white text-gray-600 text-[9px] font-bold py-1 px-2 rounded-md border border-amber-300"
-                                        >
-                                            Batal
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
                             {quickAddError && (
-                                <p className="text-[10px] text-red-500 font-semibold">{quickAddError}</p>
+                                <p className="text-[9.5px] text-rose-600 bg-rose-50 p-1 rounded-md border border-rose-100">{quickAddError}</p>
                             )}
 
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
+                                    <label className="text-[9px] font-bold text-gray-500 uppercase block mb-0.5">Nama Lengkap *</label>
                                     <input 
                                         type="text" 
-                                        placeholder="Nama Lengkap"
-                                        value={quickAddForm.full_name}
-                                        onChange={(e) => setQuickAddForm(prev => ({ ...prev, full_name: e.target.value }))}
-                                        className="input-ayumi w-full bg-white text-xs py-1"
-                                        required
+                                        placeholder="Nama Pasien" 
+                                        value={quickAddForm.full_name} 
+                                        onChange={(e) => setQuickAddForm({ ...quickAddForm, full_name: e.target.value })}
+                                        className="w-full text-xs font-semibold p-1.5 bg-white border border-pink-200 rounded-lg outline-none focus:border-ayumi-primary"
+                                        autoFocus
                                     />
                                 </div>
                                 <div>
+                                    <label className="text-[9px] font-bold text-gray-500 uppercase block mb-0.5">No WhatsApp *</label>
                                     <input 
                                         type="tel" 
-                                        placeholder="No. WA (08...)"
-                                        value={quickAddForm.whatsapp}
-                                        onChange={(e) => setQuickAddForm(prev => ({ ...prev, whatsapp: e.target.value }))}
-                                        className="input-ayumi w-full bg-white text-xs py-1"
-                                        required
+                                        placeholder="08123456789" 
+                                        value={quickAddForm.whatsapp} 
+                                        onChange={(e) => setQuickAddForm({ ...quickAddForm, whatsapp: e.target.value })}
+                                        className="w-full text-xs font-semibold p-1.5 bg-white border border-pink-200 rounded-lg outline-none focus:border-ayumi-primary"
                                     />
                                 </div>
                             </div>
 
                             <button 
                                 type="submit" 
-                                disabled={isQuickAdding}
-                                className="w-full bg-[#5c3316] hover:bg-[#43230c] text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1 shadow-xs"
+                                disabled={isQuickAdding} 
+                                className="w-full py-1.5 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white rounded-lg text-xs font-black shadow-xs disabled:opacity-50 transition-all cursor-pointer"
                             >
-                                {isQuickAdding ? 'Menyimpan...' : '✓ Simpan & Pilih Pasien'}
+                                {isQuickAdding ? 'Menyimpan...' : 'Simpan & Pilih Pasien'}
                             </button>
                         </form>
                     ) : (
-                        <div className="relative">
-                            <div className="relative flex items-center">
-                                <span className="absolute left-2.5 text-gray-400 pointer-events-none">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        /* Patient Search Input */
+                        <div className="relative" ref={patientSearchRef}>
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 </span>
                                 <input
                                     type="text"
-                                    placeholder="Cari Nama Pasien / No. WA..."
+                                    placeholder="Ketik Nama Pasien atau No WhatsApp..."
                                     value={searchPatientQuery}
                                     onChange={(e) => {
                                         setSearchPatientQuery(e.target.value)
                                         setIsPatientDropdownOpen(true)
                                     }}
                                     onFocus={() => setIsPatientDropdownOpen(true)}
-                                    className="input-ayumi w-full pl-8 pr-7 py-1.5 bg-gray-50/80 border-gray-200 focus:bg-white text-xs"
+                                    className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-xs font-semibold rounded-xl border border-gray-200 focus:border-ayumi-primary focus:ring-2 focus:ring-pink-100 transition-all outline-none"
                                 />
                                 {searchPatientQuery && (
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setSearchPatientQuery('')} 
-                                        className="absolute right-2.5 text-gray-400 hover:text-gray-600"
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchPatientQuery('')
+                                            setIsPatientDropdownOpen(false)
+                                        }}
+                                        className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 text-xs font-bold"
                                     >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        ✕
                                     </button>
                                 )}
                             </div>
+
+                            {/* Dropdown Hasil Pencarian Pasien */}
                             {isPatientDropdownOpen && (
-                                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl max-h-64 overflow-y-auto custom-scrollbar divide-y divide-gray-50">
-                                    {searchPatientQuery.trim().length < 2 ? (
-                                        <div className="p-3 text-center text-[11px] text-gray-400">
-                                            Ketik minimal 2 karakter...
-                                        </div>
-                                    ) : isSearchingPatient ? (
-                                        <div className="p-3 text-center text-[11px] text-gray-400 flex items-center justify-center gap-1.5">
-                                            <div className="w-3 h-3 border-2 border-ayumi-primary border-t-transparent rounded-full animate-spin"></div>
-                                            <span>Mencari...</span>
-                                        </div>
-                                    ) : patientSearchResults.length > 0 ? (
-                                        <>
-                                            {patientSearchResults.map(p => (
-                                                <div 
-                                                    key={p.id} 
-                                                    onClick={() => handleSelectPatient(p)}
-                                                    className="px-3.5 py-2 hover:bg-pink-50/40 cursor-pointer transition-colors flex items-center justify-between group"
-                                                >
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-gray-800 text-xs truncate">{p.full_name}</p>
-                                                        <p className="text-[10px] text-gray-400">{p.whatsapp || 'No HP tidak ada'}</p>
-                                                    </div>
-                                                    <span className="text-[10px] text-ayumi-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
-                                                </div>
-                                            ))}
-                                            {/* Opsi Daftarkan Pasien Baru jika yang dicari belum terdaftar */}
-                                            <div 
-                                                onClick={() => {
-                                                    setQuickAddForm({ full_name: searchPatientQuery, whatsapp: '' })
-                                                    setIsQuickAddInlineOpen(true)
-                                                    setIsPatientDropdownOpen(false)
-                                                }}
-                                                className="px-3.5 py-2.5 bg-pink-50/60 hover:bg-pink-100/80 text-ayumi-primary cursor-pointer transition-colors flex items-center justify-between font-bold text-xs border-t border-pink-100/80 group"
-                                            >
-                                                <div className="flex items-center gap-1.5 min-w-0">
-                                                    <span className="text-sm font-black text-ayumi-secondary shrink-0">+</span>
-                                                    <span className="truncate text-gray-700 font-semibold">Daftarkan <strong className="text-[#5c3316] font-bold">&ldquo;{searchPatientQuery}&rdquo;</strong></span>
-                                                </div>
-                                                <span className="text-[10px] text-ayumi-primary font-extrabold group-hover:translate-x-0.5 transition-transform shrink-0">Daftar Baru →</span>
-                                            </div>
-                                        </>
-                                    ) : !isSearchingPatient && hasSearchedPatient && patientSearchResults.length === 0 ? (
-                                        <div className="p-3 text-center space-y-1.5">
-                                            <p className="text-[11px] text-gray-500">Tidak ada pasien dengan nama &ldquo;{searchPatientQuery}&rdquo;.</p>
+                                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto z-50 p-1 space-y-1">
+                                    {filteredPatients.length === 0 ? (
+                                        <div className="p-3 text-center space-y-2">
+                                            <p className="text-xs text-gray-500 font-bold">Pasien tidak ditemukan</p>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -2846,139 +2783,159 @@ function PosPageContent() {
                                                     setIsQuickAddInlineOpen(true)
                                                     setIsPatientDropdownOpen(false)
                                                 }}
-                                                className="w-full bg-[#5c3316] hover:bg-[#43230c] text-white text-[11px] font-bold py-1.5 px-2.5 rounded-lg transition-all shadow-xs cursor-pointer"
+                                                className="w-full py-1.5 px-3 bg-pink-50 hover:bg-pink-100 text-ayumi-primary rounded-xl text-xs font-black border border-pink-200 flex items-center justify-center gap-1 transition-all"
                                             >
-                                                + Daftarkan "{searchPatientQuery}" Sebagai Pasien Baru
+                                                <span>+</span>
+                                                <span>Tambah &quot;{searchPatientQuery}&quot; sebagai Pasien Baru</span>
                                             </button>
                                         </div>
-                                    ) : null}
+                                    ) : (
+                                        filteredPatients.map(p => (
+                                            <div
+                                                key={p.id}
+                                                onClick={() => handleSelectPatient(p)}
+                                                className="p-2 hover:bg-pink-50/70 rounded-xl cursor-pointer flex items-center justify-between transition-colors group"
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className="w-7 h-7 rounded-full bg-slate-100 group-hover:bg-pink-100 text-gray-700 group-hover:text-ayumi-primary flex items-center justify-center text-[10px] font-black shrink-0 transition-colors">
+                                                        {(p.full_name?.charAt(0) || '?').toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-extrabold text-xs text-gray-800 group-hover:text-ayumi-primary truncate">{p.full_name}</p>
+                                                        <p className="text-[10px] text-gray-400 truncate">{p.whatsapp || 'Tanpa no. WA'}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[9px] font-extrabold text-ayumi-primary bg-pink-50 px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                                    Pilih ➔
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
 
-                {/* Cart Items List */}
-                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar bg-slate-50/40 space-y-2">
+                {/* Cart Items List (Spacious & Clean Layout) */}
+                <div className="flex-1 overflow-y-auto p-2.5 custom-scrollbar bg-slate-50/30 space-y-2 min-h-[140px]">
                     {cart.length === 0 ? (
                         !selectedPatient ? (
-                            <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-4 gap-2">
-                                <div className="w-12 h-12 bg-pink-50 rounded-full flex items-center justify-center shadow-inner">
-                                    <svg className="w-6 h-6 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 gap-2">
+                                <div className="w-10 h-10 bg-pink-50 rounded-full flex items-center justify-center shadow-inner">
+                                    <svg className="w-5 h-5 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                 </div>
                                 <div>
                                     <p className="text-xs font-extrabold text-gray-800">Pilih Pelanggan Dahulu</p>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 max-w-[200px] leading-tight">Cari nama atau nomor WhatsApp pasien untuk memulai transaksi</p>
+                                    <p className="text-[10.5px] text-gray-400 mt-0.5 max-w-[200px] leading-tight">Cari nama atau nomor WhatsApp pasien untuk memulai transaksi</p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-4 gap-2">
-                                <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center shadow-inner">
-                                    <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 gap-2">
+                                <div className="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center shadow-inner">
+                                    <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                                 </div>
                                 <div>
                                     <p className="text-xs font-extrabold text-gray-800">Keranjang Masih Kosong</p>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 max-w-[200px] leading-tight">Pilih treatment, produk, atau kupon di katalog sebelah kiri</p>
+                                    <p className="text-[10.5px] text-gray-400 mt-0.5 max-w-[200px] leading-tight">Pilih treatment, produk, atau kupon di katalog sebelah kiri</p>
                                 </div>
                             </div>
                         )
                     ) : (
                         cart.map((item, idx) => (
-                            <div key={idx} className="flex flex-col bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs hover:border-pink-200 transition-all">
-                                {/* Top row: badge, name & delete button */}
+                            <div key={idx} className="flex flex-col bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-pink-300 transition-all space-y-1.5">
+                                {/* Top row: badge + name + delete button */}
                                 <div className="flex items-start justify-between gap-1.5">
-                                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className={`text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.2 rounded-md ${
-                                                item.item_type === 'treatment' 
-                                                    ? 'bg-purple-50 text-purple-600 border border-purple-100' 
-                                                    : item.item_type === 'product'
-                                                    ? 'bg-orange-50 text-orange-600 border border-orange-100'
-                                                    : 'bg-pink-50 text-pink-600 border border-pink-100'
-                                            }`}>
-                                                {item.item_type === 'treatment' ? 'Treatment' : item.item_type === 'product' ? 'Produk' : 'Kupon Paket'}
-                                            </span>
-                                        </div>
-                                        <p className="font-extrabold text-gray-800 text-xs leading-snug break-words">{item.name}</p>
-
-                                        {/* Active Coupon Banner & Toggle in Cart Item */}
-                                        {item.item_type === 'treatment' && (
-                                            <div className="mt-1">
-                                                {item.is_using_coupon ? (
-                                                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-1.5 rounded-lg text-[10px] flex items-center justify-between gap-1.5">
-                                                        <span className="font-bold truncate">🎟️ Kupon: <strong>{item.coupon_package_name}</strong></span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleCartItemCoupon(item.id)}
-                                                            className="text-[9px] font-black bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded transition-colors shrink-0"
-                                                        >
-                                                            Bayar Normal
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    (() => {
-                                                        const availableCoupon = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
-                                                        if (availableCoupon) {
-                                                            return (
-                                                                <div className="bg-amber-50 border border-amber-200 text-amber-900 p-1.5 rounded-lg text-[10px] flex items-center justify-between gap-1.5">
-                                                                    <span className="truncate">💡 Ada Kupon: <strong>{availableCoupon.patient_coupons?.coupon_packages?.name}</strong></span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleCartItemCoupon(item.id)}
-                                                                        className="text-[9px] font-black bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded shadow-2xs transition-all shrink-0"
-                                                                    >
-                                                                        Klaim Kupon (Rp 0)
-                                                                    </button>
-                                                                </div>
-                                                            )
-                                                        }
-                                                        return null
-                                                    })()
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Selector Terapis Per Item Treatment */}
-                                        {item.item_type === 'treatment' && (
-                                            <div className="mt-1.5 pt-1 border-t border-dashed border-gray-100 flex items-center justify-between gap-1.5">
-                                                <span className="text-[9px] font-bold text-gray-500 uppercase shrink-0">👩‍⚕️ Terapis:</span>
-                                                <select
-                                                    value={item.therapist_id || (selectedTherapistId || '')}
-                                                    onChange={(e) => handleCartItemTherapistChange(item.id, e.target.value)}
-                                                    className="text-[11px] font-bold bg-pink-50/60 border border-pink-200/80 rounded-md px-1.5 py-0.5 focus:bg-white text-gray-800 flex-1 max-w-[170px]"
-                                                >
-                                                    <option value="">-- Pilih Terapis --</option>
-                                                    <option value="worker">💉 Worker (Tanpa Komisi)</option>
-                                                    {therapists.map(t => (
-                                                        <option key={t.id} value={t.id}>{t.full_name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        )}
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded shrink-0 ${
+                                            item.item_type === 'treatment' 
+                                                ? 'bg-purple-50 text-purple-700 border border-purple-100' 
+                                                : item.item_type === 'product'
+                                                ? 'bg-orange-50 text-orange-700 border border-orange-100'
+                                                : 'bg-pink-50 text-pink-700 border border-pink-100'
+                                        }`}>
+                                            {item.item_type === 'treatment' ? 'Treatment' : item.item_type === 'product' ? 'Produk' : 'Kupon'}
+                                        </span>
+                                        <p className="font-extrabold text-gray-900 text-xs leading-tight truncate" title={item.name}>{item.name}</p>
                                     </div>
                                     <button 
                                         type="button" 
                                         onClick={() => removeFromCart(item.id, item.item_type)}
-                                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 hover:bg-rose-100 hover:text-rose-600 transition-all shrink-0"
-                                        title="Hapus"
+                                        className="w-5 h-5 flex items-center justify-center rounded-md bg-gray-50 text-gray-400 hover:bg-rose-100 hover:text-rose-600 transition-all shrink-0 cursor-pointer"
+                                        title="Hapus item"
                                     >
                                         ✕
                                     </button>
                                 </div>
 
-                                {/* Bottom row: qty controller & subtotal */}
-                                <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100">
-                                    <div className="flex items-center gap-1.5 bg-gray-50 border border-[#F2D8C3] rounded-lg p-0.5">
+                                {/* Active Coupon Banner if treatment */}
+                                {item.item_type === 'treatment' && (
+                                    <div>
+                                        {item.is_using_coupon ? (
+                                            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-lg text-[9.5px] flex items-center justify-between gap-1">
+                                                <span className="font-bold truncate">🎟️ Kupon: <strong>{item.coupon_package_name}</strong></span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleCartItemCoupon(item.id)}
+                                                    className="text-[8.5px] font-black bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-900 px-1.5 py-0.2 rounded transition-colors shrink-0"
+                                                >
+                                                    Bayar Normal
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            (() => {
+                                                const availableCoupon = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+                                                if (availableCoupon) {
+                                                    return (
+                                                        <div className="bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-lg text-[9.5px] flex items-center justify-between gap-1">
+                                                            <span className="truncate">💡 Ada Kupon: <strong>{availableCoupon.patient_coupons?.coupon_packages?.name}</strong></span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleCartItemCoupon(item.id)}
+                                                                className="text-[8.5px] font-black bg-amber-500 hover:bg-amber-600 text-white px-1.5 py-0.2 rounded shadow-2xs transition-all shrink-0"
+                                                            >
+                                                                Klaim (Rp 0)
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                }
+                                                return null
+                                            })()
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Therapist per item (if treatment) */}
+                                {item.item_type === 'treatment' && (
+                                    <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                                        <span className="text-[8.5px] font-bold text-gray-500 uppercase shrink-0">👩‍⚕️ Terapis:</span>
+                                        <select
+                                            value={item.therapist_id || (selectedTherapistId || '')}
+                                            onChange={(e) => handleCartItemTherapistChange(item.id, e.target.value)}
+                                            className="text-[10.5px] font-bold bg-pink-50/50 border border-pink-200/70 rounded-md px-1.5 py-0.5 text-gray-800 flex-1 max-w-[170px]"
+                                        >
+                                            <option value="">-- Pilih Terapis --</option>
+                                            <option value="worker">💉 Worker (Tanpa Komisi)</option>
+                                            {therapists.map(t => (
+                                                <option key={t.id} value={t.id}>{t.full_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Bottom row: qty stepper & subtotal price */}
+                                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                                    <div className="flex items-center gap-1 bg-gray-50 border border-[#F2D8C3] rounded-lg p-0.5">
                                         <button 
                                             type="button"
                                             onClick={() => updateCartQty(item.id, item.item_type, -1)} 
-                                            className="w-5 h-5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-xs cursor-pointer"
+                                            className="w-4.5 h-4.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-[11px] cursor-pointer"
                                         >-</button>
-                                        <span className="text-xs font-black px-1.5 min-w-[20px] text-center text-[#2C1E16]">{item.quantity}</span>
+                                        <span className="text-[11px] font-black px-1.5 min-w-[18px] text-center text-[#2C1E16]">{item.quantity}</span>
                                         <button 
                                             type="button"
                                             onClick={() => updateCartQty(item.id, item.item_type, 1)} 
-                                            className="w-5 h-5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-xs cursor-pointer"
+                                            className="w-4.5 h-4.5 flex items-center justify-center text-gray-600 bg-white rounded shadow-2xs hover:bg-gray-100 font-black text-[11px] cursor-pointer"
                                         >+</button>
                                     </div>
                                     <div className="text-right">
@@ -2992,10 +2949,10 @@ function PosPageContent() {
                     )}
                 </div>
 
-                {/* ─── SECTION BOTTOM: TOTALS & PAYMENT COMPACT ─── */}
-                <div className="border-t border-[#F2D8C3] bg-white p-3.5 shadow-md z-10 shrink-0 space-y-2.5">
+                {/* ─── SECTION BOTTOM: TOTALS & PAYMENT (COMPACT & SLEEK) ─── */}
+                <div className="border-t border-[#F2D8C3] bg-white p-3 shadow-md z-10 shrink-0 space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar">
                     {/* Subtotal & Diskon Global */}
-                    <div className="space-y-1.5 text-xs text-[#4E2A12]">
+                    <div className="space-y-1 text-xs text-[#4E2A12]">
                         <div className="flex justify-between items-center font-medium">
                             <span className="text-gray-500">Subtotal ({cart.reduce((s,i)=>s+(i.quantity||1),0)} item)</span>
                             <span className="font-bold text-[#2C1E16]">Rp {subtotal.toLocaleString('id-ID')}</span>
@@ -3003,11 +2960,11 @@ function PosPageContent() {
                         
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-gray-500 font-medium shrink-0">Diskon Nota</span>
-                            <div className="flex items-center gap-1 flex-1 max-w-[170px]">
+                            <div className="flex items-center gap-1 flex-1 max-w-[160px]">
                                 <select 
                                     value={discountType} 
                                     onChange={(e) => setDiscountType(e.target.value)}
-                                    className="bg-[#FAF6F0] border border-[#F2D8C3] text-[#4E2A12] rounded-lg py-1 px-1.5 text-[11px] w-14 font-black outline-none focus:border-[#D46221]"
+                                    className="bg-[#FAF6F0] border border-[#F2D8C3] text-[#4E2A12] rounded-lg py-0.5 px-1 text-[10.5px] w-12 font-black outline-none focus:border-[#D46221]"
                                 >
                                     <option value="nominal">Rp</option>
                                     <option value="percent">%</option>
@@ -3018,31 +2975,31 @@ function PosPageContent() {
                                     onFocus={(e) => e.target.select()}
                                     placeholder="0"
                                     onChange={(e) => setDiscountValue(e.target.value)}
-                                    className="py-1 px-2 text-right flex-1 bg-[#FAF6F0] border border-[#F2D8C3] text-xs font-black text-[#2C1E16] rounded-lg outline-none focus:border-[#D46221]"
+                                    className="py-0.5 px-2 text-right flex-1 bg-[#FAF6F0] border border-[#F2D8C3] text-xs font-black text-[#2C1E16] rounded-lg outline-none focus:border-[#D46221]"
                                     min="0"
                                 />
                             </div>
                         </div>
 
                         {discountAmount > 0 && (
-                            <div className="flex justify-between text-[11px] text-rose-600 font-bold bg-rose-50 px-2 py-1 rounded-lg">
+                            <div className="flex justify-between text-[10.5px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-lg">
                                 <span>Potongan Diskon</span>
                                 <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
                             </div>
                         )}
 
                         {qrisFee > 0 && (
-                            <div className="flex justify-between text-[11px] text-blue-700 font-semibold bg-blue-50 p-1.5 rounded-lg">
-                                <span>📱 Biaya Layanan QRIS (0,3%)</span>
+                            <div className="flex justify-between text-[10.5px] text-blue-700 font-semibold bg-blue-50 p-1 rounded-lg">
+                                <span>📱 Biaya QRIS (0,3%)</span>
                                 <span className="font-bold">+ Rp {qrisFee.toLocaleString('id-ID')}</span>
                             </div>
                         )}
                     </div>
 
                     {/* TOTAL BAYAR CARD */}
-                    <div className="flex justify-between items-center bg-[#FAF6F0] border border-[#F2D8C3] p-2.5 px-3.5 rounded-xl shadow-2xs">
-                        <span className="font-black text-xs text-[#4E2A12] tracking-wider uppercase">TOTAL BAYAR</span>
-                        <span className="font-black text-xl text-[#D46221] tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
+                    <div className="flex justify-between items-center bg-[#FAF6F0] border border-[#F2D8C3] p-2 px-3 rounded-xl shadow-2xs">
+                        <span className="font-black text-[11px] text-[#4E2A12] tracking-wider uppercase">TOTAL BAYAR</span>
+                        <span className="font-black text-lg text-[#D46221] tracking-tight">Rp {total.toLocaleString('id-ID')}</span>
                     </div>
 
                     {/* Selector Terapis Global (Jika tindakan langsung belum punya terapis) */}
@@ -3051,7 +3008,7 @@ function PosPageContent() {
                             <select
                                 value={selectedTherapistId}
                                 onChange={(e) => setSelectedTherapistId(e.target.value)}
-                                className="w-full text-xs font-black bg-[#FAF1E8] border border-[#F2D8C3] text-[#4E2A12] py-1.5 px-2.5 rounded-xl outline-none focus:border-[#D46221]"
+                                className="w-full text-[11px] font-black bg-[#FAF1E8] border border-[#F2D8C3] text-[#4E2A12] py-1 px-2 rounded-xl outline-none focus:border-[#D46221]"
                             >
                                 <option value="">-- Pilih Terapis Tindakan * --</option>
                                 <option value="worker">💉 Worker (Tanpa Komisi)</option>
@@ -3064,7 +3021,7 @@ function PosPageContent() {
 
                     {/* Metode Pembayaran (6 Compact Modern Buttons with SVG Icons) */}
                     <div>
-                        <div className="grid grid-cols-6 gap-1.5">
+                        <div className="grid grid-cols-6 gap-1">
                             {[
                                 { 
                                     id: 'cash', 
@@ -3125,9 +3082,9 @@ function PosPageContent() {
                                     key={pm.id}
                                     type="button"
                                     onClick={() => setPaymentMethod(pm.id)}
-                                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-[10px] font-black transition-all cursor-pointer ${
+                                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl border text-[9.5px] font-black transition-all cursor-pointer ${
                                         paymentMethod === pm.id
-                                            ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs scale-102 ring-2 ring-[#F2D8C3]'
+                                            ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs ring-1 ring-[#F2D8C3]'
                                             : 'bg-white border-[#F2D8C3] text-[#4E2A12] hover:bg-[#FAF1E8]/70 hover:border-[#D46221]'
                                     }`}
                                 >
@@ -3139,11 +3096,11 @@ function PosPageContent() {
 
                         {/* Split Payment UI */}
                         {paymentMethod === 'split' && (
-                            <div className="mt-2.5 p-3 bg-gradient-to-br from-pink-50/60 via-purple-50/30 to-amber-50/40 border border-pink-200/80 rounded-2xl space-y-2.5 shadow-xs animate-fadeIn">
-                                <div className="flex items-center justify-between pb-1.5 border-b border-pink-100">
-                                    <div className="flex items-center gap-1.5">
+                            <div className="mt-2 p-2.5 bg-gradient-to-br from-pink-50/60 via-purple-50/30 to-amber-50/40 border border-pink-200/80 rounded-xl space-y-2 shadow-xs animate-fadeIn">
+                                <div className="flex items-center justify-between pb-1 border-b border-pink-100">
+                                    <div className="flex items-center gap-1">
                                         <span className="text-xs">🔀</span>
-                                        <span className="text-xs font-black text-slate-800">Pembagian Pembayaran (Split)</span>
+                                        <span className="text-[11px] font-black text-slate-800">Pembagian Pembayaran (Split)</span>
                                     </div>
                                     {(() => {
                                         const cVal = Number(splitAmounts.cash) || 0
@@ -3155,24 +3112,24 @@ function PosPageContent() {
                                         const diff = afterDiscountTotal - currentSum
 
                                         if (diff === 0 && currentSum > 0) {
-                                            return <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">✓ Jumlah Pas (Total: Rp {total.toLocaleString('id-ID')})</span>
+                                            return <span className="text-[9.5px] font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded-full border border-emerald-300">✓ Pas: Rp {total.toLocaleString('id-ID')}</span>
                                         } else if (diff > 0) {
-                                            return <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">Sisa Belum Dibagi: Rp {diff.toLocaleString('id-ID')}</span>
+                                            return <span className="text-[9.5px] font-black text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded-full border border-rose-200">Sisa: Rp {diff.toLocaleString('id-ID')}</span>
                                         } else {
-                                            return <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">Lebih: Rp {Math.abs(diff).toLocaleString('id-ID')}</span>
+                                            return <span className="text-[9.5px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded-full border border-amber-300">Lebih: Rp {Math.abs(diff).toLocaleString('id-ID')}</span>
                                         }
                                     })()}
                                 </div>
 
                                 {/* 5 Input Nominal Pembayaran */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
                                     {/* 1. Cash */}
-                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
-                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
-                                            <span>💵</span> Cash / Tunai:
+                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
+                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>💵</span> Tunai:
                                         </label>
-                                        <div className="flex items-center gap-1 w-32">
-                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                        <div className="flex items-center gap-1 flex-1">
+                                            <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
                                                 type="number"
                                                 value={splitAmounts.cash}
@@ -3184,12 +3141,12 @@ function PosPageContent() {
                                     </div>
 
                                     {/* 2. QRIS */}
-                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
-                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
+                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
                                             <span>📱</span> QRIS:
                                         </label>
-                                        <div className="flex items-center gap-1 w-32">
-                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                        <div className="flex items-center gap-1 flex-1">
+                                            <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
                                                 type="number"
                                                 value={splitAmounts.qris}
@@ -3201,19 +3158,18 @@ function PosPageContent() {
                                     </div>
 
                                     {Number(splitAmounts.qris) > 0 && (
-                                        <div className="col-span-1 sm:col-span-2 -mt-1 px-2.5 py-1 flex items-center justify-between text-[10.5px] text-blue-800 font-bold bg-blue-50/90 rounded-lg border border-blue-200">
-                                            <span>📱 Biaya QRIS (0,3%): +Rp {Math.round(Number(splitAmounts.qris) * 0.003).toLocaleString('id-ID')}</span>
-                                            <span>Ditagihkan ke QRIS: Rp {(Number(splitAmounts.qris) + Math.round(Number(splitAmounts.qris) * 0.003)).toLocaleString('id-ID')}</span>
+                                        <div className="col-span-1 sm:col-span-2 px-2 py-0.5 flex items-center justify-between text-[9.5px] text-blue-800 font-bold bg-blue-50/90 rounded border border-blue-200">
+                                            <span>📱 QRIS (+0,3%): Rp {(Number(splitAmounts.qris) + Math.round(Number(splitAmounts.qris) * 0.003)).toLocaleString('id-ID')}</span>
                                         </div>
                                     )}
 
                                     {/* 3. Transfer Bank */}
-                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
-                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
-                                            <span>🏦</span> Transfer Bank:
+                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
+                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>🏦</span> Bank:
                                         </label>
-                                        <div className="flex items-center gap-1 w-32">
-                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                        <div className="flex items-center gap-1 flex-1">
+                                            <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
                                                 type="number"
                                                 value={splitAmounts.transfer}
@@ -3225,12 +3181,12 @@ function PosPageContent() {
                                     </div>
 
                                     {/* 4. Debit */}
-                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2">
-                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
-                                            <span>💳</span> Kartu Debit:
+                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5">
+                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>💳</span> Debit:
                                         </label>
-                                        <div className="flex items-center gap-1 w-32">
-                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                        <div className="flex items-center gap-1 flex-1">
+                                            <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
                                                 type="number"
                                                 value={splitAmounts.debit}
@@ -3242,12 +3198,12 @@ function PosPageContent() {
                                     </div>
 
                                     {/* 5. Kredit */}
-                                    <div className="bg-white p-2 rounded-xl border border-pink-100 shadow-2xs flex items-center justify-between gap-2 sm:col-span-2">
-                                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
-                                            <span>💳</span> Kartu Kredit:
+                                    <div className="bg-white p-1.5 rounded-lg border border-pink-100 shadow-2xs flex items-center justify-between gap-1.5 sm:col-span-2">
+                                        <label className="text-[10px] font-extrabold text-slate-700 flex items-center gap-1 shrink-0">
+                                            <span>💳</span> Kredit:
                                         </label>
-                                        <div className="flex items-center gap-1 w-32">
-                                            <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                                        <div className="flex items-center gap-1 flex-1">
+                                            <span className="text-[9px] font-bold text-slate-400">Rp</span>
                                             <input 
                                                 type="number"
                                                 value={splitAmounts.credit}
@@ -3271,33 +3227,33 @@ function PosPageContent() {
 
                                     if (diff > 0) {
                                         return (
-                                            <div className="pt-1.5 border-t border-pink-100 flex flex-wrap items-center gap-1.5">
-                                                <span className="text-[9.5px] font-bold text-gray-500">Isi sisa Rp {diff.toLocaleString('id-ID')} ke:</span>
+                                            <div className="pt-1 border-t border-pink-100 flex flex-wrap items-center gap-1">
+                                                <span className="text-[9px] font-bold text-gray-500">Isi sisa Rp {diff.toLocaleString('id-ID')} ke:</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => setSplitAmounts(prev => ({ ...prev, qris: (Number(prev.qris) || 0) + diff }))}
-                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-1.5 py-0.2 rounded bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[9px] transition-colors cursor-pointer"
                                                 >
                                                     + QRIS
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setSplitAmounts(prev => ({ ...prev, cash: (Number(prev.cash) || 0) + diff }))}
-                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-1.5 py-0.2 rounded bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[9px] transition-colors cursor-pointer"
                                                 >
                                                     + Cash
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setSplitAmounts(prev => ({ ...prev, transfer: (Number(prev.transfer) || 0) + diff }))}
-                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-1.5 py-0.2 rounded bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[9px] transition-colors cursor-pointer"
                                                 >
-                                                    + Transfer Bank
+                                                    + Bank
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setSplitAmounts(prev => ({ ...prev, debit: (Number(prev.debit) || 0) + diff }))}
-                                                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[10px] transition-colors shadow-2xs cursor-pointer"
+                                                    className="px-1.5 py-0.2 rounded bg-white hover:bg-pink-50 border border-pink-200 text-pink-700 font-extrabold text-[9px] transition-colors cursor-pointer"
                                                 >
                                                     + Debit
                                                 </button>
@@ -3311,9 +3267,9 @@ function PosPageContent() {
 
                         {/* Cash Payment Box (Compact & Sleek) */}
                         {paymentMethod === 'cash' && (
-                            <div className="mt-3 p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-2 animate-fadeIn">
+                            <div className="mt-2 p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1.5 animate-fadeIn">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-[11px] font-black text-emerald-950 flex items-center gap-1.5">
+                                    <label className="text-[10.5px] font-black text-emerald-950 flex items-center gap-1">
                                         <svg className="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                                         Uang Tunai Diterima:
                                     </label>
@@ -3322,13 +3278,13 @@ function PosPageContent() {
                                         if (cVal > 0 && cVal >= total) {
                                             const change = cVal - total
                                             return (
-                                                <span className="text-[10px] font-black text-emerald-900 bg-emerald-200/90 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                                                <span className="text-[9.5px] font-black text-emerald-900 bg-emerald-200/90 px-2 py-0.2 rounded-full border border-emerald-300">
                                                     Kembalian: Rp {change.toLocaleString('id-ID')}
                                                 </span>
                                             )
                                         } else if (cVal > 0 && cVal < total) {
                                             return (
-                                                <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">
+                                                <span className="text-[9.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.2 rounded-full border border-rose-200">
                                                     Kurang: Rp {(total - cVal).toLocaleString('id-ID')}
                                                 </span>
                                             )
@@ -3337,35 +3293,35 @@ function PosPageContent() {
                                     })()}
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                     <div className="relative flex-1">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-700">Rp</span>
+                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-700">Rp</span>
                                         <input
                                             type="number"
                                             value={cashReceived}
                                             onChange={(e) => setCashReceived(e.target.value)}
                                             onFocus={(e) => e.target.select()}
                                             placeholder={total ? total.toString() : '0'}
-                                            className="w-full pl-9 pr-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-right shadow-inner"
+                                            className="w-full pl-8 pr-2.5 py-1 bg-white border border-emerald-300 rounded-lg text-xs font-black text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-400 text-right"
                                         />
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => setCashReceived(total.toString())}
-                                        className="px-3 py-1.5 text-[11px] font-black bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-xs shrink-0 cursor-pointer active:scale-95"
+                                        className="px-2.5 py-1 text-[10.5px] font-black bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-xs shrink-0 cursor-pointer active:scale-95"
                                     >
-                                        ✓ Uang Pas
+                                        ✓ Pas
                                     </button>
                                 </div>
 
                                 {/* Quick Cash Chips (Tight Wrap) */}
-                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                <div className="flex flex-wrap items-center gap-1 pt-0.5">
                                     {[50000, 100000, 200000, 500000].map(val => (
                                         <button
                                             key={val}
                                             type="button"
                                             onClick={() => setCashReceived(val.toString())}
-                                            className="px-2.5 py-1 text-[10px] font-black bg-white border border-emerald-200 text-emerald-800 rounded-lg hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                            className="px-2 py-0.5 text-[9.5px] font-black bg-white border border-emerald-200 text-emerald-800 rounded hover:bg-emerald-100 transition-all shadow-2xs cursor-pointer active:scale-95"
                                         >
                                             Rp {val.toLocaleString('id-ID')}
                                         </button>
@@ -3377,10 +3333,10 @@ function PosPageContent() {
 
                     {/* FITUR ATUR TANGGAL TRANSAKSI (BACKDATE KHUSUS OWNER) */}
                     {dbUser?.role === 'owner' && (
-                        <div className="p-2.5 bg-[#FAF1E8] border border-[#F2D8C3] rounded-2xl space-y-2 transition-all">
+                        <div className="p-2 bg-[#FAF1E8] border border-[#F2D8C3] rounded-xl space-y-1.5 transition-all">
                             <div className="flex items-center justify-between">
-                                <label className="text-[10px] font-black text-[#4E2A12] flex items-center gap-1 cursor-pointer uppercase tracking-wider">
-                                    <span>📅</span> Atur Tanggal Transaksi:
+                                <label className="text-[9.5px] font-black text-[#4E2A12] flex items-center gap-1 cursor-pointer uppercase tracking-wider">
+                                    <span>📅</span> Tanggal Transaksi:
                                 </label>
                                 <button
                                     type="button"
@@ -3394,48 +3350,48 @@ function PosPageContent() {
                                             setIsBackdateEnabled(false)
                                         }
                                     }}
-                                    className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                                    className={`text-[9.5px] font-black px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
                                         isBackdateEnabled
                                             ? 'bg-[#D46221] text-white border-[#D46221] shadow-xs'
                                             : 'bg-white text-[#B5531B] border-[#F2D8C3] hover:bg-[#FAF1E8]'
                                     }`}
                                 >
-                                    {isBackdateEnabled ? '⚡ Mode Backdate Aktif' : '+ Atur Tanggal Lalu'}
+                                    {isBackdateEnabled ? '⚡ Backdate Aktif' : '+ Atur Tanggal Lalu'}
                                 </button>
                             </div>
 
                             {isBackdateEnabled && (
-                                <div className="pt-2 border-t border-[#F2D8C3] space-y-2 animate-fadeIn">
-                                    <div className="grid grid-cols-2 gap-2">
+                                <div className="pt-1.5 border-t border-[#F2D8C3] space-y-1.5 animate-fadeIn">
+                                    <div className="grid grid-cols-2 gap-1.5">
                                         <div>
-                                            <label className="text-[9px] font-black text-[#4E2A12] block mb-0.5">Tanggal:</label>
+                                            <label className="text-[8.5px] font-black text-[#4E2A12] block mb-0.5">Tanggal:</label>
                                             <input
                                                 type="date"
                                                 value={backdateDate}
                                                 min={dbUser?.role === 'owner' ? undefined : getLocalYYYYMMDD(new Date(Date.now() - 86400000))}
                                                 max={getLocalYYYYMMDD()}
                                                 onChange={(e) => setBackdateDate(e.target.value)}
-                                                className="w-full text-xs font-black p-1.5 bg-white border border-[#F2D8C3] rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
+                                                className="w-full text-xs font-black p-1 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[9px] font-black text-[#4E2A12] block mb-0.5">Jam / Waktu:</label>
+                                            <label className="text-[8.5px] font-black text-[#4E2A12] block mb-0.5">Jam / Waktu:</label>
                                             <input
                                                 type="time"
                                                 value={backdateTime}
                                                 onChange={(e) => setBackdateTime(e.target.value)}
-                                                className="w-full text-xs font-black p-1.5 bg-white border border-[#F2D8C3] rounded-xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
+                                                className="w-full text-xs font-black p-1 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between text-[9.5px] text-[#4E2A12] font-bold bg-[#FAF6F0] border border-[#F2D8C3] px-2.5 py-1.5 rounded-xl">
-                                        <span>Dibukukan pada: <strong>{new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} pk {backdateTime}</strong></span>
+                                    <div className="flex items-center justify-between text-[9px] text-[#4E2A12] font-bold bg-[#FAF6F0] border border-[#F2D8C3] px-2 py-1 rounded-lg">
+                                        <span>Dibukukan: <strong>{new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} pk {backdateTime}</strong></span>
                                         <button
                                             type="button"
                                             onClick={() => setIsBackdateEnabled(false)}
-                                            className="text-rose-600 hover:underline font-extrabold cursor-pointer"
+                                            className="text-rose-600 hover:underline font-extrabold cursor-pointer text-[8.5px]"
                                         >
-                                            Kembali ke Live
+                                            Live
                                         </button>
                                     </div>
                                 </div>
@@ -3444,12 +3400,12 @@ function PosPageContent() {
                     )}
 
                     {/* Tombol Aksi Bawah: PROSES & SIMPAN TAGIHAN */}
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center gap-2 pt-0.5">
                         {(cart.length > 0 || selectedPatient) && (
                             <button
                                 type="button"
                                 onClick={handleHoldTransaction}
-                                className="px-3 py-3 bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] border border-[#F2D8C3] rounded-2xl text-xs font-black flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0 transition-all active:scale-95"
+                                className="px-2.5 py-2.5 bg-[#FAF1E8] hover:bg-[#F2D8C3] text-[#B5531B] border border-[#F2D8C3] rounded-xl text-xs font-black flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0 transition-all active:scale-95"
                                 title="Simpan / Tahan tagihan ini agar bisa melayani pelanggan lain"
                             >
                                 <span>⏸️</span>
@@ -3457,13 +3413,13 @@ function PosPageContent() {
                             </button>
                         )}
                         <button 
-                            type="button"
+                            type="button" 
                             onClick={handleCheckout}
                             disabled={isProcessing || cart.length === 0 || !selectedBranch}
-                            className="flex-1 bg-[#D46221] hover:bg-[#B5531B] disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 text-white py-3 rounded-2xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
+                            className="flex-1 bg-[#D46221] hover:bg-[#B5531B] disabled:bg-gray-100 disabled:text-gray-400 disabled:border disabled:border-gray-200 text-white py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wider flex justify-center items-center gap-2 shadow-md hover:shadow-lg active:scale-[0.99] transition-all cursor-pointer"
                         >
                             {isProcessing ? (
-                                <span className="animate-pulse">Memproses Transaksi...</span>
+                                <span className="animate-pulse">Memproses...</span>
                             ) : (
                                 <>
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
@@ -3477,7 +3433,6 @@ function PosPageContent() {
 
             {/* ═══════════════════════════════════════════════════ */}
             {/* MODAL: DAFTAR TRANSAKSI TERTAHAN (HELD DRAFTS)   */}
-            {/* ═══════════════════════════════════════════════════ */}
             {isHeldModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
                     <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[85vh] animate-scaleUp">
