@@ -27,6 +27,7 @@ function PosPageContent() {
 
     // Concurrency guard to prevent double checkout submissions
     const isCheckingOutRef = useRef(false)
+    const patientSearchRef = useRef(null)
 
     // Auth & Branches
     const [dbUser, setDbUser] = useState(null)
@@ -768,6 +769,17 @@ function PosPageContent() {
             fetchPendingBills(null)
         }
     }, [selectedBranch])
+
+    // Click outside to close patient search dropdown
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (patientSearchRef.current && !patientSearchRef.current.contains(e.target)) {
+                setIsPatientDropdownOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
 
     // Subscribe to realtime updates for pending bills
     useEffect(() => {
@@ -2784,9 +2796,18 @@ function PosPageContent() {
                             {/* Dropdown Hasil Pencarian Pasien */}
                             {isPatientDropdownOpen && (
                                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto z-50 p-1 space-y-1">
-                                    {filteredPatients.length === 0 ? (
+                                    {searchPatientQuery.trim().length < 2 ? (
+                                        <div className="p-3 text-center text-[11px] text-gray-400 font-bold">
+                                            Ketik minimal 2 huruf atau nomor WhatsApp...
+                                        </div>
+                                    ) : isSearchingPatient ? (
+                                        <div className="p-3 text-center text-[11px] text-gray-400 font-bold flex items-center justify-center gap-1.5">
+                                            <div className="w-3 h-3 border-2 border-ayumi-primary border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Mencari pasien...</span>
+                                        </div>
+                                    ) : patientSearchResults.length === 0 ? (
                                         <div className="p-3 text-center space-y-2">
-                                            <p className="text-xs text-gray-500 font-bold">Pasien tidak ditemukan</p>
+                                            <p className="text-xs text-gray-500 font-bold">Pasien &quot;{searchPatientQuery}&quot; tidak ditemukan</p>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -2794,17 +2815,20 @@ function PosPageContent() {
                                                     setIsQuickAddInlineOpen(true)
                                                     setIsPatientDropdownOpen(false)
                                                 }}
-                                                className="w-full py-1.5 px-3 bg-pink-50 hover:bg-pink-100 text-ayumi-primary rounded-xl text-xs font-black border border-pink-200 flex items-center justify-center gap-1 transition-all"
+                                                className="w-full py-1.5 px-3 bg-pink-50 hover:bg-pink-100 text-ayumi-primary rounded-xl text-xs font-black border border-pink-200 flex items-center justify-center gap-1 transition-all cursor-pointer"
                                             >
                                                 <span>+</span>
                                                 <span>Tambah &quot;{searchPatientQuery}&quot; sebagai Pasien Baru</span>
                                             </button>
                                         </div>
                                     ) : (
-                                        filteredPatients.map(p => (
+                                        patientSearchResults.map(p => (
                                             <div
                                                 key={p.id}
-                                                onClick={() => handleSelectPatient(p)}
+                                                onClick={() => {
+                                                    handleSelectPatient(p)
+                                                    setIsPatientDropdownOpen(false)
+                                                }}
                                                 className="p-2 hover:bg-pink-50/70 rounded-xl cursor-pointer flex items-center justify-between transition-colors group"
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
