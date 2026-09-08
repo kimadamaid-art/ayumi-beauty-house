@@ -124,36 +124,57 @@ export default function TransactionsPage() {
     // We will query from 1 year ago to today, or base it on current tab view to avoid fetching excessive amounts of data
     async function fetchTransactions() {
         if (!isMounted) return
-        
-        let query = supabase
-            .from('transactions')
-            .select(`
-                *,
-                branches (name),
-                patients (full_name, whatsapp),
-                users:users!transactions_cashier_id_fkey(full_name),
-                treatment_records (
-                    id,
-                    performed_by,
-                    therapist:users!treatment_records_performed_by_fkey (full_name)
-                ),
-                transaction_items (*)
-            `)
-            .order('created_at', { ascending: false })
 
-        // Apply global branch filter
-        if (dbUser && dbUser.role !== 'owner') {
-            query = query.eq('branch_id', dbUser.branch_id || '00000000-0000-0000-0000-000000000000')
-        } else if (filterBranch) {
-            query = query.eq('branch_id', filterBranch)
+        // Supabase mengirim maksimal 1000 baris per permintaan. Sebelumnya halaman ini
+        // meminta sekali lalu berhenti, sehingga sisa transaksi hilang tanpa pesan error
+        // apa pun -- dan seluruh ringkasan omset serta ekspor Excel di halaman ini, yang
+        // dihitung dari array ini, ikut kurang. Karena itu datanya diambil bertahap.
+        const PAGE_SIZE = 1000
+        const allRows = []
+
+        for (let from = 0; ; from += PAGE_SIZE) {
+            let query = supabase
+                .from('transactions')
+                .select(`
+                    *,
+                    branches (name),
+                    patients (full_name, whatsapp),
+                    users:users!transactions_cashier_id_fkey(full_name),
+                    treatment_records (
+                        id,
+                        performed_by,
+                        therapist:users!treatment_records_performed_by_fkey (full_name)
+                    ),
+                    transaction_items (*)
+                `)
+                .order('created_at', { ascending: false })
+                // Pengurut kedua. Data hasil migrasi GD Cashier bisa memiliki created_at
+                // yang persis sama; tanpa pembeda, urutan antar halaman tidak stabil dan
+                // baris bisa terlewat atau terambil dua kali.
+                .order('id', { ascending: false })
+
+            // Apply global branch filter
+            if (dbUser && dbUser.role !== 'owner') {
+                query = query.eq('branch_id', dbUser.branch_id || '00000000-0000-0000-0000-000000000000')
+            } else if (filterBranch) {
+                query = query.eq('branch_id', filterBranch)
+            }
+
+            const { data, error } = await query.range(from, from + PAGE_SIZE - 1)
+
+            if (error) {
+                // Data sebagian lebih menyesatkan daripada tidak berubah sama sekali,
+                // karena ringkasan omset akan terlihat wajar padahal kurang.
+                console.error(error)
+                return
+            }
+
+            if (!data || data.length === 0) break
+            allRows.push(...data)
+            if (data.length < PAGE_SIZE) break
         }
 
-        const { data, error } = await query
-        if (error) {
-            console.error(error)
-        } else if (data) {
-            setTransactions(data)
-        }
+        setTransactions(allRows)
     }
 
     useEffect(() => {

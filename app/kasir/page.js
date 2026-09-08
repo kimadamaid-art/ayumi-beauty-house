@@ -1623,9 +1623,13 @@ function PosPageContent() {
     if (discountType === 'nominal') {
         discountAmount = Number(discountValue) || 0
     } else {
-        discountAmount = subtotal * ((Number(discountValue) || 0) / 100)
+        // Dibulatkan karena rupiah tidak mengenal pecahan. Tanpa ini, diskon persen
+        // atas subtotal yang bukan kelipatan 100 menyisakan koma -- nilai itu ikut
+        // tersimpan ke struk dan database, dan membuat rincian split payment tidak
+        // pernah bisa sama persis dengan tagihan (kasir hanya mengetik rupiah utuh).
+        discountAmount = Math.round(subtotal * ((Number(discountValue) || 0) / 100))
     }
-    const afterDiscountTotal = Math.max(0, subtotal - discountAmount)
+    const afterDiscountTotal = Math.max(0, Math.round(subtotal - discountAmount))
     let qrisFee = 0
     if (paymentMethod === 'qris') {
         qrisFee = Math.round(afterDiscountTotal * 0.003)
