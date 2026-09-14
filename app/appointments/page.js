@@ -232,17 +232,25 @@ export default function AppointmentsPage() {
 
             const chosenTreatment = infusTreatmentsList.find(t => t.id === selectedInfusTreatmentId) || infusTreatmentsList[0]
 
-            // 1. Check if a treatment_record already exists for this appointment
-            const { data: existingRec } = await supabase
+            // 1. Check if a treatment_record already exists for this appointment or patient today
+            const todayDate = apt.appointment_date || new Date().toISOString().split('T')[0]
+            const { data: existingRecs } = await supabase
                 .from('treatment_records')
-                .select('id')
-                .eq('appointment_id', aptId)
-                .maybeSingle()
+                .select('id, appointment_id, transactions(id, payment_status)')
+                .eq('patient_id', apt.patient_id)
+                .eq('treatment_date', todayDate)
+                .order('created_at', { ascending: false })
 
-            let recordId = existingRec?.id
+            const matchedRec = existingRecs?.find(r => r.appointment_id === aptId || (r.transactions && r.transactions.some(tx => tx.payment_status === 'paid')))
+            let recordId = matchedRec?.id
 
-            if (!recordId) {
-                const todayDate = apt.appointment_date || new Date().toISOString().split('T')[0]
+            if (recordId) {
+                // Ensure appointment_id is linked to this existing record
+                await supabase
+                    .from('treatment_records')
+                    .update({ appointment_id: apt.id })
+                    .eq('id', recordId)
+            } else {
                 const nowTime = apt.start_time || new Date().toTimeString().substring(0, 5)
 
                 const { data: createdRec, error: trErr } = await supabase
@@ -277,6 +285,43 @@ export default function AppointmentsPage() {
                         }])
 
                     if (itemErr) throw itemErr
+                }
+            }
+
+            // Hubungkan transaksi lunas jika kasir sudah checkout duluan hari ini
+            if (apt.patient_id && recordId) {
+                try {
+                    const { data: paidTxs } = await supabase
+                        .from('transactions')
+                        .select('id, treatment_record_id')
+                        .eq('patient_id', apt.patient_id)
+                        .eq('branch_id', apt.branch_id)
+                        .eq('payment_status', 'paid')
+                        .gte('created_at', `${todayDate}T00:00:00`)
+                        .lte('created_at', `${todayDate}T23:59:59`)
+                        .order('created_at', { ascending: false })
+
+                    if (paidTxs && paidTxs.length > 0) {
+                        const paidTx = paidTxs[0]
+                        if (paidTx.treatment_record_id !== recordId) {
+                            const oldDummyTrId = paidTx.treatment_record_id
+                            await supabase
+                                .from('transactions')
+                                .update({ treatment_record_id: recordId })
+                                .eq('id', paidTx.id)
+
+                            if (oldDummyTrId && oldDummyTrId !== recordId) {
+                                try {
+                                    await supabase.from('treatment_record_items').delete().eq('treatment_record_id', oldDummyTrId)
+                                    await supabase.from('treatment_records').delete().eq('id', oldDummyTrId)
+                                } catch (cleanErr) {
+                                    console.warn('Auto clean dummy record:', cleanErr)
+                                }
+                            }
+                        }
+                    }
+                } catch (linkErr) {
+                    console.warn('Sync paid transaction infus error:', linkErr)
                 }
             }
 
