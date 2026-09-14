@@ -1415,7 +1415,7 @@ export default function TreatmentInputPage() {
                                                     className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-default"
                                                     title="Semua tindakan infus khusus dikerjakan oleh Worker (Komisi terapis 0%)"
                                                 >
-                                                    <span>💉 Worker (Infus)</span>
+                                                    <span>Worker (Infus)</span>
                                                     <span className="text-[10px] font-semibold opacity-75">(0%)</span>
                                                 </div>
                                             ) : (
@@ -1429,7 +1429,7 @@ export default function TreatmentInputPage() {
                                                     }`}
                                                     title="Klik untuk ubah pelaksana tindakan (Terapis vs Worker)"
                                                 >
-                                                    <span>{item.performer_type === 'worker' ? '💉 Worker' : '👤 Terapis'}</span>
+                                                    <span>{item.performer_type === 'worker' ? 'Worker' : 'Terapis'}</span>
                                                     <span className="text-[10px] font-semibold opacity-75">
                                                         {item.performer_type === 'worker' ? '(0%)' : '(Komisi)'}
                                                     </span>

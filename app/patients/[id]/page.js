@@ -521,27 +521,27 @@ export default function PatientDetailPage() {
                                                         if (hasWorker && hasTherapist && therapistName) {
                                                             return (
                                                                 <div className="flex flex-col gap-1 items-start">
-                                                                    <span>💆 {therapistName}</span>
-                                                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-1.5 py-0.5 rounded text-[10px] border border-amber-200 shadow-2xs">
-                                                                        💉 Worker (Infus)
+                                                                    <span className="font-semibold text-gray-800">{therapistName}</span>
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                                                        Worker (Infus)
                                                                     </span>
                                                                 </div>
                                                             )
                                                         }
                                                         if (hasWorker && !hasTherapist) {
                                                             return (
-                                                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-md text-[11px] border border-amber-200 shadow-2xs">
-                                                                    💉 Worker (Infus)
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                                                    Worker (Infus)
                                                                 </span>
                                                             )
                                                         }
                                                         if (therapistName) {
-                                                            return <span>💆 {therapistName}</span>
+                                                            return <span className="font-semibold text-gray-800">{therapistName}</span>
                                                         }
                                                         if (tr.result_notes?.includes('Worker') || tr.complaints?.includes('WORKER') || !tr.performed_by) {
                                                             return (
-                                                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-md text-[11px] border border-amber-200 shadow-2xs">
-                                                                    💉 {tr.result_notes?.includes('PKM') ? 'Worker (PKM)' : 'Worker (Infus)'}
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                                                    {tr.result_notes?.includes('PKM') ? 'Worker (PKM)' : 'Worker (Infus)'}
                                                                 </span>
                                                             )
                                                         }

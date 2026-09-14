@@ -880,12 +880,12 @@ export default function TreatmentRecordDetailPage() {
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <p className="font-bold text-ayumi-secondary">{item.treatments?.name || 'Unknown'}</p>
                                                         {isWorkerItem ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
-                                                                💉 Worker (Infus)
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-amber-50 text-amber-800 border border-amber-200">
+                                                                Worker (Infus)
                                                             </span>
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
-                                                                💆 {record.users?.full_name ? `Terapis: ${record.users.full_name}` : 'Terapis'}
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-purple-50 text-purple-700 border border-purple-200">
+                                                                {record.users?.full_name ? `Terapis: ${record.users.full_name}` : 'Terapis'}
                                                             </span>
                                                         )}
                                                     </div>
@@ -910,9 +910,9 @@ export default function TreatmentRecordDetailPage() {
 
                                                         if (isNewCoupon || isOldCoupon) {
                                                             return (
-                                                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-pink-100/80 text-pink-800 border border-pink-200 shadow-2xs">
-                                                                        🎟️ {displayNote || (isNewCoupon ? 'Beli Paket Kupon Baru' : 'Klaim Kupon Pasien')}
+                                                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                                                        {displayNote || (isNewCoupon ? 'Beli Paket Kupon Baru' : 'Klaim Kupon Pasien')}
                                                                     </span>
                                                                 </div>
                                                             )
