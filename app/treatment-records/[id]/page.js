@@ -391,10 +391,19 @@ export default function TreatmentRecordDetailPage() {
             doc.text(bdate, col1X + 35, y)
 
             // Therapist / Provider Name
+            const hasWorkerItemPdf = items.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || '') || Number(i.commission_percent) === 0)
+            const hasTherapistItemPdf = items.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || '') && Number(i.commission_percent) > 0)
+            let pdfPerformer = record.users?.full_name || 'Worker (Infus)'
+            if (hasWorkerItemPdf && hasTherapistItemPdf && record.users?.full_name) {
+                pdfPerformer = `${record.users.full_name} & Worker (Infus)`
+            } else if (hasWorkerItemPdf && !hasTherapistItemPdf) {
+                pdfPerformer = 'Worker (Infus)'
+            }
+
             doc.setFont('helvetica', 'bold')
-            doc.text('Terapis / Dokter:', col2X, y)
+            doc.text('Pelaksana Tindakan:', col2X, y)
             doc.setFont('helvetica', 'normal')
-            doc.text(record.users?.full_name || '-', col2X + 38, y)
+            doc.text(pdfPerformer, col2X + 38, y)
             y += 6
 
             // WhatsApp Number
@@ -490,7 +499,9 @@ export default function TreatmentRecordDetailPage() {
                     doc.setTextColor(50, 50, 50)
                 }
 
-                const name = item.treatments?.name || 'Unknown'
+                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(item.treatments?.name || '', item.notes || '') || Number(item.commission_percent) === 0
+                const performerBadge = isWorker ? ' (Worker/Infus)' : (record.users?.full_name ? ` (Terapis: ${record.users.full_name})` : '')
+                const name = `${item.treatments?.name || 'Unknown'}${performerBadge}`
                 const origPrice = item.original_price || item.price_at_time || 0
                 const finalPrice = item.price_at_time || 0
                 const discountAmt = origPrice - finalPrice
