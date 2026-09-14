@@ -907,11 +907,55 @@ function PosPageContent() {
         const { data: trData } = await query
         if (!trData) return
 
-        // Filter out already paid
-        const pending = trData.filter(tr => {
+        // Filter out already paid and auto-heal any record with same-day paid transactions
+        const pending = []
+        for (const tr of trData) {
             const hasPaidTx = tr.transactions && tr.transactions.some(tx => tx.payment_status === 'paid')
-            return !hasPaidTx
-        })
+            if (hasPaidTx) continue
+
+            // Auto-heal check: Cek apakah pasien ini di tanggal & cabang yang sama sudah memiliki transaksi lunas
+            let isAutoHealed = false
+            if (tr.patients?.id && tr.treatment_date) {
+                try {
+                    const { data: sameDayPaidTx } = await supabase
+                        .from('transactions')
+                        .select('id, treatment_record_id, payment_status, created_at')
+                        .eq('patient_id', tr.patients.id)
+                        .eq('branch_id', tr.branch_id)
+                        .eq('payment_status', 'paid')
+                        .gte('created_at', `${tr.treatment_date}T00:00:00`)
+                        .lte('created_at', `${tr.treatment_date}T23:59:59`)
+                        .order('created_at', { ascending: false })
+
+                    if (sameDayPaidTx && sameDayPaidTx.length > 0) {
+                        const paidTx = sameDayPaidTx[0]
+                        if (paidTx.treatment_record_id !== tr.id) {
+                            const oldDummyTrId = paidTx.treatment_record_id
+                            await supabase
+                                .from('transactions')
+                                .update({ treatment_record_id: tr.id })
+                                .eq('id', paidTx.id)
+
+                            if (oldDummyTrId && oldDummyTrId !== tr.id) {
+                                try {
+                                    await supabase.from('treatment_record_items').delete().eq('treatment_record_id', oldDummyTrId)
+                                    await supabase.from('treatment_records').delete().eq('id', oldDummyTrId)
+                                } catch (cleanErr) {
+                                    console.warn('Auto-clean dummy direct record:', cleanErr)
+                                }
+                            }
+                        }
+                        isAutoHealed = true
+                    }
+                } catch (healErr) {
+                    console.warn('Auto-heal pending check error:', healErr)
+                }
+            }
+
+            if (!isAutoHealed) {
+                pending.push(tr)
+            }
+        }
 
         setPendingBills(pending)
         setLeftPanelTab(prev => (prev === 'pending' && pending.length === 0) ? 'catalog' : prev)
@@ -1738,9 +1782,44 @@ function PosPageContent() {
             // Extract treatment_record_id if we loaded from pending bills
             let treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
 
-            // If it is a direct treatment checkout, create parent treatment records grouped by therapist
+            // Cek apakah pasien yang dipilih memiliki tagihan pending di antrean kasir
+            if (!treatmentRecordId && selectedPatient?.id) {
+                const matchingPending = pendingBills.find(b => b.patients?.id === selectedPatient.id)
+                if (matchingPending) {
+                    treatmentRecordId = matchingPending.id
+                }
+            }
+
+            const canBackdate = isBackdateEnabled && dbUser?.role === 'owner' && backdateDate
+            const effectiveDateStr = canBackdate ? backdateDate : new Date().toISOString().split('T')[0]
+            const effectiveTimeStr = canBackdate ? (backdateTime || new Date().toLocaleTimeString('en-US', { hour12: false })) : new Date().toLocaleTimeString('en-US', { hour12: false })
+            const effectiveCustomIso = canBackdate ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
+
+            // Cek apakah pasien punya janji temu aktif hari ini di cabang ini
+            let linkedAppointmentId = null
+            if (selectedPatient?.id) {
+                try {
+                    const { data: apts } = await supabase
+                        .from('appointments')
+                        .select('id, therapist_id')
+                        .eq('patient_id', selectedPatient.id)
+                        .eq('branch_id', selectedBranch)
+                        .eq('appointment_date', effectiveDateStr)
+                        .in('status', ['scheduled', 'in_progress', 'confirmed'])
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+
+                    if (apts && apts.length > 0) {
+                        linkedAppointmentId = apts[0].id
+                    }
+                } catch (aptErr) {
+                    console.warn('Check active appointment error:', aptErr)
+                }
+            }
+
+            // If it is a direct treatment checkout, create parent treatment records grouped by therapist (hanya jika belum ada tagihan terapis)
             const hasDirectTreatment = cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id)
-            if (hasDirectTreatment) {
+            if (hasDirectTreatment && !treatmentRecordId) {
                 const thGroups = new Map()
                 treatmentItems.forEach(tItem => {
                     if (tItem.treatment_record_id) return
@@ -1757,10 +1836,6 @@ function PosPageContent() {
                     thGroups.get(key).items.push(tItem)
                 })
 
-                const canBackdate = isBackdateEnabled && dbUser?.role === 'owner' && backdateDate
-                const effectiveDateStr = canBackdate ? backdateDate : new Date().toISOString().split('T')[0]
-                const effectiveTimeStr = canBackdate ? (backdateTime || new Date().toLocaleTimeString('en-US', { hour12: false })) : new Date().toLocaleTimeString('en-US', { hour12: false })
-                const effectiveCustomIso = canBackdate ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
                 const createdDirectTrIds = []
 
                 for (const [key, group] of thGroups.entries()) {
@@ -1768,6 +1843,7 @@ function PosPageContent() {
                         .from('treatment_records')
                         .insert([{
                             patient_id: selectedPatient?.id || null,
+                            appointment_id: linkedAppointmentId,
                             branch_id: selectedBranch,
                             performed_by: group.performed_by,
                             complaints: group.isWorker ? '[INFUS - WORKER]' : null,
@@ -1957,6 +2033,22 @@ function PosPageContent() {
                     }
                 } catch (bdErr) {
                     console.warn('Warning updating backdate timestamps:', bdErr)
+                }
+            }
+
+            // Sinkronkan status janji temu menjadi selesai jika transaksi ini berkaitan dengan appointment
+            if (linkedAppointmentId) {
+                try {
+                    await supabase
+                        .from('appointments')
+                        .update({
+                            status: 'completed',
+                            therapist_id: (selectedTherapistId && selectedTherapistId !== 'worker') ? selectedTherapistId : undefined,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', linkedAppointmentId)
+                } catch (aptCompErr) {
+                    console.warn('Update appointment status error:', aptCompErr)
                 }
             }
 
@@ -2886,6 +2978,32 @@ function PosPageContent() {
                                     </Link>
                                 )}
                             </div>
+
+                            {/* Alert Banner jika pasien ini punya tagihan terapis di antrean */}
+                            {(() => {
+                                const matchingPending = pendingBills.find(b => b.patients?.id === selectedPatient?.id)
+                                if (!matchingPending || treatmentRecordId === matchingPending.id) return null
+                                return (
+                                    <div className="mt-2 p-2 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-1 text-[11px] font-extrabold text-amber-900">
+                                                <span>⚠️</span>
+                                                <span className="truncate">Ada tagihan terapis ({matchingPending.treatment_record_items?.length || 1} tindakan)</span>
+                                            </div>
+                                            <p className="text-[9.5px] text-amber-700 font-medium leading-tight">
+                                                Klik untuk memuat tagihan ini agar tidak ganda
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => loadPendingBillToCart(matchingPending)}
+                                            className="shrink-0 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black text-[10px] rounded-lg shadow-xs transition cursor-pointer"
+                                        >
+                                            Muat Tagihan
+                                        </button>
+                                    </div>
+                                )
+                            })()}
                         </div>
                     ) : isQuickAddInlineOpen ? (
                         /* Inline Quick Add Patient Form */

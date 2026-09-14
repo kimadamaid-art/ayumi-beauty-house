@@ -116,16 +116,42 @@ export default function TreatmentInputPage() {
             setAppointment(aptData)
 
             // Check if treatment_record already exists for this appointment
-            const { data: existingRecord } = await supabase
+            let { data: existingRecord } = await supabase
                 .from('treatment_records')
                 .select(`
                     *,
                     treatment_record_items (
                         id, treatment_id, price_at_time, original_price, discount_percent, notes, treatments (name, followup_days, commission_percent)
-                    )
+                    ),
+                    transactions (id, payment_status)
                 `)
                 .eq('appointment_id', aptData.id)
                 .maybeSingle()
+
+            // Jika belum ada by appointment_id, cek apakah kasir sudah membuat transaksi/tindakan langsung untuk pasien ini di tanggal yang sama
+            if (!existingRecord && aptData.patient_id) {
+                const targetDate = aptData.appointment_date || new Date().toISOString().split('T')[0]
+                const { data: candidateRecords } = await supabase
+                    .from('treatment_records')
+                    .select(`
+                        *,
+                        treatment_record_items (
+                            id, treatment_id, price_at_time, original_price, discount_percent, notes, treatments (name, followup_days, commission_percent)
+                        ),
+                        transactions (id, payment_status)
+                    `)
+                    .eq('patient_id', aptData.patient_id)
+                    .eq('treatment_date', targetDate)
+                    .order('created_at', { ascending: false })
+
+                const matchingDirect = candidateRecords?.find(r => 
+                    r.result_notes?.includes('Tindakan Kasir Langsung') || 
+                    (r.transactions && r.transactions.some(tx => tx.payment_status === 'paid'))
+                )
+                if (matchingDirect) {
+                    existingRecord = matchingDirect
+                }
+            }
 
             if (existingRecord) {
                 setExistingRecordId(existingRecord.id)
@@ -580,14 +606,35 @@ export default function TreatmentInputPage() {
                 client_skincare_routine: formData.client_skincare_routine || null
             }
 
-            if (existingRecordId) {
+            // Fallback safety check: jika existingRecordId belum terisi, cek apakah kasir/sistem sudah membuat rekam medis hari ini untuk janji temu atau pasien ini
+            if (!recordId && targetPatientId) {
+                const targetDate = appointment.appointment_date || new Date().toISOString().split('T')[0]
+                const { data: doubleCheck } = await supabase
+                    .from('treatment_records')
+                    .select('id, appointment_id, result_notes, transactions(id, payment_status)')
+                    .eq('patient_id', targetPatientId)
+                    .eq('treatment_date', targetDate)
+                    .order('created_at', { ascending: false })
+
+                const foundRecord = doubleCheck?.find(r => 
+                    r.appointment_id === appointment.id || 
+                    r.result_notes?.includes('Tindakan Kasir Langsung') || 
+                    (r.transactions && r.transactions.some(tx => tx.payment_status === 'paid'))
+                )
+                if (foundRecord) {
+                    recordId = foundRecord.id
+                }
+            }
+
+            if (recordId) {
                 // Update existing record
                 let updatePayload = {
                     patient_id: targetPatientId,
+                    appointment_id: appointment.id,
                     performed_by: performer,
                     skin_condition: formData.skin_condition,
                     complaints: formData.complaints,
-                    result_notes: formData.result_notes,
+                    result_notes: formData.result_notes || 'Tindakan Selesai',
                     recommendation: formData.recommendation,
                     ...clinicalFields,
                     updated_by: dbUser.id
@@ -596,7 +643,7 @@ export default function TreatmentInputPage() {
                 const { error: updateError } = await supabase
                     .from('treatment_records')
                     .update(updatePayload)
-                    .eq('id', existingRecordId)
+                    .eq('id', recordId)
 
                 if (updateError) {
                     // Graceful fallback if columns are still pending schema cache
@@ -607,12 +654,12 @@ export default function TreatmentInputPage() {
                     const { error: fallbackErr } = await supabase
                         .from('treatment_records')
                         .update(updatePayload)
-                        .eq('id', existingRecordId)
+                        .eq('id', recordId)
                     if (fallbackErr) throw fallbackErr
                 }
 
                 // Clear old items to re-insert fresh list
-                await supabase.from('treatment_record_items').delete().eq('treatment_record_id', existingRecordId)
+                await supabase.from('treatment_record_items').delete().eq('treatment_record_id', recordId)
             } else {
                 // Insert new Treatment Record
                 let insertPayload = {
@@ -746,6 +793,44 @@ export default function TreatmentInputPage() {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', appointment.id)
+
+            // 4.1 Sinkronisasi otomatis jika kasir sudah checkout lunas duluan untuk pasien ini hari ini
+            if (targetPatientId && recordId) {
+                try {
+                    const targetDate = appointment.appointment_date || new Date().toISOString().split('T')[0]
+                    const { data: paidTxs } = await supabase
+                        .from('transactions')
+                        .select('id, treatment_record_id')
+                        .eq('patient_id', targetPatientId)
+                        .eq('branch_id', appointment.branch_id)
+                        .eq('payment_status', 'paid')
+                        .gte('created_at', `${targetDate}T00:00:00`)
+                        .lte('created_at', `${targetDate}T23:59:59`)
+                        .order('created_at', { ascending: false })
+
+                    if (paidTxs && paidTxs.length > 0) {
+                        const paidTx = paidTxs[0]
+                        if (paidTx.treatment_record_id !== recordId) {
+                            const oldDummyTrId = paidTx.treatment_record_id
+                            await supabase
+                                .from('transactions')
+                                .update({ treatment_record_id: recordId })
+                                .eq('id', paidTx.id)
+
+                            if (oldDummyTrId && oldDummyTrId !== recordId) {
+                                try {
+                                    await supabase.from('treatment_record_items').delete().eq('treatment_record_id', oldDummyTrId)
+                                    await supabase.from('treatment_records').delete().eq('id', oldDummyTrId)
+                                } catch (cleanErr) {
+                                    console.warn('Auto clean dummy tr err:', cleanErr)
+                                }
+                            }
+                        }
+                    }
+                } catch (txLinkErr) {
+                    console.warn('Sync paid transaction error:', txLinkErr)
+                }
+            }
 
             // 4.5 Kirim notifikasi realtime ke seluruh Admin, Kasir, dan Owner
             await notifyTreatmentCompleted({
