@@ -10,6 +10,7 @@ import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
 import { notifyTreatmentCompleted } from '@/lib/notifications'
+import { isInfusionTreatment } from '@/lib/commissionUtils'
 
 export default function TreatmentInputPage() {
     const router = useRouter()
@@ -147,7 +148,7 @@ export default function TreatmentInputPage() {
 
                 if (existingRecord.treatment_record_items?.length > 0) {
                     setSelectedTreatments(existingRecord.treatment_record_items.map(item => {
-                        const isWorkerItem = item.notes?.includes('[WORKER]') || (Number(item.commission_percent) === 0 && /infus/i.test(item.treatments?.name || item.notes || ''))
+                        const isWorkerItem = item.notes?.includes('[WORKER]') || isInfusionTreatment(item.treatments?.name || item.notes || '') || Number(item.commission_percent) === 0
                         return {
                             treatment_id: item.treatment_id,
                             name: item.treatments?.name || 'Treatment',
@@ -223,7 +224,7 @@ export default function TreatmentInputPage() {
                     const prefilled = aptData.appointment_treatments.map(at => {
                         const t = at.treatments
                         if (!t) return null
-                        const isInfus = /infus/i.test(t.name || '')
+                        const isInfus = isInfusionTreatment(t.name || '', t.treatment_categories?.name || '')
                         const originalPrice = t.price || 0
                         const discountVal = t.discount_percent || 0
                         const priceAtTime = discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice
@@ -378,7 +379,7 @@ export default function TreatmentInputPage() {
         const discountVal = t.discount_percent || 0
         const originalPrice = t.price || 0
         const priceAtTime = discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice
-        const isInfus = /infus/i.test(t.name) || /infus/i.test(t.treatment_categories?.name || '')
+        const isInfus = isInfusionTreatment(t.name, t.treatment_categories?.name || '')
 
         setSelectedTreatments(prev => [
             ...prev,
@@ -400,6 +401,10 @@ export default function TreatmentInputPage() {
     const handleTogglePerformerType = (index) => {
         setSelectedTreatments(prev => prev.map((item, idx) => {
             if (idx !== index) return item
+            if (isInfusionTreatment(item.name, item.notes)) {
+                toast.error('Tindakan infus khusus dilakukan oleh Worker (Infus).')
+                return item
+            }
             const nextType = item.performer_type === 'worker' ? 'therapist' : 'worker'
             const baseComm = treatmentsMaster.find(t => t.id === item.treatment_id)?.commission_percent || 5
             return {
@@ -428,6 +433,7 @@ export default function TreatmentInputPage() {
         }
 
         const originalPrice = t.price || 0
+        const isInfus = isInfusionTreatment(t.name, pkg.name)
         setSelectedTreatments(prev => {
             // Remove previous new_package item if any to prevent duplicate package purchase in single session
             const filtered = prev.filter(x => !x.is_new_package)
@@ -440,8 +446,9 @@ export default function TreatmentInputPage() {
                     original_price: originalPrice,
                     discount_percent: 100,
                     followup_days: t.followup_days || 14,
-                    notes: `[KUPON_BARU:${pkg.id}:${pkg.name}:${pkg.price}] Sesi 1/${firstItem.quantity} - Beli Paket ${pkg.name}`,
-                    commission_percent: t.commission_percent || 5,
+                    notes: `${isInfus ? '[WORKER] ' : ''}[KUPON_BARU:${pkg.id}:${pkg.name}:${pkg.price}] Sesi 1/${firstItem.quantity} - Beli Paket ${pkg.name}`,
+                    commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                    performer_type: isInfus ? 'worker' : 'therapist',
                     is_new_package: true,
                     package_id: pkg.id,
                     package_name: pkg.name,
@@ -481,6 +488,7 @@ export default function TreatmentInputPage() {
             return
         }
 
+        const isInfus = isInfusionTreatment(t.name, coupon.coupon_packages?.name)
         setSelectedTreatments(prev => [
             ...prev,
             {
@@ -490,8 +498,9 @@ export default function TreatmentInputPage() {
                 original_price: t.price || 0,
                 discount_percent: 100,
                 followup_days: t.followup_days || 14,
-                notes: `[KUPON_LAMA:${item.id}:${coupon.coupon_packages?.name || 'Paket'}] Sisa ${item.remaining_sessions} Sesi`,
-                commission_percent: t.commission_percent || 5,
+                notes: `${isInfus ? '[WORKER] ' : ''}[KUPON_LAMA:${item.id}:${coupon.coupon_packages?.name || 'Paket'}] Sisa ${item.remaining_sessions} Sesi`,
+                commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                performer_type: isInfus ? 'worker' : 'therapist',
                 is_existing_coupon: true,
                 used_coupon_item_id: item.id,
                 coupon_package_name: coupon.coupon_packages?.name || 'Paket Kupon',
@@ -660,7 +669,8 @@ export default function TreatmentInputPage() {
             const queuesToInsert = []
 
             selectedTreatments.forEach((t, index) => {
-                const isWorkerItem = t.performer_type === 'worker'
+                const isInfusItem = isInfusionTreatment(t.name, t.notes)
+                const isWorkerItem = t.performer_type === 'worker' || isInfusItem
                 const finalNotes = isWorkerItem && !t.notes?.includes('[WORKER]')
                     ? `[WORKER] ${t.notes || ''}`.trim()
                     : t.notes
@@ -1400,21 +1410,31 @@ export default function TreatmentInputPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {/* Toggle Pelaksana: Terapis vs Worker */}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleTogglePerformerType(idx)}
-                                                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${
-                                                    item.performer_type === 'worker'
-                                                        ? 'bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-200'
-                                                        : 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100'
-                                                }`}
-                                                title="Klik untuk ubah pelaksana tindakan (Terapis vs Worker)"
-                                            >
-                                                <span>{item.performer_type === 'worker' ? '💉 Worker' : '👤 Terapis'}</span>
-                                                <span className="text-[10px] font-semibold opacity-75">
-                                                    {item.performer_type === 'worker' ? '(0%)' : '(Komisi)'}
-                                                </span>
-                                            </button>
+                                            {isInfusionTreatment(item.name, item.notes) ? (
+                                                <div
+                                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-default"
+                                                    title="Semua tindakan infus khusus dikerjakan oleh Worker (Komisi terapis 0%)"
+                                                >
+                                                    <span>💉 Worker (Infus)</span>
+                                                    <span className="text-[10px] font-semibold opacity-75">(0%)</span>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTogglePerformerType(idx)}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${
+                                                        item.performer_type === 'worker'
+                                                            ? 'bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-200'
+                                                            : 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100'
+                                                    }`}
+                                                    title="Klik untuk ubah pelaksana tindakan (Terapis vs Worker)"
+                                                >
+                                                    <span>{item.performer_type === 'worker' ? '💉 Worker' : '👤 Terapis'}</span>
+                                                    <span className="text-[10px] font-semibold opacity-75">
+                                                        {item.performer_type === 'worker' ? '(0%)' : '(Komisi)'}
+                                                    </span>
+                                                </button>
+                                            )}
 
                                             <button
                                                 type="button"

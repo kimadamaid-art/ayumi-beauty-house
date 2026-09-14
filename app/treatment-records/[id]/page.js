@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
+import { isInfusionTreatment } from '@/lib/commissionUtils'
 
 // Helper to convert an image URL to a base64 string
 const getBase64ImageFromUrl = async (url) => {
@@ -731,10 +732,24 @@ export default function TreatmentRecordDetailPage() {
                         </p>
                     </div>
                 </div>
-                <div className="bg-gray-50 px-5 py-3 rounded-xl border border-gray-100 text-right">
-                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Dilakukan Oleh</p>
-                    <p className="font-bold text-ayumi-secondary">{record.users?.full_name || 'Worker'}</p>
-                </div>
+                {(() => {
+                    const hasWorkerItem = items.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || '') || Number(i.commission_percent) === 0)
+                    const hasTherapistItem = items.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || '') && Number(i.commission_percent) > 0)
+
+                    let performerText = record.users?.full_name || 'Worker (Infus)'
+                    if (hasWorkerItem && hasTherapistItem && record.users?.full_name) {
+                        performerText = `${record.users.full_name} & Worker (Infus)`
+                    } else if (hasWorkerItem && !hasTherapistItem) {
+                        performerText = 'Worker (Infus)'
+                    }
+
+                    return (
+                        <div className="bg-gray-50 px-5 py-3 rounded-xl border border-gray-100 text-right">
+                            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Dilakukan Oleh</p>
+                            <p className="font-bold text-ayumi-secondary">{performerText}</p>
+                        </div>
+                    )
+                })()}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -843,6 +858,7 @@ export default function TreatmentRecordDetailPage() {
                             <div className="space-y-3">
                                 {items.map((item, idx) => {
                                     const hasDiscount = item.discount_percent > 0 && userRole !== 'therapist';
+                                    const isWorkerItem = item.notes?.includes('[WORKER]') || isInfusionTreatment(item.treatments?.name || '', item.notes || '') || Number(item.commission_percent) === 0;
                                     return (
                                         <div key={item.id} className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
                                             <div className="flex items-center gap-3">
@@ -850,7 +866,18 @@ export default function TreatmentRecordDetailPage() {
                                                     {idx + 1}
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-ayumi-secondary">{item.treatments?.name || 'Unknown'}</p>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className="font-bold text-ayumi-secondary">{item.treatments?.name || 'Unknown'}</p>
+                                                        {isWorkerItem ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                                                                💉 Worker (Infus)
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                                                                💆 {record.users?.full_name ? `Terapis: ${record.users.full_name}` : 'Terapis'}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     {hasDiscount && (
                                                         <div className="flex items-center gap-1.5 mt-0.5 text-xs">
                                                             <span className="line-through text-gray-400">Rp {item.original_price?.toLocaleString('id-ID')}</span>
@@ -865,6 +892,7 @@ export default function TreatmentRecordDetailPage() {
                                                         
                                                         // Bersihkan tag teknis
                                                         let displayNote = item.notes
+                                                            .replace(/\[WORKER\]\s*/g, '')
                                                             .replace(/\[KUPON_BARU:[^\]]+\]\s*/g, '')
                                                             .replace(/\[KUPON:[^\]]+\]\s*/g, '')
                                                             .trim()
@@ -879,7 +907,10 @@ export default function TreatmentRecordDetailPage() {
                                                             )
                                                         }
 
-                                                        return <p className="text-xs text-gray-500 mt-0.5">{displayNote}</p>
+                                                        if (displayNote) {
+                                                            return <p className="text-xs text-gray-500 mt-0.5">{displayNote}</p>
+                                                        }
+                                                        return null
                                                     })()}
                                                 </div>
                                             </div>

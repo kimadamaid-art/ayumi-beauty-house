@@ -10,7 +10,7 @@ import BranchFilter from '@/components/ui/BranchFilter'
 import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
-import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 
 export default function TherapistsReportPage() {
     const router = useRouter()
@@ -101,6 +101,8 @@ export default function TherapistsReportPage() {
                 price_at_time,
                 original_price,
                 commission_percent,
+                notes,
+                treatments(name),
                 treatment_records!inner(
                     id,
                     treatment_date,
@@ -178,9 +180,12 @@ export default function TherapistsReportPage() {
         treatmentItems.forEach(item => {
             const therapistId = item.treatment_records?.performed_by
             const commissionPercent = Number(item.commission_percent !== undefined && item.commission_percent !== null ? item.commission_percent : 5)
+            const isWorker = item.notes?.includes('[WORKER]') ||
+                             isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '') ||
+                             commissionPercent === 0
             
             // Abaikan item tanpa terapis atau item worker/infus dengan komisi 0
-            if (!therapistId || commissionPercent === 0) return
+            if (!therapistId || isWorker) return
 
             if (!therapistGroups[therapistId]) {
                 therapistGroups[therapistId] = {
@@ -226,7 +231,12 @@ export default function TherapistsReportPage() {
 
     // Unassigned Treatments (Worker / Infus / Tanpa Terapis / Komisi 0%)
     const unassignedTreatments = useMemo(() => {
-        return treatmentItems.filter(item => !item.treatment_records?.performed_by || Number(item.commission_percent) === 0)
+        return treatmentItems.filter(item => {
+            const isWorker = item.notes?.includes('[WORKER]') ||
+                             isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '') ||
+                             Number(item.commission_percent) === 0
+            return !item.treatment_records?.performed_by || isWorker
+        })
     }, [treatmentItems])
 
     // Summary Card Stats

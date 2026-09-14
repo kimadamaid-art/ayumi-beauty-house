@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
+import { isInfusionTreatment } from '@/lib/commissionUtils'
 
 function EditRecordForm() {
     const router = useRouter()
@@ -151,16 +152,19 @@ function EditRecordForm() {
                 .order('sort_order', { ascending: true })
 
             if (itemsData) {
-                setSelectedTreatments(itemsData.map(item => ({
-                    treatment_id: item.treatment_id,
-                    name: item.treatments?.name || 'Unknown',
-                    price_at_time: item.price_at_time,
-                    original_price: item.original_price,
-                    discount_percent: item.discount_percent,
-                    notes: item.notes || '',
-                    followup_days: item.treatments?.followup_days || 0,
-                    commission_percent: item.commission_percent || 0
-                })))
+                setSelectedTreatments(itemsData.map(item => {
+                    const isInfus = isInfusionTreatment(item.treatments?.name || '', item.notes || '')
+                    return {
+                        treatment_id: item.treatment_id,
+                        name: item.treatments?.name || 'Unknown',
+                        price_at_time: item.price_at_time,
+                        original_price: item.original_price,
+                        discount_percent: item.discount_percent,
+                        notes: item.notes || '',
+                        followup_days: item.treatments?.followup_days || 0,
+                        commission_percent: isInfus ? 0 : (item.commission_percent || 0)
+                    }
+                }))
             }
 
             // Fetch Photos
@@ -225,6 +229,7 @@ function EditRecordForm() {
         const originalPrice = t.price || 0
         const priceAtTime = discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice
 
+        const isInfus = isInfusionTreatment(t.name, t.treatment_categories?.name || '')
         setSelectedTreatments(prev => [
             ...prev,
             {
@@ -233,9 +238,9 @@ function EditRecordForm() {
                 price_at_time: Math.round(priceAtTime),
                 original_price: originalPrice,
                 discount_percent: discountVal,
-                notes: '',
+                notes: isInfus ? '[WORKER]' : '',
                 followup_days: t.followup_days || 0,
-                commission_percent: t.commission_percent || 0
+                commission_percent: isInfus ? 0 : (t.commission_percent || 0)
             }
         ])
     }
@@ -396,16 +401,24 @@ function EditRecordForm() {
             // 2. Delete old Items & insert new ones
             await supabase.from('treatment_record_items').delete().eq('treatment_record_id', id)
 
-            const itemsToInsert = selectedTreatments.map((t, index) => ({
-                treatment_record_id: id,
-                treatment_id: t.treatment_id,
-                price_at_time: t.price_at_time,
-                original_price: t.original_price,
-                discount_percent: t.discount_percent,
-                notes: t.notes,
-                sort_order: index + 1,
-                commission_percent: t.commission_percent || 0
-            }))
+            const itemsToInsert = selectedTreatments.map((t, index) => {
+                const isInfus = isInfusionTreatment(t.name, t.notes)
+                const isWorker = isInfus || t.notes?.includes('[WORKER]')
+                const finalNotes = isWorker && !t.notes?.includes('[WORKER]')
+                    ? `[WORKER] ${t.notes || ''}`.trim()
+                    : t.notes
+
+                return {
+                    treatment_record_id: id,
+                    treatment_id: t.treatment_id,
+                    price_at_time: t.price_at_time,
+                    original_price: t.original_price,
+                    discount_percent: t.discount_percent,
+                    notes: finalNotes,
+                    sort_order: index + 1,
+                    commission_percent: isWorker ? 0 : (t.commission_percent || 0)
+                }
+            })
 
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)
             if (itemsErr) throw itemsErr

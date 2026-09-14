@@ -10,7 +10,7 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
 import { getWhatsAppUrl } from '@/lib/whatsapp'
-import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 
 export default function TherapistDetailPage() {
     const params = useParams()
@@ -177,7 +177,13 @@ export default function TherapistDetailPage() {
             const couponMap = buildCouponPriceMap(cLogs || [])
 
             const enhancedData = (data || [])
-                .filter(r => Number(r.commission_percent !== undefined && r.commission_percent !== null ? r.commission_percent : 5) > 0)
+                .filter(r => {
+                    const isWorker = r.notes?.includes('[WORKER]') ||
+                                     isInfusionTreatment(r.treatments?.name || '', r.notes || '') ||
+                                     Number(r.commission_percent) === 0
+                    if (isWorker) return false
+                    return Number(r.commission_percent !== undefined && r.commission_percent !== null ? r.commission_percent : 5) > 0
+                })
                 .map(r => {
                     const trId = r.treatment_records?.id
                     const proportionalCouponPrice = trId ? couponMap[trId] : null

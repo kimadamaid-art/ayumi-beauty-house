@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import { isInfusionTreatment } from '@/lib/commissionUtils'
 
 export default function PatientDetailPage() {
     const params = useParams()
@@ -148,6 +149,8 @@ export default function PatientDetailPage() {
                     treatment_record_items(
                         id,
                         treatment_id,
+                        notes,
+                        commission_percent,
                         treatments(name)
                     )
                 `)
@@ -509,15 +512,41 @@ export default function PatientDetailPage() {
                                                     {tr.treatment_record_items?.map(item => item.treatments?.name).filter(Boolean).join(', ') || 'Unknown'}
                                                 </td>
                                                 <td className="p-4 text-gray-800 font-extrabold text-xs">
-                                                    {tr.therapist?.full_name || tr.users?.full_name ? (
-                                                        <span>{tr.therapist?.full_name || tr.users?.full_name}</span>
-                                                    ) : (tr.result_notes?.includes('Worker') || tr.complaints?.includes('WORKER') || !tr.performed_by) ? (
-                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md text-[11px] border border-emerald-200 shadow-2xs">
-                                                            💉 {tr.result_notes?.includes('PKM') ? 'Worker (PKM)' : 'Worker (Infus)'}
-                                                        </span>
-                                                    ) : (
-                                                        '-'
-                                                    )}
+                                                    {(() => {
+                                                        const trItems = tr.treatment_record_items || []
+                                                        const hasWorker = trItems.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || '') || Number(i.commission_percent) === 0)
+                                                        const hasTherapist = trItems.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || '') && Number(i.commission_percent) > 0)
+                                                        const therapistName = tr.therapist?.full_name || tr.users?.full_name
+
+                                                        if (hasWorker && hasTherapist && therapistName) {
+                                                            return (
+                                                                <div className="flex flex-col gap-1 items-start">
+                                                                    <span>💆 {therapistName}</span>
+                                                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-1.5 py-0.5 rounded text-[10px] border border-amber-200 shadow-2xs">
+                                                                        💉 Worker (Infus)
+                                                                    </span>
+                                                                </div>
+                                                            )
+                                                        }
+                                                        if (hasWorker && !hasTherapist) {
+                                                            return (
+                                                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-md text-[11px] border border-amber-200 shadow-2xs">
+                                                                    💉 Worker (Infus)
+                                                                </span>
+                                                            )
+                                                        }
+                                                        if (therapistName) {
+                                                            return <span>💆 {therapistName}</span>
+                                                        }
+                                                        if (tr.result_notes?.includes('Worker') || tr.complaints?.includes('WORKER') || !tr.performed_by) {
+                                                            return (
+                                                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-md text-[11px] border border-amber-200 shadow-2xs">
+                                                                    💉 {tr.result_notes?.includes('PKM') ? 'Worker (PKM)' : 'Worker (Infus)'}
+                                                                </span>
+                                                            )
+                                                        }
+                                                        return '-'
+                                                    })()}
                                                 </td>
                                                 <td className="p-4 text-gray-500 italic text-xs max-w-xs truncate">{tr.result_notes || '-'}</td>
                                                 <td className="p-4 text-center">

@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
+import { isInfusionTreatment } from '@/lib/commissionUtils'
 
 function AddRecordForm() {
     const router = useRouter()
@@ -144,15 +145,16 @@ function AddRecordForm() {
 
                         setSelectedTreatments(trxTreatments.map(item => {
                             const originalPrice = item.subtotal / item.quantity
+                            const isInfus = isInfusionTreatment(item.name)
                             return {
                                 treatment_id: item.treatment_id,
                                 name: item.name,
                                 price_at_time: originalPrice,
                                 original_price: originalPrice,
                                 discount_percent: 0,
-                                notes: '',
+                                notes: isInfus ? '[WORKER]' : '',
                                 followup_days: 0,
-                                commission_percent: commissionMap[item.treatment_id] || 0
+                                commission_percent: isInfus ? 0 : (commissionMap[item.treatment_id] || 0)
                             }
                         }))
                     }
@@ -186,15 +188,16 @@ function AddRecordForm() {
                             const t = at.treatments
                             const discountVal = t?.discount_percent || 0
                             const discountedPrice = discountVal > 0 ? t.price * (1 - discountVal / 100) : (t?.price || 0)
+                            const isInfus = isInfusionTreatment(t?.name || '')
                             return {
                                 treatment_id: at.treatment_id,
                                 name: t?.name || '',
                                 price_at_time: discountedPrice,
                                 original_price: t?.price || 0,
                                 discount_percent: discountVal,
-                                notes: '',
+                                notes: isInfus ? '[WORKER]' : '',
                                 followup_days: t?.followup_days || 0,
-                                commission_percent: t?.commission_percent || 0
+                                commission_percent: isInfus ? 0 : (t?.commission_percent || 0)
                             }
                         }))
                     }
@@ -298,6 +301,12 @@ function AddRecordForm() {
         const originalPrice = t.price || 0
         const priceAtTime = couponItem ? 0 : (discountVal > 0 ? originalPrice * (1 - discountVal / 100) : originalPrice)
 
+        const isInfus = isInfusionTreatment(t.name, t.treatment_categories?.name || '')
+        let initialNotes = couponItem ? `(Pakai Kupon: ${couponItem.patient_coupons?.coupon_packages?.name})` : ''
+        if (isInfus && !initialNotes.includes('[WORKER]')) {
+            initialNotes = `[WORKER] ${initialNotes}`.trim()
+        }
+
         setSelectedTreatments(prev => [
             ...prev,
             {
@@ -306,11 +315,11 @@ function AddRecordForm() {
                 price_at_time: Math.round(priceAtTime),
                 original_price: couponItem ? 0 : originalPrice,
                 discount_percent: couponItem ? 0 : discountVal,
-                notes: couponItem ? `(Pakai Kupon: ${couponItem.patient_coupons?.coupon_packages?.name})` : '',
+                notes: initialNotes,
                 followup_days: t.followup_days || 0,
                 used_coupon_item_id: couponItem ? couponItem.id : null,
                 used_patient_coupon_id: couponItem ? couponItem.patient_coupon_id : null,
-                commission_percent: t.commission_percent || 0
+                commission_percent: isInfus ? 0 : (t.commission_percent || 0)
             }
         ])
     }
@@ -513,15 +522,21 @@ function AddRecordForm() {
             const couponsToUpdate = []
 
             selectedTreatments.forEach((t, index) => {
+                const isInfus = isInfusionTreatment(t.name, t.notes)
+                const isWorker = isInfus || t.notes?.includes('[WORKER]')
+                const finalNotes = isWorker && !t.notes?.includes('[WORKER]')
+                    ? `[WORKER] ${t.notes || ''}`.trim()
+                    : t.notes
+
                 itemsToInsert.push({
                     treatment_record_id: recordId,
                     treatment_id: t.treatment_id,
                     price_at_time: t.price_at_time,
                     original_price: t.original_price,
                     discount_percent: t.discount_percent,
-                    notes: t.notes,
+                    notes: finalNotes,
                     sort_order: index + 1,
-                    commission_percent: t.commission_percent || 0
+                    commission_percent: isWorker ? 0 : (t.commission_percent || 0)
                 })
 
                 if (t.used_coupon_item_id) {
