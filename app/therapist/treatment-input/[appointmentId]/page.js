@@ -815,10 +815,10 @@ export default function TreatmentInputPage() {
                     <div className="card-ayumi p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
                         <div>
                             <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider">
-                                Terapis yang Menangani Tindakan (Penerima Komisi) <span className="text-red-500">*</span>
+                                Terapis yang Menangani Tindakan <span className="text-red-500">*</span>
                             </label>
                             <p className="text-[11px] text-amber-700 font-medium mt-0.5">
-                                Pilih nama terapis pelaksana agar komisi tindakan tercatat dengan tepat ke terapis bersangkutan.
+                                Pilih nama terapis pelaksana yang menangani tindakan pasien.
                             </p>
                         </div>
                         <div className="w-full md:w-72">
@@ -1413,10 +1413,9 @@ export default function TreatmentInputPage() {
                                             {isInfusionTreatment(item.name, item.notes) ? (
                                                 <div
                                                     className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-default"
-                                                    title="Semua tindakan infus khusus dikerjakan oleh Worker (Komisi terapis 0%)"
+                                                    title="Tindakan infus khusus dikerjakan oleh Worker"
                                                 >
                                                     <span>Worker (Infus)</span>
-                                                    <span className="text-[10px] font-semibold opacity-75">(0%)</span>
                                                 </div>
                                             ) : (
                                                 <button
@@ -1430,9 +1429,6 @@ export default function TreatmentInputPage() {
                                                     title="Klik untuk ubah pelaksana tindakan (Terapis vs Worker)"
                                                 >
                                                     <span>{item.performer_type === 'worker' ? 'Worker' : 'Terapis'}</span>
-                                                    <span className="text-[10px] font-semibold opacity-75">
-                                                        {item.performer_type === 'worker' ? '(0%)' : '(Komisi)'}
-                                                    </span>
                                                 </button>
                                             )}
 

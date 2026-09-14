@@ -3129,7 +3129,7 @@ function PosPageContent() {
                                             className="text-[10.5px] font-bold bg-pink-50/50 border border-pink-200/70 rounded-md px-1.5 py-0.5 text-gray-800 flex-1 max-w-[170px]"
                                         >
                                             <option value="">-- Pilih Terapis --</option>
-                                            <option value="worker">💉 Worker (Tanpa Komisi)</option>
+                                            <option value="worker">Worker (Infus)</option>
                                             {therapists.map(t => (
                                                 <option key={t.id} value={t.id}>{t.full_name}</option>
                                             ))}
@@ -3309,7 +3309,7 @@ function PosPageContent() {
                                 className="w-full text-[10.5px] font-black bg-[#FAF1E8] border border-[#F2D8C3] text-[#4E2A12] py-1 px-2 rounded-xl outline-none focus:border-[#D46221]"
                             >
                                 <option value="">-- Pilih Terapis Tindakan * --</option>
-                                <option value="worker">💉 Worker (Tanpa Komisi)</option>
+                                <option value="worker">Worker (Infus)</option>
                                 {therapists.map(t => (
                                     <option key={t.id} value={t.id}>{t.full_name}</option>
                                 ))}
