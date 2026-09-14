@@ -41,6 +41,8 @@ export default function TreatmentInputPage() {
     const [isPackageDropdownOpen, setIsPackageDropdownOpen] = useState(false)
 
     // SOAP Form & Clinical Profile
+    const [isMedicalHistoryOpen, setIsMedicalHistoryOpen] = useState(false)
+    const [isSkincareRoutineOpen, setIsSkincareRoutineOpen] = useState(false)
     const [formData, setFormData] = useState({
         skin_type: '',
         contraindications: '',
@@ -787,9 +789,12 @@ export default function TreatmentInputPage() {
                     <button
                         type="button"
                         onClick={() => setIsHistoryModalOpen(true)}
-                        className="text-[11px] font-bold text-ayumi-primary hover:underline flex items-center gap-1 mt-1 cursor-pointer"
+                        className="text-[11px] font-bold text-ayumi-primary hover:underline flex items-center gap-1.5 mt-1 cursor-pointer"
                     >
-                        <span>📋 Lihat Riwayat Medis Pasien ↗</span>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Lihat Rekam Medis Pasien ↗</span>
                     </button>
                 </div>
                 <div>
@@ -841,7 +846,12 @@ export default function TreatmentInputPage() {
                 ) : (
                     <div className="bg-pink-50 border border-pink-100 rounded-2xl px-4 py-2.5 flex items-center justify-between">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Terapis Pelaksana:</span>
-                        <span className="text-sm font-extrabold text-ayumi-primary">👩‍⚕️ {dbUser.full_name}</span>
+                        <div className="flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-ayumi-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span className="text-sm font-extrabold text-ayumi-primary">{dbUser.full_name}</span>
+                        </div>
                     </div>
                 )}
 
@@ -850,13 +860,20 @@ export default function TreatmentInputPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
                         <div>
                             <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                                <span className="p-1.5 bg-pink-100 text-pink-600 rounded-xl text-lg">🔬</span>
-                                Anamnesa Klinis & Profil Kulit
+                                <span className="p-1.5 bg-pink-100 text-pink-600 rounded-xl">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </span>
+                                Profil Kulit & Anamnesa Klinis
                             </h2>
-                            <p className="text-xs text-slate-500 font-medium">Informasi jenis kulit, kontraindikasi medis, dan perawatan rutin pasien</p>
+                            <p className="text-xs text-slate-500 font-medium">Informasi jenis kulit, kontraindikasi medis, dan riwayat perawatan pasien</p>
                         </div>
-                        <span className="self-start sm:self-auto text-[11px] font-bold text-pink-700 bg-pink-50 border border-pink-200 px-3 py-1 rounded-full shadow-2xs">
-                            ✨ Sinkron ke Profil Pasien
+                        <span className="self-start sm:self-auto text-[11px] font-bold text-pink-700 bg-pink-50 border border-pink-200 px-3 py-1 rounded-full shadow-2xs flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Sinkron ke Profil Pasien
                         </span>
                     </div>
 
@@ -864,23 +881,26 @@ export default function TreatmentInputPage() {
                     <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
                             <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                                <span>🧴</span> Jenis Kulit (Skin Type)
+                                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>
+                                Jenis Kulit (Skin Type)
                             </label>
                             {formData.skin_type && (
-                                <span className="text-[11px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-md">
+                                <span className="text-[11px] font-bold text-pink-600 bg-pink-50 border border-pink-200 px-2.5 py-0.5 rounded-full">
                                     Terpilih: {formData.skin_type}
                                 </span>
                             )}
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {[
-                                { id: 'Normal', label: '✨ Normal', activeBg: 'bg-emerald-600 border-emerald-600 text-white' },
-                                { id: 'Kering', label: '🌵 Kering (Dry)', activeBg: 'bg-amber-600 border-amber-600 text-white' },
-                                { id: 'Berminyak', label: '💧 Berminyak (Oily)', activeBg: 'bg-blue-600 border-blue-600 text-white' },
-                                { id: 'Kombinasi', label: '⚖️ Kombinasi', activeBg: 'bg-teal-600 border-teal-600 text-white' },
-                                { id: 'Sensitif', label: '🌸 Sensitif', activeBg: 'bg-rose-600 border-rose-600 text-white' },
-                                { id: 'Acne-Prone', label: '🔴 Acne-Prone (Jerawat)', activeBg: 'bg-red-600 border-red-600 text-white' },
-                                { id: 'Aging / Flek', label: '⏳ Aging / Flek', activeBg: 'bg-purple-600 border-purple-600 text-white' }
+                                { id: 'Normal', label: 'Normal', dot: 'bg-emerald-500', active: 'bg-emerald-600 border-emerald-600 text-white' },
+                                { id: 'Kering', label: 'Kering (Dry)', dot: 'bg-amber-500', active: 'bg-amber-600 border-amber-600 text-white' },
+                                { id: 'Berminyak', label: 'Berminyak (Oily)', dot: 'bg-sky-500', active: 'bg-sky-600 border-sky-600 text-white' },
+                                { id: 'Kombinasi', label: 'Kombinasi', dot: 'bg-teal-500', active: 'bg-teal-600 border-teal-600 text-white' },
+                                { id: 'Sensitif', label: 'Sensitif', dot: 'bg-rose-500', active: 'bg-rose-600 border-rose-600 text-white' },
+                                { id: 'Acne-Prone', label: 'Acne-Prone (Jerawat)', dot: 'bg-red-500', active: 'bg-red-600 border-red-600 text-white' },
+                                { id: 'Aging / Flek', label: 'Aging / Flek', dot: 'bg-purple-500', active: 'bg-purple-600 border-purple-600 text-white' }
                             ].map(item => {
                                 const isSelected = formData.skin_type === item.id || (formData.skin_type && formData.skin_type.toLowerCase().split(',').map(s=>s.trim()).includes(item.id.toLowerCase()))
                                 return (
@@ -888,14 +908,15 @@ export default function TreatmentInputPage() {
                                         key={item.id}
                                         type="button"
                                         onClick={() => setFormData(prev => ({ ...prev, skin_type: isSelected ? '' : item.id }))}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs flex items-center gap-2 ${
                                             isSelected 
-                                                ? `${item.activeBg} shadow-sm scale-105 ring-2 ring-pink-300` 
+                                                ? `${item.active} shadow-sm scale-102 ring-2 ring-pink-200` 
                                                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                                         }`}
                                     >
-                                        {isSelected && <span className="mr-1">✓</span>}
-                                        {item.label}
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-white' : item.dot}`} />
+                                        <span>{item.label}</span>
+                                        {isSelected && <span className="text-[11px]">✓</span>}
                                     </button>
                                 )
                             })}
@@ -903,13 +924,15 @@ export default function TreatmentInputPage() {
                     </div>
 
                     {/* 1.2 Kontraindikasi (Warning Box) */}
-                    <div className="p-4 bg-gradient-to-br from-rose-50/70 via-rose-50/30 to-amber-50/40 border-2 border-rose-200/90 rounded-2xl space-y-2.5 shadow-2xs">
+                    <div className="p-4 bg-rose-50/50 border border-rose-200/90 rounded-2xl space-y-2.5 shadow-2xs">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-extrabold uppercase tracking-wider text-rose-900 flex items-center gap-1.5">
-                                <span className="text-base">⚠️</span>
+                            <label className="text-xs font-extrabold uppercase tracking-wider text-rose-900 flex items-center gap-2">
+                                <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
                                 Kontraindikasi / Peringatan Khusus
                             </label>
-                            <span className="text-[10px] font-extrabold text-rose-700 uppercase bg-rose-100/80 border border-rose-200 px-2 py-0.5 rounded-md">
+                            <span className="text-[10px] font-extrabold text-rose-700 uppercase bg-rose-100/90 border border-rose-200 px-2 py-0.5 rounded-md">
                                 Wajib Diperiksa
                             </span>
                         </div>
@@ -922,7 +945,7 @@ export default function TreatmentInputPage() {
                             className="input-ayumi bg-white text-xs md:text-sm border-rose-200 focus:border-rose-400 resize-none shadow-2xs"
                         ></textarea>
                         {/* Quick Tag Chips */}
-                        <div className="space-y-1.5 pt-1">
+                        <div className="space-y-1.5 pt-0.5">
                             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat (Klik untuk Tambah/Hapus):</span>
                             <div className="flex flex-wrap items-center gap-1.5">
                                 {[
@@ -962,10 +985,10 @@ export default function TreatmentInputPage() {
                                                     return { ...prev, contraindications: items.join(', ') }
                                                 })
                                             }}
-                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                                                 isSelected
-                                                    ? 'bg-rose-600 border-rose-600 text-white shadow-2xs'
-                                                    : 'bg-white border-rose-200/80 text-rose-800 hover:bg-rose-100/70'
+                                                    ? 'bg-rose-600 border-rose-600 text-white shadow-2xs font-bold'
+                                                    : 'bg-white border-rose-200 text-rose-800 hover:bg-rose-100/70'
                                             }`}
                                         >
                                             {isSelected ? `✓ ${tag}` : `+ ${tag}`}
@@ -976,124 +999,211 @@ export default function TreatmentInputPage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* 1.3 Sejarah Medis */}
-                        <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2.5">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                                <span>📋</span> Sejarah Medis & Riwayat Penyakit
-                            </label>
-                            <textarea
-                                name="medical_history"
-                                value={formData.medical_history}
-                                onChange={handleChange}
-                                rows="3"
-                                placeholder="Riwayat medis, riwayat alergi lama, pengobatan rutin, atau tindakan di klinik lain..."
-                                className="input-ayumi bg-white focus:bg-white text-xs md:text-sm resize-none shadow-2xs"
-                            ></textarea>
-                            {/* Quick Tags */}
-                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                {[
-                                    'Penyakit Kulit Kronis',
-                                    'Obat Jerawat Rutin',
-                                    'Alergi Obat/Makanan',
-                                    'Treatment di Klinik Lain',
-                                    'Tidak Ada Riwayat Medis'
-                                ].map(tag => {
-                                    const isNone = tag === 'Tidak Ada Riwayat Medis'
-                                    const curr = (formData.medical_history || '').trim()
-                                    const isSelected = isNone 
-                                        ? (curr === 'Tidak Ada' || curr === 'Tidak Ada Riwayat Medis')
-                                        : curr.split(',').map(s=>s.trim()).includes(tag)
+                    {/* 1.3 & 1.4 DROPDOWN / ACCORDION: DATA OPSIONAL PASIEN */}
+                    <div className="pt-2 border-t border-slate-100">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
 
-                                    return (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => {
-                                                setFormData(prev => {
-                                                    const current = (prev.medical_history || '').trim()
-                                                    if (isNone) {
-                                                        return { ...prev, medical_history: isSelected ? '' : 'Tidak Ada' }
-                                                    }
-                                                    if (current === 'Tidak Ada' || current === 'Tidak Ada Riwayat Medis') {
-                                                        return { ...prev, medical_history: tag }
-                                                    }
-                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
-                                                    if (items.includes(tag)) {
-                                                        items = items.filter(i => i !== tag)
-                                                    } else {
-                                                        items.push(tag)
-                                                    }
-                                                    return { ...prev, medical_history: items.join(', ') }
-                                                })
-                                            }}
-                                            className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                                isSelected
-                                                    ? 'bg-slate-800 border-slate-800 text-white shadow-2xs'
-                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
-                                        </button>
-                                    )
-                                })}
+                            {/* Dropdown 1: Sejarah Medis & Riwayat Penyakit (Opsional) */}
+                            <div className="border border-slate-200/90 rounded-2xl bg-white overflow-hidden shadow-2xs transition-all">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsMedicalHistoryOpen(!isMedicalHistoryOpen)}
+                                    className="w-full p-3.5 bg-slate-50/80 hover:bg-slate-100/70 transition-colors flex items-center justify-between cursor-pointer text-left"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                        </div>
+                                        <div className="truncate">
+                                            <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                                <span>Riwayat Medis & Penyakit</span>
+                                                <span className="text-[10px] text-slate-400 font-medium">(Opsional)</span>
+                                            </div>
+                                            {formData.medical_history ? (
+                                                <p className="text-[11px] text-blue-700 font-medium truncate mt-0.5">
+                                                    ✓ Terisi: {formData.medical_history}
+                                                </p>
+                                            ) : (
+                                                <p className="text-[10px] text-slate-400 font-normal">Klik untuk tambah riwayat/alergi</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                        {formData.medical_history && !isMedicalHistoryOpen && (
+                                            <span className="text-[10px] font-extrabold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">
+                                                Terisi
+                                            </span>
+                                        )}
+                                        <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isMedicalHistoryOpen ? 'rotate-180 text-slate-600' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </button>
+
+                                {isMedicalHistoryOpen && (
+                                    <div className="p-3.5 border-t border-slate-100 space-y-2.5 bg-slate-50/30 animate-fade-in">
+                                        <textarea
+                                            name="medical_history"
+                                            value={formData.medical_history}
+                                            onChange={handleChange}
+                                            rows="2"
+                                            placeholder="Riwayat medis, riwayat alergi lama, pengobatan rutin, atau tindakan di klinik lain..."
+                                            className="input-ayumi bg-white focus:bg-white text-xs resize-none shadow-2xs"
+                                        ></textarea>
+                                        {/* Quick Tags */}
+                                        <div className="space-y-1">
+                                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat:</span>
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                {[
+                                                    'Penyakit Kulit Kronis',
+                                                    'Obat Jerawat Rutin',
+                                                    'Alergi Obat/Makanan',
+                                                    'Treatment di Klinik Lain',
+                                                    'Tidak Ada Riwayat Medis'
+                                                ].map(tag => {
+                                                    const isNone = tag === 'Tidak Ada Riwayat Medis'
+                                                    const curr = (formData.medical_history || '').trim()
+                                                    const isSelected = isNone 
+                                                        ? (curr === 'Tidak Ada' || curr === 'Tidak Ada Riwayat Medis')
+                                                        : curr.split(',').map(s=>s.trim()).includes(tag)
+
+                                                    return (
+                                                        <button
+                                                            key={tag}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData(prev => {
+                                                                    const current = (prev.medical_history || '').trim()
+                                                                    if (isNone) {
+                                                                        return { ...prev, medical_history: isSelected ? '' : 'Tidak Ada' }
+                                                                    }
+                                                                    if (current === 'Tidak Ada' || current === 'Tidak Ada Riwayat Medis') {
+                                                                        return { ...prev, medical_history: tag }
+                                                                    }
+                                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                                    if (items.includes(tag)) {
+                                                                        items = items.filter(i => i !== tag)
+                                                                    } else {
+                                                                        items.push(tag)
+                                                                    }
+                                                                    return { ...prev, medical_history: items.join(', ') }
+                                                                })
+                                                            }}
+                                                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                                                                isSelected
+                                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
+                                                            }`}
+                                                        >
+                                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
 
-                        {/* 1.4 Perawatan Klien (Skincare Rutin Homecare) */}
-                        <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2.5">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                                <span>🧴</span> Skincare Rutin di Rumah
-                            </label>
-                            <textarea
-                                name="client_skincare_routine"
-                                value={formData.client_skincare_routine}
-                                onChange={handleChange}
-                                rows="3"
-                                placeholder="Produk harian yang dipakai (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
-                                className="input-ayumi bg-white focus:bg-white text-xs md:text-sm resize-none shadow-2xs"
-                            ></textarea>
-                            {/* Quick Tags */}
-                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                {[
-                                    'Facial Wash',
-                                    'Toner',
-                                    'Serum',
-                                    'Sunscreen',
-                                    'Moisturizer',
-                                    'Night Cream',
-                                    'Racikan Dokter'
-                                ].map(tag => {
-                                    const curr = (formData.client_skincare_routine || '').trim()
-                                    const isSelected = curr.split(',').map(s=>s.trim()).includes(tag)
+                            {/* Dropdown 2: Skincare Rutin di Rumah (Opsional) */}
+                            <div className="border border-slate-200/90 rounded-2xl bg-white overflow-hidden shadow-2xs transition-all">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSkincareRoutineOpen(!isSkincareRoutineOpen)}
+                                    className="w-full p-3.5 bg-slate-50/80 hover:bg-slate-100/70 transition-colors flex items-center justify-between cursor-pointer text-left"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-7 h-7 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center shrink-0 border border-pink-100">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                            </svg>
+                                        </div>
+                                        <div className="truncate">
+                                            <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                                <span>Skincare Rutin Pasien</span>
+                                                <span className="text-[10px] text-slate-400 font-medium">(Opsional)</span>
+                                            </div>
+                                            {formData.client_skincare_routine ? (
+                                                <p className="text-[11px] text-pink-700 font-medium truncate mt-0.5">
+                                                    ✓ Terisi: {formData.client_skincare_routine}
+                                                </p>
+                                            ) : (
+                                                <p className="text-[10px] text-slate-400 font-normal">Klik untuk tambah produk harian</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                        {formData.client_skincare_routine && !isSkincareRoutineOpen && (
+                                            <span className="text-[10px] font-extrabold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-md">
+                                                Terisi
+                                            </span>
+                                        )}
+                                        <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isSkincareRoutineOpen ? 'rotate-180 text-slate-600' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </button>
 
-                                    return (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => {
-                                                setFormData(prev => {
-                                                    const current = (prev.client_skincare_routine || '').trim()
-                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
-                                                    if (items.includes(tag)) {
-                                                        items = items.filter(i => i !== tag)
-                                                    } else {
-                                                        items.push(tag)
-                                                    }
-                                                    return { ...prev, client_skincare_routine: items.join(', ') }
-                                                })
-                                            }}
-                                            className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                                isSelected
-                                                    ? 'bg-pink-600 border-pink-600 text-white shadow-2xs'
-                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-pink-50 hover:text-pink-700 hover:border-pink-200'
-                                            }`}
-                                        >
-                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
-                                        </button>
-                                    )
-                                })}
+                                {isSkincareRoutineOpen && (
+                                    <div className="p-3.5 border-t border-slate-100 space-y-2.5 bg-slate-50/30 animate-fade-in">
+                                        <textarea
+                                            name="client_skincare_routine"
+                                            value={formData.client_skincare_routine}
+                                            onChange={handleChange}
+                                            rows="2"
+                                            placeholder="Produk harian yang dipakai (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
+                                            className="input-ayumi bg-white focus:bg-white text-xs resize-none shadow-2xs"
+                                        ></textarea>
+                                        {/* Quick Tags */}
+                                        <div className="space-y-1">
+                                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat:</span>
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                {[
+                                                    'Facial Wash',
+                                                    'Toner',
+                                                    'Serum',
+                                                    'Sunscreen',
+                                                    'Moisturizer',
+                                                    'Night Cream',
+                                                    'Racikan Dokter'
+                                                ].map(tag => {
+                                                    const curr = (formData.client_skincare_routine || '').trim()
+                                                    const isSelected = curr.split(',').map(s=>s.trim()).includes(tag)
+
+                                                    return (
+                                                        <button
+                                                            key={tag}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData(prev => {
+                                                                    const current = (prev.client_skincare_routine || '').trim()
+                                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                                    if (items.includes(tag)) {
+                                                                        items = items.filter(i => i !== tag)
+                                                                    } else {
+                                                                        items.push(tag)
+                                                                    }
+                                                                    return { ...prev, client_skincare_routine: items.join(', ') }
+                                                                })
+                                                            }}
+                                                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                                                                isSelected
+                                                                    ? 'bg-pink-600 border-pink-600 text-white shadow-2xs'
+                                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-pink-50 hover:text-pink-700 hover:border-pink-200'
+                                                            }`}
+                                                        >
+                                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
                         </div>
                     </div>
                 </div>
@@ -1168,8 +1278,12 @@ export default function TreatmentInputPage() {
                 {/* ─── BANNER KUPON AKTIF PASIEN (JIKA ADA) ─── */}
                 {patientActiveCoupons.length > 0 && (
                     <div className="card-ayumi p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/70 border-2 border-emerald-200 rounded-2xl shadow-xs">
-                        <div className="flex items-center gap-2 mb-3">
-                            <span className="text-xl">🎟️</span>
+                        <div className="flex items-center gap-2.5 mb-3">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                                </svg>
+                            </div>
                             <div>
                                 <h3 className="text-sm font-extrabold text-emerald-900">Kupon Aktif Milik Pasien</h3>
                                 <p className="text-xs text-emerald-700">Pasien memiliki kupon yang masih bersisa. Klik tombol untuk langsung menggunakan kupon pada tindakan hari ini.</p>
@@ -1194,7 +1308,7 @@ export default function TreatmentInputPage() {
                                                     onClick={() => handleUseActiveCoupon(coupon, it)}
                                                     className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${isUsedInForm ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'}`}
                                                 >
-                                                    {isUsedInForm ? '✓ Sudah Dipakai' : '⚡ Pakai Kupon'}
+                                                    {isUsedInForm ? '✓ Sudah Dipakai' : 'Pakai Kupon'}
                                                 </button>
                                             </div>
                                         )
@@ -1226,7 +1340,9 @@ export default function TreatmentInputPage() {
                                     }}
                                     className="border-2 border-purple-200 text-purple-700 font-bold rounded-xl px-3.5 py-2 text-xs md:text-sm bg-purple-50 hover:bg-purple-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                 >
-                                    <span>🎁</span>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
                                     <span>Ambil Paket Kupon</span>
                                 </button>
                                 {isPackageDropdownOpen && (
@@ -1390,12 +1506,12 @@ export default function TreatmentInputPage() {
                                                     <span className="font-bold text-ayumi-secondary text-sm">{item.name}</span>
                                                     {isNewPkg && (
                                                         <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
-                                                            🎁 Beli Paket Baru
+                                                            Paket Kupon Baru
                                                         </span>
                                                     )}
                                                     {isOldCoupon && (
                                                         <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">
-                                                            🎟️ Klaim Kupon Pasien
+                                                            Klaim Kupon Pasien
                                                         </span>
                                                     )}
                                                 </div>
@@ -1467,10 +1583,13 @@ export default function TreatmentInputPage() {
                                     setHistoryModalTab('photos')
                                     setIsHistoryModalOpen(true)
                                 }}
-                                className="px-3 py-1.5 bg-pink-50 hover:bg-pink-100 text-ayumi-primary border border-pink-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                className="px-3 py-1.5 bg-pink-50 hover:bg-pink-100 text-ayumi-primary border border-pink-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
                                 title="Buka Galeri Foto Pasien"
                             >
-                                <span>📸</span>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
                                 <span>Riwayat Foto ({pastPatientPhotos.length})</span>
                             </button>
                             {pastPatientPhotos.length >= 1 && (
@@ -1480,10 +1599,12 @@ export default function TreatmentInputPage() {
                                         setHistoryModalTab('compare')
                                         setIsHistoryModalOpen(true)
                                     }}
-                                    className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                                    className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
                                     title="Bandingkan Progress Foto"
                                 >
-                                    <span>🔬</span>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
                                     <span>Bandingkan Progress</span>
                                 </button>
                             )}
