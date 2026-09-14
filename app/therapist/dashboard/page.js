@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabaseClient'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { notifyTherapistReady } from '@/lib/notifications'
-import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 
 export default function TherapistDashboard() {
     const router = useRouter()
@@ -643,6 +643,9 @@ export default function TherapistDashboard() {
                                             const basePrice = getCommissionBasePrice(item)
                                             const commPercent = Number(item.commission_percent || 0)
                                             const commAmount = calculateTherapistCommission(item)
+                                            const treatmentName = item.treatments?.name || item.notes || '-'
+                                            const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes) || commPercent === 0
+                                            const isCoupon = Number(item.price_at_time || 0) === 0 && basePrice > 0
 
                                             return (
                                                 <tr key={item.id} className="hover:bg-pink-50/20">
@@ -656,9 +659,21 @@ export default function TherapistDashboard() {
                                                         {rec?.patients?.full_name || '-'}
                                                     </td>
                                                     <td className="py-2 px-3 text-slate-800">
-                                                        {item.treatments?.name || item.notes || '-'}
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="font-semibold">{treatmentName}</span>
+                                                            {isCoupon && (
+                                                                <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.2 rounded">
+                                                                    Kupon
+                                                                </span>
+                                                            )}
+                                                            {isWorker && (
+                                                                <span className="text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded">
+                                                                    Worker (Infus)
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
-                                                    <td className="py-2 px-3 text-right font-medium text-slate-600">
+                                                    <td className="py-2 px-3 text-right font-bold text-slate-700">
                                                         Rp {basePrice.toLocaleString('id-ID')}
                                                     </td>
                                                     <td className="py-2 px-3 text-center font-bold text-slate-700">

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
-import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap } from '@/lib/commissionUtils'
+import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 
 function TherapistHistoryContent() {
     const router = useRouter()
@@ -344,7 +344,7 @@ function TherapistHistoryContent() {
                                     <th className="py-3 px-4">Tanggal & Waktu</th>
                                     <th className="py-3 px-4">Pasien</th>
                                     <th className="py-3 px-4">Cabang</th>
-                                    <th className="py-3 px-4">Treatment & SOAP</th>
+                                    <th className="py-3 px-4">Tindakan & Tarif Transaksi</th>
                                     <th className="py-3 px-4 text-right">Rincian Komisi</th>
                                 </tr>
                             </thead>
@@ -394,15 +394,35 @@ function TherapistHistoryContent() {
                                                     {r.branches?.name || '-'}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="flex flex-col gap-1">
+                                                    <div className="flex flex-col gap-1.5">
                                                         {itemsList.length > 0 ? (
-                                                            itemsList.map(item => (
-                                                                <div key={item.id} className="flex items-center gap-1.5">
-                                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-800 text-[11px] font-semibold rounded border border-slate-200">
-                                                                        {item.treatments?.name || item.notes || 'Treatment'}
-                                                                    </span>
-                                                                </div>
-                                                            ))
+                                                            itemsList.map(item => {
+                                                                const treatmentName = item.treatments?.name || item.notes || 'Treatment'
+                                                                const basePrice = getCommissionBasePrice(item)
+                                                                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes) || Number(item.commission_percent) === 0
+                                                                const isCoupon = Number(item.price_at_time || 0) === 0 && basePrice > 0
+
+                                                                return (
+                                                                    <div key={item.id} className="flex items-center gap-2 flex-wrap">
+                                                                        <span className="px-2.5 py-1 bg-slate-100 text-slate-800 text-[11px] font-bold rounded-lg border border-slate-200 shadow-2xs">
+                                                                            {treatmentName}
+                                                                        </span>
+                                                                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                                                            Rp {basePrice.toLocaleString('id-ID')}
+                                                                        </span>
+                                                                        {isCoupon && (
+                                                                            <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">
+                                                                                Kupon
+                                                                            </span>
+                                                                        )}
+                                                                        {isWorker && (
+                                                                            <span className="text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                                                                                Worker (Infus)
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            })
                                                         ) : (
                                                             <span className="text-xs text-slate-400">-</span>
                                                         )}
@@ -414,48 +434,48 @@ function TherapistHistoryContent() {
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
-                                                    <div className="flex flex-col items-end gap-1">
-                                                        <span className="text-sm font-black text-[#ba5d45]">
-                                                            +Rp {totalRecordCommission.toLocaleString('id-ID')}
-                                                        </span>
+                                                    <div className="flex flex-col items-end gap-1.5">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Komisi:</span>
+                                                            <span className="text-sm font-black text-[#ba5d45]">
+                                                                +Rp {totalRecordCommission.toLocaleString('id-ID')}
+                                                            </span>
+                                                        </div>
                                                         <div className="flex flex-col items-end gap-1">
-                                                            {(() => {
-                                                                // Filter hanya tindakan yang memiliki komisi terapis (> 0)
-                                                                const eligibleItems = itemsList.filter(item => {
-                                                                    const itemComm = calculateTherapistCommission(item)
-                                                                    return itemComm > 0
-                                                                })
+                                                            {itemsList.map(item => {
+                                                                const commPercent = Number(item.commission_percent || 0)
+                                                                const itemComm = calculateTherapistCommission(item)
+                                                                const basePrice = getCommissionBasePrice(item)
+                                                                const treatmentName = item.treatments?.name || item.notes || 'Treatment'
+                                                                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes) || Number(item.commission_percent) === 0
 
-                                                                if (eligibleItems.length === 0) {
-                                                                    return (
-                                                                        <span className="text-[10px] text-slate-400 italic">
-                                                                            Tanpa komisi
-                                                                        </span>
-                                                                    )
-                                                                }
-
-                                                                return eligibleItems.map(item => {
-                                                                    const commPercent = Number(item.commission_percent || 0)
-                                                                    const itemComm = calculateTherapistCommission(item)
-                                                                    const basePrice = getCommissionBasePrice(item)
-                                                                    const treatmentName = item.treatments?.name || item.notes || 'Treatment'
-
+                                                                if (isWorker || itemComm === 0) {
                                                                     return (
                                                                         <div
                                                                             key={item.id}
-                                                                            className="inline-flex items-center gap-1.5 text-[11px] bg-amber-50/70 text-slate-700 px-2.5 py-1 rounded-md border border-amber-200/80 font-medium"
+                                                                            className="inline-flex items-center gap-1.5 text-[10.5px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md border border-slate-200"
                                                                         >
-                                                                            <span className="font-bold text-slate-800">{treatmentName}</span>
-                                                                            <span className="text-slate-500 font-normal">
-                                                                                (Rp {basePrice.toLocaleString('id-ID')} × {commPercent}%)
-                                                                            </span>
-                                                                            <span className="font-extrabold text-amber-900">
-                                                                                = Rp {itemComm.toLocaleString('id-ID')}
-                                                                            </span>
+                                                                            <span className="font-semibold text-slate-600">{treatmentName}</span>
+                                                                            <span className="text-slate-400 italic">• Worker (0%)</span>
                                                                         </div>
                                                                     )
-                                                                })
-                                                            })()}
+                                                                }
+
+                                                                return (
+                                                                    <div
+                                                                        key={item.id}
+                                                                        className="inline-flex items-center gap-1.5 text-[11px] bg-amber-50 text-slate-800 px-2.5 py-1 rounded-lg border border-amber-200 font-medium shadow-2xs"
+                                                                    >
+                                                                        <span className="font-bold text-slate-800">{treatmentName}</span>
+                                                                        <span className="text-amber-800 font-semibold">
+                                                                            (Rp {basePrice.toLocaleString('id-ID')} × {commPercent}%)
+                                                                        </span>
+                                                                        <span className="font-black text-[#ba5d45]">
+                                                                            = Rp {itemComm.toLocaleString('id-ID')}
+                                                                        </span>
+                                                                    </div>
+                                                                )
+                                                            })}
                                                         </div>
                                                     </div>
                                                 </td>
