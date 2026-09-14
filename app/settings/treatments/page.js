@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation'
 export default function TreatmentsPage() {
     const router = useRouter()
     const [treatments, setTreatments] = useState([])
+    const [categories, setCategories] = useState([])
     const [isLoading, setIsLoading] = useState(true)
     
-    // Search filter
+    // Search & category filter
     const [searchQuery, setSearchQuery] = useState('')
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('ALL')
 
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -25,6 +27,7 @@ export default function TreatmentsPage() {
     // Form states
     const [formData, setFormData] = useState({
         name: '',
+        category_id: '',
         price: '',
         duration: '60',
         followup_days: '30',
@@ -53,11 +56,20 @@ export default function TreatmentsPage() {
     const fetchData = async () => {
         setIsLoading(true)
         
-        // Fetch Treatments
-        let query = supabase.from('treatments').select('*').order('name', { ascending: true })
+        // Fetch Treatments and Treatment Categories in parallel
+        const [trRes, catRes] = await Promise.all([
+            supabase
+                .from('treatments')
+                .select('*, treatment_categories(id, name, sort_order)')
+                .order('name', { ascending: true }),
+            supabase
+                .from('treatment_categories')
+                .select('id, name, sort_order')
+                .order('sort_order', { ascending: true })
+        ])
         
-        const { data: trData } = await query
-        if (trData) setTreatments(trData)
+        if (trRes.data) setTreatments(trRes.data)
+        if (catRes.data) setCategories(catRes.data)
         
         setIsLoading(false)
     }
@@ -72,6 +84,7 @@ export default function TreatmentsPage() {
         if (treatment) {
             setFormData({
                 name: treatment.name || '',
+                category_id: treatment.category_id || '',
                 price: treatment.price || '',
                 duration: treatment.duration_minutes || '',
                 followup_days: treatment.followup_days || '',
@@ -82,6 +95,7 @@ export default function TreatmentsPage() {
         } else {
             setFormData({
                 name: '',
+                category_id: selectedCategoryFilter !== 'ALL' && selectedCategoryFilter !== 'UNASSIGNED' ? selectedCategoryFilter : '',
                 price: '',
                 duration: '60',
                 followup_days: '30',
@@ -111,7 +125,8 @@ export default function TreatmentsPage() {
         setIsSaving(true)
 
         const payload = {
-            name: formData.name,
+            name: formData.name.trim(),
+            category_id: formData.category_id || null,
             price: Number(formData.price),
             duration_minutes: Number(formData.duration),
             followup_days: Number(formData.followup_days),
@@ -175,11 +190,102 @@ export default function TreatmentsPage() {
         handleInlineEditCancel()
     }
 
+    const handleQuickCategoryChange = async (treatmentId, newCategoryId) => {
+        const catId = newCategoryId || null
+        const selectedCatObj = categories.find(c => c.id === catId)
+        
+        // Optimistic UI update
+        setTreatments(prev => prev.map(t => {
+            if (t.id === treatmentId) {
+                return {
+                    ...t,
+                    category_id: catId,
+                    treatment_categories: selectedCatObj ? { id: selectedCatObj.id, name: selectedCatObj.name, sort_order: selectedCatObj.sort_order } : null
+                }
+            }
+            return t
+        }))
+
+        const { error } = await supabase
+            .from('treatments')
+            .update({ category_id: catId })
+            .eq('id', treatmentId)
+
+        if (error) {
+            alert('Gagal memperbarui kategori: ' + error.message)
+            fetchData()
+        }
+    }
+
+    const handleDeleteTreatment = async (treatment) => {
+        if (!treatment) return
+
+        if (!confirm(`Apakah Anda yakin ingin menghapus treatment "${treatment.name}"?`)) {
+            return
+        }
+
+        try {
+            setIsLoading(true)
+
+            // 1. Cek apakah treatment memiliki riwayat transaksi, rekam medis, kupon, atau reservasi
+            const [txRes, recRes, cpnRes, patCpnRes, apptRes] = await Promise.all([
+                supabase.from('transaction_items').select('id', { count: 'exact', head: true }).eq('treatment_id', treatment.id),
+                supabase.from('treatment_record_items').select('id', { count: 'exact', head: true }).eq('treatment_id', treatment.id),
+                supabase.from('coupon_package_items').select('id', { count: 'exact', head: true }).eq('treatment_id', treatment.id),
+                supabase.from('patient_coupon_items').select('id', { count: 'exact', head: true }).eq('treatment_id', treatment.id),
+                supabase.from('appointment_treatments').select('id', { count: 'exact', head: true }).eq('treatment_id', treatment.id)
+            ])
+
+            const hasHistory = (txRes.count || 0) > 0 || 
+                               (recRes.count || 0) > 0 || 
+                               (cpnRes.count || 0) > 0 || 
+                               (patCpnRes.count || 0) > 0 || 
+                               (apptRes.count || 0) > 0
+
+            if (hasHistory) {
+                // Otomatis di-OFF-kan (dinonaktifkan) agar tidak muncul di kasir dan laporan keuangan tetap aman
+                const { error: updErr } = await supabase
+                    .from('treatments')
+                    .update({ is_active: false })
+                    .eq('id', treatment.id)
+
+                if (updErr) throw updErr
+
+                alert(`Treatment "${treatment.name}" memiliki riwayat transaksi kasir / rekam medis sebelumnya.\n\nAgar riwayat laporan keuangan & kasir tetap utuh, status treatment ini telah otomatis di-OFF-kan (dinonaktifkan) sehingga tidak akan muncul lagi di kasir maupun reservasi.`)
+                await fetchData()
+                if (isModalOpen) handleCloseModal()
+                return
+            }
+
+            // Jika belum ada riwayat (0 data): langsung hapus permanen
+            const { error: delErr } = await supabase
+                .from('treatments')
+                .delete()
+                .eq('id', treatment.id)
+
+            if (delErr) throw delErr
+
+            alert(`Treatment "${treatment.name}" berhasil dihapus.`)
+            await fetchData()
+            if (isModalOpen) handleCloseModal()
+        } catch (err) {
+            console.error('Error deleting treatment:', err)
+            alert('Gagal memproses treatment: ' + (err.message || 'Terjadi kesalahan'))
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
     // Combine data for display
     const displayedTreatments = treatments
         .filter(t => {
-            if (!searchQuery) return true
-            return t.name.toLowerCase().includes(searchQuery.toLowerCase())
+            const matchesSearch = !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+            const matchesCategory = selectedCategoryFilter === 'ALL'
+                ? true
+                : selectedCategoryFilter === 'UNASSIGNED'
+                    ? !t.category_id
+                    : t.category_id === selectedCategoryFilter
+            return matchesSearch && matchesCategory
         })
 
     return (
@@ -188,8 +294,28 @@ export default function TreatmentsPage() {
                 <div>
                     <p className="text-sm text-ayumi-text-muted">Kelola daftar layanan dan prosedur klinik.</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-64 md:w-72 shrink-0">
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-stretch sm:items-center">
+                    {/* Category Filter Dropdown */}
+                    <div className="relative shrink-0 flex items-center gap-2">
+                        <select
+                            value={selectedCategoryFilter}
+                            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                            className="input-ayumi bg-white text-sm py-2 pl-3.5 pr-9 w-full sm:w-64 md:w-72 font-semibold text-gray-700 cursor-pointer shadow-xs border-gray-200 hover:border-ayumi-primary"
+                        >
+                            <option value="ALL">Semua Kategori</option>
+                            <option value="UNASSIGNED">Belum Diatur</option>
+                            {categories.map(c => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="hidden sm:inline-flex items-center text-xs font-bold px-2.5 py-2 rounded-xl bg-pink-50 text-ayumi-primary border border-pink-100 whitespace-nowrap shadow-2xs">
+                            {displayedTreatments.length} item
+                        </span>
+                    </div>
+
+                    <div className="relative w-full sm:w-60 md:w-64 shrink-0">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </span>
@@ -213,7 +339,7 @@ export default function TreatmentsPage() {
                     </div>
                     <button
                         onClick={() => handleOpenModal('add')}
-                        className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm justify-center whitespace-nowrap"
+                        className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm justify-center whitespace-nowrap cursor-pointer"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                         Tambah Treatment
@@ -232,6 +358,7 @@ export default function TreatmentsPage() {
                             <thead>
                                 <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
                                     <th className="p-4 font-semibold">Nama Treatment / Produk</th>
+                                    <th className="p-4 font-semibold">Kategori</th>
                                     <th className="p-4 font-semibold text-right">Harga (Rp)</th>
                                     <th className="p-4 font-semibold text-center">Komisi</th>
                                     <th className="p-4 font-semibold text-center">Durasi</th>
@@ -247,6 +374,25 @@ export default function TreatmentsPage() {
                                     return (
                                         <tr key={t.id} className={`hover:bg-ayumi-table-hover transition-colors ${!t.is_active ? 'opacity-60 bg-gray-50' : ''}`}>
                                             <td className="p-4 font-medium text-gray-800">{t.name}</td>
+                                            <td className="p-4">
+                                                <select
+                                                    value={t.category_id || ''}
+                                                    onChange={(e) => handleQuickCategoryChange(t.id, e.target.value)}
+                                                    className={`text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-ayumi-primary/20 ${
+                                                        t.category_id 
+                                                            ? 'bg-pink-50/70 text-ayumi-secondary border-pink-200 hover:border-ayumi-primary' 
+                                                            : 'bg-amber-50 text-amber-800 border-amber-300 hover:border-amber-400'
+                                                    }`}
+                                                    title="Ubah kategori treatment"
+                                                >
+                                                    <option value="">Belum Diatur</option>
+                                                    {categories.map(cat => (
+                                                        <option key={cat.id} value={cat.id}>
+                                                            {cat.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </td>
                                             <td className="p-4 text-right">
                                                 {editingField.id === t.id && editingField.field === 'price' ? (
                                                     <div className="flex items-center justify-end gap-1">
@@ -396,10 +542,17 @@ export default function TreatmentsPage() {
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button 
                                                         onClick={() => handleOpenModal('edit', t)}
-                                                        className="text-ayumi-primary hover:text-ayumi-secondary p-1.5 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors"
+                                                        className="text-ayumi-primary hover:text-ayumi-secondary p-1.5 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors cursor-pointer"
                                                         title="Edit"
                                                     >
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteTreatment(t)}
+                                                        className="text-red-500 hover:text-red-700 p-1.5 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                                                        title="Hapus Treatment"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                     </button>
                                                 </div>
                                             </td>
@@ -435,6 +588,26 @@ export default function TreatmentsPage() {
                                     required
                                     className="input-ayumi bg-white"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Kategori Treatment</label>
+                                <select
+                                    name="category_id"
+                                    value={formData.category_id}
+                                    onChange={handleChange}
+                                    className="input-ayumi bg-white w-full text-sm font-medium"
+                                >
+                                    <option value="">-- Pilih Kategori Treatment --</option>
+                                    {categories.map(cat => (
+                                        <option key={cat.id} value={cat.id}>
+                                            {cat.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                    Menentukan pengelompokan menu di POS Kasir dan analisis laporan treatment Owner.
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -540,21 +713,35 @@ export default function TreatmentsPage() {
                                 </button>
                             </div>
 
-                            <div className="flex gap-3 justify-end pt-4 mt-4 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    onClick={handleCloseModal}
-                                    className="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSaving}
-                                    className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm"
-                                >
-                                    {isSaving ? 'Menyimpan...' : 'Simpan'}
-                                </button>
+                            <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-100">
+                                <div>
+                                    {modalMode === 'edit' && selectedTreatment && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteTreatment(selectedTreatment)}
+                                            className="px-4 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-colors border border-red-200 cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            <span>Hapus Treatment</span>
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleCloseModal}
+                                        className="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSaving}
+                                        className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm cursor-pointer"
+                                    >
+                                        {isSaving ? 'Menyimpan...' : 'Simpan'}
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>

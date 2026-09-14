@@ -509,7 +509,15 @@ export default function PatientDetailPage() {
                                                     {tr.treatment_record_items?.map(item => item.treatments?.name).filter(Boolean).join(', ') || 'Unknown'}
                                                 </td>
                                                 <td className="p-4 text-gray-800 font-extrabold text-xs">
-                                                    {tr.therapist?.full_name || tr.users?.full_name || '-'}
+                                                    {tr.therapist?.full_name || tr.users?.full_name ? (
+                                                        <span>{tr.therapist?.full_name || tr.users?.full_name}</span>
+                                                    ) : (tr.result_notes?.includes('Worker') || tr.complaints?.includes('WORKER') || !tr.performed_by) ? (
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md text-[11px] border border-emerald-200 shadow-2xs">
+                                                            💉 {tr.result_notes?.includes('PKM') ? 'Worker (PKM)' : 'Worker (Infus)'}
+                                                        </span>
+                                                    ) : (
+                                                        '-'
+                                                    )}
                                                 </td>
                                                 <td className="p-4 text-gray-500 italic text-xs max-w-xs truncate">{tr.result_notes || '-'}</td>
                                                 <td className="p-4 text-center">
