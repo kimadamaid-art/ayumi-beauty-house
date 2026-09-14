@@ -616,11 +616,17 @@ export default function TreatmentInputPage() {
                     .eq('treatment_date', targetDate)
                     .order('created_at', { ascending: false })
 
-                const foundRecord = doubleCheck?.find(r => 
-                    r.appointment_id === appointment.id || 
-                    r.result_notes?.includes('Tindakan Kasir Langsung') || 
-                    (r.transactions && r.transactions.some(tx => tx.payment_status === 'paid'))
-                )
+                const aptTreatmentIds = selectedTreatments.map(t => t.treatment_id)
+                const foundRecord = doubleCheck?.find(r => {
+                    // 1. Cocok persis berdasarkan appointment_id
+                    if (r.appointment_id === appointment.id) return true
+
+                    // 2. Cocok dummy kasir langsung tanpa appointment_id
+                    if (r.result_notes?.includes('Tindakan Kasir Langsung') && !r.appointment_id) {
+                        return true
+                    }
+                    return false
+                })
                 if (foundRecord) {
                     recordId = foundRecord.id
                 }
@@ -794,13 +800,17 @@ export default function TreatmentInputPage() {
                 })
                 .eq('id', appointment.id)
 
-            // 4.1 Sinkronisasi otomatis jika kasir sudah checkout lunas duluan untuk pasien ini hari ini
+            // 4.1 Sinkronisasi otomatis HANYA jika kasir sudah checkout lunas duluan untuk tindakan yang cocok
             if (targetPatientId && recordId) {
                 try {
                     const targetDate = appointment.appointment_date || new Date().toISOString().split('T')[0]
                     const { data: paidTxs } = await supabase
                         .from('transactions')
-                        .select('id, treatment_record_id')
+                        .select(`
+                            id, treatment_record_id,
+                            treatment_records (id, result_notes, appointment_id),
+                            transaction_items (item_type, item_id)
+                        `)
                         .eq('patient_id', targetPatientId)
                         .eq('branch_id', appointment.branch_id)
                         .eq('payment_status', 'paid')
@@ -808,22 +818,32 @@ export default function TreatmentInputPage() {
                         .lte('created_at', `${targetDate}T23:59:59`)
                         .order('created_at', { ascending: false })
 
-                    if (paidTxs && paidTxs.length > 0) {
-                        const paidTx = paidTxs[0]
-                        if (paidTx.treatment_record_id !== recordId) {
-                            const oldDummyTrId = paidTx.treatment_record_id
-                            await supabase
-                                .from('transactions')
-                                .update({ treatment_record_id: recordId })
-                                .eq('id', paidTx.id)
+                    const currentTreatmentIds = selectedTreatments.map(t => t.treatment_id)
 
-                            if (oldDummyTrId && oldDummyTrId !== recordId) {
-                                try {
-                                    await supabase.from('treatment_record_items').delete().eq('treatment_record_id', oldDummyTrId)
-                                    await supabase.from('treatment_records').delete().eq('id', oldDummyTrId)
-                                } catch (cleanErr) {
-                                    console.warn('Auto clean dummy tr err:', cleanErr)
-                                }
+                    // Hanya sinkronkan transaksi yang terhubung ke dummy kasir ('Tindakan Kasir Langsung' tanpa appointment_id) dengan treatment cocok
+                    const matchingTx = paidTxs?.find(tx => {
+                        if (tx.treatment_record_id === recordId) return false
+                        const rec = tx.treatment_records
+                        if (rec?.result_notes === 'Tindakan Kasir Langsung' && !rec?.appointment_id) {
+                            const txTrIds = tx.transaction_items?.filter(i => i.item_type === 'treatment')?.map(i => i.item_id) || []
+                            return txTrIds.some(id => currentTreatmentIds.includes(id))
+                        }
+                        return false
+                    })
+
+                    if (matchingTx) {
+                        const oldDummyTrId = matchingTx.treatment_record_id
+                        await supabase
+                            .from('transactions')
+                            .update({ treatment_record_id: recordId })
+                            .eq('id', matchingTx.id)
+
+                        if (oldDummyTrId && oldDummyTrId !== recordId) {
+                            try {
+                                await supabase.from('treatment_record_items').delete().eq('treatment_record_id', oldDummyTrId)
+                                await supabase.from('treatment_records').delete().eq('id', oldDummyTrId)
+                            } catch (cleanErr) {
+                                console.warn('Auto clean dummy tr err:', cleanErr)
                             }
                         }
                     }

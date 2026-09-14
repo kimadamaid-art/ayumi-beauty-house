@@ -913,13 +913,19 @@ function PosPageContent() {
             const hasPaidTx = tr.transactions && tr.transactions.some(tx => tx.payment_status === 'paid')
             if (hasPaidTx) continue
 
-            // Auto-heal check: Cek apakah pasien ini di tanggal & cabang yang sama sudah memiliki transaksi lunas
+            // Auto-heal check HANYA untuk kasus orphan kasir langsung:
+            // Kasir checkout langsung lebih dulu (dummy 'Tindakan Kasir Langsung' tanpa appointment_id)
+            // dan terapis baru submit SOAP untuk tindakan yang sama belakangan.
             let isAutoHealed = false
             if (tr.patients?.id && tr.treatment_date) {
                 try {
-                    const { data: sameDayPaidTx } = await supabase
+                    const { data: orphanCandidates } = await supabase
                         .from('transactions')
-                        .select('id, treatment_record_id, payment_status, created_at')
+                        .select(`
+                            id, treatment_record_id, payment_status, created_at,
+                            treatment_records (id, result_notes, appointment_id),
+                            transaction_items (item_type, item_id)
+                        `)
                         .eq('patient_id', tr.patients.id)
                         .eq('branch_id', tr.branch_id)
                         .eq('payment_status', 'paid')
@@ -927,14 +933,29 @@ function PosPageContent() {
                         .lte('created_at', `${tr.treatment_date}T23:59:59`)
                         .order('created_at', { ascending: false })
 
-                    if (sameDayPaidTx && sameDayPaidTx.length > 0) {
-                        const paidTx = sameDayPaidTx[0]
-                        if (paidTx.treatment_record_id !== tr.id) {
-                            const oldDummyTrId = paidTx.treatment_record_id
+                    const orphanTx = orphanCandidates?.find(tx => {
+                        const rec = tx.treatment_records
+                        if (!rec) return false
+                        
+                        // 1. Jika appointment_id cocok persis
+                        if (tr.appointment_id && rec.appointment_id === tr.appointment_id) return true
+
+                        // 2. Jika dummy record kasir langsung tanpa appointment_id, pastikan treatment-nya sama
+                        if (rec.result_notes === 'Tindakan Kasir Langsung' && !rec.appointment_id) {
+                            const trItemIds = tr.treatment_record_items?.map(i => i.treatment_id) || []
+                            const txTrItemIds = tx.transaction_items?.filter(i => i.item_type === 'treatment')?.map(i => i.item_id) || []
+                            return trItemIds.some(id => txTrItemIds.includes(id))
+                        }
+                        return false
+                    })
+
+                    if (orphanTx) {
+                        const oldDummyTrId = orphanTx.treatment_record_id
+                        if (oldDummyTrId !== tr.id) {
                             await supabase
                                 .from('transactions')
                                 .update({ treatment_record_id: tr.id })
-                                .eq('id', paidTx.id)
+                                .eq('id', orphanTx.id)
 
                             if (oldDummyTrId && oldDummyTrId !== tr.id) {
                                 try {
@@ -1782,11 +1803,25 @@ function PosPageContent() {
             // Extract treatment_record_id if we loaded from pending bills
             let treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
 
-            // Cek apakah pasien yang dipilih memiliki tagihan pending di antrean kasir
+            // Cek apakah pasien memiliki tagihan pending di antrean kasir DENGAN tindakan yang cocok
             if (!treatmentRecordId && selectedPatient?.id) {
-                const matchingPending = pendingBills.find(b => b.patients?.id === selectedPatient.id)
-                if (matchingPending) {
-                    treatmentRecordId = matchingPending.id
+                const cartTreatmentIds = cart
+                    .filter(i => i.item_type === 'treatment')
+                    .map(i => {
+                        const rawId = i.treatment_id || i.id
+                        return (typeof rawId === 'string' && rawId.includes('_')) ? rawId.split('_')[0] : rawId
+                    })
+
+                // Hanya kaitkan jika keranjang kasir berisi treatment yang cocok dengan tagihan pending
+                if (cartTreatmentIds.length > 0) {
+                    const matchingPending = pendingBills.find(b => {
+                        if (b.patients?.id !== selectedPatient.id) return false
+                        const billTreatmentIds = b.treatment_record_items?.map(it => it.treatment_id) || []
+                        return cartTreatmentIds.some(cid => billTreatmentIds.includes(cid))
+                    })
+                    if (matchingPending) {
+                        treatmentRecordId = matchingPending.id
+                    }
                 }
             }
 
