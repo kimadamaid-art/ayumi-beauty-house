@@ -982,49 +982,44 @@ export default function TreatmentInputPage() {
                         </span>
                     </div>
 
-                    {/* 1.1 Jenis Kulit (Skin Type Chips) */}
-                    <div className="space-y-2.5">
+                    {/* 1.1 Jenis Kulit (Skin Type) -> Modern Elegant Dropdown */}
+                    <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                <svg className="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                 </svg>
-                                Jenis Kulit (Skin Type)
+                                <span>Jenis Kulit (Skin Type)</span>
                             </label>
                             {formData.skin_type && (
-                                <span className="text-[11px] font-bold text-pink-600 bg-pink-50 border border-pink-200 px-2.5 py-0.5 rounded-full">
-                                    Terpilih: {formData.skin_type}
-                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, skin_type: '' }))}
+                                    className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                                >
+                                    Reset Pilihan
+                                </button>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            {[
-                                { id: 'Normal', label: 'Normal', dot: 'bg-emerald-500', active: 'bg-emerald-600 border-emerald-600 text-white' },
-                                { id: 'Kering', label: 'Kering (Dry)', dot: 'bg-amber-500', active: 'bg-amber-600 border-amber-600 text-white' },
-                                { id: 'Berminyak', label: 'Berminyak (Oily)', dot: 'bg-sky-500', active: 'bg-sky-600 border-sky-600 text-white' },
-                                { id: 'Kombinasi', label: 'Kombinasi', dot: 'bg-teal-500', active: 'bg-teal-600 border-teal-600 text-white' },
-                                { id: 'Sensitif', label: 'Sensitif', dot: 'bg-rose-500', active: 'bg-rose-600 border-rose-600 text-white' },
-                                { id: 'Acne-Prone', label: 'Acne-Prone (Jerawat)', dot: 'bg-red-500', active: 'bg-red-600 border-red-600 text-white' },
-                                { id: 'Aging / Flek', label: 'Aging / Flek', dot: 'bg-purple-500', active: 'bg-purple-600 border-purple-600 text-white' }
-                            ].map(item => {
-                                const isSelected = formData.skin_type === item.id || (formData.skin_type && formData.skin_type.toLowerCase().split(',').map(s=>s.trim()).includes(item.id.toLowerCase()))
-                                return (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, skin_type: isSelected ? '' : item.id }))}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs flex items-center gap-2 ${
-                                            isSelected 
-                                                ? `${item.active} shadow-sm scale-102 ring-2 ring-pink-200` 
-                                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
-                                        }`}
-                                    >
-                                        <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-white' : item.dot}`} />
-                                        <span>{item.label}</span>
-                                        {isSelected && <span className="text-[11px]">✓</span>}
-                                    </button>
-                                )
-                            })}
+                        <div className="relative">
+                            <select
+                                name="skin_type"
+                                value={formData.skin_type || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, skin_type: e.target.value }))}
+                                className="w-full bg-white border border-slate-200 hover:border-pink-300 rounded-xl px-3.5 py-2.5 text-xs md:text-sm font-semibold text-slate-800 shadow-2xs outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 transition-all appearance-none cursor-pointer pr-10"
+                            >
+                                <option value="">-- Pilih Jenis Kulit Pasien (Dropdown) --</option>
+                                <option value="Normal">🟢 Normal</option>
+                                <option value="Kering">🟠 Kering (Dry)</option>
+                                <option value="Berminyak">🔵 Berminyak (Oily)</option>
+                                <option value="Kombinasi">🟢 Kombinasi</option>
+                                <option value="Sensitif">🔴 Sensitif</option>
+                                <option value="Acne-Prone">🔴 Acne-Prone (Jerawat)</option>
+                                <option value="Aging / Flek">🟣 Aging / Flek</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
                         </div>
                     </div>
 
@@ -1049,59 +1044,78 @@ export default function TreatmentInputPage() {
                             placeholder="Contoh: Sedang hamil/menyusui, alergi zat aktif, penggunaan retinol/AHA aktif..."
                             className="input-ayumi bg-white text-xs md:text-sm border-rose-200 focus:border-rose-400 resize-none shadow-2xs"
                         ></textarea>
-                        {/* Quick Tag Chips */}
-                        <div className="space-y-1.5 pt-0.5">
-                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat (Klik untuk Tambah/Hapus):</span>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                {[
-                                    'Ibu Hamil / Menyusui',
-                                    'Retinoid / Roaccutane / AHA Aktif',
-                                    'Alergi Obat/Bahan',
-                                    'Riwayat Keloid',
-                                    'Kulit Iritasi / Sunburn',
-                                    'Tanam Benang / Filler Baru',
-                                    'Tidak Ada Kontraindikasi'
-                                ].map(tag => {
-                                    const isNone = tag === 'Tidak Ada Kontraindikasi'
-                                    const curr = (formData.contraindications || '').trim()
-                                    const isSelected = isNone 
-                                        ? (curr === 'Tidak Ada' || curr === 'Tidak Ada Kontraindikasi')
-                                        : curr.split(',').map(s=>s.trim()).includes(tag)
+                        
+                        {/* Dropdown Pilih Cepat Kontraindikasi */}
+                        <div className="flex items-center gap-2 pt-0.5">
+                            <div className="relative flex-1">
+                                <select
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                        const tag = e.target.value
+                                        if (!tag) return
+                                        setFormData(prev => {
+                                            const isNone = tag === 'Tidak Ada Kontraindikasi'
+                                            const current = (prev.contraindications || '').trim()
+                                            if (isNone) return { ...prev, contraindications: 'Tidak Ada' }
+                                            if (current === 'Tidak Ada' || current === 'Tidak Ada Kontraindikasi') {
+                                                return { ...prev, contraindications: tag }
+                                            }
+                                            let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                            if (!items.includes(tag)) items.push(tag)
+                                            return { ...prev, contraindications: items.join(', ') }
+                                        })
+                                        e.target.value = ''
+                                    }}
+                                    className="w-full bg-white border border-rose-200 hover:border-rose-300 rounded-xl px-3 py-2 text-xs font-semibold text-rose-900 shadow-2xs outline-none focus:border-rose-500 cursor-pointer appearance-none pr-8 transition"
+                                >
+                                    <option value="">▼ Pilih Cepat Kontraindikasi (Dropdown)...</option>
+                                    <option value="Ibu Hamil / Menyusui">+ Ibu Hamil / Menyusui</option>
+                                    <option value="Retinoid / Roaccutane / AHA Aktif">+ Retinoid / Roaccutane / AHA Aktif</option>
+                                    <option value="Alergi Obat/Bahan">+ Alergi Obat/Bahan</option>
+                                    <option value="Riwayat Keloid">+ Riwayat Keloid</option>
+                                    <option value="Kulit Iritasi / Sunburn">+ Kulit Iritasi / Sunburn</option>
+                                    <option value="Tanam Benang / Filler Baru">+ Tanam Benang / Filler Baru</option>
+                                    <option value="Tidak Ada Kontraindikasi">✓ Tidak Ada Kontraindikasi</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-rose-400">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                            </div>
+                            {formData.contraindications && (
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, contraindications: '' }))}
+                                    className="px-2.5 py-2 text-[11px] font-bold text-rose-600 hover:text-rose-800 bg-white hover:bg-rose-100/50 border border-rose-200 rounded-xl transition cursor-pointer shrink-0 shadow-2xs"
+                                    title="Kosongkan"
+                                >
+                                    Kosongkan
+                                </button>
+                            )}
+                        </div>
 
-                                    return (
+                        {/* Removable Badges untuk Kontraindikasi Terpilih */}
+                        {formData.contraindications && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                {formData.contraindications.split(',').map(s => s.trim()).filter(Boolean).map((item, idx) => (
+                                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs">
+                                        <span>{item}</span>
                                         <button
-                                            key={tag}
                                             type="button"
                                             onClick={() => {
                                                 setFormData(prev => {
-                                                    const current = (prev.contraindications || '').trim()
-                                                    if (isNone) {
-                                                        return { ...prev, contraindications: isSelected ? '' : 'Tidak Ada' }
-                                                    }
-                                                    if (current === 'Tidak Ada' || current === 'Tidak Ada Kontraindikasi') {
-                                                        return { ...prev, contraindications: tag }
-                                                    }
-                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
-                                                    if (items.includes(tag)) {
-                                                        items = items.filter(i => i !== tag)
-                                                    } else {
-                                                        items.push(tag)
-                                                    }
-                                                    return { ...prev, contraindications: items.join(', ') }
+                                                    const remaining = prev.contraindications.split(',').map(s => s.trim()).filter(s => s && s !== item)
+                                                    return { ...prev, contraindications: remaining.join(', ') }
                                                 })
                                             }}
-                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
-                                                isSelected
-                                                    ? 'bg-rose-600 border-rose-600 text-white shadow-2xs font-bold'
-                                                    : 'bg-white border-rose-200 text-rose-800 hover:bg-rose-100/70'
-                                            }`}
+                                            className="hover:text-rose-950 cursor-pointer ml-0.5 font-black text-xs"
+                                            title="Hapus item ini"
                                         >
-                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                            ×
                                         </button>
-                                    )
-                                })}
+                                    </span>
+                                ))}
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* 1.3 & 1.4 DROPDOWN / ACCORDION: DATA OPSIONAL PASIEN */}
@@ -1157,57 +1171,74 @@ export default function TreatmentInputPage() {
                                             placeholder="Riwayat medis, riwayat alergi lama, pengobatan rutin, atau tindakan di klinik lain..."
                                             className="input-ayumi bg-white focus:bg-white text-xs resize-none shadow-2xs"
                                         ></textarea>
-                                        {/* Quick Tags */}
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat:</span>
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                                {[
-                                                    'Penyakit Kulit Kronis',
-                                                    'Obat Jerawat Rutin',
-                                                    'Alergi Obat/Makanan',
-                                                    'Treatment di Klinik Lain',
-                                                    'Tidak Ada Riwayat Medis'
-                                                ].map(tag => {
-                                                    const isNone = tag === 'Tidak Ada Riwayat Medis'
-                                                    const curr = (formData.medical_history || '').trim()
-                                                    const isSelected = isNone 
-                                                        ? (curr === 'Tidak Ada' || curr === 'Tidak Ada Riwayat Medis')
-                                                        : curr.split(',').map(s=>s.trim()).includes(tag)
+                                        {/* Dropdown Quick Pick Riwayat Medis */}
+                                        <div className="flex items-center gap-2 pt-0.5">
+                                            <div className="relative flex-1">
+                                                <select
+                                                    defaultValue=""
+                                                    onChange={(e) => {
+                                                        const tag = e.target.value
+                                                        if (!tag) return
+                                                        setFormData(prev => {
+                                                            const isNone = tag === 'Tidak Ada Riwayat Medis'
+                                                            const current = (prev.medical_history || '').trim()
+                                                            if (isNone) return { ...prev, medical_history: 'Tidak Ada' }
+                                                            if (current === 'Tidak Ada' || current === 'Tidak Ada Riwayat Medis') {
+                                                                return { ...prev, medical_history: tag }
+                                                            }
+                                                            let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                            if (!items.includes(tag)) items.push(tag)
+                                                            return { ...prev, medical_history: items.join(', ') }
+                                                        })
+                                                        e.target.value = ''
+                                                    }}
+                                                    className="w-full bg-white border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-blue-500 cursor-pointer appearance-none pr-8 transition"
+                                                >
+                                                    <option value="">▼ Pilih Cepat Riwayat Medis (Dropdown)...</option>
+                                                    <option value="Penyakit Kulit Kronis">+ Penyakit Kulit Kronis</option>
+                                                    <option value="Obat Jerawat Rutin">+ Obat Jerawat Rutin</option>
+                                                    <option value="Alergi Obat/Makanan">+ Alergi Obat/Makanan</option>
+                                                    <option value="Treatment di Klinik Lain">+ Treatment di Klinik Lain</option>
+                                                    <option value="Tidak Ada Riwayat Medis">✓ Tidak Ada Riwayat Medis</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                                </div>
+                                            </div>
+                                            {formData.medical_history && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, medical_history: '' }))}
+                                                    className="px-2.5 py-2 text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition cursor-pointer shrink-0 shadow-2xs"
+                                                >
+                                                    Kosongkan
+                                                </button>
+                                            )}
+                                        </div>
 
-                                                    return (
+                                        {/* Removable Badges Riwayat Medis */}
+                                        {formData.medical_history && (
+                                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                                {formData.medical_history.split(',').map(s => s.trim()).filter(Boolean).map((item, idx) => (
+                                                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
+                                                        <span>{item}</span>
                                                         <button
-                                                            key={tag}
                                                             type="button"
                                                             onClick={() => {
                                                                 setFormData(prev => {
-                                                                    const current = (prev.medical_history || '').trim()
-                                                                    if (isNone) {
-                                                                        return { ...prev, medical_history: isSelected ? '' : 'Tidak Ada' }
-                                                                    }
-                                                                    if (current === 'Tidak Ada' || current === 'Tidak Ada Riwayat Medis') {
-                                                                        return { ...prev, medical_history: tag }
-                                                                    }
-                                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
-                                                                    if (items.includes(tag)) {
-                                                                        items = items.filter(i => i !== tag)
-                                                                    } else {
-                                                                        items.push(tag)
-                                                                    }
-                                                                    return { ...prev, medical_history: items.join(', ') }
+                                                                    const remaining = prev.medical_history.split(',').map(s => s.trim()).filter(s => s && s !== item)
+                                                                    return { ...prev, medical_history: remaining.join(', ') }
                                                                 })
                                                             }}
-                                                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
-                                                                isSelected
-                                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
-                                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
-                                                            }`}
+                                                            className="hover:text-blue-950 cursor-pointer ml-0.5 font-black text-xs"
+                                                            title="Hapus"
                                                         >
-                                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                                            ×
                                                         </button>
-                                                    )
-                                                })}
+                                                    </span>
+                                                ))}
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -1261,50 +1292,72 @@ export default function TreatmentInputPage() {
                                             placeholder="Produk harian yang dipakai (Facial Wash, Toner, Sunscreen, Krim Malam, dll)..."
                                             className="input-ayumi bg-white focus:bg-white text-xs resize-none shadow-2xs"
                                         ></textarea>
-                                        {/* Quick Tags */}
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Pilih Cepat:</span>
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                                {[
-                                                    'Facial Wash',
-                                                    'Toner',
-                                                    'Serum',
-                                                    'Sunscreen',
-                                                    'Moisturizer',
-                                                    'Night Cream',
-                                                    'Racikan Dokter'
-                                                ].map(tag => {
-                                                    const curr = (formData.client_skincare_routine || '').trim()
-                                                    const isSelected = curr.split(',').map(s=>s.trim()).includes(tag)
+                                        
+                                        {/* Dropdown Quick Pick Skincare Rutin */}
+                                        <div className="flex items-center gap-2 pt-0.5">
+                                            <div className="relative flex-1">
+                                                <select
+                                                    defaultValue=""
+                                                    onChange={(e) => {
+                                                        const tag = e.target.value
+                                                        if (!tag) return
+                                                        setFormData(prev => {
+                                                            const current = (prev.client_skincare_routine || '').trim()
+                                                            let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
+                                                            if (!items.includes(tag)) items.push(tag)
+                                                            return { ...prev, client_skincare_routine: items.join(', ') }
+                                                        })
+                                                        e.target.value = ''
+                                                    }}
+                                                    className="w-full bg-white border border-slate-200 hover:border-pink-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-pink-500 cursor-pointer appearance-none pr-8 transition"
+                                                >
+                                                    <option value="">▼ Pilih Cepat Produk Skincare (Dropdown)...</option>
+                                                    <option value="Facial Wash">+ Facial Wash</option>
+                                                    <option value="Toner">+ Toner</option>
+                                                    <option value="Serum">+ Serum</option>
+                                                    <option value="Sunscreen">+ Sunscreen</option>
+                                                    <option value="Moisturizer">+ Moisturizer</option>
+                                                    <option value="Night Cream">+ Night Cream</option>
+                                                    <option value="Racikan Dokter">+ Racikan Dokter</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                                </div>
+                                            </div>
+                                            {formData.client_skincare_routine && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, client_skincare_routine: '' }))}
+                                                    className="px-2.5 py-2 text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition cursor-pointer shrink-0 shadow-2xs"
+                                                >
+                                                    Kosongkan
+                                                </button>
+                                            )}
+                                        </div>
 
-                                                    return (
+                                        {/* Removable Badges Skincare Rutin */}
+                                        {formData.client_skincare_routine && (
+                                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                                {formData.client_skincare_routine.split(',').map(s => s.trim()).filter(Boolean).map((item, idx) => (
+                                                    <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-pink-50 text-pink-800 border border-pink-200 shadow-2xs">
+                                                        <span>{item}</span>
                                                         <button
-                                                            key={tag}
                                                             type="button"
                                                             onClick={() => {
                                                                 setFormData(prev => {
-                                                                    const current = (prev.client_skincare_routine || '').trim()
-                                                                    let items = current ? current.split(',').map(s => s.trim()).filter(Boolean) : []
-                                                                    if (items.includes(tag)) {
-                                                                        items = items.filter(i => i !== tag)
-                                                                    } else {
-                                                                        items.push(tag)
-                                                                    }
-                                                                    return { ...prev, client_skincare_routine: items.join(', ') }
+                                                                    const remaining = prev.client_skincare_routine.split(',').map(s => s.trim()).filter(s => s && s !== item)
+                                                                    return { ...prev, client_skincare_routine: remaining.join(', ') }
                                                                 })
                                                             }}
-                                                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
-                                                                isSelected
-                                                                    ? 'bg-pink-600 border-pink-600 text-white shadow-2xs'
-                                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-pink-50 hover:text-pink-700 hover:border-pink-200'
-                                                            }`}
+                                                            className="hover:text-pink-950 cursor-pointer ml-0.5 font-black text-xs"
+                                                            title="Hapus"
                                                         >
-                                                            {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                                            ×
                                                         </button>
-                                                    )
-                                                })}
+                                                    </span>
+                                                ))}
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
