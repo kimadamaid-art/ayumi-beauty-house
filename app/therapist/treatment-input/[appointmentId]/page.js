@@ -43,6 +43,7 @@ export default function TreatmentInputPage() {
     // SOAP Form & Clinical Profile
     const [isMedicalHistoryOpen, setIsMedicalHistoryOpen] = useState(false)
     const [isSkincareRoutineOpen, setIsSkincareRoutineOpen] = useState(false)
+    const [showSoapPreview, setShowSoapPreview] = useState(false)
     const [formData, setFormData] = useState({
         skin_type: '',
         contraindications: '',
@@ -1368,250 +1369,456 @@ export default function TreatmentInputPage() {
 
                 {/* ─── SECTION 2: CATATAN SOAP (SUBJEKTIF, OBJEKTIF, ASESMEN, PLANNING) ─── */}
                 <div className="card-ayumi p-4 md:p-6 space-y-5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
+                    {/* Header Section 2 */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3.5 gap-3">
                         <div>
-                            <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                                <span className="p-1.5 bg-blue-100 text-blue-600 rounded-xl">
+                            <div className="flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-2xs">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </span>
-                                Catatan Rekam Medis Klinis (SOAP)
-                            </h2>
-                            <p className="text-xs text-slate-500 font-medium">Dokumentasikan observasi medis, tindakan klinis, dan anjuran perawatan pasien secara terstruktur</p>
+                                <h2 className="text-base md:text-lg font-extrabold text-slate-800">
+                                    Catatan Rekam Medis Klinis (SOAP)
+                                </h2>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Dokumentasikan observasi medis, tindakan klinis, dan anjuran perawatan pasien secara terstruktur</p>
                         </div>
-                        <span className="self-start sm:self-auto text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full shadow-2xs">
-                            Standar Rekam Medis Klinik
-                        </span>
+
+                        {/* Status & Preview Button */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+                            {(() => {
+                                const filledCount = [formData.complaints, formData.skin_condition, formData.result_notes, formData.recommendation].filter(Boolean).length
+                                return (
+                                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border shadow-2xs flex items-center gap-1.5 ${
+                                        filledCount === 4 
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                            : filledCount > 0
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                                    }`}>
+                                        <span className={`w-2 h-2 rounded-full ${filledCount === 4 ? 'bg-emerald-500' : filledCount > 0 ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
+                                        <span>Progres: {filledCount}/4 Terisi</span>
+                                    </span>
+                                )
+                            })()}
+
+                            <button
+                                type="button"
+                                onClick={() => setShowSoapPreview(!showSoapPreview)}
+                                className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                                    showSoapPreview
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-blue-200'
+                                        : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                                }`}
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <span>{showSoapPreview ? 'Tutup Pratinjau' : 'Pratinjau EMR'}</span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* S - Subjektif */}
-                        <div className="p-4 bg-blue-50/40 border border-blue-100/90 rounded-2xl space-y-2.5 shadow-2xs flex flex-col justify-between">
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-extrabold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                                        <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center font-black text-[11px] shadow-2xs">S</span>
-                                        <span>Subjektif (Keluhan Pasien)</span>
-                                    </label>
-                                    {formData.complaints && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({ ...prev, complaints: '' }))}
-                                            className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                        >
-                                            Reset
-                                        </button>
-                                    )}
+                    {/* LIVE PREVIEW REKAM MEDIS (SOAP SUMMARY) */}
+                    {showSoapPreview && (
+                        <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50/40 border border-blue-200 rounded-2xl shadow-xs space-y-3 animate-fade-in">
+                            <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-base">📋</span>
+                                    <span className="text-xs font-extrabold text-blue-900 uppercase tracking-wider">Format Standar Rekam Medis (EMR)</span>
                                 </div>
+                                <span className="text-[10px] text-blue-600 font-semibold bg-blue-100/70 px-2 py-0.5 rounded-md">Live Preview</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs space-y-1">
+                                    <span className="font-extrabold text-blue-700 flex items-center gap-1">
+                                        <span className="w-4 h-4 rounded bg-blue-600 text-white flex items-center justify-center text-[10px] font-black">S</span>
+                                        Subjektif (Keluhan)
+                                    </span>
+                                    <p className="text-slate-700 whitespace-pre-line leading-relaxed pl-5">
+                                        {formData.complaints || <span className="text-slate-400 italic">(Belum diisi)</span>}
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                                    <span className="font-extrabold text-emerald-700 flex items-center gap-1">
+                                        <span className="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">O</span>
+                                        Objektif (Kondisi Fisik)
+                                    </span>
+                                    <p className="text-slate-700 whitespace-pre-line leading-relaxed pl-5">
+                                        {formData.skin_condition || <span className="text-slate-400 italic">(Belum diisi)</span>}
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-white rounded-xl border border-amber-100 shadow-2xs space-y-1">
+                                    <span className="font-extrabold text-amber-800 flex items-center gap-1">
+                                        <span className="w-4 h-4 rounded bg-amber-600 text-white flex items-center justify-center text-[10px] font-black">A</span>
+                                        Asesmen (Tindakan & Hasil) *
+                                    </span>
+                                    <p className="text-slate-700 whitespace-pre-line leading-relaxed pl-5">
+                                        {formData.result_notes || <span className="text-rose-400 italic">(Wajib diisi - belum terisi)</span>}
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-white rounded-xl border border-purple-100 shadow-2xs space-y-1">
+                                    <span className="font-extrabold text-purple-700 flex items-center gap-1">
+                                        <span className="w-4 h-4 rounded bg-purple-600 text-white flex items-center justify-center text-[10px] font-black">P</span>
+                                        Planning (Anjuran & Homecare)
+                                    </span>
+                                    <p className="text-slate-700 whitespace-pre-line leading-relaxed pl-5">
+                                        {formData.recommendation || <span className="text-slate-400 italic">(Belum diisi)</span>}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 4 QUADRANTS SOAP GRID */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* ─── S: SUBJEKTIF ─── */}
+                        <div className="bg-white border border-blue-100 hover:border-blue-200 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-2xs shrink-0">
+                                            S
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                                                <span>Subjektif</span>
+                                                <span className="text-[11px] font-normal text-slate-400">• Keluhan Pasien</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {formData.complaints ? (
+                                            <>
+                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                                                    ✓ Terisi
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, complaints: '' }))}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer px-1 py-0.5 rounded hover:bg-rose-50"
+                                                >
+                                                    Reset
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                                                Opsional
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <textarea
                                     name="complaints"
                                     value={formData.complaints}
                                     onChange={handleChange}
                                     rows="3"
-                                    placeholder="Keluhan utama pasien saat datang (misal jerawat meradang, kulit kusam, komedo)..."
-                                    className="input-ayumi bg-white text-xs md:text-sm border-blue-200 focus:border-blue-500 resize-none shadow-2xs"
+                                    placeholder="Keluhan utama saat pasien datang (contoh: jerawat meradang, kulit kusam, komedo di hidung, dehidrasi)..."
+                                    className="w-full bg-slate-50/50 focus:bg-white text-xs md:text-sm text-slate-800 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-xl p-3 resize-none shadow-2xs outline-none transition-all placeholder:text-slate-400 leading-relaxed"
                                 ></textarea>
                             </div>
                             
-                            {/* Dropdown Template S */}
-                            <div className="relative pt-0.5">
-                                <select
-                                    defaultValue=""
-                                    onChange={(e) => {
-                                        const tpl = e.target.value
-                                        if (!tpl) return
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            complaints: prev.complaints ? `${prev.complaints.trim()}, ${tpl}` : tpl
-                                        }))
-                                        e.target.value = ''
-                                    }}
-                                    className="w-full bg-white border border-blue-200 hover:border-blue-300 rounded-xl px-3 py-2 text-xs font-semibold text-blue-950 shadow-2xs outline-none focus:border-blue-500 cursor-pointer appearance-none pr-8 transition"
-                                >
-                                    <option value="">▼ Template Cepat Keluhan (Dropdown)...</option>
-                                    <option value="Jerawat meradang & kemerahan">Jerawat meradang & kemerahan</option>
-                                    <option value="Komedo membandel & pori-pori tersumbat">Komedo membandel & pori-pori tersumbat</option>
-                                    <option value="Kulit kusam, lelah, dan warna tidak merata">Kulit kusam, lelah, dan warna tidak merata</option>
-                                    <option value="Flek hitam / hiperpigmentasi / bekas jerawat (PIH)">Flek hitam / hiperpigmentasi / bekas jerawat (PIH)</option>
-                                    <option value="Kulit kering, mengelupas, dan bersisik">Kulit kering, mengelupas, dan bersisik</option>
-                                    <option value="Perawatan rutin bulanan untuk menjaga kebersihan wajah">Perawatan rutin bulanan menjaga wajah</option>
-                                    <option value="Ingin mencerahkan kulit & glowing instan">Ingin mencerahkan kulit & glowing instan</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-blue-400">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                            {/* Template Cepat S */}
+                            <div className="pt-1 border-t border-slate-100/80">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[10px] font-extrabold text-slate-500 flex items-center gap-1 uppercase tracking-wider">
+                                        <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        Template Cepat Keluhan
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">Pilih untuk sisipkan teks</span>
+                                </div>
+                                <div className="relative">
+                                    <select
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                            const tpl = e.target.value
+                                            if (!tpl) return
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                complaints: prev.complaints ? `${prev.complaints.trim()}, ${tpl}` : tpl
+                                            }))
+                                            e.target.value = ''
+                                        }}
+                                        className="w-full bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer appearance-none pr-8 transition"
+                                    >
+                                        <option value="">▼ Pilih Template Keluhan (Dropdown)...</option>
+                                        <option value="Jerawat meradang & kemerahan">Jerawat meradang & kemerahan</option>
+                                        <option value="Komedo membandel & pori-pori tersumbat">Komedo membandel & pori tersumbat</option>
+                                        <option value="Kulit kusam, lelah, dan warna tidak merata">Kulit kusam, lelah & tidak merata</option>
+                                        <option value="Flek hitam / hiperpigmentasi / bekas jerawat (PIH)">Flek hitam & bekas jerawat (PIH)</option>
+                                        <option value="Kulit kering, mengelupas, dan terasa kaku">Kulit kering, mengelupas & kaku</option>
+                                        <option value="Perawatan rutin bulanan menjaga kebersihan wajah">Perawatan rutin bulanan kebersihan wajah</option>
+                                        <option value="Ingin mencerahkan kulit wajah & glowing seketika">Mencerahkan kulit & glowing seketika</option>
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-blue-500">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* O - Objektif */}
-                        <div className="p-4 bg-emerald-50/40 border border-emerald-100/90 rounded-2xl space-y-2.5 shadow-2xs flex flex-col justify-between">
-                            <div className="space-y-1.5">
+                        {/* ─── O: OBJEKTIF ─── */}
+                        <div className="bg-white border border-emerald-100 hover:border-emerald-200 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                            <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-xs font-extrabold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
-                                        <span className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center font-black text-[11px] shadow-2xs">O</span>
-                                        <span>Objektif (Kondisi Fisik Kulit)</span>
-                                    </label>
-                                    {formData.skin_condition && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({ ...prev, skin_condition: '' }))}
-                                            className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                        >
-                                            Reset
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-2xs shrink-0">
+                                            O
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                                                <span>Objektif</span>
+                                                <span className="text-[11px] font-normal text-slate-400">• Kondisi Fisik Kulit</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {formData.skin_condition ? (
+                                            <>
+                                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                                    ✓ Terisi
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, skin_condition: '' }))}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer px-1 py-0.5 rounded hover:bg-rose-50"
+                                                >
+                                                    Reset
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                                                Opsional
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
+
                                 <textarea
                                     name="skin_condition"
                                     value={formData.skin_condition}
                                     onChange={handleChange}
                                     rows="3"
-                                    placeholder="Kondisi fisik kulit saat diperiksa (pustula, papula, minyak berlebih, eritema)..."
-                                    className="input-ayumi bg-white text-xs md:text-sm border-emerald-200 focus:border-emerald-500 resize-none shadow-2xs"
+                                    placeholder="Temuan fisik saat pemeriksaan (pustula, papula, produksi minyak di T-zone, eritema, elastisitas)..."
+                                    className="w-full bg-slate-50/50 focus:bg-white text-xs md:text-sm text-slate-800 border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 rounded-xl p-3 resize-none shadow-2xs outline-none transition-all placeholder:text-slate-400 leading-relaxed"
                                 ></textarea>
                             </div>
                             
-                            {/* Dropdown Template O */}
-                            <div className="relative pt-0.5">
-                                <select
-                                    defaultValue=""
-                                    onChange={(e) => {
-                                        const tpl = e.target.value
-                                        if (!tpl) return
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            skin_condition: prev.skin_condition ? `${prev.skin_condition.trim()}, ${tpl}` : tpl
-                                        }))
-                                        e.target.value = ''
-                                    }}
-                                    className="w-full bg-white border border-emerald-200 hover:border-emerald-300 rounded-xl px-3 py-2 text-xs font-semibold text-emerald-950 shadow-2xs outline-none focus:border-emerald-500 cursor-pointer appearance-none pr-8 transition"
-                                >
-                                    <option value="">▼ Template Cepat Kondisi Kulit (Dropdown)...</option>
-                                    <option value="Ditemukan pustula & papula aktif di pipi/dahi">Pustula & papula aktif di pipi/dahi</option>
-                                    <option value="Komedo terbuka (blackhead) & tertutup di T-zone">Komedo (blackhead) di area T-zone</option>
-                                    <option value="Tekstur kasar dengan tanda dehidrasi ringan">Tekstur kasar & dehidrasi ringan</option>
-                                    <option value="Kemerahan ringan (eritema) pada area hidung & pipi">Kemerahan ringan (eritema)</option>
-                                    <option value="Kulit bersih terawat, pori-pori relatif normal">Kulit bersih terawat, pori normal</option>
-                                    <option value="Hiperpigmentasi pasca inflamasi & melasma">Hiperpigmentasi & flek melasma</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-emerald-500">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                            {/* Template Cepat O */}
+                            <div className="pt-1 border-t border-slate-100/80">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[10px] font-extrabold text-slate-500 flex items-center gap-1 uppercase tracking-wider">
+                                        <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        Template Cepat Kondisi Kulit
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">Pilih untuk sisipkan teks</span>
+                                </div>
+                                <div className="relative">
+                                    <select
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                            const tpl = e.target.value
+                                            if (!tpl) return
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                skin_condition: prev.skin_condition ? `${prev.skin_condition.trim()}, ${tpl}` : tpl
+                                            }))
+                                            e.target.value = ''
+                                        }}
+                                        className="w-full bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-emerald-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 cursor-pointer appearance-none pr-8 transition"
+                                    >
+                                        <option value="">▼ Pilih Template Kondisi Kulit (Dropdown)...</option>
+                                        <option value="Ditemukan pustula & papula aktif di pipi/dahi">Pustula & papula aktif di pipi/dahi</option>
+                                        <option value="Komedo terbuka (blackhead) & tertutup di area T-zone">Komedo (blackhead) di area T-zone</option>
+                                        <option value="Tekstur kasar dengan tanda dehidrasi ringan">Tekstur kasar & dehidrasi ringan</option>
+                                        <option value="Kemerahan ringan (eritema) pada area hidung & pipi">Kemerahan ringan (eritema)</option>
+                                        <option value="Kulit bersih terawat, pori-pori relatif normal">Kulit bersih terawat, pori normal</option>
+                                        <option value="Hiperpigmentasi pasca inflamasi & flek melasma">Hiperpigmentasi & flek melasma</option>
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-emerald-600">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* A - Asesmen */}
-                        <div className="p-4 bg-amber-50/40 border border-amber-200/90 rounded-2xl space-y-2.5 shadow-2xs flex flex-col justify-between">
-                            <div className="space-y-1.5">
+                        {/* ─── A: ASESMEN (WAJIB) ─── */}
+                        <div className="bg-white border-2 border-amber-200/90 hover:border-amber-300 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                            <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-xs font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                                        <span className="w-5 h-5 rounded-md bg-amber-600 text-white flex items-center justify-center font-black text-[11px] shadow-2xs">A</span>
-                                        <span>Asesmen (Tindakan & Hasil) <span className="text-rose-500">*</span></span>
-                                    </label>
-                                    {formData.result_notes && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({ ...prev, result_notes: '' }))}
-                                            className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                        >
-                                            Reset
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black text-xs shadow-2xs shrink-0">
+                                            A
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                                                <span>Asesmen</span>
+                                                <span className="text-[11px] font-normal text-slate-400">• Tindakan & Hasil</span>
+                                                <span className="text-rose-500 font-black">*</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {formData.result_notes ? (
+                                            <>
+                                                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                                    ✓ Terisi
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, result_notes: '' }))}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer px-1 py-0.5 rounded hover:bg-rose-50"
+                                                >
+                                                    Reset
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-[10px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                                                Wajib Diisi
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
+
                                 <textarea
                                     name="result_notes"
                                     value={formData.result_notes}
                                     onChange={handleChange}
                                     required
                                     rows="3"
-                                    placeholder="Detail tindakan yang dilakukan, respon kulit, dan hasil perawatan..."
-                                    className="input-ayumi bg-white text-xs md:text-sm border-amber-200 focus:border-amber-500 resize-none shadow-2xs"
+                                    placeholder="Catat tindakan klinis yang dikerjakan, respon kulit selama perawatan, dan hasil akhir..."
+                                    className="w-full bg-slate-50/50 focus:bg-white text-xs md:text-sm text-slate-800 border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 rounded-xl p-3 resize-none shadow-2xs outline-none transition-all placeholder:text-slate-400 leading-relaxed"
                                 ></textarea>
                             </div>
-
-                            {/* Dropdown Template A */}
-                            <div className="relative pt-0.5">
-                                <select
-                                    defaultValue=""
-                                    onChange={(e) => {
-                                        const tpl = e.target.value
-                                        if (!tpl) return
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            result_notes: prev.result_notes ? `${prev.result_notes.trim()}, ${tpl}` : tpl
-                                        }))
-                                        e.target.value = ''
-                                    }}
-                                    className="w-full bg-white border border-amber-200 hover:border-amber-300 rounded-xl px-3 py-2 text-xs font-semibold text-amber-950 shadow-2xs outline-none focus:border-amber-500 cursor-pointer appearance-none pr-8 transition"
-                                >
-                                    <option value="">▼ Template Cepat Asesmen & Hasil (Dropdown)...</option>
-                                    <option value="Tindakan facial selesai, ekstraksi komedo bersih, pasien nyaman">Tindakan facial selesai, komedo bersih</option>
-                                    <option value="Ekstraksi jerawat matang steril, diaplikasikan serum acne & masker soothing">Ekstraksi jerawat steril & serum soothing</option>
-                                    <option value="Infus whitening selesai via IV drip lancar, tanpa keluhan alergi/bengkak">Infus whitening lancar, tanpa keluhan</option>
-                                    <option value="Laser/peeling treatment berjalan optimal, diaplikasikan anti-inflamasi">Treatment optimal, diaplikasikan soothing</option>
-                                    <option value="Perawatan selesai, kulit tampak lebih cerah, segar, dan pori mengecil">Kulit tampak lebih cerah & pori mengecil</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-amber-500">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                            
+                            {/* Template Cepat A */}
+                            <div className="pt-1 border-t border-slate-100/80">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[10px] font-extrabold text-slate-500 flex items-center gap-1 uppercase tracking-wider">
+                                        <svg className="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        Template Cepat Asesmen
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">Pilih untuk sisipkan teks</span>
+                                </div>
+                                <div className="relative">
+                                    <select
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                            const tpl = e.target.value
+                                            if (!tpl) return
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                result_notes: prev.result_notes ? `${prev.result_notes.trim()}, ${tpl}` : tpl
+                                            }))
+                                            e.target.value = ''
+                                        }}
+                                        className="w-full bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-amber-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 cursor-pointer appearance-none pr-8 transition"
+                                    >
+                                        <option value="">▼ Pilih Template Tindakan & Hasil (Dropdown)...</option>
+                                        <option value="Tindakan facial selesai, ekstraksi komedo bersih, pasien nyaman">Tindakan facial selesai, komedo bersih</option>
+                                        <option value="Ekstraksi jerawat matang steril, diaplikasikan serum acne & masker soothing">Ekstraksi jerawat steril & serum soothing</option>
+                                        <option value="Infus whitening selesai via IV drip lancar, tanpa keluhan alergi/bengkak">Infus whitening lancar, tanpa keluhan</option>
+                                        <option value="Laser/peeling treatment berjalan optimal, diaplikasikan anti-inflamasi">Treatment optimal, diaplikasikan soothing</option>
+                                        <option value="Perawatan selesai, kulit tampak lebih cerah, segar, dan pori mengecil">Kulit tampak lebih cerah & pori mengecil</option>
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-amber-500">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* P - Planning */}
-                        <div className="p-4 bg-purple-50/40 border border-purple-100/90 rounded-2xl space-y-2.5 shadow-2xs flex flex-col justify-between">
-                            <div className="space-y-1.5">
+                        {/* ─── P: PLANNING ─── */}
+                        <div className="bg-white border border-purple-100 hover:border-purple-200 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                            <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-xs font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                                        <span className="w-5 h-5 rounded-md bg-purple-600 text-white flex items-center justify-center font-black text-[11px] shadow-2xs">P</span>
-                                        <span>Planning (Rekomendasi & Anjuran)</span>
-                                    </label>
-                                    {formData.recommendation && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData(prev => ({ ...prev, recommendation: '' }))}
-                                            className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                        >
-                                            Reset
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-2xs shrink-0">
+                                            P
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                                                <span>Planning</span>
+                                                <span className="text-[11px] font-normal text-slate-400">• Rekomendasi & Anjuran</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {formData.recommendation ? (
+                                            <>
+                                                <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md">
+                                                    ✓ Terisi
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, recommendation: '' }))}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition cursor-pointer px-1 py-0.5 rounded hover:bg-rose-50"
+                                                >
+                                                    Reset
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                                                Opsional
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
+
                                 <textarea
                                     name="recommendation"
                                     value={formData.recommendation}
                                     onChange={handleChange}
                                     rows="3"
-                                    placeholder="Rencana treatment lanjutan dan anjuran produk skincare homecare di rumah..."
-                                    className="input-ayumi bg-white text-xs md:text-sm border-purple-200 focus:border-purple-500 resize-none shadow-2xs"
+                                    placeholder="Rencana sesi treatment berikutnya, anjuran pemakaian skincare homecare di rumah, dan larangan..."
+                                    className="w-full bg-slate-50/50 focus:bg-white text-xs md:text-sm text-slate-800 border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 rounded-xl p-3 resize-none shadow-2xs outline-none transition-all placeholder:text-slate-400 leading-relaxed"
                                 ></textarea>
                             </div>
-
-                            {/* Dropdown Template P */}
-                            <div className="relative pt-0.5">
-                                <select
-                                    defaultValue=""
-                                    onChange={(e) => {
-                                        const tpl = e.target.value
-                                        if (!tpl) return
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            recommendation: prev.recommendation ? `${prev.recommendation.trim()}, ${tpl}` : tpl
-                                        }))
-                                        e.target.value = ''
-                                    }}
-                                    className="w-full bg-white border border-purple-200 hover:border-purple-300 rounded-xl px-3 py-2 text-xs font-semibold text-purple-950 shadow-2xs outline-none focus:border-purple-500 cursor-pointer appearance-none pr-8 transition"
-                                >
-                                    <option value="">▼ Template Cepat Planning & Edukasi (Dropdown)...</option>
-                                    <option value="Disarankan facial ulang 2-3 minggu lagi untuk menjaga hasil">Disarankan facial ulang 2-3 minggu lagi</option>
-                                    <option value="Wajib gunakan Sunscreen SPF 50 & reapply tiap 3-4 jam di siang hari">Wajib Sunscreen SPF 50 & reapply berkala</option>
-                                    <option value="Hindari paparan sinar matahari terik, sauna, dan scrub selama 3 hari">Hindari panas terik & scrub 3 hari</option>
-                                    <option value="Lanjutkan pemakaian paket skincare acne di rumah secara teratur">Rutin pemakaian paket acne di rumah</option>
-                                    <option value="Jadwalkan sesi infus lanjutan 1 minggu kemudian">Jadwalkan infus lanjutan 1 minggu lagi</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-purple-500">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                            
+                            {/* Template Cepat P */}
+                            <div className="pt-1 border-t border-slate-100/80">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[10px] font-extrabold text-slate-500 flex items-center gap-1 uppercase tracking-wider">
+                                        <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        Template Cepat Anjuran
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">Pilih untuk sisipkan teks</span>
+                                </div>
+                                <div className="relative">
+                                    <select
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                            const tpl = e.target.value
+                                            if (!tpl) return
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                recommendation: prev.recommendation ? `${prev.recommendation.trim()}, ${tpl}` : tpl
+                                            }))
+                                            e.target.value = ''
+                                        }}
+                                        className="w-full bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-purple-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 cursor-pointer appearance-none pr-8 transition"
+                                    >
+                                        <option value="">▼ Pilih Template Anjuran & Edukasi (Dropdown)...</option>
+                                        <option value="Disarankan facial ulang 2-3 minggu lagi untuk menjaga hasil">Disarankan facial ulang 2-3 minggu lagi</option>
+                                        <option value="Wajib gunakan Sunscreen SPF 50 & reapply tiap 3-4 jam di siang hari">Wajib Sunscreen SPF 50 & reapply berkala</option>
+                                        <option value="Hindari paparan sinar matahari terik, sauna, dan scrub selama 3 hari">Hindari panas terik & scrub 3 hari</option>
+                                        <option value="Lanjutkan pemakaian paket skincare acne di rumah secara teratur">Rutin pemakaian paket acne di rumah</option>
+                                        <option value="Jadwalkan sesi infus lanjutan 1 minggu kemudian">Jadwalkan infus lanjutan 1 minggu lagi</option>
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-purple-500">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                    </div>
                                 </div>
                             </div>
                         </div>
