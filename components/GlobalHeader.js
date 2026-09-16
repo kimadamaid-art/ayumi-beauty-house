@@ -149,7 +149,11 @@ export default function GlobalHeader({ onMenuToggle }) {
                                         {newNotif.message}
                                     </div>
                                     <div className="text-[10px] font-bold text-ayumi-primary hover:underline flex items-center gap-1 mt-1">
-                                        {newNotif.type === 'treatment_completed' ? 'Klik untuk proses pembayaran di Kasir' : 'Klik untuk melihat detail'}
+                                        {newNotif.type === 'treatment_completed' 
+                                            ? 'Klik untuk proses pembayaran di Kasir' 
+                                            : newNotif.type === 'low_stock'
+                                                ? 'Klik untuk kelola stok produk'
+                                                : 'Klik untuk melihat detail'}
                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
                                         </svg>
@@ -206,6 +210,11 @@ export default function GlobalHeader({ onMenuToggle }) {
             .from('notifications')
             .update({ is_read: true })
             .eq('id', id)
+
+        if (type === 'low_stock') {
+            router.push('/settings/products')
+            return
+        }
 
         if (appointmentId) {
             if (dbUser?.role === 'therapist') {
@@ -394,6 +403,10 @@ export default function GlobalHeader({ onMenuToggle }) {
                                                         ) : n.type === 'treatment_completed' ? (
                                                             <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-xs shadow-2xs">
                                                                 🧾
+                                                            </div>
+                                                        ) : n.type === 'low_stock' ? (
+                                                            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-xs shadow-2xs">
+                                                                ⚠️
                                                             </div>
                                                         ) : (
                                                             <div className="w-8 h-8 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-xs shadow-2xs">

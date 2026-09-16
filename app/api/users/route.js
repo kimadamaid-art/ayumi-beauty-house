@@ -47,6 +47,16 @@ export async function POST(request) {
         const body = await request.json()
         const { email, password, full_name, phone, role, branch_id } = body
 
+        if (!email || !password || !full_name) {
+            return NextResponse.json({ error: 'Nama lengkap, email, dan password wajib diisi.' }, { status: 400 })
+        }
+
+        const normalizedEmail = email.trim().toLowerCase()
+
+        if (password.length < 8) {
+            return NextResponse.json({ error: 'Password minimal harus 8 karakter.' }, { status: 400 })
+        }
+
         const ALLOWED_ROLES = ['owner', 'admin', 'therapist']
         if (!role || !ALLOWED_ROLES.includes(role)) {
             return NextResponse.json({ error: 'Validation Error: Role tidak valid. Pilihan yang diizinkan: owner, admin, therapist.' }, { status: 400 })
@@ -74,7 +84,7 @@ export async function POST(request) {
 
         // 1. Create user in auth.users
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email,
+            email: normalizedEmail,
             password,
             email_confirm: true,
             user_metadata: {
@@ -83,6 +93,12 @@ export async function POST(request) {
         })
 
         if (authError) {
+            const isDuplicate = authError.message?.toLowerCase().includes('already been registered') ||
+                                authError.message?.toLowerCase().includes('already registered') ||
+                                authError.message?.toLowerCase().includes('email address has already been registered')
+            if (isDuplicate) {
+                return NextResponse.json({ error: 'Email ini sudah terdaftar di sistem. Silakan gunakan email lain atau edit user yang bersangkutan.' }, { status: 400 })
+            }
             return NextResponse.json({ error: authError.message }, { status: 400 })
         }
 
@@ -95,7 +111,7 @@ export async function POST(request) {
             .upsert({
                 id: authData.user.id,
                 auth_id: authData.user.id,
-                email: email,
+                email: normalizedEmail,
                 full_name: full_name,
                 phone: phone || null,
                 role: role,
@@ -275,35 +291,50 @@ export async function PUT(request) {
 
         // 1. Update auth.users if password, email, or full_name provided
         const authUpdates = {}
-        if (password) authUpdates.password = password
-        if (full_name) authUpdates.user_metadata = { full_name }
-        if (email) {
-            authUpdates.email = email
+        if (password) {
+            if (password.length < 8) {
+                return NextResponse.json({ error: 'Password baru minimal harus 8 karakter.' }, { status: 400 })
+            }
+            authUpdates.password = password
+        }
+        if (full_name !== undefined) authUpdates.user_metadata = { full_name }
+        if (email !== undefined && email) {
+            authUpdates.email = email.trim().toLowerCase()
             authUpdates.email_confirm = true
         }
 
         if (Object.keys(authUpdates).length > 0) {
             const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdates)
-            if (authError) throw authError
+            if (authError) {
+                const isDuplicate = authError.message?.toLowerCase().includes('already been registered') ||
+                                    authError.message?.toLowerCase().includes('already registered')
+                if (isDuplicate) {
+                    return NextResponse.json({ error: 'Email ini sudah digunakan oleh akun lain.' }, { status: 400 })
+                }
+                throw authError
+            }
         }
 
         // Fetch existing user to check branch change
-        const { data: existingUser } = await supabaseAdmin.from('users').select('branch_id').eq('id', id).single()
+        const { data: existingUser } = await supabaseAdmin.from('users').select('branch_id, role').eq('id', id).single()
 
-        const targetBranchId = role === 'owner' ? null : (branch_id || null)
+        const currentRole = role !== undefined ? role : existingUser?.role
+        const targetBranchId = currentRole === 'owner' ? null : (branch_id !== undefined ? (branch_id || null) : existingUser?.branch_id)
 
-        // 2. Update public.users
+        // 2. Update public.users (dynamic fields to support partial updates)
+        const dbUpdates = {
+            updated_at: new Date().toISOString()
+        }
+        if (email !== undefined && email) dbUpdates.email = email.trim().toLowerCase()
+        if (full_name !== undefined) dbUpdates.full_name = full_name
+        if (phone !== undefined) dbUpdates.phone = phone || null
+        if (role !== undefined) dbUpdates.role = role
+        if (branch_id !== undefined || currentRole === 'owner') dbUpdates.branch_id = targetBranchId
+        if (is_active !== undefined) dbUpdates.is_active = is_active
+
         const { error: dbError } = await supabaseAdmin
             .from('users')
-            .update({
-                email: email || null,
-                full_name,
-                phone: phone || null,
-                role,
-                branch_id: targetBranchId,
-                is_active,
-                updated_at: new Date().toISOString()
-            })
+            .update(dbUpdates)
             .eq('id', id)
 
         if (dbError) throw dbError

@@ -159,7 +159,9 @@ export default function TherapistsReportPage() {
 
             const enhancedItems = (data || []).map(item => {
                 const trId = item.treatment_records?.id
-                const proportionalCouponPrice = trId ? couponMap[trId] : null
+                const matchOldCoupon = item.notes?.match(/\[KUPON_LAMA:([^:]+):/)
+                const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
+                const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
                 return {
                     ...item,
                     proportional_coupon_price: proportionalCouponPrice

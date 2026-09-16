@@ -87,15 +87,22 @@ export default function UsersPage() {
     }
 
     const handleToggleActive = async (u) => {
-        const { error } = await supabase
-            .from('users')
-            .update({ is_active: !u.is_active, updated_at: new Date().toISOString() })
-            .eq('id', u.id)
-        if (!error) {
+        try {
+            const res = await fetch('/api/users', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: u.id,
+                    is_active: !u.is_active
+                })
+            })
+            const result = await res.json()
+            if (!res.ok) throw new Error(result.error || 'Gagal mengubah status user')
+
             toast.success(`User berhasil di${!u.is_active ? 'aktifkan' : 'nonaktifkan'}`)
             checkRoleAndFetchData()
-        } else {
-            toast.error('Gagal mengubah status user')
+        } catch (err) {
+            toast.error(getFriendlyErrorMessage(err))
         }
     }
 
@@ -118,24 +125,29 @@ export default function UsersPage() {
 
     const handleSave = async (e) => {
         e.preventDefault()
+        if (isSaving) return
         setError('')
         setIsSaving(true)
 
         try {
-            if (formData.role === 'owner') formData.branch_id = null
+            const cleanFormData = {
+                ...formData,
+                email: formData.email ? formData.email.trim().toLowerCase() : ''
+            }
+            if (cleanFormData.role === 'owner') cleanFormData.branch_id = null
 
             if (isEditing) {
                 // Update via API Route (Service Role) to handle password changes
                 const updatePayload = {
                     id: currentUser.id,
-                    email: formData.email,
-                    full_name: formData.full_name,
-                    phone: formData.phone,
-                    role: formData.role,
-                    branch_id: formData.branch_id,
-                    is_active: formData.is_active
+                    email: cleanFormData.email,
+                    full_name: cleanFormData.full_name,
+                    phone: cleanFormData.phone,
+                    role: cleanFormData.role,
+                    branch_id: cleanFormData.branch_id,
+                    is_active: cleanFormData.is_active
                 }
-                if (formData.password) updatePayload.password = formData.password
+                if (cleanFormData.password) updatePayload.password = cleanFormData.password
 
                 const res = await fetch('/api/users', {
                     method: 'PUT',
@@ -147,21 +159,23 @@ export default function UsersPage() {
                 if (!res.ok) throw new Error(result.error || 'Gagal update user')
                 
                 toast.success('User berhasil diupdate!')
-                setTimeout(() => { setIsModalOpen(false); checkRoleAndFetchData() }, 1000)
+                setIsModalOpen(false)
+                checkRoleAndFetchData()
 
             } else {
                 // Create New Auth User via API Route (Service Role)
                 const res = await fetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(cleanFormData)
                 })
 
                 const result = await res.json()
                 if (!res.ok) throw new Error(result.error || 'Gagal membuat user')
 
                 toast.success('User berhasil dibuat!')
-                setTimeout(() => { setIsModalOpen(false); checkRoleAndFetchData() }, 1000)
+                setIsModalOpen(false)
+                checkRoleAndFetchData()
             }
         } catch (err) {
             const friendlyMsg = getFriendlyErrorMessage(err)

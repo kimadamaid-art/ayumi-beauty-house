@@ -31,6 +31,7 @@ export default function ReceiptPage() {
         }
         return true
     })
+    const [couponPackages, setCouponPackages] = useState([])
     const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false)
     const [isGeneratingImage, setIsGeneratingImage] = useState(false)
     const [dbUser, setDbUser] = useState(null)
@@ -38,22 +39,29 @@ export default function ReceiptPage() {
 
     async function fetchTransaction() {
         if (!transaction) setIsLoading(true)
-        const { data, error } = await supabase
-            .from('transactions')
-            .select(`
-                *,
-                branches (name, address, phone),
-                patients (full_name, whatsapp),
-                users:users!transactions_cashier_id_fkey(full_name),
-                transaction_items (
+        const [{ data, error }, { data: pkgs }] = await Promise.all([
+            supabase
+                .from('transactions')
+                .select(`
                     *,
-                    treatments (price),
-                    products (price)
-                )
-            `)
-            .eq('id', id)
-            .single()
+                    branches (name, address, phone),
+                    patients (full_name, whatsapp),
+                    users:users!transactions_cashier_id_fkey(full_name),
+                    transaction_items (
+                        *,
+                        treatments (price),
+                        products (price)
+                    )
+                `)
+                .eq('id', id)
+                .single(),
+            supabase.from('coupon_packages').select('id, name, price')
+        ])
             
+        if (pkgs) {
+            setCouponPackages(pkgs)
+        }
+
         if (data) {
             setTransaction(data)
             try {
@@ -335,9 +343,68 @@ export default function ReceiptPage() {
         }
     }
 
+    const getCatalogPrice = (item) => {
+        if (!item) return 0
+        if (item.item_type === 'treatment') return Number(item.treatments?.price || 0)
+        if (item.item_type === 'product') return Number(item.products?.price || 0)
+        if (item.item_type === 'coupon') {
+            const cleanName = (item.name || '').replace(/^Paket Kupon:\s*/i, '').trim().toLowerCase()
+            const matched = (couponPackages || []).find(p => {
+                const pName = (p.name || '').trim().toLowerCase()
+                return pName === cleanName || cleanName.includes(pName) || pName.includes(cleanName)
+            })
+            return Number(matched?.price || 0)
+        }
+        return 0
+    }
+
+    const handleDownloadPdf = async () => {
+        const receiptEl = document.getElementById('receipt-area')
+        if (!receiptEl) {
+            toast.error('Area struk tidak ditemukan')
+            return
+        }
+
+        try {
+            setIsGeneratingImage(true)
+            toast.loading('Memproses file PDF struk...', { id: 'receipt-pdf' })
+
+            const canvas = await html2canvas(receiptEl, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                windowWidth: 420
+            })
+
+            const imgData = canvas.toDataURL('image/png')
+            const { default: jsPDF } = await import('jspdf')
+            
+            // Ukuran standar roll thermal 80mm
+            const pdfWidth = 80
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: [pdfWidth, pdfHeight + 4]
+            })
+
+            pdf.addImage(imgData, 'PNG', 0, 2, pdfWidth, pdfHeight)
+            pdf.save(`Struk_${transaction.transaction_number || 'TRX'}.pdf`)
+
+            toast.success('📄 Berhasil mengunduh PDF struk!', { id: 'receipt-pdf' })
+        } catch (err) {
+            console.error('Error generating PDF:', err)
+            toast.error('Gagal membuat PDF: ' + err.message, { id: 'receipt-pdf' })
+        } finally {
+            setIsGeneratingImage(false)
+        }
+    }
+
     const handleSendReceiptImage = async (mode = 'wa_image') => {
         let phone = transaction.patients?.whatsapp || ''
-        if (!phone) {
+        if (mode === 'wa_image' && !phone) {
             const inputPhone = window.prompt(
                 'Nomor WhatsApp pasien belum terdaftar.\nSilakan masukkan nomor WhatsApp tujuan (contoh: 08123456789):'
             )
@@ -353,7 +420,7 @@ export default function ReceiptPage() {
 
         try {
             setIsGeneratingImage(true)
-            toast.loading('Memproses foto struk...', { id: 'receipt-img' })
+            toast.loading(mode === 'download' ? 'Mengunduh foto struk...' : 'Memproses foto struk & pesan WA...', { id: 'receipt-img' })
 
             // Generate high-resolution canvas
             const canvas = await html2canvas(receiptEl, {
@@ -373,18 +440,18 @@ export default function ReceiptPage() {
 
                 const fileName = `Struk_Ayumi_${transaction.transaction_number || 'TRX'}.png`
 
-                // Jika mode unduh
+                // Jika mode unduh foto struk langsung (PNG)
                 if (mode === 'download') {
                     const link = document.createElement('a')
                     link.download = fileName
                     link.href = URL.createObjectURL(blob)
                     link.click()
-                    toast.success('📥 Foto struk berhasil diunduh!', { id: 'receipt-img' })
+                    toast.success('📥 Foto struk (PNG) berhasil diunduh!', { id: 'receipt-img' })
                     setIsGeneratingImage(false)
                     return
                 }
 
-                // Jika perangkat mendukung Web Share API dengan file (misal HP / Mac share sheet)
+                // Jika perangkat mendukung Web Share API dengan file (misal HP / Tablet)
                 const file = new File([blob], fileName, { type: 'image/png' })
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
@@ -417,8 +484,53 @@ export default function ReceiptPage() {
                     }
                 }
 
+                // Download file otomatis juga sebagai cadangan jika kasir ingin drag-drop ke WA Web
+                try {
+                    const dlLink = document.createElement('a')
+                    dlLink.download = fileName
+                    dlLink.href = URL.createObjectURL(blob)
+                    dlLink.click()
+                } catch (e) {}
+
                 const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
-                const captionText = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House ✨\nBerikut adalah foto struk bukti pembayaran untuk transaksi *${transaction.transaction_number}*.\n\n_Silakan simpan bukti pembayaran ini. Sampai jumpa kembali!_`
+                const itemsText = transaction.transaction_items
+                    ?.map(i => {
+                        const catalogPrice = getCatalogPrice(i)
+                        const origPrice = Number(i.original_price) || catalogPrice || (i.discount_percent && i.discount_percent < 100 ? Math.round(i.price / (1 - i.discount_percent / 100)) : i.price)
+                        const hasDisc = origPrice > (Number(i.price) + 1)
+                        const discPct = i.discount_percent || (hasDisc ? Math.round(((origPrice - i.price) / origPrice) * 100) : 0)
+
+                        const strikeStr = hasDisc ? ` ~Rp ${Number(origPrice).toLocaleString('id-ID')}~` : ''
+                        const discTag = discPct > 0 ? ` (-${discPct}%)` : ''
+                        return `- ${i.name} (${i.quantity}x)${strikeStr}${discTag} : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`
+                    })
+                    .join('\n') || ''
+
+                const subtotalVal = Number(transaction.subtotal || 0)
+                const discountRupiah = Number(transaction.discount || 0)
+                let percentLabel = ''
+                if (discountRupiah > 0 && subtotalVal > 0) {
+                    const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
+                    if (calcPct > 0 && calcPct <= 100) {
+                        percentLabel = ` (${calcPct}%)`
+                    }
+                }
+                const qrisFee = getQrisFee(transaction)
+
+                const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
+                const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0,3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
+
+                let paymentMethodText = transaction.payment_method?.toUpperCase() || '-'
+                if (splitBreakdown && splitBreakdown.length > 0) {
+                    const splitSummary = splitBreakdown.map(s => `${s.method}: Rp ${s.amount.toLocaleString('id-ID')}`).join(', ')
+                    paymentMethodText = `SPLIT (${splitSummary})`
+                }
+
+                const cashText = (!splitBreakdown && cashReceivedVal !== null) 
+                    ? `\n*Tunai Diterima:* Rp ${cashReceivedVal.toLocaleString('id-ID')}\n*Kembalian:* Rp ${cashChangeVal.toLocaleString('id-ID')}` 
+                    : ''
+
+                const captionText = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House ✨\nBerikut rincian transaksi *${transaction.transaction_number}*:\n\n*Cabang:* ${transaction.branches?.name || 'Ayumi Beauty House'}\n*Tanggal:* ${formatDate(transaction.created_at)}\n\n*Rincian Item:*\n${itemsText}\n\n*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}\n*TOTAL BAYAR:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${paymentMethodText}${cashText}\nStatus: *LUNAS* ✅\n\n📸 _(Foto struk resmi telah disalin ke clipboard / terunduh. Silakan tekan Paste / lampirkan gambar di chat ini)_\n\n_Sampai jumpa di kunjungan berikutnya!_`
 
                 if (copied) {
                     toast.success('📸 Foto struk disalin ke Clipboard! Tekan Paste (Ctrl+V / Cmd+V) di chat WhatsApp.', { 
@@ -455,12 +567,7 @@ export default function ReceiptPage() {
 
         const itemsText = transaction.transaction_items
             ?.map(i => {
-                const catalogPrice = i.item_type === 'treatment' 
-                    ? Number(i.treatments?.price || 0)
-                    : i.item_type === 'product' 
-                        ? Number(i.products?.price || 0)
-                        : 0
-
+                const catalogPrice = getCatalogPrice(i)
                 const origPrice = Number(i.original_price) || catalogPrice || (i.discount_percent && i.discount_percent < 100 ? Math.round(i.price / (1 - i.discount_percent / 100)) : i.price)
                 const hasDisc = origPrice > (Number(i.price) + 1)
                 const discPct = i.discount_percent || (hasDisc ? Math.round(((origPrice - i.price) / origPrice) * 100) : 0)
@@ -640,16 +747,38 @@ export default function ReceiptPage() {
                         title="Cetak Langsung via Bluetooth Thermal Printer"
                     >
                         <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                        <span>{isBluetoothPrinting ? 'Mencetak...' : 'Print Bluetooth'}</span>
+                        <span>{isBluetoothPrinting ? 'Mencetak...' : 'Bluetooth'}</span>
+                    </button>
+
+                    {/* Tombol Unduh PDF Struk Langsung */}
+                    <button 
+                        onClick={handleDownloadPdf}
+                        disabled={isGeneratingImage}
+                        className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                        title="Unduh File PDF Struk Langsung"
+                    >
+                        <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span>Unduh PDF</span>
+                    </button>
+
+                    {/* Tombol Unduh Foto Struk Langsung (PNG) */}
+                    <button 
+                        onClick={() => handleSendReceiptImage('download')}
+                        disabled={isGeneratingImage}
+                        className="px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                        title="Unduh Gambar / Foto Struk (PNG)"
+                    >
+                        <svg className="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <span>Unduh Foto</span>
                     </button>
 
                     <button 
                         onClick={handlePrint}
                         className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                        title="Cetak atau Simpan sebagai PDF"
+                        title="Cetak via Dialog Print Browser"
                     >
                         <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        <span>Cetak / PDF</span>
+                        <span>Cetak / Print</span>
                     </button>
 
                     {dbUser?.role === 'owner' && (
@@ -669,7 +798,7 @@ export default function ReceiptPage() {
                         onClick={() => handleSendReceiptImage('wa_image')}
                         disabled={isGeneratingImage}
                         className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-                        title="Salin Foto Struk ke Clipboard & Buka WhatsApp"
+                        title="Salin Foto Struk ke Clipboard & Buka WhatsApp dengan Rincian Nota"
                     >
                         {isGeneratingImage ? (
                             <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
@@ -729,11 +858,7 @@ export default function ReceiptPage() {
                     
                     <div className="space-y-3">
                         {transaction.transaction_items?.map((item) => {
-                            const catalogPrice = item.item_type === 'treatment' 
-                                ? Number(item.treatments?.price || 0)
-                                : item.item_type === 'product' 
-                                    ? Number(item.products?.price || 0)
-                                    : 0
+                            const catalogPrice = getCatalogPrice(item)
 
                             const origPrice = Number(item.original_price) || catalogPrice || (item.discount_percent && item.discount_percent < 100 ? Math.round(item.price / (1 - item.discount_percent / 100)) : item.price)
                             const hasDiscount = origPrice > (Number(item.price) + 1)

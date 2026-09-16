@@ -268,10 +268,16 @@ export default function TherapistDashboard() {
                 `)
 
             const couponMap = buildCouponPriceMap(cLogs || [])
-            const enhanced = data.map(it => ({
-                ...it,
-                proportional_coupon_price: it.treatment_records?.id ? couponMap[it.treatment_records.id] : null
-            }))
+            const enhanced = data.map(it => {
+                const trId = it.treatment_records?.id
+                const matchOldCoupon = it.notes?.match(/\[KUPON_LAMA:([^:]+):/)
+                const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
+                const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
+                return {
+                    ...it,
+                    proportional_coupon_price: proportionalCouponPrice
+                }
+            })
 
             setCommItems(enhanced)
         } else {

@@ -186,7 +186,9 @@ export default function TherapistDetailPage() {
                 })
                 .map(r => {
                     const trId = r.treatment_records?.id
-                    const proportionalCouponPrice = trId ? couponMap[trId] : null
+                    const matchOldCoupon = r.notes?.match(/\[KUPON_LAMA:([^:]+):/)
+                    const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
+                    const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
                     return {
                         ...r,
                         proportional_coupon_price: proportionalCouponPrice

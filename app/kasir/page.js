@@ -12,8 +12,9 @@ import { usePatientSearch } from '@/hooks/usePatientSearch'
 import { validatePatientData } from '@/lib/patientValidation'
 import HorizontalCategoryRow from '@/components/pos/HorizontalCategoryRow'
 import ItemVariantModal from '@/components/pos/ItemVariantModal'
-import { getItemInitials, getItemCategory, getProductVariants, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
+import { getItemInitials, getItemCategory, getProductVariants, formatProductDescription, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
+import { notifyLowStock } from '@/lib/notifications'
 
 const getLocalYYYYMMDD = (d = new Date()) => {
     const year = d.getFullYear()
@@ -1108,7 +1109,10 @@ function PosPageContent() {
                 if (matchNewPkg) {
                     const [, pkgId, pkgName, pkgPrice] = matchNewPkg
                     const fallbackPkg = (coupons || []).find(p => p.id === pkgId || p.name?.toLowerCase() === pkgName?.toLowerCase())
-                    const parsedPrice = Number(pkgPrice) || Number(fallbackPkg?.price) || 0
+                    const catalogPrice = Number(fallbackPkg?.price) || Number(pkgPrice) || 0
+                    const parsedPrice = Number(pkgPrice) || catalogPrice || 0
+                    const originalPrice = catalogPrice > parsedPrice ? catalogPrice : (Number(fallbackPkg?.price) || parsedPrice)
+                    const discountPercent = originalPrice > parsedPrice ? Math.round(((originalPrice - parsedPrice) / originalPrice) * 100) : 0
 
                     if (!newPackageItem) {
                         newPackageItem = {
@@ -1116,8 +1120,8 @@ function PosPageContent() {
                             item_type: 'coupon',
                             name: `Paket Kupon: ${pkgName || fallbackPkg?.name || 'Paket'}`,
                             price: parsedPrice,
-                            original_price: parsedPrice,
-                            discount_percent: 0,
+                            original_price: originalPrice,
+                            discount_percent: discountPercent,
                             quantity: 1,
                             subtotal: parsedPrice,
                             commission_percent: 0,
@@ -1852,27 +1856,63 @@ function PosPageContent() {
                 }
             }
 
-            // If it is a direct treatment checkout, create parent treatment records grouped by therapist (hanya jika belum ada tagihan terapis)
-            const hasDirectTreatment = cart.some(item => item.item_type === 'treatment' && !item.treatment_record_id)
-            if (hasDirectTreatment && !treatmentRecordId) {
+            // Simpan tindakan langsung (direct treatments) ke treatment_records & treatment_record_items agar komisi terapis tercatat akurat
+            const directTreatmentItems = treatmentItems.filter(tItem => !tItem.treatment_record_id)
+            if (directTreatmentItems.length > 0) {
+                let existingPerformer = null
+                if (treatmentRecordId) {
+                    const { data: exTr } = await supabase
+                        .from('treatment_records')
+                        .select('performed_by')
+                        .eq('id', treatmentRecordId)
+                        .maybeSingle()
+                    existingPerformer = exTr?.performed_by || null
+                }
+
                 const thGroups = new Map()
-                treatmentItems.forEach(tItem => {
-                    if (tItem.treatment_record_id) return
-                    const thId = tItem.therapist_id || selectedTherapistId
+                const itemsForExistingTr = []
+
+                directTreatmentItems.forEach(tItem => {
+                    const thId = tItem.therapist_id || selectedTherapistId || existingPerformer
                     const isWorker = thId === 'worker'
-                    const key = isWorker ? 'worker' : thId
-                    if (!thGroups.has(key)) {
-                        thGroups.set(key, {
-                            performed_by: isWorker ? null : thId,
-                            isWorker,
-                            items: []
-                        })
+
+                    if (treatmentRecordId && !isWorker && (!thId || thId === existingPerformer)) {
+                        itemsForExistingTr.push(tItem)
+                    } else {
+                        const key = isWorker ? 'worker' : thId
+                        if (!thGroups.has(key)) {
+                            thGroups.set(key, {
+                                performed_by: isWorker ? null : thId,
+                                isWorker,
+                                items: []
+                            })
+                        }
+                        thGroups.get(key).items.push(tItem)
                     }
-                    thGroups.get(key).items.push(tItem)
                 })
 
-                const createdDirectTrIds = []
+                // Masukkan tindakan tambahan langsung ke treatment_record yang sudah ada
+                if (itemsForExistingTr.length > 0 && treatmentRecordId) {
+                    const { count: currentCount } = await supabase
+                        .from('treatment_record_items')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('treatment_record_id', treatmentRecordId)
 
+                    const trItemPayloads = itemsForExistingTr.map((it, sIdx) => ({
+                        treatment_record_id: treatmentRecordId,
+                        treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
+                        price_at_time: it.price,
+                        original_price: it.original_price || it.price,
+                        discount_percent: it.discount_percent || 0,
+                        commission_percent: it.commission_percent || 5,
+                        notes: it.name,
+                        sort_order: (currentCount || 0) + sIdx + 1,
+                        ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
+                    }))
+                    await supabase.from('treatment_record_items').insert(trItemPayloads)
+                }
+
+                // Buat treatment_record baru jika ada kelompok terapis/worker lain atau jika belum ada treatmentRecordId
                 for (const [key, group] of thGroups.entries()) {
                     const { data: newTr, error: trErr } = await supabase
                         .from('treatment_records')
@@ -1891,11 +1931,9 @@ function PosPageContent() {
                         .single()
 
                     if (trErr) throw trErr
-                    if (newTr?.id) createdDirectTrIds.push(newTr.id)
-                    if (!treatmentRecordId) treatmentRecordId = newTr.id
-
-                    // Simpan rincian treatment_record_items untuk kelompok terapis ini
                     if (newTr?.id) {
+                        if (!treatmentRecordId) treatmentRecordId = newTr.id
+
                         const trItemPayloads = group.items.map((it, sIdx) => ({
                             treatment_record_id: newTr.id,
                             treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
@@ -1953,6 +1991,128 @@ function PosPageContent() {
             }
 
             savedTrxData = trxData
+
+            // Sinkronkan original_price dan discount_percent ke database transaction_items
+            try {
+                const { data: createdItems } = await supabase
+                    .from('transaction_items')
+                    .select('id, name, item_type')
+                    .eq('transaction_id', trxData.id)
+
+                if (createdItems && createdItems.length > 0) {
+                    for (const ci of createdItems) {
+                        const matched = cart.find(c => c.name === ci.name && c.item_type === ci.item_type)
+                        if (matched && (Number(matched.original_price) > 0 || Number(matched.discount_percent) > 0)) {
+                            await supabase
+                                .from('transaction_items')
+                                .update({
+                                    original_price: Number(matched.original_price) || 0,
+                                    discount_percent: Number(matched.discount_percent) || 0
+                                })
+                                .eq('id', ci.id)
+                        }
+                    }
+                }
+            } catch (tiErr) {
+                console.warn('Non-blocking: could not sync transaction_items discount data:', tiErr)
+            }
+
+            // Sinkronkan pengurangan stok varian produk jika ada
+            const variantProductItems = cart.filter(it => it.item_type === 'product' && it.variant_name && it.product_id)
+            if (variantProductItems.length > 0 && selectedBranch) {
+                try {
+                    for (const vItem of variantProductItems) {
+                        const { data: currentProd } = await supabase
+                            .from('products')
+                            .select('id, description')
+                            .eq('id', vItem.product_id)
+                            .maybeSingle()
+
+                        if (currentProd && currentProd.description) {
+                            const parsedVariants = getProductVariants(currentProd)
+                            if (parsedVariants.length > 0) {
+                                let updated = false
+                                const newVariants = parsedVariants.map(v => {
+                                    if (v.name === vItem.variant_name && v.stocks && v.stocks[selectedBranch] !== undefined) {
+                                        const currentStock = Number(v.stocks[selectedBranch]) || 0
+                                        const deducted = Math.max(0, currentStock - (vItem.quantity || 1))
+                                        updated = true
+                                        return {
+                                            ...v,
+                                            stocks: {
+                                                ...v.stocks,
+                                                [selectedBranch]: deducted
+                                            }
+                                        }
+                                    }
+                                    return v
+                                })
+
+                                if (updated) {
+                                    const cat = getItemCategory(currentProd, 'product')
+                                    const cleanDesc = (currentProd.description || '')
+                                        .replace(/\[VARIANTS:\[.*?\]\]/g, '')
+                                        .replace(/Kategori:\s*[^|\[\]]+/gi, '')
+                                        .replace(/^\|\s*|\s*\|$/g, '')
+                                        .trim()
+
+                                    const newDesc = formatProductDescription(cat, cleanDesc, newVariants)
+                                    await supabase
+                                        .from('products')
+                                        .update({ description: newDesc, updated_at: new Date().toISOString() })
+                                        .eq('id', currentProd.id)
+
+                                    // Periksa notifikasi stok varian jika sisa <= 5
+                                    const updatedVar = newVariants.find(v => v.name === vItem.variant_name)
+                                    const remainingVarStock = updatedVar?.stocks?.[selectedBranch]
+                                    if (remainingVarStock !== undefined && Number(remainingVarStock) <= 5) {
+                                        notifyLowStock({
+                                            productId: vItem.product_id,
+                                            productName: vItem.name,
+                                            variantName: vItem.variant_name,
+                                            remainingStock: Number(remainingVarStock),
+                                            branchId: selectedBranch,
+                                            senderId: dbUser?.id
+                                        }).catch(err => console.warn('Non-blocking low stock notif error:', err))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (varStockErr) {
+                    console.warn('Non-blocking: could not deduct variant stock:', varStockErr)
+                }
+            }
+
+            // Periksa stok produk reguler yang dibeli; jika sisa <= 5, kirim notifikasi ke admin
+            const regularProductItems = cart.filter(it => it.item_type === 'product' && !it.variant_name)
+            if (regularProductItems.length > 0 && selectedBranch) {
+                try {
+                    const prodIds = [...new Set(regularProductItems.map(it => it.id))]
+                    const { data: updatedStocks } = await supabase
+                        .from('product_stock')
+                        .select('product_id, quantity')
+                        .eq('branch_id', selectedBranch)
+                        .in('product_id', prodIds)
+
+                    if (updatedStocks && updatedStocks.length > 0) {
+                        for (const st of updatedStocks) {
+                            if (st.quantity <= 5) {
+                                const matchedItem = regularProductItems.find(it => it.id === st.product_id)
+                                notifyLowStock({
+                                    productId: st.product_id,
+                                    productName: matchedItem?.name || 'Produk',
+                                    remainingStock: st.quantity,
+                                    branchId: selectedBranch,
+                                    senderId: dbUser?.id
+                                }).catch(err => console.warn('Non-blocking low stock notif error:', err))
+                            }
+                        }
+                    }
+                } catch (stkErr) {
+                    console.warn('Non-blocking: could not check low stock for regular products:', stkErr)
+                }
+            }
 
             // Potong sesi kupon lewat Server API /api/coupons/redeem
             const failedCoupons = []
@@ -4329,6 +4489,7 @@ function PosPageContent() {
                 isOpen={isItemModalOpen}
                 item={selectedCatalogItem}
                 itemType={selectedItemType}
+                branchId={selectedBranch}
                 onClose={handleCloseItemModal}
                 onConfirm={handleConfirmModalSelection}
             />

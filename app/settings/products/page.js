@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import BranchFilter from '@/components/ui/BranchFilter'
 import { getProductVariants, getItemCategory, formatProductDescription } from '@/lib/productVariants'
+import { notifyLowStock } from '@/lib/notifications'
 
 export default function ProductsPage() {
     const router = useRouter()
@@ -165,6 +166,20 @@ export default function ProductsPage() {
                 }
             }
 
+            // Kirim notifikasi jika stok <= 5
+            if (numQty <= 5) {
+                const prod = products.find(p => p.id === productId)
+                const branch = branches.find(b => b.id === branchId)
+                notifyLowStock({
+                    productId,
+                    productName: prod?.name || 'Produk',
+                    remainingStock: numQty,
+                    branchId,
+                    branchName: branch?.name,
+                    senderId: dbUser?.id
+                }).catch(err => console.warn('Low stock notif error:', err))
+            }
+
             setTimeout(() => {
                 setSavingStockKey(null)
             }, 1200)
@@ -264,7 +279,7 @@ export default function ProductsPage() {
             ...prev,
             variants: [
                 ...prev.variants,
-                { name: '', price: Number(prev.price) || 0 }
+                { name: '', price: Number(prev.price) || 0, stocks: {} }
             ]
         }))
     }
@@ -280,11 +295,73 @@ export default function ProductsPage() {
         })
     }
 
+    const handleVariantStockChange = (variantIndex, branchId, value) => {
+        const numVal = value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0)
+        setFormData(prev => {
+            const newVariants = prev.variants.map((v, i) => {
+                if (i === variantIndex) {
+                    const newStocks = { ...(v.stocks || {}) }
+                    newStocks[branchId] = numVal
+                    return { ...v, stocks: newStocks }
+                }
+                return v
+            })
+
+            // Hitung ulang total stok cabang dari seluruh varian
+            const newBranchTotal = newVariants.reduce((sum, v) => sum + (Number(v.stocks?.[branchId]) || 0), 0)
+
+            return {
+                ...prev,
+                variants: newVariants,
+                branchStocks: {
+                    ...prev.branchStocks,
+                    [branchId]: newBranchTotal
+                }
+            }
+        })
+    }
+
+    const handleSplitEvenly = (branchId) => {
+        const total = formData.branchStocks[branchId] || 0
+        const varCount = formData.variants.length
+        if (varCount === 0 || total === 0) return
+
+        const baseQty = Math.floor(total / varCount)
+        const remainder = total % varCount
+
+        setFormData(prev => {
+            const newVariants = prev.variants.map((v, i) => {
+                const allocated = baseQty + (i < remainder ? 1 : 0)
+                return {
+                    ...v,
+                    stocks: {
+                        ...(v.stocks || {}),
+                        [branchId]: allocated
+                    }
+                }
+            })
+            return {
+                ...prev,
+                variants: newVariants
+            }
+        })
+    }
+
     const handleRemoveVariant = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            variants: prev.variants.filter((_, i) => i !== index)
-        }))
+        setFormData(prev => {
+            const newVariants = prev.variants.filter((_, i) => i !== index)
+            const newBranchStocks = { ...prev.branchStocks }
+            if (newVariants.length > 0) {
+                branches.forEach(b => {
+                    newBranchStocks[b.id] = newVariants.reduce((sum, v) => sum + (Number(v.stocks?.[b.id]) || 0), 0)
+                })
+            }
+            return {
+                ...prev,
+                variants: newVariants,
+                branchStocks: newBranchStocks
+            }
+        })
     }
 
     const handleSave = async (e) => {
@@ -352,6 +429,40 @@ export default function ProductsPage() {
                                 quantity: qty
                             }])
                         if (stockErr) console.error(`Failed to insert stock for branch ${branch.name}:`, stockErr)
+                    }
+
+                    // Notifikasi jika stok produk <= 5
+                    if (Number(qty) <= 5) {
+                        notifyLowStock({
+                            productId,
+                            productName: formData.name,
+                            remainingStock: Number(qty),
+                            branchId: branch.id,
+                            branchName: branch.name,
+                            senderId: dbUser?.id
+                        }).catch(e => console.warn(e))
+                    }
+                }
+
+                // Notifikasi jika varian produk memiliki stok <= 5
+                if (formData.variants && formData.variants.length > 0) {
+                    for (const v of formData.variants) {
+                        if (v.stocks) {
+                            for (const branch of allowedBranchesToSave) {
+                                const vQty = v.stocks[branch.id] !== undefined ? Number(v.stocks[branch.id]) : 0
+                                if (vQty <= 5) {
+                                    notifyLowStock({
+                                        productId,
+                                        productName: formData.name,
+                                        variantName: v.name,
+                                        remainingStock: vQty,
+                                        branchId: branch.id,
+                                        branchName: branch.name,
+                                        senderId: dbUser?.id
+                                    }).catch(e => console.warn(e))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -682,9 +793,14 @@ export default function ProductsPage() {
 
                                             {/* Total Stock Badge */}
                                             <td className="p-4 text-center">
-                                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                                                    totalStock === 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-800'
+                                                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
+                                                    totalStock === 0 
+                                                        ? 'bg-red-100 text-red-700 font-extrabold border border-red-200' 
+                                                        : totalStock <= 5 
+                                                            ? 'bg-amber-100 text-amber-800 font-extrabold border border-amber-300' 
+                                                            : 'bg-gray-100 text-gray-800'
                                                 }`}>
+                                                    {totalStock === 0 ? '🚨' : totalStock <= 5 ? '⚠️' : null}
                                                     {totalStock} pcs
                                                 </span>
                                             </td>
@@ -885,27 +1001,90 @@ export default function ProductsPage() {
                             {/* Branch Stock Allocation Section */}
                             <div className="space-y-3 pt-2">
                                 <div className="flex items-center justify-between">
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                        {dbUser?.role === 'owner' ? 'Alokasi Stok Per Cabang' : `Alokasi Stok (${userBranchName || 'Cabang Anda'})`}
-                                    </h4>
+                                    <div>
+                                        <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                            {dbUser?.role === 'owner' ? 'Alokasi Stok Per Cabang' : `Alokasi Stok (${userBranchName || 'Cabang Anda'})`}
+                                        </h4>
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                            {formData.variants.length > 0 
+                                                ? 'Atur jumlah stok fisik untuk masing-masing varian di tiap cabang.' 
+                                                : 'Jumlah unit fisik produk per cabang.'}
+                                        </p>
+                                    </div>
                                     <span className="text-xs text-gray-400 font-normal">Jumlah unit fisik</span>
                                 </div>
 
                                 <div className={`grid gap-3 ${allowedBranches.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-                                    {allowedBranches.map(b => (
-                                        <div key={b.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
-                                            <div className="flex items-center justify-between text-xs">
-                                                <span className="font-bold text-gray-700">{b.name}</span>
+                                    {allowedBranches.map(b => {
+                                        const branchTotal = formData.branchStocks[b.id] !== undefined ? formData.branchStocks[b.id] : 0
+                                        const varSum = formData.variants.reduce((sum, v) => sum + (Number(v.stocks?.[b.id]) || 0), 0)
+                                        const needsAllocation = formData.variants.length > 0 && branchTotal > 0 && varSum === 0
+
+                                        return (
+                                            <div key={b.id} className="p-3.5 bg-gray-50 border border-gray-200/80 rounded-2xl space-y-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-extrabold text-xs text-gray-800 flex items-center gap-1.5">
+                                                        <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                                        {b.name}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {needsAllocation && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSplitEvenly(b.id)}
+                                                                className="text-[10px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded-md transition-all active:scale-95 cursor-pointer"
+                                                                title="Bagi rata stok cabang yang ada ke semua varian"
+                                                            >
+                                                                ⚡ Bagi Rata
+                                                            </button>
+                                                        )}
+                                                        <span className="text-[11px] font-black px-2 py-0.5 bg-orange-100/70 text-orange-800 rounded-md border border-orange-200/60">
+                                                            Total: {branchTotal} unit
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {formData.variants.length > 0 ? (
+                                                    <div className="space-y-1.5 pt-1 border-t border-gray-200/60">
+                                                        {formData.variants.map((v, vIdx) => {
+                                                            const varStockVal = v.stocks?.[b.id] !== undefined ? v.stocks[b.id] : ''
+                                                            return (
+                                                                <div key={vIdx} className="flex items-center justify-between gap-2 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs hover:border-sky-300 transition-colors">
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-xs font-bold text-gray-800 truncate" title={v.name || `Varian ${vIdx + 1}`}>
+                                                                            {v.name || `Varian ${vIdx + 1}`}
+                                                                        </p>
+                                                                        <p className="text-[10px] text-gray-400 font-semibold">
+                                                                            Rp {Number(v.price || 0).toLocaleString('id-ID')}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            placeholder="0"
+                                                                            value={varStockVal}
+                                                                            onChange={(e) => handleVariantStockChange(vIdx, b.id, e.target.value)}
+                                                                            className="w-20 text-xs font-black text-right p-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:bg-white focus:ring-2 focus:ring-sky-300 focus:border-sky-400 outline-none transition-all"
+                                                                        />
+                                                                        <span className="text-[10px] text-gray-400 font-semibold">pcs</span>
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={branchTotal}
+                                                        onChange={(e) => handleBranchStockChange(b.id, e.target.value)}
+                                                        className="input-ayumi bg-white text-sm font-bold w-full text-right focus:ring-orange-200 focus:border-orange-400"
+                                                    />
+                                                )}
                                             </div>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formData.branchStocks[b.id] !== undefined ? formData.branchStocks[b.id] : 0}
-                                                onChange={(e) => handleBranchStockChange(b.id, e.target.value)}
-                                                className="input-ayumi bg-white text-sm  font-bold w-full text-right focus:ring-orange-200 focus:border-orange-400"
-                                            />
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </div>
 

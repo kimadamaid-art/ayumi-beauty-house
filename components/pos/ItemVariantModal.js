@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getProductVariants, getItemCategory } from '@/lib/productVariants'
+import { getProductVariants, getItemCategory, getVariantStock } from '@/lib/productVariants'
 
 export default function ItemVariantModal({
     isOpen,
     item,
     itemType = 'product',
+    branchId = null,
     onClose,
     onConfirm
 }) {
@@ -162,6 +163,10 @@ export default function ItemVariantModal({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {variants.map((v, idx) => {
                                     const isSelected = selectedVariant?.name === v.name
+                                    const hasVariantStocks = v.stocks && Object.keys(v.stocks).length > 0
+                                    const varStock = branchId && hasVariantStocks ? getVariantStock(v, branchId) : null
+                                    const isOutOfStock = varStock !== null && varStock <= 0
+
                                     return (
                                         <button
                                             key={idx}
@@ -173,9 +178,20 @@ export default function ItemVariantModal({
                                                     : 'bg-white text-gray-800 border-[#F2D8C3] hover:border-[#D46221] hover:bg-[#FAF1E8]/50'
                                             }`}
                                         >
-                                            <span className={`text-xs font-black ${isSelected ? 'text-white' : 'text-[#2C1E16]'}`}>
-                                                {v.name}
-                                            </span>
+                                            <div className="flex items-center justify-between gap-1 w-full">
+                                                <span className={`text-xs font-black truncate ${isSelected ? 'text-white' : 'text-[#2C1E16]'}`}>
+                                                    {v.name}
+                                                </span>
+                                                {varStock !== null && (
+                                                    <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded shrink-0 ${
+                                                        isOutOfStock 
+                                                            ? isSelected ? 'bg-red-800/80 text-white' : 'bg-red-100 text-red-700'
+                                                            : isSelected ? 'bg-orange-800/60 text-orange-100' : 'bg-orange-50 text-orange-700'
+                                                    }`}>
+                                                        {isOutOfStock ? 'Habis' : `Stok: ${varStock}`}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className={`text-xs font-bold mt-1 ${isSelected ? 'text-orange-100' : 'text-[#B5531B]'}`}>
                                                 IDR {v.price.toLocaleString('id-ID')}
                                             </span>

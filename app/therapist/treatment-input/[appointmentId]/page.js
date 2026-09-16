@@ -146,8 +146,9 @@ export default function TreatmentInputPage() {
                     .order('created_at', { ascending: false })
 
                 const matchingDirect = candidateRecords?.find(r => 
-                    r.result_notes?.includes('Tindakan Kasir Langsung') || 
-                    (r.transactions && r.transactions.some(tx => tx.payment_status === 'paid'))
+                    !r.appointment_id &&
+                    r.result_notes?.includes('Tindakan Kasir Langsung') &&
+                    (!r.transactions || !r.transactions.some(tx => tx.payment_status === 'paid'))
                 )
                 if (matchingDirect) {
                     existingRecord = matchingDirect
