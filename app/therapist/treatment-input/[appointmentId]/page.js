@@ -780,6 +780,22 @@ export default function TreatmentInputPage() {
                 }
             }
 
+            // Sinkronisasi branch_id & updated_at pasien ke cabang tindakan
+            const actionBranchId = appointment?.branch_id || dbUser?.branch_id
+            if (targetPatientId && actionBranchId) {
+                try {
+                    await supabase
+                        .from('patients')
+                        .update({
+                            branch_id: actionBranchId,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', targetPatientId)
+                } catch (patBranchErr) {
+                    console.warn('Sync patient branch error:', patBranchErr)
+                }
+            }
+
             // 3. Upload Photos (via Server API)
             const photoSlots = ['foto_depan', 'foto_kiri', 'foto_kanan']
 

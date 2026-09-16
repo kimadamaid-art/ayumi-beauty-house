@@ -2247,6 +2247,21 @@ function PosPageContent() {
                 }
             }
 
+            // 5. Update active branch & updated_at pasien agar data pasien otomatis terhubung di cabang tempat transaksi
+            if (selectedPatient?.id && selectedBranch) {
+                try {
+                    await supabase
+                        .from('patients')
+                        .update({
+                            branch_id: selectedBranch,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', selectedPatient.id)
+                } catch (patBranchErr) {
+                    console.warn('Sync patient branch error:', patBranchErr)
+                }
+            }
+
             // Pembayaran sudah tersimpan, jika ada sesi gagal beri tahu kasir
             if (failedCoupons.length > 0) {
                 alert(

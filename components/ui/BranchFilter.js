@@ -5,8 +5,10 @@
  * Handles auto-locking for non-owners and custom labeling.
  */
 export default function BranchFilter({
-    value = '',
+    value,
+    selectedBranch,
     onChange,
+    onBranchChange,
     branches = [],
     userRole = 'owner',
     userBranchId = null,
@@ -19,6 +21,14 @@ export default function BranchFilter({
 }) {
     const isOwner = userRole === 'owner'
     const isDisabled = disabled || !isOwner
+    let rawVal = value !== undefined ? value : (selectedBranch !== undefined ? selectedBranch : '')
+    if (rawVal === 'All' || rawVal === 'all') rawVal = ''
+    const currentValue = rawVal
+
+    const handleChange = (val) => {
+        if (onChange) onChange(val)
+        if (onBranchChange) onBranchChange(val)
+    }
 
     return (
         <div className={`flex flex-col gap-1 ${className}`}>
@@ -28,8 +38,8 @@ export default function BranchFilter({
                 </label>
             )}
             <select
-                value={value}
-                onChange={(e) => onChange && onChange(e.target.value)}
+                value={currentValue}
+                onChange={(e) => handleChange(e.target.value)}
                 disabled={isDisabled}
                 className={`input-ayumi py-2 text-xs bg-gray-50 font-bold text-ayumi-secondary disabled:opacity-75 cursor-pointer ${selectClassName}`}
             >

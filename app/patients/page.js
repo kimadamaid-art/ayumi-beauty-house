@@ -90,13 +90,32 @@ export default function PatientsPage() {
                 query = query.order('updated_at', { ascending: false })
             }
             
-            if (!isOwner && userBranchId) {
-                query = query.eq('branch_id', userBranchId)
-            } else if (isOwner && branchFilter !== 'All') {
-                if (branchFilter === 'pusat') {
+            const targetBranch = !isOwner ? userBranchId : (branchFilter && branchFilter !== 'All' && branchFilter !== 'all' ? branchFilter : null)
+
+            if (targetBranch) {
+                if (targetBranch === 'pusat') {
                     query = query.is('branch_id', null)
                 } else {
-                    query = query.eq('branch_id', branchFilter)
+                    // Include both patients registered directly at this branch AND patients who have visited/transacted at this branch
+                    try {
+                        const [{ data: trPts }, { data: txPts }] = await Promise.all([
+                            supabase.from('treatment_records').select('patient_id').eq('branch_id', targetBranch),
+                            supabase.from('transactions').select('patient_id').eq('branch_id', targetBranch)
+                        ])
+                        const visitedIds = [...new Set([
+                            ...(trPts || []).map(r => r.patient_id),
+                            ...(txPts || []).map(t => t.patient_id)
+                        ])].filter(Boolean)
+
+                        if (visitedIds.length > 0) {
+                            query = query.or(`branch_id.eq.${targetBranch},id.in.(${visitedIds.join(',')})`)
+                        } else {
+                            query = query.eq('branch_id', targetBranch)
+                        }
+                    } catch (e) {
+                        console.error('Error fetching branch visited patients:', e)
+                        query = query.eq('branch_id', targetBranch)
+                    }
                 }
             }
 
@@ -470,9 +489,11 @@ export default function PatientsPage() {
                             <div className="w-full md:w-auto min-w-[200px]">
                                 <BranchFilter 
                                     branches={branches}
+                                    value={branchFilter}
                                     selectedBranch={branchFilter}
-                                    onChange={(bId) => setBranchFilter(bId)}
-                                    showAll={true}
+                                    onChange={(bId) => setBranchFilter(bId || 'All')}
+                                    userRole="owner"
+                                    allOptionLabel="Semua Cabang"
                                 />
                             </div>
                         )}
