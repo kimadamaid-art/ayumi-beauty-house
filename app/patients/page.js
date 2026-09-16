@@ -68,7 +68,7 @@ export default function PatientsPage() {
             }
             setIsOwner(isOwner)
 
-            if (isOwner && branches.length === 0) {
+            if (branches.length === 0) {
                 const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
                 if (brData) setBranches(brData)
             }
@@ -90,7 +90,7 @@ export default function PatientsPage() {
                 query = query.order('updated_at', { ascending: false })
             }
             
-            const targetBranch = !isOwner ? userBranchId : (branchFilter && branchFilter !== 'All' && branchFilter !== 'all' ? branchFilter : null)
+            const targetBranch = (branchFilter && branchFilter !== 'All' && branchFilter !== 'all') ? branchFilter : null
 
             if (targetBranch) {
                 if (targetBranch === 'pusat') {
@@ -484,19 +484,17 @@ export default function PatientsPage() {
                             />
                         </div>
 
-                        {/* Branch Filter for Owner */}
-                        {isOwner && (
-                            <div className="w-full md:w-auto min-w-[200px]">
-                                <BranchFilter 
-                                    branches={branches}
-                                    value={branchFilter}
-                                    selectedBranch={branchFilter}
-                                    onChange={(bId) => setBranchFilter(bId || 'All')}
-                                    userRole="owner"
-                                    allOptionLabel="Semua Cabang"
-                                />
-                            </div>
-                        )}
+                        {/* Branch Filter for All Staff & Owner */}
+                        <div className="w-full md:w-auto min-w-[200px]">
+                            <BranchFilter 
+                                branches={branches}
+                                value={branchFilter}
+                                selectedBranch={branchFilter}
+                                onChange={(bId) => setBranchFilter(bId || 'All')}
+                                allowAllRoles={true}
+                                allOptionLabel="Semua Cabang"
+                            />
+                        </div>
                     </div>
 
                     {/* Baris 2: Advanced Filters (Admin & Owner) */}

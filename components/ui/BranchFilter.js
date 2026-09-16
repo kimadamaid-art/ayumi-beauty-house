@@ -12,6 +12,7 @@ export default function BranchFilter({
     branches = [],
     userRole = 'owner',
     userBranchId = null,
+    allowAllRoles = false,
     allOptionLabel = 'Semua Cabang',
     label = 'Cabang Klinik',
     showLabel = true,
@@ -20,7 +21,8 @@ export default function BranchFilter({
     selectClassName = ''
 }) {
     const isOwner = userRole === 'owner'
-    const isDisabled = disabled || !isOwner
+    const isAllowed = isOwner || allowAllRoles
+    const isDisabled = disabled || !isAllowed
     let rawVal = value !== undefined ? value : (selectedBranch !== undefined ? selectedBranch : '')
     if (rawVal === 'All' || rawVal === 'all') rawVal = ''
     const currentValue = rawVal
@@ -43,7 +45,7 @@ export default function BranchFilter({
                 disabled={isDisabled}
                 className={`input-ayumi py-2 text-xs bg-gray-50 font-bold text-ayumi-secondary disabled:opacity-75 cursor-pointer ${selectClassName}`}
             >
-                {isOwner && <option value="">{allOptionLabel}</option>}
+                {isAllowed && <option value="">{allOptionLabel}</option>}
                 {branches.map((b) => (
                     <option key={b.id} value={b.id}>
                         {b.name}
