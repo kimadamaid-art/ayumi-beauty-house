@@ -650,7 +650,7 @@ export default function TherapistDashboard() {
                                             const commPercent = Number(item.commission_percent || 0)
                                             const commAmount = calculateTherapistCommission(item)
                                             const treatmentName = item.treatments?.name || item.notes || '-'
-                                            const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes) || commPercent === 0
+                                            const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes)
                                             const isCoupon = Number(item.price_at_time || 0) === 0 && basePrice > 0
 
                                             return (

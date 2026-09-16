@@ -514,31 +514,33 @@ export default function PatientDetailPage() {
                                                 <td className="p-4 text-gray-800 font-extrabold text-xs">
                                                     {(() => {
                                                         const trItems = tr.treatment_record_items || []
-                                                        const hasWorker = trItems.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || '') || Number(i.commission_percent) === 0)
-                                                        const hasTherapist = trItems.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || '') && Number(i.commission_percent) > 0)
+                                                        const hasWorker = trItems.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || ''))
+                                                        const hasTherapistItem = trItems.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || ''))
                                                         const therapistName = tr.therapist?.full_name || tr.users?.full_name
 
-                                                        if (hasWorker && hasTherapist && therapistName) {
+                                                        if (therapistName) {
+                                                            if (hasWorker && hasTherapistItem) {
+                                                                return (
+                                                                    <div className="flex flex-col gap-1 items-start">
+                                                                        <span className="font-bold text-gray-800 text-xs inline-flex items-center gap-1 bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md border border-purple-100 shadow-2xs">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                                            {therapistName}
+                                                                        </span>
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                                                            + Worker (Infus)
+                                                                        </span>
+                                                                    </div>
+                                                                )
+                                                            }
                                                             return (
-                                                                <div className="flex flex-col gap-1 items-start">
-                                                                    <span className="font-semibold text-gray-800">{therapistName}</span>
-                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
-                                                                        Worker (Infus)
-                                                                    </span>
-                                                                </div>
-                                                            )
-                                                        }
-                                                        if (hasWorker && !hasTherapist) {
-                                                            return (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
-                                                                    Worker (Infus)
+                                                                <span className="font-bold text-gray-800 text-xs inline-flex items-center gap-1 bg-purple-50 text-purple-800 px-2 py-0.5 rounded-md border border-purple-100 shadow-2xs">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                                    {therapistName}
                                                                 </span>
                                                             )
                                                         }
-                                                        if (therapistName) {
-                                                            return <span className="font-semibold text-gray-800">{therapistName}</span>
-                                                        }
-                                                        if (tr.result_notes?.includes('Worker') || tr.complaints?.includes('WORKER') || !tr.performed_by) {
+
+                                                        if (hasWorker || tr.result_notes?.includes('Worker') || tr.complaints?.includes('WORKER') || !tr.performed_by) {
                                                             return (
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
                                                                     {tr.result_notes?.includes('PKM') ? 'Worker (PKM)' : 'Worker (Infus)'}

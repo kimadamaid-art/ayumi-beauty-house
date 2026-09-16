@@ -183,10 +183,9 @@ export default function TherapistsReportPage() {
             const therapistId = item.treatment_records?.performed_by
             const commissionPercent = Number(item.commission_percent !== undefined && item.commission_percent !== null ? item.commission_percent : 5)
             const isWorker = item.notes?.includes('[WORKER]') ||
-                             isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '') ||
-                             commissionPercent === 0
+                             isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '')
             
-            // Abaikan item tanpa terapis atau item worker/infus dengan komisi 0
+            // Abaikan item tanpa terapis atau item worker/infus
             if (!therapistId || isWorker) return
 
             if (!therapistGroups[therapistId]) {
@@ -235,8 +234,7 @@ export default function TherapistsReportPage() {
     const unassignedTreatments = useMemo(() => {
         return treatmentItems.filter(item => {
             const isWorker = item.notes?.includes('[WORKER]') ||
-                             isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '') ||
-                             Number(item.commission_percent) === 0
+                             isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '')
             return !item.treatment_records?.performed_by || isWorker
         })
     }, [treatmentItems])

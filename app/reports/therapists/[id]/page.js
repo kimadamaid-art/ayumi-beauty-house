@@ -179,8 +179,7 @@ export default function TherapistDetailPage() {
             const enhancedData = (data || [])
                 .filter(r => {
                     const isWorker = r.notes?.includes('[WORKER]') ||
-                                     isInfusionTreatment(r.treatments?.name || '', r.notes || '') ||
-                                     Number(r.commission_percent) === 0
+                                     isInfusionTreatment(r.treatments?.name || '', r.notes || '')
                     if (isWorker) return false
                     return Number(r.commission_percent !== undefined && r.commission_percent !== null ? r.commission_percent : 5) > 0
                 })

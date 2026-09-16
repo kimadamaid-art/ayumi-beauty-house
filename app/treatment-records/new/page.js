@@ -436,6 +436,7 @@ function AddRecordForm() {
                 appointment_id: urlAppointmentId || null,
                 branch_id: formData.branch_id,
                 performed_by: formData.performed_by || null,
+                therapist_id: formData.performed_by || null,
                 treatment_date: formData.treatment_date,
                 treatment_time: formData.treatment_time,
                 skin_type: formData.skin_type || null,

@@ -640,6 +640,7 @@ export default function TreatmentInputPage() {
                     patient_id: targetPatientId,
                     appointment_id: appointment.id,
                     performed_by: performer,
+                    therapist_id: performer,
                     skin_condition: formData.skin_condition,
                     complaints: formData.complaints,
                     result_notes: formData.result_notes || 'Tindakan Selesai',
@@ -675,6 +676,7 @@ export default function TreatmentInputPage() {
                     appointment_id: appointment.id,
                     branch_id: appointment.branch_id,
                     performed_by: performer,
+                    therapist_id: performer,
                     treatment_date: new Date().toISOString().split('T')[0],
                     treatment_time: new Date().toTimeString().substring(0, 5),
                     skin_condition: formData.skin_condition,
@@ -2083,6 +2085,13 @@ export default function TreatmentInputPage() {
                                                     title="Tindakan infus khusus dikerjakan oleh Worker"
                                                 >
                                                     <span>Worker (Infus)</span>
+                                                </div>
+                                            ) : dbUser?.role === 'therapist' ? (
+                                                <div
+                                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-pink-50 text-pink-700 border border-pink-200 flex items-center gap-1 shadow-2xs cursor-default"
+                                                    title="Tindakan dikerjakan oleh Anda sebagai Terapis"
+                                                >
+                                                    <span>Terapis</span>
                                                 </div>
                                             ) : (
                                                 <button

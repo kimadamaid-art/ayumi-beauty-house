@@ -391,13 +391,15 @@ export default function TreatmentRecordDetailPage() {
             doc.text(bdate, col1X + 35, y)
 
             // Therapist / Provider Name
-            const hasWorkerItemPdf = items.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || '') || Number(i.commission_percent) === 0)
-            const hasTherapistItemPdf = items.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || '') && Number(i.commission_percent) > 0)
+            const hasWorkerItemPdf = items.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || ''))
+            const hasTherapistItemPdf = items.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || ''))
             let pdfPerformer = record.users?.full_name || 'Worker (Infus)'
             if (hasWorkerItemPdf && hasTherapistItemPdf && record.users?.full_name) {
                 pdfPerformer = `${record.users.full_name} & Worker (Infus)`
-            } else if (hasWorkerItemPdf && !hasTherapistItemPdf) {
+            } else if (hasWorkerItemPdf && !hasTherapistItemPdf && !record.users?.full_name) {
                 pdfPerformer = 'Worker (Infus)'
+            } else if (record.users?.full_name) {
+                pdfPerformer = record.users.full_name
             }
 
             doc.setFont('helvetica', 'bold')
@@ -744,14 +746,16 @@ export default function TreatmentRecordDetailPage() {
                     </div>
                 </div>
                 {(() => {
-                    const hasWorkerItem = items.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || '') || Number(i.commission_percent) === 0)
-                    const hasTherapistItem = items.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || '') && Number(i.commission_percent) > 0)
+                    const hasWorkerItem = items.some(i => i.notes?.includes('[WORKER]') || isInfusionTreatment(i.treatments?.name || '', i.notes || ''))
+                    const hasTherapistItem = items.some(i => !i.notes?.includes('[WORKER]') && !isInfusionTreatment(i.treatments?.name || '', i.notes || ''))
 
                     let performerText = record.users?.full_name || 'Worker (Infus)'
                     if (hasWorkerItem && hasTherapistItem && record.users?.full_name) {
                         performerText = `${record.users.full_name} & Worker (Infus)`
-                    } else if (hasWorkerItem && !hasTherapistItem) {
+                    } else if (hasWorkerItem && !hasTherapistItem && !record.users?.full_name) {
                         performerText = 'Worker (Infus)'
+                    } else if (record.users?.full_name) {
+                        performerText = record.users.full_name
                     }
 
                     return (

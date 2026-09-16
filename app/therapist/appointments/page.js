@@ -399,7 +399,7 @@ function TherapistHistoryContent() {
                                                             itemsList.map(item => {
                                                                 const treatmentName = item.treatments?.name || item.notes || 'Treatment'
                                                                 const basePrice = getCommissionBasePrice(item)
-                                                                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes) || Number(item.commission_percent) === 0
+                                                                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes)
                                                                 const isCoupon = Number(item.price_at_time || 0) === 0 && basePrice > 0
 
                                                                 return (
@@ -447,16 +447,27 @@ function TherapistHistoryContent() {
                                                                 const itemComm = calculateTherapistCommission(item)
                                                                 const basePrice = getCommissionBasePrice(item)
                                                                 const treatmentName = item.treatments?.name || item.notes || 'Treatment'
-                                                                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes) || Number(item.commission_percent) === 0
+                                                                const isWorker = item.notes?.includes('[WORKER]') || isInfusionTreatment(treatmentName, item.notes)
 
-                                                                if (isWorker || itemComm === 0) {
+                                                                if (isWorker) {
                                                                     return (
                                                                         <div
                                                                             key={item.id}
                                                                             className="inline-flex items-center gap-1.5 text-[10.5px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md border border-slate-200"
                                                                         >
                                                                             <span className="font-semibold text-slate-600">{treatmentName}</span>
-                                                                            <span className="text-slate-400 italic">• Worker (0%)</span>
+                                                                            <span className="text-slate-400 italic">• Worker (Infus)</span>
+                                                                        </div>
+                                                                    )
+                                                                }
+                                                                if (itemComm === 0) {
+                                                                    return (
+                                                                        <div
+                                                                            key={item.id}
+                                                                            className="inline-flex items-center gap-1.5 text-[10.5px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md border border-slate-200"
+                                                                        >
+                                                                            <span className="font-semibold text-slate-600">{treatmentName}</span>
+                                                                            <span className="text-slate-400 italic">• 0%</span>
                                                                         </div>
                                                                     )
                                                                 }
