@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
 import { notifyPatientArrived } from '@/lib/notifications'
+import { getCachedUser } from '@/lib/cachedUser'
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([])
@@ -102,77 +103,58 @@ export default function AppointmentsPage() {
 
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true)
-        
-        // Fetch Branches
-        const { data: branchData } = await supabase.from('branches').select('id, name')
-        if (branchData) setBranches(branchData)
 
-        // Get current user's role and branch
-        const { data: { user } } = await supabase.auth.getUser()
-        let userBranchId = null
-        let ownerFlag = false
-
-        if (user) {
-            const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-            if (userData) {
-                ownerFlag = userData.role === 'owner'
-                setIsOwner(ownerFlag)
-                userBranchId = userData.branch_id
-                if (!ownerFlag && userBranchId) {
-                    setFilterBranch(userBranchId)
-                }
-            } else {
-                ownerFlag = true
-                setIsOwner(true)
+        try {
+            // Get user profile instantaneously from cache
+            const { user, dbUser: cachedProfile } = await getCachedUser()
+            const userBranchId = cachedProfile?.branch_id || null
+            const ownerFlag = cachedProfile?.role === 'owner' || !user
+            setIsOwner(ownerFlag)
+            if (!ownerFlag && userBranchId) {
+                setFilterBranch(userBranchId)
             }
-        } else {
-            ownerFlag = true
-            setIsOwner(true)
-        }
 
-        // Fetch Appointments with Patient Info, Treatments & Categories
-        let query = supabase
-            .from('appointments')
-            .select(`
-                *,
-                patients (full_name, whatsapp),
-                branches (name),
-                therapist:users!appointments_therapist_id_fkey (full_name),
-                treatment_records (id, result_notes),
-                appointment_treatments (
-                    treatments (
-                        id,
-                        name,
-                        category_id,
-                        treatment_categories (id, name)
+            // Build appointments query
+            let aptQuery = supabase
+                .from('appointments')
+                .select(`
+                    *,
+                    patients (full_name, whatsapp),
+                    branches (name),
+                    therapist:users!appointments_therapist_id_fkey (full_name),
+                    treatment_records (id, result_notes),
+                    appointment_treatments (
+                        treatments (
+                            id,
+                            name,
+                            category_id
+                        )
                     )
-                )
-            `)
-            .order('appointment_date', { ascending: false })
-            .order('start_time', { ascending: true })
+                `)
+                .order('appointment_date', { ascending: false })
+                .order('start_time', { ascending: true })
 
-        if (!ownerFlag && userBranchId) {
-            query = query.eq('branch_id', userBranchId)
+            if (!ownerFlag && userBranchId) {
+                aptQuery = aptQuery.eq('branch_id', userBranchId)
+            }
+
+            // Fetch branches, appointments, and infus treatments concurrently in parallel
+            const [brRes, aptRes, infRes] = await Promise.all([
+                branches.length === 0 ? supabase.from('branches').select('id, name') : Promise.resolve({ data: null }),
+                aptQuery,
+                infusTreatmentsList.length === 0 
+                    ? supabase.from('treatments').select('id, name, price, commission_percent').ilike('name', '%infus%').eq('is_active', true).order('price', { ascending: true })
+                    : Promise.resolve({ data: null })
+            ])
+
+            if (brRes.data) setBranches(brRes.data)
+            if (aptRes.data) setAppointments(aptRes.data)
+            if (infRes.data) setInfusTreatmentsList(infRes.data)
+        } catch (err) {
+            console.error('Error fetching appointments data:', err)
+        } finally {
+            setLoading(false)
         }
-
-        const { data: aptData } = await query
-
-        if (aptData) {
-            setAppointments(aptData)
-        }
-
-        // Fetch active Infus treatments
-        const { data: infData } = await supabase
-            .from('treatments')
-            .select('id, name, price, commission_percent')
-            .ilike('name', '%infus%')
-            .eq('is_active', true)
-            .order('price', { ascending: true })
-        if (infData) {
-            setInfusTreatmentsList(infData)
-        }
-
-        setLoading(false)
     }
 
     const isInfusAppointment = (apt) => {

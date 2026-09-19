@@ -116,6 +116,8 @@ const NAV_SECTIONS = [
     }
 ]
 
+import { getCachedUser } from '@/lib/cachedUser'
+
 export default function GlobalSidebar({ 
     isOpen, 
     onClose, 
@@ -135,14 +137,11 @@ export default function GlobalSidebar({
 
     async function fetchUser() {
         try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-                if (data) {
-                    setDbUser(data)
-                } else {
-                    setDbUser({ role: 'unauthorized' })
-                }
+            const { user, dbUser: cachedProfile } = await getCachedUser()
+            if (user && cachedProfile) {
+                setDbUser(cachedProfile)
+            } else {
+                setDbUser({ role: 'unauthorized' })
             }
         } catch (err) {
             console.error('Error fetching user in sidebar:', err)

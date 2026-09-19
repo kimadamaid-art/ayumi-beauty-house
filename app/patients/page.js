@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser } from '@/lib/cachedUser'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
@@ -52,25 +53,22 @@ export default function PatientsPage() {
         const fetchPatients = async () => {
             setIsLoading(true)
 
-            // Get current user's role and branch
-            const { data: { user } } = await supabase.auth.getUser()
-            let userBranchId = null
-            let isOwner = false
+            // Get current user's role and branch using cached user & parallel branches
+            const [{ user, dbUser: userData }, brData] = await Promise.all([
+                getCachedUser(),
+                branches.length === 0 ? supabase.from('branches').select('id, name').eq('is_active', true) : Promise.resolve({ data: null })
+            ])
 
-            if (user) {
-                const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-                if (userData) {
-                    isOwner = userData.role === 'owner'
-                    userBranchId = userData.branch_id
-                } else {
-                    isOwner = true // fallback for unrecorded auth users
-                }
+            let isOwner = true
+            let userBranchId = null
+            if (userData) {
+                isOwner = userData.role === 'owner'
+                userBranchId = userData.branch_id
             }
             setIsOwner(isOwner)
 
-            if (branches.length === 0) {
-                const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
-                if (brData) setBranches(brData)
+            if (brData && brData.data) {
+                setBranches(brData.data)
             }
 
             // Fetch patients with dynamic ordering

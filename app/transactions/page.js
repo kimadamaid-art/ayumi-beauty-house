@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser } from '@/lib/cachedUser'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
@@ -93,42 +94,55 @@ export default function TransactionsPage() {
     const [customTabBranch, setCustomTabBranch] = useState('')
     const [customTabTxType, setCustomTabTxType] = useState('')
 
-    // Fetch initial user and branches
+    // Fetch initial user and branches with parallel caching
     async function fetchInitialData() {
         setIsLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-            if (uData) {
-                setDbUser(uData)
-                if (uData.role !== 'owner') {
-                    setFilterBranch(uData.branch_id || '')
-                    setCustomTabBranch(uData.branch_id || '')
-                }
-            } else {
-                setDbUser({ role: 'owner', id: user.id })
-            }
-        }
+        try {
+            const [{ user, dbUser: profile }, brRes] = await Promise.all([
+                getCachedUser(),
+                supabase.from('branches').select('id, name').eq('is_active', true)
+            ])
 
-        const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
-        if (brData) setBranches(brData)
-        setIsLoading(false)
+            let effectiveBranch = ''
+            if (profile) {
+                setDbUser(profile)
+                if (profile.role !== 'owner') {
+                    effectiveBranch = profile.branch_id || ''
+                    setFilterBranch(effectiveBranch)
+                    setCustomTabBranch(effectiveBranch)
+                }
+            }
+            if (brRes.data) setBranches(brRes.data)
+
+            await fetchTransactions(profile, effectiveBranch)
+        } catch (err) {
+            console.error('Error fetching initial transactions data:', err)
+        } finally {
+            setIsLoading(false)
+        }
     }
 
+    const isInitialMount = useRef(true)
     useEffect(() => {
         setIsMounted(true)
         fetchInitialData()
     }, [])
 
-    // Query transactions whenever filter branch/dates change
-    // We will query from 1 year ago to today, or base it on current tab view to avoid fetching excessive amounts of data
-    async function fetchTransactions() {
-        if (!isMounted) return
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false
+            return
+        }
+        if (isMounted) {
+            fetchTransactions()
+        }
+    }, [filterBranch])
 
-        // Supabase mengirim maksimal 1000 baris per permintaan. Sebelumnya halaman ini
-        // meminta sekali lalu berhenti, sehingga sisa transaksi hilang tanpa pesan error
-        // apa pun -- dan seluruh ringkasan omset serta ekspor Excel di halaman ini, yang
-        // dihitung dari array ini, ikut kurang. Karena itu datanya diambil bertahap.
+    // Query transactions whenever filter branch/dates change
+    async function fetchTransactions(activeUser = dbUser, branchIdOverride = filterBranch) {
+        const effectiveUser = activeUser || dbUser
+        const effectiveBranch = branchIdOverride !== undefined ? branchIdOverride : filterBranch
+
         const PAGE_SIZE = 1000
         const allRows = []
 
@@ -136,7 +150,17 @@ export default function TransactionsPage() {
             let query = supabase
                 .from('transactions')
                 .select(`
-                    *,
+                    id,
+                    transaction_number,
+                    created_at,
+                    total,
+                    subtotal,
+                    discount,
+                    payment_method,
+                    payment_status,
+                    notes,
+                    branch_id,
+                    patient_id,
                     branches (name),
                     patients (full_name, whatsapp),
                     users:users!transactions_cashier_id_fkey(full_name),
@@ -145,7 +169,16 @@ export default function TransactionsPage() {
                         performed_by,
                         therapist:users!treatment_records_performed_by_fkey (full_name)
                     ),
-                    transaction_items (*)
+                    transaction_items (
+                        id,
+                        name,
+                        item_type,
+                        quantity,
+                        price,
+                        subtotal,
+                        original_price,
+                        discount_percent
+                    )
                 `)
                 .order('created_at', { ascending: false })
                 // Pengurut kedua. Data hasil migrasi GD Cashier bisa memiliki created_at
@@ -154,10 +187,10 @@ export default function TransactionsPage() {
                 .order('id', { ascending: false })
 
             // Apply global branch filter
-            if (dbUser && dbUser.role !== 'owner') {
-                query = query.eq('branch_id', dbUser.branch_id || '00000000-0000-0000-0000-000000000000')
-            } else if (filterBranch) {
-                query = query.eq('branch_id', filterBranch)
+            if (effectiveUser && effectiveUser.role !== 'owner') {
+                query = query.eq('branch_id', effectiveUser.branch_id || '00000000-0000-0000-0000-000000000000')
+            } else if (effectiveBranch) {
+                query = query.eq('branch_id', effectiveBranch)
             }
 
             const { data, error } = await query.range(from, from + PAGE_SIZE - 1)
@@ -176,12 +209,6 @@ export default function TransactionsPage() {
 
         setTransactions(allRows)
     }
-
-    useEffect(() => {
-        if (isMounted) {
-            fetchTransactions()
-        }
-    }, [isMounted, filterBranch, dbUser])
 
     // Single derived state: ONLY transactions with payment_status === 'paid' for all financial & quantity calculations
     const validTransactions = useMemo(

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser } from '@/lib/cachedUser'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
@@ -42,12 +43,16 @@ export default function TreatmentRecordsPage() {
     }, [])
 
     const fetchInitialData = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        let owner = false
-        let branchId = null
+        try {
+            const [{ user, dbUser: userData }, branchRes, thRes] = await Promise.all([
+                getCachedUser(),
+                supabase.from('branches').select('id, name').order('name'),
+                supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').eq('is_active', true).order('full_name')
+            ])
 
-        if (user) {
-            const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
+            let owner = false
+            let branchId = null
+
             if (userData) {
                 owner = userData.role === 'owner'
                 setIsOwner(owner)
@@ -58,22 +63,22 @@ export default function TreatmentRecordsPage() {
                 setIsOwner(true)
                 owner = true
             }
-        }
-        setUserLoaded(true)
 
-        // Fetch branches if owner
-        if (owner) {
-            const { data: branchData } = await supabase.from('branches').select('id, name').order('name')
-            if (branchData) setBranches(branchData)
-        }
+            if (branchRes && branchRes.data) {
+                setBranches(branchRes.data)
+            }
 
-        // Fetch active therapists for filtering
-        let thQuery = supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').eq('is_active', true)
-        if (!owner && branchId) {
-            thQuery = thQuery.eq('branch_id', branchId)
+            if (thRes && thRes.data) {
+                const filteredTherapists = (!owner && branchId) 
+                    ? thRes.data.filter(t => t.branch_id === branchId)
+                    : thRes.data
+                setTherapists(filteredTherapists)
+            }
+        } catch (err) {
+            console.error('Error fetching initial treatment records data:', err)
+        } finally {
+            setUserLoaded(true)
         }
-        const { data: thData } = await thQuery.order('full_name')
-        if (thData) setTherapists(thData)
     }
 
     // Debounce search input

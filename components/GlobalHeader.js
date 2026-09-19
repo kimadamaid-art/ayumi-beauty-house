@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { toast } from 'react-hot-toast'
 
+import { getCachedUser } from '@/lib/cachedUser'
+
 export default function GlobalHeader({ onMenuToggle }) {
     const pathname = usePathname()
     const router = useRouter()
@@ -19,17 +21,11 @@ export default function GlobalHeader({ onMenuToggle }) {
         let isMounted = true
         const fetchUser = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser()
+                const { user: authUser, dbUser: profile } = await getCachedUser()
                 if (!isMounted) return
-                if (user) {
-                    setUser(user)
-                    const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-                    if (!isMounted) return
-                    if (userData) {
-                        setDbUser(userData)
-                    } else {
-                        setDbUser({ role: 'owner', full_name: user.email })
-                    }
+                if (authUser) {
+                    setUser(authUser)
+                    setDbUser(profile || { role: 'owner', full_name: authUser.email })
                 }
             } catch (err) {
                 console.error('Error fetching user profile in header:', err)
