@@ -206,25 +206,32 @@ function PosPageContent() {
 
     // Handler to restore a held transaction
     const handleRestoreHeldTransaction = (heldItem) => {
-        if (cart.length > 0 || selectedPatient) {
-            const confirmSwap = confirm('Keranjang kasir saat ini sedang terisi. Apakah Anda ingin menahan transaksi saat ini terlebih dahulu dan membuka draft ini?')
-            if (confirmSwap) {
-                handleHoldTransaction()
-            }
-        }
+        if (!heldItem) return
 
         if (heldItem.branch_id && heldItem.branch_id !== selectedBranch && dbUser?.role === 'owner') {
             handleBranchChange(heldItem.branch_id)
         }
         setTreatmentRecordId(heldItem.treatmentRecordId || null)
 
+        // Tentukan terapis default jika item tindakan belum memiliki terapis
+        const fallbackTherapistId = heldItem.selectedTherapistId || (therapists && therapists.length > 0 ? therapists[0].id : 'worker')
+
         setSelectedPatient(heldItem.patient || null)
         setSelectedPatientDetails(heldItem.patientDetails || null)
-        setCart(heldItem.cart || [])
+
+        // Pastikan setiap tindakan memiliki pelaksana/terapis valid agar checkout tidak terhambat
+        const sanitizedCart = (heldItem.cart || []).map(item => {
+            if (item.item_type === 'treatment' && !item.therapist_id) {
+                return { ...item, therapist_id: fallbackTherapistId }
+            }
+            return item
+        })
+        setCart(sanitizedCart)
+
         setDiscountType(heldItem.discountType || 'nominal')
         setDiscountValue(heldItem.discountValue || 0)
         setNotes(heldItem.notes || '')
-        setSelectedTherapistId(heldItem.selectedTherapistId || '')
+        setSelectedTherapistId(fallbackTherapistId)
         setCashReceived('')
 
         if (heldItem.patient?.id) {
@@ -242,7 +249,15 @@ function PosPageContent() {
         }
 
         setIsHeldModalOpen(false)
-        toast.success(`Draft transaksi "${heldItem.patient?.full_name || 'Pelanggan'}" berhasil dibuka ke keranjang kasir!`)
+        toast.success(`Draft transaksi "${heldItem.patient?.full_name || 'Pelanggan'}" siap diproses!`)
+
+        // Scroll otomatis ke tombol proses pembayaran
+        setTimeout(() => {
+            const payBtn = document.getElementById('btn-proses-pembayaran')
+            if (payBtn) {
+                payBtn.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+        }, 300)
     }
 
     // Handler to copy all held drafts code for sharing across devices/browsers
@@ -4159,6 +4174,7 @@ function PosPageContent() {
                             </button>
                         )}
                         <button 
+                            id="btn-proses-pembayaran"
                             type="button" 
                             onClick={handleCheckout}
                             disabled={isProcessing || cart.length === 0}
@@ -4291,11 +4307,11 @@ function PosPageContent() {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRestoreHeldTransaction(heldItem)}
-                                                    className="px-3.5 py-2 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-black rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                                    title="Buka transaksi ini ke keranjang kasir"
+                                                    className="px-4 py-2 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-black rounded-xl transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                    title="Buka transaksi ini ke kasir dan lanjutkan proses pembayaran"
                                                 >
-                                                    <span>▶️</span>
-                                                    <span>Lanjutkan</span>
+                                                    <span>▶</span>
+                                                    <span>Buka & Bayar</span>
                                                 </button>
                                                 <button
                                                     type="button"
