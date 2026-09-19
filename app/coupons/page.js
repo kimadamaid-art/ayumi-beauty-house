@@ -132,13 +132,39 @@ export default function CouponsDashboardPage() {
     }
 
     const filteredPatientCoupons = patientCoupons.map(pc => {
-        const allItemsDone = pc.patient_coupon_items && pc.patient_coupon_items.length > 0 && pc.patient_coupon_items.every(i => i.remaining_sessions <= 0 || i.status === 'fully_used' || i.status === 'completed')
+        const totalRemaining = (pc.patient_coupon_items || []).reduce((sum, i) => sum + (Number(i.remaining_sessions) || 0), 0)
+        const allItemsDone = totalRemaining <= 0 || (pc.patient_coupon_items && pc.patient_coupon_items.length > 0 && pc.patient_coupon_items.every(i => (Number(i.remaining_sessions) || 0) <= 0 || i.status === 'fully_used' || i.status === 'completed'))
         const isExpired = new Date(pc.expired_at) < new Date()
-        const computedStatus = allItemsDone ? 'fully_used' : (isExpired ? 'expired' : (pc.status || 'active'))
-        return { ...pc, computedStatus }
+        
+        let computedStatus = 'active'
+        if (allItemsDone) {
+            computedStatus = 'fully_used'
+        } else if (isExpired) {
+            computedStatus = 'expired_remaining'
+        } else {
+            computedStatus = 'active'
+        }
+
+        return { ...pc, computedStatus, isExpired, totalRemaining }
     }).filter(pc => {
-        const matchSearch = !pcSearchQuery || pc.patients?.full_name?.toLowerCase().includes(pcSearchQuery.toLowerCase()) || pc.patients?.whatsapp?.includes(pcSearchQuery)
-        const matchStatus = !pcStatusFilter || pc.computedStatus === pcStatusFilter || pc.status === pcStatusFilter
+        const matchSearch = !pcSearchQuery || 
+            pc.patients?.full_name?.toLowerCase().includes(pcSearchQuery.toLowerCase()) || 
+            pc.patients?.whatsapp?.includes(pcSearchQuery) ||
+            pc.coupon_packages?.name?.toLowerCase().includes(pcSearchQuery.toLowerCase())
+
+        let matchStatus = true
+        if (pcStatusFilter === 'active') {
+            matchStatus = pc.computedStatus === 'active'
+        } else if (pcStatusFilter === 'expired_remaining') {
+            matchStatus = pc.computedStatus === 'expired_remaining'
+        } else if (pcStatusFilter === 'fully_used') {
+            matchStatus = pc.computedStatus === 'fully_used'
+        } else if (pcStatusFilter === 'expired_all') {
+            matchStatus = pc.isExpired
+        } else if (pcStatusFilter) {
+            matchStatus = pc.computedStatus === pcStatusFilter || pc.status === pcStatusFilter
+        }
+
         return matchSearch && matchStatus
     })
 
@@ -283,19 +309,73 @@ export default function CouponsDashboardPage() {
         if (!editExpiryModal.newDate || !editExpiryModal.coupon) return
         
         setIsLoading(true)
-        const { error } = await supabase
-            .from('patient_coupons')
-            .update({ expired_at: new Date(editExpiryModal.newDate).toISOString() })
-            .eq('id', editExpiryModal.coupon.id)
-            
-        setIsLoading(false)
-        if (error) {
-            alert('Gagal update tanggal expired: ' + error.message)
-        } else {
-            alert('Tanggal expired berhasil diperbarui!')
+        try {
+            const coupon = editExpiryModal.coupon
+            const targetDate = new Date(`${editExpiryModal.newDate}T23:59:59`)
+            const now = new Date()
+            const isTargetActive = targetDate >= now
+
+            // Ambil items terbaru untuk kupon ini
+            const { data: currentItems, error: itemsFetchErr } = await supabase
+                .from('patient_coupon_items')
+                .select('*')
+                .eq('patient_coupon_id', coupon.id)
+
+            if (itemsFetchErr) throw itemsFetchErr
+
+            let totalGenuineRemaining = 0
+
+            // Periksa dan update setiap item
+            if (currentItems && currentItems.length > 0) {
+                for (const item of currentItems) {
+                    const genuineRemaining = Math.max(0, item.total_sessions - (item.used_sessions || 0))
+                    totalGenuineRemaining += genuineRemaining
+
+                    const itemNewStatus = genuineRemaining > 0 ? 'active' : 'fully_used'
+                    const itemRemaining = genuineRemaining
+
+                    await supabase
+                        .from('patient_coupon_items')
+                        .update({
+                            remaining_sessions: itemRemaining,
+                            status: itemNewStatus
+                        })
+                        .eq('id', item.id)
+                }
+            }
+
+            // Tentukan status kupon induk
+            let newCouponStatus = 'fully_used'
+            if (totalGenuineRemaining > 0) {
+                newCouponStatus = isTargetActive ? 'active' : 'expired'
+            }
+
+            const { error: cpError } = await supabase
+                .from('patient_coupons')
+                .update({ 
+                    expired_at: targetDate.toISOString(),
+                    status: newCouponStatus
+                })
+                .eq('id', coupon.id)
+
+            if (cpError) throw cpError
+
+            const statusMsg = newCouponStatus === 'active' 
+                ? `Masa berlaku berhasil diperpanjang! Kupon kini AKTIF dengan sisa ${totalGenuineRemaining} sesi.`
+                : newCouponStatus === 'expired'
+                ? `Tanggal expired diperbarui (kupon tetap expired karena tanggal di masa lampau, sisa: ${totalGenuineRemaining} sesi).`
+                : `Tanggal expired diperbarui (kupon sudah habis digunakan).`
+
+            alert(statusMsg)
             setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })
             if (activeTab === 'patients') fetchPatientCoupons()
             if (activeTab === 'usage' && usageSelectedPatient) selectPatientForUsage(usageSelectedPatient)
+
+        } catch (err) {
+            console.error('Error updating expiry:', err)
+            alert('Gagal update tanggal expired: ' + err.message)
+        } finally {
+            setIsLoading(false)
         }
     } // --- TAB 4: RIWAYAT PENGGUNAAN LOGIC ---
     const fetchHistoryLogs = async () => {
@@ -511,12 +591,13 @@ export default function CouponsDashboardPage() {
                         <select 
                             value={pcStatusFilter}
                             onChange={(e) => setPcStatusFilter(e.target.value)}
-                            className="input-ayumi bg-white w-full sm:w-48"
+                            className="input-ayumi bg-white w-full sm:w-64 font-medium text-sm"
                         >
-                            <option value="">Semua Status</option>
-                            <option value="active">Active</option>
-                            <option value="expired">Expired</option>
-                            <option value="fully_used">Fully Used</option>
+                            <option value="">Semua Status ({patientCoupons.length})</option>
+                            <option value="active">✨ Aktif (Bisa Dipakai)</option>
+                            <option value="expired_remaining">⚠️ Expired (Ada Sisa Sesi)</option>
+                            <option value="fully_used">✅ Habis Pemakaian (Fully Used)</option>
+                            <option value="expired_all">⌛ Semua Expired</option>
                         </select>
                     </div>
 
@@ -541,19 +622,25 @@ export default function CouponsDashboardPage() {
                                     <tbody className="divide-y divide-gray-50 text-sm">
                                         {filteredPatientCoupons.map((pc) => {
                                             const isExpanded = expandedCouponId === pc.id
+                                            const isExpired = pc.isExpired ?? (new Date(pc.expired_at) < new Date())
+                                            const totalRemaining = pc.totalRemaining ?? (pc.patient_coupon_items || []).reduce((sum, i) => sum + (Number(i.remaining_sessions) || 0), 0)
                                             const currentStatus = pc.computedStatus || pc.status
+                                            
                                             let badgeClass = "bg-gray-100 text-gray-700 border border-gray-200"
                                             let badgeLabel = "Fully Used"
 
                                             if (currentStatus === 'active') {
-                                                badgeClass = "bg-green-100 text-green-700 border border-green-200"
+                                                badgeClass = "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs"
                                                 badgeLabel = "Active"
-                                            } else if (currentStatus === 'expired') {
-                                                badgeClass = "bg-red-100 text-red-700 border border-red-200"
-                                                badgeLabel = "Expired"
+                                            } else if (currentStatus === 'expired_remaining') {
+                                                badgeClass = "bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs"
+                                                badgeLabel = `Expired (Sisa ${totalRemaining})`
                                             } else if (currentStatus === 'fully_used' || currentStatus === 'completed') {
                                                 badgeClass = "bg-gray-100 text-gray-500 border border-gray-200"
                                                 badgeLabel = "Fully Used"
+                                            } else if (currentStatus === 'expired') {
+                                                badgeClass = "bg-red-50 text-red-700 border border-red-200"
+                                                badgeLabel = "Expired"
                                             }
 
                                             return (
@@ -570,17 +657,22 @@ export default function CouponsDashboardPage() {
                                                         <td className="p-4">
                                                             <div className="flex flex-col gap-1">
                                                                 {pc.patient_coupon_items?.map((item) => {
-                                                                    const remaining = item.remaining_sessions || 0
-                                                                    const total = item.total_sessions || 0
+                                                                    const remaining = Number(item.remaining_sessions) || 0
+                                                                    const total = Number(item.total_sessions) || 0
                                                                     const isExhausted = remaining === 0
                                                                     return (
                                                                         <div key={item.id} className="flex items-center gap-1.5">
                                                                             <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black inline-flex items-center gap-1 ${
                                                                                 isExhausted 
                                                                                     ? 'bg-gray-100 text-gray-400 line-through' 
+                                                                                    : isExpired
+                                                                                    ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs'
                                                                                     : 'bg-pink-50 text-ayumi-primary border border-pink-200/80 shadow-xs'
                                                                             }`}>
-                                                                                {!isExhausted && '✨'} {remaining} / {total} Sesi
+                                                                                {!isExhausted && !isExpired && '✨'}
+                                                                                {!isExhausted && isExpired && '⚠️'}
+                                                                                {remaining} / {total} Sesi
+                                                                                {isExpired && !isExhausted && ' (Exp)'}
                                                                             </span>
                                                                             {pc.patient_coupon_items.length > 1 && (
                                                                                 <span className="text-[11px] text-gray-500 font-medium truncate max-w-[130px]">
@@ -595,13 +687,26 @@ export default function CouponsDashboardPage() {
                                                         <td className="p-4 text-gray-600">{formatDate(pc.purchased_at)}</td>
                                                         <td className="p-4 text-gray-600">
                                                             <div className="flex items-center gap-2">
-                                                                <span>{formatDate(pc.expired_at)}</span>
-                                                                <button onClick={(e) => { e.stopPropagation(); setEditExpiryModal({ isOpen: true, coupon: pc, newDate: new Date(pc.expired_at).toISOString().split('T')[0] }) }} className="text-ayumi-primary hover:text-ayumi-secondary" title="Edit Tanggal Expired">
+                                                                <span className={isExpired ? "text-amber-800 font-semibold" : ""}>{formatDate(pc.expired_at)}</span>
+                                                                <button 
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        setEditExpiryModal({ 
+                                                                            isOpen: true, 
+                                                                            coupon: pc, 
+                                                                            newDate: pc.expired_at ? new Date(pc.expired_at).toISOString().split('T')[0] : '' 
+                                                                        }) 
+                                                                    }} 
+                                                                    className="text-ayumi-primary hover:text-ayumi-secondary p-1 hover:bg-pink-50 rounded-md transition-colors" 
+                                                                    title="Perpanjang / Edit Tanggal Expired"
+                                                                >
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                                 </button>
                                                             </div>
-                                                            {new Date(pc.expired_at) < new Date() && currentStatus === 'active' && (
-                                                                <div className="text-xs text-red-500 font-bold mt-1">(Expired!)</div>
+                                                            {isExpired && currentStatus === 'expired_remaining' && (
+                                                                <div className="text-[11px] text-amber-600 font-bold mt-0.5 flex items-center gap-1">
+                                                                    <span>⚠️ Bisa diperpanjang</span>
+                                                                </div>
                                                             )}
                                                         </td>
                                                         <td className="p-4 text-center">
@@ -890,37 +995,97 @@ export default function CouponsDashboardPage() {
             )}
 
             {/* Modal Edit Expired Date */}
-            {editExpiryModal.isOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-4 md:p-6 w-full max-w-sm shadow-2xl">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Tanggal Expired</h3>
-                        <div className="mb-4">
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tanggal Expired Baru</label>
-                            <input
-                                type="date"
-                                className="w-full input-ayumi"
-                                value={editExpiryModal.newDate}
-                                onChange={(e) => setEditExpiryModal({ ...editExpiryModal, newDate: e.target.value })}
-                            />
-                        </div>
-                        <div className="flex gap-3 justify-end">
-                            <button
-                                onClick={() => setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })}
-                                className="px-4 py-2 text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={handleUpdateExpiry}
-                                disabled={isLoading || !editExpiryModal.newDate}
-                                className="btn-ayumi px-4 py-2 text-sm"
-                            >
-                                {isLoading ? 'Menyimpan...' : 'Simpan'}
-                            </button>
+            {editExpiryModal.isOpen && (() => {
+                const c = editExpiryModal.coupon
+                const totalSessions = (c?.patient_coupon_items || []).reduce((sum, it) => sum + (Number(it.total_sessions) || 0), 0)
+                const usedSessions = (c?.patient_coupon_items || []).reduce((sum, it) => sum + (Number(it.used_sessions) || 0), 0)
+                const remainingKuota = Math.max(0, totalSessions - usedSessions)
+                const isExtendingFuture = editExpiryModal.newDate && new Date(`${editExpiryModal.newDate}T23:59:59`) >= new Date()
+
+                return (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-3xl p-5 md:p-6 w-full max-w-md shadow-2xl space-y-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">Perpanjang / Edit Masa Berlaku</h3>
+                                    <p className="text-xs text-gray-500">Perbarui tanggal kedaluwarsa kupon pasien</p>
+                                </div>
+                                <button 
+                                    onClick={() => setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })}
+                                    className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* Info Kupon */}
+                            <div className="bg-[#FAF6F0] p-3.5 rounded-2xl border border-[#F2D8C3] text-xs space-y-1.5">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Pasien:</span>
+                                    <span className="font-bold text-gray-800">{c?.patients?.full_name || '-'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Paket Kupon:</span>
+                                    <span className="font-bold text-ayumi-primary">{c?.coupon_packages?.name || '-'}</span>
+                                </div>
+                                <div className="flex justify-between border-t border-[#F2D8C3]/60 pt-1.5">
+                                    <span className="text-gray-500">Total & Terpakai:</span>
+                                    <span className="font-semibold text-gray-700">{totalSessions} sesi (Terpakai: {usedSessions})</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Sisa Kuota Belum Pakai:</span>
+                                    <span className="font-extrabold text-[#D46221]">{remainingKuota} sesi</span>
+                                </div>
+                            </div>
+
+                            {/* Notifikasi Cerdas */}
+                            {remainingKuota > 0 ? (
+                                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
+                                    <span className="text-base leading-none">💡</span>
+                                    <div>
+                                        <p className="font-bold">Otomatis Aktifkan Sisa Sesi</p>
+                                        <p className="text-emerald-700 mt-0.5">
+                                            {isExtendingFuture 
+                                                ? `Tanggal yang dipilih masih berlaku. Sistem akan otomatis memulihkan sisa ${remainingKuota} sesi dan mengubah status kupon menjadi Aktif sehingga langsung bisa dipakai di kasir.` 
+                                                : `Pilih tanggal masa depan agar sisa kuota (${remainingKuota} sesi) aktif kembali.`}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-gray-100 border border-gray-200 p-3 rounded-xl text-xs text-gray-600">
+                                    ℹ️ Semua kuota sesi paket ini sudah tuntas digunakan (0 sesi tersisa).
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Tanggal Expired Baru</label>
+                                <input
+                                    type="date"
+                                    className="w-full input-ayumi text-sm"
+                                    value={editExpiryModal.newDate}
+                                    onChange={(e) => setEditExpiryModal({ ...editExpiryModal, newDate: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="flex gap-2.5 justify-end pt-2">
+                                <button
+                                    onClick={() => setEditExpiryModal({ isOpen: false, coupon: null, newDate: '' })}
+                                    className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={handleUpdateExpiry}
+                                    disabled={isLoading || !editExpiryModal.newDate}
+                                    className="btn-ayumi px-5 py-2 text-xs font-bold shadow-sm cursor-pointer disabled:opacity-50"
+                                >
+                                    {isLoading ? 'Menyimpan...' : 'Simpan & Perbarui'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            })()}
         </div>
     )
 }

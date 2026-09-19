@@ -854,16 +854,15 @@ async function main() {
 
         group.sessions.forEach(s => {
             const st = String(s.status || '').toLowerCase().trim();
-            if (st === 'active') activeSessions++;
-            else if (st === 'redeemed') usedSessions++;
+            if (st === 'redeemed') usedSessions++;
+            else activeSessions++; // baik 'active' maupun 'expired' belum ditebus (belum digunakan)
         });
 
-        if (activeSessions === 0 && usedSessions === 0) {
-            usedSessions = totalSessions;
-        }
+        // Sisa sesi murni adalah total dikurangi yang sudah ditebus
+        const remainingSessions = Math.max(0, totalSessions - usedSessions);
 
         totalSessionsCount += totalSessions;
-        activeSessionsCount += activeSessions;
+        if (remainingSessions > 0) activeSessionsCount += remainingSessions;
 
         const startDateIso = parseIsoTimestamp(group.startDate);
         const endDateIso = parseIsoTimestamp(group.endDate);
@@ -872,11 +871,11 @@ async function main() {
         let couponStatus = 'expired';
         let itemStatus = 'fully_used';
 
-        if (activeSessions > 0 && !isPastExpiry) {
+        if (remainingSessions > 0 && !isPastExpiry) {
             couponStatus = 'active';
             itemStatus = 'active';
             activeCouponsCount++;
-        } else if (activeSessions > 0 && isPastExpiry) {
+        } else if (remainingSessions > 0 && isPastExpiry) {
             couponStatus = 'expired';
             itemStatus = 'active';
         } else {
@@ -923,7 +922,7 @@ async function main() {
             treatment_id: treatmentId,
             total_sessions: totalSessions,
             used_sessions: usedSessions,
-            remaining_sessions: activeSessions,
+            remaining_sessions: remainingSessions,
             status: itemStatus
         });
     });

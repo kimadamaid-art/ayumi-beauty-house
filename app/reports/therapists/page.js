@@ -108,7 +108,8 @@ export default function TherapistsReportPage() {
                     treatment_date,
                     branch_id,
                     patient_id,
-                    performed_by
+                    performed_by,
+                    transactions(id, payment_status)
                 )
             `)
             .gte('treatment_records.treatment_date', startDate)
@@ -187,6 +188,12 @@ export default function TherapistsReportPage() {
             
             // Abaikan item tanpa terapis atau item worker/infus
             if (!therapistId || isWorker) return
+
+            // Abaikan tindakan yang belum lunas (masih pending di kasir / belum dibayar)
+            const txs = item.treatment_records?.transactions || []
+            const hasPaidTx = txs.some(t => t.payment_status === 'paid')
+            const isCouponRedeemed = item.notes?.includes('[KUPON_BARU') || item.notes?.includes('[KUPON_LAMA') || Number(item.price_at_time) === 0
+            if (!hasPaidTx && !isCouponRedeemed && txs.length === 0) return
 
             if (!therapistGroups[therapistId]) {
                 therapistGroups[therapistId] = {

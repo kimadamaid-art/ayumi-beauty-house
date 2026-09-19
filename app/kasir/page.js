@@ -1804,28 +1804,23 @@ function PosPageContent() {
         let savedTrxData = null
 
         try {
-            // Extract treatment_record_id if we loaded from pending bills
-            let treatmentRecordId = cart.find(i => i.treatment_record_id)?.treatment_record_id || null
+            // Extract treatment_record_id if we loaded from pending bills or state
+            let activeTrId = treatmentRecordId || cart.find(i => i.treatment_record_id)?.treatment_record_id || null
 
-            // Cek apakah pasien memiliki tagihan pending di antrean kasir DENGAN tindakan yang cocok
-            if (!treatmentRecordId && selectedPatient?.id) {
-                const cartTreatmentIds = cart
-                    .filter(i => i.item_type === 'treatment')
-                    .map(i => {
+            // Cek apakah pasien memiliki tagihan pending di antrean kasir cabang ini
+            if (!activeTrId && selectedPatient?.id && treatmentItems.length > 0) {
+                const patientPendingBills = pendingBills.filter(b => b.patients?.id === selectedPatient.id && b.branch_id === selectedBranch)
+                if (patientPendingBills.length > 0) {
+                    const cartTreatmentIds = treatmentItems.map(i => {
                         const rawId = i.treatment_id || i.id
                         return (typeof rawId === 'string' && rawId.includes('_')) ? rawId.split('_')[0] : rawId
                     })
-
-                // Hanya kaitkan jika keranjang kasir berisi treatment yang cocok dengan tagihan pending
-                if (cartTreatmentIds.length > 0) {
-                    const matchingPending = pendingBills.find(b => {
-                        if (b.patients?.id !== selectedPatient.id) return false
+                    const matchingPending = patientPendingBills.find(b => {
                         const billTreatmentIds = b.treatment_record_items?.map(it => it.treatment_id) || []
                         return cartTreatmentIds.some(cid => billTreatmentIds.includes(cid))
                     })
-                    if (matchingPending) {
-                        treatmentRecordId = matchingPending.id
-                    }
+                    // Jika tidak ada yang cocok nama treatmentnya (karena pasien ganti treatment), gunakan pending bill milik pasien tersebut hari ini
+                    activeTrId = matchingPending?.id || patientPendingBills[0].id
                 }
             }
 
@@ -1833,6 +1828,52 @@ function PosPageContent() {
             const effectiveDateStr = canBackdate ? backdateDate : new Date().toISOString().split('T')[0]
             const effectiveTimeStr = canBackdate ? (backdateTime || new Date().toLocaleTimeString('en-US', { hour12: false })) : new Date().toLocaleTimeString('en-US', { hour12: false })
             const effectiveCustomIso = canBackdate ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
+
+            // Jika ada pending record yang sedang diselesaikan, sinkronkan item tindakannya dengan isi keranjang yang dibayar
+            if (activeTrId && treatmentItems.length > 0) {
+                try {
+                    const { data: exTr } = await supabase
+                        .from('treatment_records')
+                        .select('performed_by')
+                        .eq('id', activeTrId)
+                        .maybeSingle()
+
+                    const targetPerformer = selectedTherapistId && selectedTherapistId !== 'worker'
+                        ? selectedTherapistId
+                        : (treatmentItems[0]?.therapist_id && treatmentItems[0]?.therapist_id !== 'worker' ? treatmentItems[0].therapist_id : exTr?.performed_by)
+
+                    // 1. Bersihkan item lama pada rekam medis yang digantikan/diubah
+                    await supabase.from('treatment_record_items').delete().eq('treatment_record_id', activeTrId)
+
+                    // 2. Masukkan item baru sesuai isi keranjang yang dibayar
+                    const trItemPayloads = treatmentItems.map((it, sIdx) => ({
+                        treatment_record_id: activeTrId,
+                        treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
+                        price_at_time: it.price,
+                        original_price: it.original_price || it.price,
+                        discount_percent: it.discount_percent || 0,
+                        commission_percent: it.commission_percent !== undefined && it.commission_percent !== null ? it.commission_percent : 5,
+                        notes: it.name,
+                        sort_order: sIdx + 1,
+                        ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
+                    }))
+                    await supabase.from('treatment_record_items').insert(trItemPayloads)
+
+                    // 3. Pastikan terapis pelaksana tercatat
+                    if (targetPerformer) {
+                        await supabase.from('treatment_records').update({ performed_by: targetPerformer }).eq('id', activeTrId)
+                    }
+
+                    // Tandai item di keranjang agar tidak dibuatkan record duplikat oleh logika direct treatment di bawah
+                    treatmentItems.forEach(tItem => {
+                        tItem.treatment_record_id = activeTrId
+                    })
+                } catch (syncErr) {
+                    console.warn('Sync pending record items error:', syncErr)
+                }
+            }
+
+            let treatmentRecordId = activeTrId
 
             // Cek apakah pasien punya janji temu aktif hari ini di cabang ini
             let linkedAppointmentId = null
