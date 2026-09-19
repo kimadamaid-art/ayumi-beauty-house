@@ -169,6 +169,8 @@ function PosPageContent() {
 
         const newHeld = {
             id: 'held_' + Date.now(),
+            branch_id: selectedBranch,
+            treatmentRecordId: treatmentRecordId || null,
             patient: selectedPatient,
             patientDetails: selectedPatientDetails,
             cart: [...cart],
@@ -197,6 +199,7 @@ function PosPageContent() {
         setNotes('')
         setCashReceived('')
         setSelectedTherapistId('')
+        setTreatmentRecordId(null)
 
         toast.success(`Transaksi ${newHeld.patient?.full_name ? 'atas nama "' + newHeld.patient.full_name + '"' : ''} berhasil ditahan!`)
     }
@@ -209,6 +212,11 @@ function PosPageContent() {
                 handleHoldTransaction()
             }
         }
+
+        if (heldItem.branch_id && heldItem.branch_id !== selectedBranch && dbUser?.role === 'owner') {
+            handleBranchChange(heldItem.branch_id)
+        }
+        setTreatmentRecordId(heldItem.treatmentRecordId || null)
 
         setSelectedPatient(heldItem.patient || null)
         setSelectedPatientDetails(heldItem.patientDetails || null)
