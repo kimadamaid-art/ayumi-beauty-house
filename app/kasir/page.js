@@ -219,6 +219,11 @@ function PosPageContent() {
         setSelectedTherapistId(heldItem.selectedTherapistId || '')
         setCashReceived('')
 
+        if (heldItem.patient?.id) {
+            fetchPatientHistory(heldItem.patient.id)
+        }
+        setLeftPanelTab('catalog')
+
         // Remove from held list
         const remaining = heldTransactions.filter(h => h.id !== heldItem.id)
         setHeldTransactions(remaining)
@@ -229,7 +234,58 @@ function PosPageContent() {
         }
 
         setIsHeldModalOpen(false)
-        toast.success(`Draft transaksi ${heldItem.patient?.full_name || ''} berhasil dibuka kembali!`)
+        toast.success(`Draft transaksi "${heldItem.patient?.full_name || 'Pelanggan'}" berhasil dibuka ke keranjang kasir!`)
+    }
+
+    // Handler to copy all held drafts code for sharing across devices/browsers
+    const handleExportDrafts = () => {
+        if (heldTransactions.length === 0) {
+            toast.error('Belum ada transaksi tertahan untuk disalin.')
+            return
+        }
+        const code = JSON.stringify(heldTransactions)
+        navigator.clipboard.writeText(code).then(() => {
+            toast.success('Kode draft disalin! Anda bisa kirim kode ini ke kasir lain (Lilis).')
+        }).catch(() => {
+            prompt('Salin kode draft transaksi berikut untuk dikirim ke kasir:', code)
+        })
+    }
+
+    // Handler to copy a single draft code
+    const handleExportSingleDraft = (heldItem, e) => {
+        e?.stopPropagation()
+        const code = JSON.stringify([heldItem])
+        navigator.clipboard.writeText(code).then(() => {
+            toast.success(`Kode draft "${heldItem.patient?.full_name || 'Pelanggan'}" berhasil disalin!`)
+        }).catch(() => {
+            prompt('Salin kode draft berikut:', code)
+        })
+    }
+
+    // Handler to import drafts from another device/browser
+    const handleImportDrafts = () => {
+        const input = prompt('Tempelkan (Paste) kode draft transaksi dari perangkat/komputer lain:')
+        if (!input || !input.trim()) return
+        try {
+            const imported = JSON.parse(input.trim())
+            if (!Array.isArray(imported) || imported.length === 0) {
+                toast.error('Format kode draft tidak valid atau kosong.')
+                return
+            }
+            const existingIds = new Set(heldTransactions.map(h => h.id))
+            const newItems = imported.filter(item => item && item.id && !existingIds.has(item.id))
+            if (newItems.length === 0) {
+                toast('Semua draft dalam kode tersebut sudah ada di daftar Anda.')
+                return
+            }
+            const merged = [...newItems, ...heldTransactions]
+            setHeldTransactions(merged)
+            localStorage.setItem('ayumi_pos_held_transactions', JSON.stringify(merged))
+            toast.success(`Berhasil memuat ${newItems.length} draft transaksi ke kasir ini!`)
+        } catch (err) {
+            console.error(err)
+            toast.error('Gagal membaca kode draft. Pastikan seluruh teks kode ditempelkan dengan lengkap.')
+        }
     }
 
     // Handler to delete a held draft
@@ -2459,16 +2515,31 @@ function PosPageContent() {
                             )}
                         </div>
                     </div>
-                    <button
-                        onClick={() => {
-                            fetchPendingBills(selectedBranch)
-                            fetchProducts(selectedBranch)
-                        }}
-                        className="flex items-center gap-1.5 text-xs font-bold text-[#4E2A12] hover:text-[#D46221] bg-[#FAF1E8] hover:bg-[#F2D8C3] border border-[#F2D8C3] px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-2xs"
-                    >
-                        <svg className="w-3.5 h-3.5 text-[#D46221]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        Refresh Data
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => setIsHeldModalOpen(true)}
+                            className={`flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-2xs border ${
+                                heldTransactions.length > 0
+                                    ? 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300'
+                                    : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                            }`}
+                            title="Buka daftar transaksi yang sedang ditahan / disimpan sementara (Draft)"
+                        >
+                            <span>📂</span>
+                            <span>Draft Tertahan ({heldTransactions.length})</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                fetchPendingBills(selectedBranch)
+                                fetchProducts(selectedBranch)
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-bold text-[#4E2A12] hover:text-[#D46221] bg-[#FAF1E8] hover:bg-[#F2D8C3] border border-[#F2D8C3] px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-2xs"
+                        >
+                            <svg className="w-3.5 h-3.5 text-[#D46221]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            Refresh Data
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── Left Pane Tabs (Pending Bills vs Catalog) ── */}
@@ -3099,17 +3170,19 @@ function PosPageContent() {
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                             {/* Held Drafts Badge Button */}
-                            {heldTransactions.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setIsHeldModalOpen(true)}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-black bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-all shadow-2xs cursor-pointer animate-pulse"
-                                    title="Buka daftar transaksi yang sedang ditahan"
-                                >
-                                    <span>📂</span>
-                                    <span>Draft ({heldTransactions.length})</span>
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => setIsHeldModalOpen(true)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all shadow-2xs cursor-pointer ${
+                                    heldTransactions.length > 0
+                                        ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 animate-pulse'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                }`}
+                                title="Buka daftar transaksi yang sedang ditahan (draft)"
+                            >
+                                <span>📂</span>
+                                <span>Draft ({heldTransactions.length})</span>
+                            </button>
 
                             {/* Hold Active Transaction Button */}
                             {(cart.length > 0 || selectedPatient) && (
@@ -4102,31 +4175,75 @@ function PosPageContent() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
                     <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[85vh] animate-scaleUp">
                         {/* Header */}
-                        <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                        <div className="flex items-start justify-between pb-4 border-b border-gray-100 gap-3">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg font-bold">
+                                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg font-bold shrink-0">
                                     📂
                                 </div>
                                 <div>
-                                    <h3 className="font-extrabold text-base text-gray-900">Daftar Transaksi Tertahan</h3>
-                                    <p className="text-xs text-gray-500 font-medium">Buka kembali transaksi pelanggan yang disimpan sementara</p>
+                                    <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2 flex-wrap">
+                                        <span>Daftar Transaksi Tertahan</span>
+                                        <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                                            {heldTransactions.length} Draft
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-gray-500 font-medium">Buka kembali atau bagikan transaksi yang disimpan sementara</p>
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsHeldModalOpen(false)}
-                                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
-                            >
-                                ✕
-                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={handleImportDrafts}
+                                    className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                                    title="Impor kode draft dari perangkat atau komputer lain"
+                                >
+                                    <span>📥</span>
+                                    <span>Impor</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsHeldModalOpen(false)}
+                                    className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                    ✕
+                                </button>
+                            </div>
                         </div>
 
                         {/* Body / List */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3">
                             {heldTransactions.length === 0 ? (
-                                <div className="text-center py-12 text-gray-400">
-                                    <span className="text-4xl block mb-2">📭</span>
-                                    <p className="text-sm font-semibold">Tidak ada transaksi yang sedang ditahan</p>
+                                <div className="text-center py-6 px-3 space-y-3.5">
+                                    <span className="text-4xl block">📭</span>
+                                    <div>
+                                        <h4 className="font-extrabold text-sm text-gray-900">Belum Ada Transaksi Tertahan di Browser/Perangkat Ini</h4>
+                                        <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
+                                            Draft transaksi kasir tersimpan di browser komputer kasir lokal saat Anda klik tombol <strong>&quot;⏸️ Simpan&quot;</strong>.
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3.5 text-left max-w-md mx-auto space-y-2 text-xs text-amber-900 shadow-2xs">
+                                        <p className="font-black flex items-center gap-1.5 text-amber-950">
+                                            <span>💡</span>
+                                            <span>Jika Anda menyimpan draft dari laptop/HP lain:</span>
+                                        </p>
+                                        <ol className="list-decimal pl-5 space-y-1.5 text-[11px] text-amber-900 leading-normal">
+                                            <li>Buka menu Kasir di laptop/HP awal, buka <strong>Draft</strong> lalu klik <strong>&quot;Salin Semua Draft&quot;</strong>.</li>
+                                            <li>Di komputer ini (akun Lilis), klik tombol <strong>&quot;📥 Impor Draft&quot;</strong> di bawah dan tempelkan kodenya.</li>
+                                            <li>Atau langsung klik <strong>&quot;▶ Lanjutkan&quot;</strong> di laptop/HP awal untuk memproses checkout.</li>
+                                        </ol>
+                                    </div>
+
+                                    <div className="pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={handleImportDrafts}
+                                            className="px-4 py-2 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                                        >
+                                            <span>📥</span>
+                                            <span>Impor Kode Draft Sekarang</span>
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 heldTransactions.map((heldItem) => {
@@ -4166,10 +4283,19 @@ function PosPageContent() {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRestoreHeldTransaction(heldItem)}
-                                                    className="px-3.5 py-2 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                                    className="px-3.5 py-2 bg-ayumi-primary hover:bg-ayumi-primary-hover text-white text-xs font-black rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                    title="Buka transaksi ini ke keranjang kasir"
                                                 >
                                                     <span>▶️</span>
                                                     <span>Lanjutkan</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleExportSingleDraft(heldItem, e)}
+                                                    className="p-2 text-gray-500 hover:text-ayumi-primary hover:bg-pink-50 rounded-xl transition-colors cursor-pointer border border-gray-100 hover:border-pink-200"
+                                                    title="Salin kode draft ini untuk dibagikan ke kasir lain"
+                                                >
+                                                    📋
                                                 </button>
                                                 <button
                                                     type="button"
@@ -4187,12 +4313,24 @@ function PosPageContent() {
                         </div>
 
                         {/* Footer */}
-                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                            <span>Draft tersimpan aman di browser kasir</span>
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                                {heldTransactions.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleExportDrafts}
+                                        className="text-xs font-bold text-gray-700 hover:text-ayumi-primary px-2.5 py-1 rounded-lg hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                        <span>📋</span>
+                                        <span>Salin Semua Draft</span>
+                                    </button>
+                                )}
+                                <span className="text-[11px] text-gray-400 hidden sm:inline">Draft tersimpan di browser perangkat lokal</span>
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => setIsHeldModalOpen(false)}
-                                className="font-bold text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                                className="font-bold text-gray-700 hover:text-gray-900 px-3.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                             >
                                 Tutup
                             </button>
