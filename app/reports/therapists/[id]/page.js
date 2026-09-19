@@ -187,7 +187,7 @@ export default function TherapistDetailPage() {
                     const txs = r.treatment_records?.transactions || []
                     const hasPaidTx = txs.some(t => t.payment_status === 'paid')
                     const isCouponRedeemed = r.notes?.includes('[KUPON_BARU') || r.notes?.includes('[KUPON_LAMA') || Number(r.price_at_time) === 0
-                    if (!hasPaidTx && !isCouponRedeemed && txs.length === 0) return false
+                    if (!hasPaidTx && !isCouponRedeemed) return false
 
                     return Number(r.commission_percent !== undefined && r.commission_percent !== null ? r.commission_percent : 5) > 0
                 })

@@ -235,7 +235,8 @@ export default function TherapistDashboard() {
                     branch_id,
                     performed_by,
                     patients(full_name),
-                    branches(name)
+                    branches(name),
+                    transactions(id, payment_status)
                 )
             `)
             .eq('treatment_records.performed_by', userId)
@@ -268,16 +269,25 @@ export default function TherapistDashboard() {
                 `)
 
             const couponMap = buildCouponPriceMap(cLogs || [])
-            const enhanced = data.map(it => {
-                const trId = it.treatment_records?.id
-                const matchOldCoupon = it.notes?.match(/\[KUPON_LAMA:([^:]+):/)
-                const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
-                const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
-                return {
-                    ...it,
-                    proportional_coupon_price: proportionalCouponPrice
-                }
-            })
+            const enhanced = data
+                .filter(it => {
+                    const isWorker = it.notes?.includes('[WORKER]') || isInfusionTreatment(it.treatments?.name || '', it.notes || '')
+                    if (isWorker) return false
+                    const txs = it.treatment_records?.transactions || []
+                    const hasPaidTx = txs.some(t => t.payment_status === 'paid')
+                    const isCouponRedeemed = it.notes?.includes('[KUPON_BARU') || it.notes?.includes('[KUPON_LAMA') || Number(it.price_at_time) === 0
+                    return hasPaidTx || isCouponRedeemed
+                })
+                .map(it => {
+                    const trId = it.treatment_records?.id
+                    const matchOldCoupon = it.notes?.match(/\[KUPON_LAMA:([^:]+):/)
+                    const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
+                    const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
+                    return {
+                        ...it,
+                        proportional_coupon_price: proportionalCouponPrice
+                    }
+                })
 
             setCommItems(enhanced)
         } else {

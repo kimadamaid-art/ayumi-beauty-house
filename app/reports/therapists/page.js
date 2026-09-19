@@ -158,16 +158,23 @@ export default function TherapistsReportPage() {
 
             const couponMap = buildCouponPriceMap(cLogs || [])
 
-            const enhancedItems = (data || []).map(item => {
-                const trId = item.treatment_records?.id
-                const matchOldCoupon = item.notes?.match(/\[KUPON_LAMA:([^:]+):/)
-                const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
-                const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
-                return {
-                    ...item,
-                    proportional_coupon_price: proportionalCouponPrice
-                }
-            })
+            const enhancedItems = (data || [])
+                .filter(item => {
+                    const txs = item.treatment_records?.transactions || []
+                    const hasPaidTx = txs.some(t => t.payment_status === 'paid')
+                    const isCouponRedeemed = item.notes?.includes('[KUPON_BARU') || item.notes?.includes('[KUPON_LAMA') || Number(item.price_at_time) === 0
+                    return hasPaidTx || isCouponRedeemed
+                })
+                .map(item => {
+                    const trId = item.treatment_records?.id
+                    const matchOldCoupon = item.notes?.match(/\[KUPON_LAMA:([^:]+):/)
+                    const couponItemId = matchOldCoupon ? matchOldCoupon[1] : null
+                    const proportionalCouponPrice = (trId && couponMap[trId]) || (couponItemId && couponMap[couponItemId]) || null
+                    return {
+                        ...item,
+                        proportional_coupon_price: proportionalCouponPrice
+                    }
+                })
 
             setTreatmentItems(enhancedItems)
         }
