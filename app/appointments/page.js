@@ -606,7 +606,7 @@ export default function AppointmentsPage() {
         <div className="space-y-4">
             {/* Top Action Bar */}
             <div className="flex justify-end items-center">
-                <Link href="/appointments/new">
+                <Link href={filterBranch ? `/appointments/new?branch=${filterBranch}` : '/appointments/new'}>
                     <button className="btn-primary py-2 px-4 flex items-center gap-1.5 text-xs cursor-pointer shadow-pink-500/10 shadow-sm font-bold">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
                         Buat Jadwal Baru
@@ -814,7 +814,7 @@ export default function AppointmentsPage() {
                                                                         <div className="w-64 sm:w-72 flex-shrink-0 border-l border-slate-100 pl-3 flex flex-col justify-center min-h-[44px]">
                                                                             {infusApts.length === 0 ? (
                                                                                 <Link 
-                                                                                    href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}&notes=Infus`} 
+                                                                                    href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}&notes=Infus${filterBranch ? `&branch=${filterBranch}` : ''}`} 
                                                                                     className="w-full min-h-[38px] border border-dashed border-cyan-200 hover:border-cyan-400 hover:bg-cyan-50/50 rounded-xl transition-all flex items-center px-3 text-[11px] text-slate-400 hover:text-cyan-700 font-bold gap-2 group cursor-pointer"
                                                                                     title={`Tambah Infus Jam ${hourStr.replace('.', ':')}`}
                                                                                 >
@@ -918,7 +918,7 @@ export default function AppointmentsPage() {
                                                                         <div className="flex-1 border-l border-slate-100 pl-3 flex items-center min-h-[44px]">
                                                                             {treatmentApts.length === 0 ? (
                                                                                 <Link 
-                                                                                    href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
+                                                                                    href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}${filterBranch ? `&branch=${filterBranch}` : ''}`} 
                                                                                     className="w-full min-h-[38px] border border-dashed border-sky-200 hover:border-sky-400 hover:bg-sky-50/50 rounded-xl transition-all flex items-center px-3 text-[11px] text-slate-400 hover:text-sky-700 font-bold gap-2 group cursor-pointer"
                                                                                     title={`Tambah Treatment Jam ${hourStr.replace('.', ':')}`}
                                                                                 >
@@ -1023,7 +1023,7 @@ export default function AppointmentsPage() {
 
                                                                                     {/* Compact Ghost Add Slot next to existing patient cards */}
                                                                                     <Link 
-                                                                                        href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}`} 
+                                                                                        href={`/appointments/new?date=${dateStr}&time=${hourStr.replace('.', ':')}${filterBranch ? `&branch=${filterBranch}` : ''}`} 
                                                                                         className="w-[80px] min-w-[80px] self-stretch min-h-[90px] border border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/20 hover:bg-sky-50/60 rounded-xl flex flex-col items-center justify-center text-sky-600 hover:text-sky-700 transition-all text-[10px] font-bold gap-1 cursor-pointer group shadow-2xs flex-shrink-0"
                                                                                         title={`Tambah Jadwal Jam ${hourStr.replace('.', ':')}`}
                                                                                     >

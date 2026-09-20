@@ -32,6 +32,7 @@ function NewAppointmentForm() {
     const [isPlusInfus, setIsPlusInfus] = useState(false)
     const [selectedPlusInfusTreatmentId, setSelectedPlusInfusTreatmentId] = useState('')
     const [isOwner, setIsOwner] = useState(false)
+    const [selectedPatient, setSelectedPatient] = useState(null)
     
     // Patient Search Hook (server-side, debounce 350ms, limit 20, sequence tracked)
     const {
@@ -113,12 +114,19 @@ function NewAppointmentForm() {
         const { data: brData } = await brQuery
         if (brData && brData.length > 0) {
             setBranches(brData)
-            setFormData(prev => ({ ...prev, branch_id: userBranchId || brData[0].id }))
-            setNewPatientData(prev => ({ ...prev, branch_id: userBranchId || brData[0].id }))
+            const queryBranch = searchParams.get('branch')
+            const resolvedBranchId = (ownerFlag && queryBranch) ? queryBranch : (userBranchId || brData[0].id)
+            setFormData(prev => ({ ...prev, branch_id: prev.branch_id || resolvedBranchId }))
+            setNewPatientData(prev => ({ ...prev, branch_id: resolvedBranchId }))
         }
 
         // Fetch Therapists
-        const { data: trpData } = await supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').order('full_name')
+        const { data: trpData } = await supabase
+            .from('users')
+            .select('id, full_name, branch_id, branches(name)')
+            .eq('role', 'therapist')
+            .eq('is_active', true)
+            .order('full_name')
         if (trpData) setTherapists(trpData)
 
         // Fetch Infus Treatments
@@ -209,8 +217,7 @@ function NewAppointmentForm() {
             // Select the newly created patient
             setFormData(prev => ({
                 ...prev,
-                patient_id: createdPatient.id,
-                branch_id: cleanPayload.branch_id || prev.branch_id
+                patient_id: createdPatient.id
             }))
             setSelectedPatient(createdPatient)
             setPatientSearch(createdPatient.full_name)
@@ -407,12 +414,20 @@ function NewAppointmentForm() {
                                             key={pt.id} 
                                             onClick={() => {
                                                 setFormData(prev => ({ ...prev, patient_id: pt.id }))
+                                                setSelectedPatient(pt)
                                                 setPatientSearch(pt.full_name)
                                             }}
                                             className="p-3 cursor-pointer transition-colors hover:bg-pink-50/50 flex items-center justify-between group"
                                         >
                                             <div>
-                                                <div className="font-bold text-gray-800 text-sm">{pt.full_name}</div>
+                                                <div className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                                    <span>{pt.full_name}</span>
+                                                    {pt.branches?.name && pt.branch_id !== formData.branch_id && (
+                                                        <span className="text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
+                                                            {pt.branches.name}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-gray-500">{pt.whatsapp || 'No HP tidak ada'}</div>
                                             </div>
                                             <span className="text-[11px] font-bold text-ayumi-primary opacity-0 group-hover:opacity-100 transition-opacity">Pilih →</span>
@@ -433,16 +448,32 @@ function NewAppointmentForm() {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3.5 py-2.5 shadow-2xs">
-                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                            <div>
-                                <span className="text-xs font-bold text-green-800 uppercase tracking-wider block">Pasien Terpilih:</span>
-                                <span className="text-sm font-extrabold text-green-900">{patientSearch}</span>
+                        <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 shadow-2xs">
+                            <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-green-800 uppercase tracking-wider">Pasien Terpilih:</span>
+                                    {selectedPatient?.branches?.name && selectedPatient.branch_id !== formData.branch_id && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full">
+                                            <span>🌐 Lintas Cabang (Asal: {selectedPatient.branches.name})</span>
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-sm font-extrabold text-green-900 truncate">{patientSearch}</div>
+                                {selectedPatient?.whatsapp && (
+                                    <div className="text-xs text-green-700">{selectedPatient.whatsapp}</div>
+                                )}
                             </div>
                             <button 
                                 type="button" 
-                                onClick={() => { setFormData(prev => ({ ...prev, patient_id: '' })); resetPatientSearch() }} 
-                                className="ml-auto text-xs font-bold text-red-500 hover:text-red-700 bg-white/80 hover:bg-white px-2 py-1 rounded-md border border-red-200 transition-colors cursor-pointer"
+                                onClick={() => { 
+                                    setFormData(prev => ({ ...prev, patient_id: '' }))
+                                    setSelectedPatient(null)
+                                    resetPatientSearch() 
+                                }} 
+                                className="ml-auto text-xs font-bold text-red-500 hover:text-red-700 bg-white/80 hover:bg-white px-2.5 py-1.5 rounded-lg border border-red-200 transition-colors cursor-pointer"
                             >
                                 Ganti Pasien
                             </button>
@@ -478,12 +509,30 @@ function NewAppointmentForm() {
                         >
                             <option value="">-- Belum ditentukan --</option>
                             <option value="worker">Worker (Sesi Infus)</option>
-                            {therapists
-                                .filter(t => !t.branch_id || !formData.branch_id || t.branch_id === formData.branch_id)
-                                .map(t => (
-                                    <option key={t.id} value={t.id}>{t.full_name}</option>
-                                ))
-                            }
+                            {/* Terapis di cabang saat ini atau belum terikat cabang */}
+                            {therapists.filter(t => !t.branch_id || !formData.branch_id || t.branch_id === formData.branch_id).length > 0 && (
+                                <optgroup label="Terapis Cabang Ini">
+                                    {therapists
+                                        .filter(t => !t.branch_id || !formData.branch_id || t.branch_id === formData.branch_id)
+                                        .map(t => (
+                                            <option key={t.id} value={t.id}>{t.full_name}</option>
+                                        ))
+                                    }
+                                </optgroup>
+                            )}
+                            {/* Terapis cabang lain (BKO / Mutasi / Perbantuan) */}
+                            {formData.branch_id && therapists.filter(t => t.branch_id && t.branch_id !== formData.branch_id).length > 0 && (
+                                <optgroup label="Terapis Cabang Lain (BKO / Lintas Cabang)">
+                                    {therapists
+                                        .filter(t => t.branch_id && t.branch_id !== formData.branch_id)
+                                        .map(t => (
+                                            <option key={t.id} value={t.id}>
+                                                {t.full_name} ({t.branches?.name || 'Cabang Lain'})
+                                            </option>
+                                        ))
+                                    }
+                                </optgroup>
+                            )}
                         </select>
                         {formData.therapist_id === 'worker' && (
                             <div className="mt-2 space-y-2">
@@ -663,8 +712,7 @@ function NewAppointmentForm() {
                                             onClick={() => {
                                                 setFormData(prev => ({
                                                     ...prev,
-                                                    patient_id: modalConflictPatient.id,
-                                                    branch_id: modalConflictPatient.branch_id || prev.branch_id
+                                                    patient_id: modalConflictPatient.id
                                                 }))
                                                 setSelectedPatient(modalConflictPatient)
                                                 setPatientSearch(modalConflictPatient.full_name)

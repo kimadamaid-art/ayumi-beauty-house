@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import { clearUserCache } from '@/lib/cachedUser'
 
 export default function UsersPage() {
     const router = useRouter()
@@ -100,6 +101,7 @@ export default function UsersPage() {
             if (!res.ok) throw new Error(result.error || 'Gagal mengubah status user')
 
             toast.success(`User berhasil di${!u.is_active ? 'aktifkan' : 'nonaktifkan'}`)
+            clearUserCache()
             checkRoleAndFetchData()
         } catch (err) {
             toast.error(getFriendlyErrorMessage(err))
@@ -117,6 +119,7 @@ export default function UsersPage() {
             if (!res.ok) throw new Error(result.error || 'Gagal menghapus user')
             
             toast.success('User berhasil dihapus', { id: 'delete' })
+            clearUserCache()
             checkRoleAndFetchData()
         } catch (err) {
             toast.error(getFriendlyErrorMessage(err), { id: 'delete' })
@@ -159,6 +162,7 @@ export default function UsersPage() {
                 if (!res.ok) throw new Error(result.error || 'Gagal update user')
                 
                 toast.success('User berhasil diupdate!')
+                clearUserCache()
                 setIsModalOpen(false)
                 checkRoleAndFetchData()
 
@@ -174,6 +178,7 @@ export default function UsersPage() {
                 if (!res.ok) throw new Error(result.error || 'Gagal membuat user')
 
                 toast.success('User berhasil dibuat!')
+                clearUserCache()
                 setIsModalOpen(false)
                 checkRoleAndFetchData()
             }

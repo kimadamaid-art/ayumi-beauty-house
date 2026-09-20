@@ -212,8 +212,8 @@ export default function AppointmentDetailPage() {
             .single()
 
         if (aptData) {
-            // Guard: Non-owner is restricted to their branch
-            if (loggedInUser && loggedInUser.role !== 'owner' && loggedInUser.branch_id && aptData.branch_id !== loggedInUser.branch_id) {
+            // Guard: Non-owner is restricted to their branch, except if assigned as the therapist
+            if (loggedInUser && loggedInUser.role !== 'owner' && loggedInUser.branch_id && aptData.branch_id !== loggedInUser.branch_id && aptData.therapist_id !== loggedInUser.id) {
                 alert('Anda tidak diizinkan mengakses jadwal dari cabang lain.')
                 router.push('/appointments')
                 return

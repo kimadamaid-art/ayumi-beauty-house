@@ -163,7 +163,7 @@ export default function TherapistDashboard() {
         const startDate = scheduleStartRef.current || scheduleStartDate
         const endDate = scheduleEndRef.current || scheduleEndDate
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('appointments')
             .select(`
                 *,
@@ -180,11 +180,20 @@ export default function TherapistDashboard() {
                     )
                 )
             `)
-            .eq('branch_id', branchId)
             .gte('appointment_date', startDate)
             .lte('appointment_date', endDate)
             .order('appointment_date', { ascending: true })
             .order('start_time', { ascending: true })
+
+        if (branchId && dbUserRef.current?.id) {
+            query = query.or(`branch_id.eq.${branchId},therapist_id.eq.${dbUserRef.current.id}`)
+        } else if (branchId) {
+            query = query.eq('branch_id', branchId)
+        } else if (dbUserRef.current?.id) {
+            query = query.eq('therapist_id', dbUserRef.current.id)
+        }
+
+        const { data, error } = await query
 
         if (data) {
             const allPatientIds = Array.from(new Set(data.map(a => a.patient_id).filter(Boolean)))
