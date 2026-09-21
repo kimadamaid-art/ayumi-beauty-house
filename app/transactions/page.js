@@ -30,6 +30,80 @@ import {
     Cell
 } from 'recharts'
 
+const TRANSACTION_SELECT_FIELDS = `
+    id,
+    transaction_number,
+    created_at,
+    total,
+    subtotal,
+    discount,
+    payment_method,
+    payment_status,
+    notes,
+    branch_id,
+    patient_id,
+    branches (name),
+    patients (full_name, whatsapp),
+    users:users!transactions_cashier_id_fkey(full_name),
+    treatment_records (
+        id,
+        performed_by,
+        therapist:users!treatment_records_performed_by_fkey (full_name)
+    ),
+    transaction_items (
+        id,
+        name,
+        item_type,
+        quantity,
+        price,
+        subtotal,
+        original_price,
+        discount_percent
+    )
+`
+
+async function queryTransactionsWithRange(supabaseClient, {
+    startDate,
+    endDate,
+    branchId = '',
+    effectiveUser = null
+}) {
+    let query = supabaseClient
+        .from('transactions')
+        .select(TRANSACTION_SELECT_FIELDS)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+
+    if (effectiveUser && effectiveUser.role !== 'owner') {
+        query = query.eq('branch_id', effectiveUser.branch_id || '00000000-0000-0000-0000-000000000000')
+    } else if (branchId) {
+        query = query.eq('branch_id', branchId)
+    }
+
+    if (startDate) {
+        const startIso = new Date(`${startDate}T00:00:00`).toISOString()
+        query = query.gte('created_at', startIso)
+    }
+    if (endDate) {
+        const endIso = new Date(`${endDate}T23:59:59.999`).toISOString()
+        query = query.lte('created_at', endIso)
+    }
+
+    const PAGE_SIZE = 1000
+    const allRows = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await query.range(from, from + PAGE_SIZE - 1)
+        if (error) {
+            console.error('Error fetching transactions batch:', error)
+            throw error
+        }
+        if (!data || data.length === 0) break
+        allRows.push(...data)
+        if (data.length < PAGE_SIZE) break
+    }
+    return allRows
+}
+
 export default function TransactionsPage() {
     const router = useRouter()
 
@@ -94,121 +168,212 @@ export default function TransactionsPage() {
     const [customTabBranch, setCustomTabBranch] = useState('')
     const [customTabTxType, setCustomTabTxType] = useState('')
 
-    // Fetch initial user and branches with parallel caching
-    async function fetchInitialData() {
-        setIsLoading(true)
+    // Tab 1 state: table loading & pagination
+    const [isTableLoading, setIsTableLoading] = useState(false)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(25)
+
+    // Tab 2 State: Daily Report
+    const [dailyTransactions, setDailyTransactions] = useState([])
+    const [isDailyLoading, setIsDailyLoading] = useState(false)
+
+    // Tab 3 State: Weekly Report
+    const [weeklyTransactions, setWeeklyTransactions] = useState([])
+    const [isWeeklyLoading, setIsWeeklyLoading] = useState(false)
+
+    // Tab 4 State: Monthly Report
+    const [monthlyTransactions, setMonthlyTransactions] = useState([])
+    const [isMonthlyLoading, setIsMonthlyLoading] = useState(false)
+
+    // Tab 5 State: Yearly Report
+    const [yearlyTransactions, setYearlyTransactions] = useState([])
+    const [isYearlyLoading, setIsYearlyLoading] = useState(false)
+
+    // Tab 6 State: Custom Report
+    const [customReportResult, setCustomReportResult] = useState(null)
+    const [isCustomGenerating, setIsCustomGenerating] = useState(false)
+
+    // Coordinated Initialization Flag (Prevents double-fetch on mount)
+    const isInitializedRef = useRef(false)
+
+    // Tab 1 Fetcher
+    const fetchTransactions = async (activeUser = dbUser, branchIdOverride = filterBranch, startOverride = customStartDate, endOverride = customEndDate) => {
+        const effectiveUser = activeUser !== undefined ? activeUser : dbUser
+        const effectiveBranch = branchIdOverride !== undefined ? branchIdOverride : filterBranch
+        const effectiveStart = startOverride || customStartDate
+        const effectiveEnd = endOverride || customEndDate
+
+        setIsTableLoading(true)
         try {
-            const [{ user, dbUser: profile }, brRes] = await Promise.all([
-                getCachedUser(),
-                supabase.from('branches').select('id, name').eq('is_active', true)
-            ])
-
-            let effectiveBranch = ''
-            if (profile) {
-                setDbUser(profile)
-                if (profile.role !== 'owner') {
-                    effectiveBranch = profile.branch_id || ''
-                    setFilterBranch(effectiveBranch)
-                    setCustomTabBranch(effectiveBranch)
-                }
-            }
-            if (brRes.data) setBranches(brRes.data)
-
-            await fetchTransactions(profile, effectiveBranch)
+            const rows = await queryTransactionsWithRange(supabase, {
+                startDate: effectiveStart,
+                endDate: effectiveEnd,
+                branchId: effectiveBranch,
+                effectiveUser
+            })
+            setTransactions(rows)
         } catch (err) {
-            console.error('Error fetching initial transactions data:', err)
+            console.error('Error fetching transactions:', err)
+            toast.error('Gagal memuat data transaksi: ' + (err.message || ''))
         } finally {
-            setIsLoading(false)
+            setIsTableLoading(false)
         }
     }
 
-    const isInitialMount = useRef(true)
+    // Coordinated single initial mount
     useEffect(() => {
         setIsMounted(true)
+        let isCurrent = true
+        async function fetchInitialData() {
+            setIsLoading(true)
+            try {
+                const [{ user, dbUser: profile }, brRes] = await Promise.all([
+                    getCachedUser(),
+                    supabase.from('branches').select('id, name').eq('is_active', true)
+                ])
+
+                if (!isCurrent) return
+
+                let effectiveBranch = ''
+                if (profile) {
+                    setDbUser(profile)
+                    if (profile.role !== 'owner') {
+                        effectiveBranch = profile.branch_id || ''
+                        setFilterBranch(effectiveBranch)
+                        setCustomTabBranch(effectiveBranch)
+                    }
+                }
+                if (brRes.data) setBranches(brRes.data)
+
+                await fetchTransactions(profile, effectiveBranch, customStartDate, customEndDate)
+            } catch (err) {
+                console.error('Error fetching initial transactions data:', err)
+            } finally {
+                if (isCurrent) {
+                    setIsLoading(false)
+                    isInitializedRef.current = true
+                }
+            }
+        }
+
         fetchInitialData()
+        return () => { isCurrent = false }
     }, [])
 
+    // Re-fetch Tab 1 when branch or date range changes AFTER initialization
     useEffect(() => {
-        if (isInitialMount.current) {
-            isInitialMount.current = false
-            return
+        if (!isInitializedRef.current) return
+        fetchTransactions(dbUser, filterBranch, customStartDate, customEndDate)
+    }, [filterBranch, customStartDate, customEndDate])
+
+    // Tab 2 Fetcher: Daily
+    const fetchDailyTransactions = async (dateStr = dailyReportDate, branchOverride = filterBranch) => {
+        setIsDailyLoading(true)
+        try {
+            const rows = await queryTransactionsWithRange(supabase, {
+                startDate: dateStr,
+                endDate: dateStr,
+                branchId: branchOverride,
+                effectiveUser: dbUser
+            })
+            setDailyTransactions(rows)
+        } catch (err) {
+            console.error('Error fetching daily transactions:', err)
+            toast.error('Gagal memuat laporan harian')
+        } finally {
+            setIsDailyLoading(false)
         }
-        if (isMounted) {
-            fetchTransactions()
-        }
-    }, [filterBranch])
-
-    // Query transactions whenever filter branch/dates change
-    async function fetchTransactions(activeUser = dbUser, branchIdOverride = filterBranch) {
-        const effectiveUser = activeUser || dbUser
-        const effectiveBranch = branchIdOverride !== undefined ? branchIdOverride : filterBranch
-
-        const PAGE_SIZE = 1000
-        const allRows = []
-
-        for (let from = 0; ; from += PAGE_SIZE) {
-            let query = supabase
-                .from('transactions')
-                .select(`
-                    id,
-                    transaction_number,
-                    created_at,
-                    total,
-                    subtotal,
-                    discount,
-                    payment_method,
-                    payment_status,
-                    notes,
-                    branch_id,
-                    patient_id,
-                    branches (name),
-                    patients (full_name, whatsapp),
-                    users:users!transactions_cashier_id_fkey(full_name),
-                    treatment_records (
-                        id,
-                        performed_by,
-                        therapist:users!treatment_records_performed_by_fkey (full_name)
-                    ),
-                    transaction_items (
-                        id,
-                        name,
-                        item_type,
-                        quantity,
-                        price,
-                        subtotal,
-                        original_price,
-                        discount_percent
-                    )
-                `)
-                .order('created_at', { ascending: false })
-                // Pengurut kedua. Data hasil migrasi GD Cashier bisa memiliki created_at
-                // yang persis sama; tanpa pembeda, urutan antar halaman tidak stabil dan
-                // baris bisa terlewat atau terambil dua kali.
-                .order('id', { ascending: false })
-
-            // Apply global branch filter
-            if (effectiveUser && effectiveUser.role !== 'owner') {
-                query = query.eq('branch_id', effectiveUser.branch_id || '00000000-0000-0000-0000-000000000000')
-            } else if (effectiveBranch) {
-                query = query.eq('branch_id', effectiveBranch)
-            }
-
-            const { data, error } = await query.range(from, from + PAGE_SIZE - 1)
-
-            if (error) {
-                // Data sebagian lebih menyesatkan daripada tidak berubah sama sekali,
-                // karena ringkasan omset akan terlihat wajar padahal kurang.
-                console.error(error)
-                return
-            }
-
-            if (!data || data.length === 0) break
-            allRows.push(...data)
-            if (data.length < PAGE_SIZE) break
-        }
-
-        setTransactions(allRows)
     }
+
+    // Tab 3 Fetcher: Weekly (Fetches selected week + previous week for YoY/WoW comparison)
+    const fetchWeeklyTransactions = async (startStr = weeklyReportStart, branchOverride = filterBranch) => {
+        setIsWeeklyLoading(true)
+        try {
+            const start = new Date(startStr + 'T00:00:00')
+            const prevStart = new Date(start)
+            prevStart.setDate(prevStart.getDate() - 7)
+            const end = new Date(start)
+            end.setDate(start.getDate() + 7)
+
+            const prevStartStr = prevStart.toISOString().split('T')[0]
+            const endStr = end.toISOString().split('T')[0]
+
+            const rows = await queryTransactionsWithRange(supabase, {
+                startDate: prevStartStr,
+                endDate: endStr,
+                branchId: branchOverride,
+                effectiveUser: dbUser
+            })
+            setWeeklyTransactions(rows)
+        } catch (err) {
+            console.error('Error fetching weekly transactions:', err)
+            toast.error('Gagal memuat laporan mingguan')
+        } finally {
+            setIsWeeklyLoading(false)
+        }
+    }
+
+    // Tab 4 Fetcher: Monthly (Fetches current month + previous month for comparison)
+    const fetchMonthlyTransactions = async (m = monthlyReportMonth, y = monthlyReportYear, branchOverride = filterBranch) => {
+        setIsMonthlyLoading(true)
+        try {
+            const prevDate = new Date(y, m - 1, 1)
+            const endDate = new Date(y, m + 1, 0)
+            const prevStartStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}-01`
+            const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`
+
+            const rows = await queryTransactionsWithRange(supabase, {
+                startDate: prevStartStr,
+                endDate: endStr,
+                branchId: branchOverride,
+                effectiveUser: dbUser
+            })
+            setMonthlyTransactions(rows)
+        } catch (err) {
+            console.error('Error fetching monthly transactions:', err)
+            toast.error('Gagal memuat laporan bulanan')
+        } finally {
+            setIsMonthlyLoading(false)
+        }
+    }
+
+    // Tab 5 Fetcher: Yearly (Fetches current year + previous year for YoY comparison)
+    const fetchYearlyTransactions = async (y = yearlyReportYear, branchOverride = filterBranch) => {
+        setIsYearlyLoading(true)
+        try {
+            const startStr = `${y - 1}-01-01`
+            const endStr = `${y}-12-31`
+            const rows = await queryTransactionsWithRange(supabase, {
+                startDate: startStr,
+                endDate: endStr,
+                branchId: branchOverride,
+                effectiveUser: dbUser
+            })
+            setYearlyTransactions(rows)
+        } catch (err) {
+            console.error('Error fetching yearly transactions:', err)
+            toast.error('Gagal memuat laporan tahunan')
+        } finally {
+            setIsYearlyLoading(false)
+        }
+    }
+
+    // On-demand fetcher triggered when report tabs become active or their filters change
+    useEffect(() => {
+        if (!isInitializedRef.current) return
+        const timer = setTimeout(() => {
+            if (activeMainTab === 'daily') {
+                fetchDailyTransactions(dailyReportDate, filterBranch)
+            } else if (activeMainTab === 'weekly') {
+                fetchWeeklyTransactions(weeklyReportStart, filterBranch)
+            } else if (activeMainTab === 'monthly') {
+                fetchMonthlyTransactions(monthlyReportMonth, monthlyReportYear, filterBranch)
+            } else if (activeMainTab === 'yearly') {
+                fetchYearlyTransactions(yearlyReportYear, filterBranch)
+            }
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [activeMainTab, dailyReportDate, weeklyReportStart, monthlyReportMonth, monthlyReportYear, yearlyReportYear, filterBranch])
 
     // Single derived state: ONLY transactions with payment_status === 'paid' for all financial & quantity calculations
     const validTransactions = useMemo(
@@ -261,6 +426,33 @@ export default function TransactionsPage() {
             return txDate >= start && txDate <= end
         })
     }, [transactions, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
+
+    // Paginated transactions for Tab 1
+    const totalPages = Math.ceil(filteredTransactions.length / pageSize) || 1
+    const safeCurrentPage = Math.min(currentPage, totalPages)
+    const paginatedTransactions = useMemo(() => {
+        if (pageSize === -1) return filteredTransactions
+        const start = (safeCurrentPage - 1) * pageSize
+        return filteredTransactions.slice(start, start + pageSize)
+    }, [filteredTransactions, safeCurrentPage, pageSize])
+
+    // Tab-scoped valid datasets
+    const dailyValidTransactions = useMemo(
+        () => dailyTransactions.filter(tx => tx.payment_status === 'paid'),
+        [dailyTransactions]
+    )
+    const weeklyValidTransactions = useMemo(
+        () => weeklyTransactions.filter(tx => tx.payment_status === 'paid'),
+        [weeklyTransactions]
+    )
+    const monthlyValidTransactions = useMemo(
+        () => monthlyTransactions.filter(tx => tx.payment_status === 'paid'),
+        [monthlyTransactions]
+    )
+    const yearlyValidTransactions = useMemo(
+        () => yearlyTransactions.filter(tx => tx.payment_status === 'paid'),
+        [yearlyTransactions]
+    )
 
     // Summary calculations for the main view (derived strictly from validTransactions)
     const mainSummary = useMemo(() => {
@@ -1306,7 +1498,7 @@ export default function TransactionsPage() {
         const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
         const end = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999)
 
-        const txList = validTransactions.filter(tx => {
+        const txList = dailyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate <= end
@@ -1354,7 +1546,7 @@ export default function TransactionsPage() {
             typeBreakdown,
             activeHours
         }
-    }, [validTransactions, dailyReportDate, filterBranch])
+    }, [dailyValidTransactions, dailyReportDate, filterBranch])
 
 
     // ==========================================
@@ -1370,13 +1562,13 @@ export default function TransactionsPage() {
         prevStart.setDate(prevStart.getDate() - 7)
         const prevEnd = new Date(start)
 
-        const txList = validTransactions.filter(tx => {
+        const txList = weeklyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate < end
         })
 
-        const prevTxList = validTransactions.filter(tx => {
+        const prevTxList = weeklyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= prevStart && txDate < prevEnd
@@ -1452,7 +1644,7 @@ export default function TransactionsPage() {
             growthPercent,
             branchBreakdown: Object.values(branchBreakdown)
         }
-    }, [validTransactions, weeklyReportStart, filterBranch])
+    }, [weeklyValidTransactions, weeklyReportStart, filterBranch])
 
 
     // ==========================================
@@ -1465,13 +1657,13 @@ export default function TransactionsPage() {
         const prevStart = new Date(monthlyReportYear, monthlyReportMonth - 1, 1)
         const prevEnd = new Date(monthlyReportYear, monthlyReportMonth, 0, 23, 59, 59, 999)
 
-        const txList = validTransactions.filter(tx => {
+        const txList = monthlyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate <= end
         })
 
-        const prevTxList = validTransactions.filter(tx => {
+        const prevTxList = monthlyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= prevStart && txDate <= prevEnd
@@ -1571,7 +1763,7 @@ export default function TransactionsPage() {
             branchBreakdown: Object.values(branchesMap),
             pieData
         }
-    }, [validTransactions, monthlyReportMonth, monthlyReportYear, filterBranch])
+    }, [monthlyValidTransactions, monthlyReportMonth, monthlyReportYear, filterBranch])
 
 
     // ==========================================
@@ -1584,13 +1776,13 @@ export default function TransactionsPage() {
         const prevStart = new Date(yearlyReportYear - 1, 0, 1)
         const prevEnd = new Date(yearlyReportYear - 1, 11, 31, 23, 59, 59, 999)
 
-        const txList = validTransactions.filter(tx => {
+        const txList = yearlyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= start && txDate <= end
         })
 
-        const prevTxList = validTransactions.filter(tx => {
+        const prevTxList = yearlyValidTransactions.filter(tx => {
             const txDate = new Date(tx.created_at)
             if (filterBranch && tx.branch_id !== filterBranch) return false
             return txDate >= prevStart && txDate <= prevEnd
@@ -1674,7 +1866,7 @@ export default function TransactionsPage() {
             topCoupon,
             branchPivotList
         }
-    }, [validTransactions, yearlyReportYear, filterBranch])
+    }, [yearlyValidTransactions, yearlyReportYear, filterBranch])
 
 
     // ==========================================
@@ -1682,65 +1874,71 @@ export default function TransactionsPage() {
     // ==========================================
     const [customReportResult, setCustomReportResult] = useState(null)
     
-    const handleGenerateCustomReport = () => {
-        const start = new Date(customTabStart + 'T00:00:00')
-        const end = new Date(customTabEnd + 'T23:59:59')
-
-        const txList = validTransactions.filter(tx => {
-            const txDate = new Date(tx.created_at)
-            
-            // Branch filter
-            if (customTabBranch && tx.branch_id !== customTabBranch) return false
-
-            // Type filter
-            if (customTabTxType) {
-                const hasType = tx.transaction_items?.some(item => item.item_type === customTabTxType)
-                if (!hasType) return false
-            }
-
-            return txDate >= start && txDate <= end
-        })
-
-        let revenue = 0
-        let totalQrisFee = 0
-        let treatmentQty = 0
-        let productQty = 0
-        let couponQty = 0
-        let treatmentRevenue = 0
-        let productRevenue = 0
-        let couponRevenue = 0
-
-        txList.forEach(tx => {
-            revenue += getNetTransactionRevenue(tx)
-            totalQrisFee += getQrisFee(tx)
-            tx.transaction_items?.forEach(item => {
-                const subtotal = Number(item.subtotal || 0)
-                if (item.item_type === 'treatment') {
-                    treatmentQty += item.quantity || 0
-                    treatmentRevenue += subtotal
-                } else if (item.item_type === 'product') {
-                    productQty += item.quantity || 0
-                    productRevenue += subtotal
-                } else if (item.item_type === 'coupon') {
-                    couponQty += item.quantity || 0
-                    couponRevenue += subtotal
-                }
+    const handleGenerateCustomReport = async () => {
+        setIsCustomGenerating(true)
+        try {
+            const rows = await queryTransactionsWithRange(supabase, {
+                startDate: customTabStart,
+                endDate: customTabEnd,
+                branchId: customTabBranch,
+                effectiveUser: dbUser
             })
-        })
 
-        setCustomReportResult({
-            txList,
-            revenue,
-            totalQrisFee,
-            totalTx: txList.length,
-            avg: txList.length > 0 ? revenue / txList.length : 0,
-            treatmentQty,
-            productQty,
-            couponQty,
-            treatmentRevenue,
-            productRevenue,
-            couponRevenue
-        })
+            const txList = rows.filter(tx => {
+                if (tx.payment_status !== 'paid') return false
+                if (customTabTxType) {
+                    const hasType = tx.transaction_items?.some(item => item.item_type === customTabTxType)
+                    if (!hasType) return false
+                }
+                return true
+            })
+
+            let revenue = 0
+            let totalQrisFee = 0
+            let treatmentQty = 0
+            let productQty = 0
+            let couponQty = 0
+            let treatmentRevenue = 0
+            let productRevenue = 0
+            let couponRevenue = 0
+
+            txList.forEach(tx => {
+                revenue += getNetTransactionRevenue(tx)
+                totalQrisFee += getQrisFee(tx)
+                tx.transaction_items?.forEach(item => {
+                    const subtotal = Number(item.subtotal || 0)
+                    if (item.item_type === 'treatment') {
+                        treatmentQty += item.quantity || 0
+                        treatmentRevenue += subtotal
+                    } else if (item.item_type === 'product') {
+                        productQty += item.quantity || 0
+                        productRevenue += subtotal
+                    } else if (item.item_type === 'coupon') {
+                        couponQty += item.quantity || 0
+                        couponRevenue += subtotal
+                    }
+                })
+            })
+
+            setCustomReportResult({
+                txList,
+                revenue,
+                totalQrisFee,
+                totalTx: txList.length,
+                avg: txList.length > 0 ? revenue / txList.length : 0,
+                treatmentQty,
+                productQty,
+                couponQty,
+                treatmentRevenue,
+                productRevenue,
+                couponRevenue
+            })
+        } catch (err) {
+            console.error('Error generating custom report:', err)
+            toast.error('Gagal membuat custom report')
+        } finally {
+            setIsCustomGenerating(false)
+        }
     }
 
     // Chart Colors
@@ -1967,105 +2165,184 @@ export default function TransactionsPage() {
                 {/* ======================================================== */}
                 {activeMainTab === 'all' && (
                     <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-ayumi-secondary">Daftar Transaksi</h3>
-                        {filteredTransactions.length === 0 ? (
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                            <h3 className="text-lg font-bold text-ayumi-secondary">Daftar Transaksi</h3>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 font-semibold">Tampilkan:</label>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value))
+                                        setCurrentPage(1)
+                                    }}
+                                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-ayumi-primary"
+                                >
+                                    <option value={10}>10 baris</option>
+                                    <option value={25}>25 baris</option>
+                                    <option value={50}>50 baris</option>
+                                    <option value={100}>100 baris</option>
+                                    <option value={-1}>Semua ({filteredTransactions.length})</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {isTableLoading ? (
+                            <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3">
+                                <div className="animate-spin w-8 h-8 border-3 border-ayumi-primary border-t-transparent rounded-full"></div>
+                                <span className="text-sm font-semibold text-gray-500">Memuat transaksi...</span>
+                            </div>
+                        ) : filteredTransactions.length === 0 ? (
                             <div className="p-10 text-center text-gray-400">Tidak ada transaksi ditemukan. Silakan ubah filter.</div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="whitespace-nowrap w-full text-left border-collapse text-sm">
-                                    <thead>
-                                        <tr className="bg-ayumi-table-header text-ayumi-secondary font-bold border-b border-gray-100">
-                                            <th className="p-4">No. Transaksi</th>
-                                            <th className="p-4">Tanggal & Jam</th>
-                                            <th className="p-4">Pasien</th>
-                                            <th className="p-4">Cabang</th>
-                                            <th className="p-4">Ringkasan Item</th>
-                                            <th className="p-4 text-center">Metode Bayar</th>
-                                            <th className="p-4 text-right">Total</th>
-                                            <th className="p-4 text-center">Status</th>
-                                            <th className="p-4 text-center">Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {filteredTransactions.map((tx) => {
-                                            // Compute brief summary string
-                                            let t = 0, p = 0, c = 0
-                                            tx.transaction_items?.forEach(i => {
-                                                if (i.item_type === 'treatment') t += i.quantity
-                                                if (i.item_type === 'product') p += i.quantity
-                                                if (i.item_type === 'coupon') c += i.quantity
-                                            })
-                                            const summaryStr = [
-                                                t > 0 ? `${t} Treatment` : null,
-                                                p > 0 ? `${p} Produk` : null,
-                                                c > 0 ? `${c} Kupon` : null
-                                            ].filter(Boolean).join(', ') || '0 Item'
+                            <>
+                                <div className="overflow-x-auto">
+                                    <table className="whitespace-nowrap w-full text-left border-collapse text-sm">
+                                        <thead>
+                                            <tr className="bg-ayumi-table-header text-ayumi-secondary font-bold border-b border-gray-100">
+                                                <th className="p-4">No. Transaksi</th>
+                                                <th className="p-4">Tanggal & Jam</th>
+                                                <th className="p-4">Pasien</th>
+                                                <th className="p-4">Cabang</th>
+                                                <th className="p-4">Ringkasan Item</th>
+                                                <th className="p-4 text-center">Metode Bayar</th>
+                                                <th className="p-4 text-right">Total</th>
+                                                <th className="p-4 text-center">Status</th>
+                                                <th className="p-4 text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {paginatedTransactions.map((tx) => {
+                                                // Compute brief summary string
+                                                let t = 0, p = 0, c = 0
+                                                tx.transaction_items?.forEach(i => {
+                                                    if (i.item_type === 'treatment') t += i.quantity
+                                                    if (i.item_type === 'product') p += i.quantity
+                                                    if (i.item_type === 'coupon') c += i.quantity
+                                                })
+                                                const summaryStr = [
+                                                    t > 0 ? `${t} Treatment` : null,
+                                                    p > 0 ? `${p} Produk` : null,
+                                                    c > 0 ? `${c} Kupon` : null
+                                                ].filter(Boolean).join(', ') || '0 Item'
 
-                                            // Payment Method badge color
-                                            let payBadgeClass = "bg-gray-100 text-gray-700 border-gray-200"
-                                            if (tx.payment_method === 'cash') payBadgeClass = "bg-pink-50 text-pink-700 border-pink-100"
-                                            if (tx.payment_method === 'transfer') payBadgeClass = "bg-blue-50 text-blue-700 border-blue-100"
-                                            if (tx.payment_method === 'qris') payBadgeClass = "bg-green-50 text-green-700 border-green-100"
-                                            if (tx.payment_method === 'debit' || tx.payment_method === 'credit') payBadgeClass = "bg-purple-50 text-purple-700 border-purple-100"
+                                                // Payment Method badge color
+                                                let payBadgeClass = "bg-gray-100 text-gray-700 border-gray-200"
+                                                if (tx.payment_method === 'cash') payBadgeClass = "bg-pink-50 text-pink-700 border-pink-100"
+                                                if (tx.payment_method === 'transfer') payBadgeClass = "bg-blue-50 text-blue-700 border-blue-100"
+                                                if (tx.payment_method === 'qris') payBadgeClass = "bg-green-50 text-green-700 border-green-100"
+                                                if (tx.payment_method === 'debit' || tx.payment_method === 'credit') payBadgeClass = "bg-purple-50 text-purple-700 border-purple-100"
 
-                                            return (
-                                                <tr 
-                                                    key={tx.id} 
-                                                    onClick={() => openDetailModal(tx)} 
-                                                    className={`hover:bg-ayumi-table-hover transition-colors cursor-pointer group ${tx.payment_status === 'void' ? 'opacity-70 bg-rose-50/20' : ''}`}
-                                                >
-                                                    <td className="p-4 font-bold text-gray-800 text-xs">
-                                                        <span className={tx.payment_status === 'void' ? 'line-through text-gray-400' : ''}>{tx.transaction_number}</span>
-                                                    </td>
-                                                    <td className="p-4 text-gray-600 text-xs">{formatDate(tx.created_at)}</td>
-                                                    <td className="p-4">
-                                                        {tx.patient_id ? (
-                                                            <Link 
-                                                                href={`/patients/${tx.patient_id}`}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                className="font-extrabold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group/p text-sm"
-                                                                title="Buka Rekam Medis & Riwayat Pasien"
+                                                return (
+                                                    <tr 
+                                                        key={tx.id} 
+                                                        onClick={() => openDetailModal(tx)} 
+                                                        className={`hover:bg-ayumi-table-hover transition-colors cursor-pointer group ${tx.payment_status === 'void' ? 'opacity-70 bg-rose-50/20' : ''}`}
+                                                    >
+                                                        <td className="p-4 font-bold text-gray-800 text-xs">
+                                                            <span className={tx.payment_status === 'void' ? 'line-through text-gray-400' : ''}>{tx.transaction_number}</span>
+                                                        </td>
+                                                        <td className="p-4 text-gray-600 text-xs">{formatDate(tx.created_at)}</td>
+                                                        <td className="p-4">
+                                                            {tx.patient_id ? (
+                                                                <Link 
+                                                                    href={`/patients/${tx.patient_id}`}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="font-extrabold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group/p text-sm"
+                                                                    title="Buka Rekam Medis & Riwayat Pasien"
+                                                                >
+                                                                    <span>{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                                    <span className="text-[11px] text-ayumi-primary group-hover/p:translate-x-0.5 group-hover/p:-translate-y-0.5 transition-transform">↗</span>
+                                                                </Link>
+                                                            ) : (
+                                                                <span className="font-extrabold text-gray-800 text-sm">{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-gray-500 font-semibold text-xs">{tx.branches?.name || '-'}</td>
+                                                        <td className="p-4 text-gray-600 text-xs font-semibold">{summaryStr}</td>
+                                                        <td className="p-4 text-center">
+                                                            <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${payBadgeClass}`}>{tx.payment_method}</span>
+                                                        </td>
+                                                        <td className={`p-4 text-right font-bold ${tx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                                                            {formatCurrency(tx.total)}
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            {tx.payment_status === 'void' ? (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-200">
+                                                                    VOID
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800 border border-green-200">
+                                                                    LUNAS
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); openDetailModal(tx) }}
+                                                                className="text-xs font-bold text-ayumi-primary hover:text-ayumi-secondary bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors"
                                                             >
-                                                                <span>{tx.patients?.full_name || 'Walk-in Customer'}</span>
-                                                                <span className="text-[11px] text-ayumi-primary group-hover/p:translate-x-0.5 group-hover/p:-translate-y-0.5 transition-transform">↗</span>
-                                                            </Link>
-                                                        ) : (
-                                                            <span className="font-extrabold text-gray-800 text-sm">{tx.patients?.full_name || 'Walk-in Customer'}</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4 text-gray-500 font-semibold text-xs">{tx.branches?.name || '-'}</td>
-                                                    <td className="p-4 text-gray-600 text-xs font-semibold">{summaryStr}</td>
-                                                    <td className="p-4 text-center">
-                                                        <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${payBadgeClass}`}>{tx.payment_method}</span>
-                                                    </td>
-                                                    <td className={`p-4 text-right font-bold ${tx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                                                        {formatCurrency(tx.total)}
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        {tx.payment_status === 'void' ? (
-                                                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-200">
-                                                                VOID
-                                                            </span>
-                                                        ) : (
-                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800 border border-green-200">
-                                                                LUNAS
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); openDetailModal(tx) }}
-                                                            className="text-xs font-bold text-ayumi-primary hover:text-ayumi-secondary bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors"
+                                                                Lihat
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Pagination Bar */}
+                                {pageSize !== -1 && filteredTransactions.length > pageSize && (
+                                    <div className="px-5 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-gray-50/40">
+                                        <span className="text-gray-500 font-medium">
+                                            Menampilkan {((safeCurrentPage - 1) * pageSize) + 1} - {Math.min(safeCurrentPage * pageSize, filteredTransactions.length)} dari {filteredTransactions.length} transaksi
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={safeCurrentPage === 1}
+                                                className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                &larr; Prev
+                                            </button>
+                                            <div className="flex items-center gap-1 px-1">
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1)
+                                                    .reduce((acc, p, idx, arr) => {
+                                                        if (idx > 0 && p - arr[idx - 1] > 1) {
+                                                            acc.push(-1 * p)
+                                                        }
+                                                        acc.push(p)
+                                                        return acc
+                                                    }, [])
+                                                    .map((p, idx) => p < 0 ? (
+                                                        <span key={`ellipsis-${idx}`} className="px-1 text-gray-400 font-bold">&hellip;</span>
+                                                    ) : (
+                                                        <button
+                                                            key={p}
+                                                            onClick={() => setCurrentPage(p)}
+                                                            className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
+                                                                safeCurrentPage === p
+                                                                    ? 'bg-ayumi-primary text-white shadow-sm'
+                                                                    : 'text-gray-600 hover:bg-white border border-transparent hover:border-gray-200'
+                                                            }`}
                                                         >
-                                                            Lihat
+                                                            {p}
                                                         </button>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                    ))
+                                                }
+                                            </div>
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                disabled={safeCurrentPage === totalPages}
+                                                className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                Next &rarr;
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -2106,135 +2383,144 @@ export default function TransactionsPage() {
                             </div>
                         </div>
 
-                        {/* Summary metrics for daily */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                                <div>
-                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Transaksi Hari Ini</h5>
-                                    <p className="text-2xl font-black text-gray-800">{dailyData.totalTx}</p>
+                        {isDailyLoading ? (
+                            <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                                <div className="animate-spin w-8 h-8 border-3 border-ayumi-primary border-t-transparent rounded-full"></div>
+                                <span className="text-sm font-semibold text-gray-500">Memuat laporan harian...</span>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Summary metrics for daily */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                        <div>
+                                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Transaksi Hari Ini</h5>
+                                            <p className="text-2xl font-black text-gray-800">{dailyData.totalTx}</p>
+                                        </div>
+                                        <div className="text-ayumi-primary bg-pink-50 p-3 rounded-xl"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg></div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                        <div>
+                                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Pendapatan Hari Ini</h5>
+                                            <p className="text-2xl font-black text-gray-800  text-green-600">{formatCurrency(dailyData.revenue)}</p>
+                                        </div>
+                                        <div className="text-green-600 bg-green-50 p-3 rounded-xl"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                                    </div>
                                 </div>
-                                <div className="text-ayumi-primary bg-pink-50 p-3 rounded-xl"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg></div>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                                <div>
-                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Pendapatan Hari Ini</h5>
-                                    <p className="text-2xl font-black text-gray-800  text-green-600">{formatCurrency(dailyData.revenue)}</p>
-                                </div>
-                                <div className="text-green-600 bg-green-50 p-3 rounded-xl"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                            </div>
-                        </div>
 
-                        {/* Breakdown tables */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Payment method breakdown */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
-                                <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Metode Pembayaran</h4>
-                                <table className="whitespace-nowrap w-full text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
-                                            <th className="p-3">Metode Bayar</th>
-                                            <th className="p-3 text-center">Jumlah Transaksi</th>
-                                            <th className="p-3 text-right">Pendapatan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {Object.entries(dailyData.payMethods).map(([method, data]) => (
-                                            <tr key={method} className="hover:bg-gray-50/50">
-                                                <td className="p-3 font-bold uppercase text-gray-700">{method}</td>
-                                                <td className="p-3 text-center font-bold text-gray-600">{data.count}</td>
-                                                <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(data.total)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Item Type breakdown */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
-                                <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Tipe Produk / Layanan</h4>
-                                <table className="whitespace-nowrap w-full text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
-                                            <th className="p-3">Tipe Item</th>
-                                            <th className="p-3 text-center">Jumlah Terjual</th>
-                                            <th className="p-3 text-right">Total Subtotal</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {Object.entries(dailyData.typeBreakdown).map(([type, data]) => (
-                                            <tr key={type} className="hover:bg-gray-50/50">
-                                                <td className="p-3 font-bold capitalize text-gray-700">
-                                                    {type === 'treatment' ? 'Layanan Treatment' : type === 'product' ? 'Produk Fisik' : 'Kupon Paket'}
-                                                </td>
-                                                <td className="p-3 text-center font-bold text-gray-600">{data.qty}</td>
-                                                <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(data.total)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* Chart: Busy Hours */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                            <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Jam Tersibuk (Transaksi Per Jam)</h4>
-                            <div className="h-64">
-                                {isMounted ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={dailyData.activeHours} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#888' }} />
-                                            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#888' }} />
-                                            <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                            <Bar dataKey="transaksi" fill="#D46221" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Daily Transactions list */}
-                        <div className="space-y-3">
-                            <h4 className="text-sm font-bold text-ayumi-secondary">List Transaksi Hari Terkait</h4>
-                            {dailyData.txList.length === 0 ? (
-                                <div className="text-center p-5 md:p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi pada tanggal ini.</div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="whitespace-nowrap w-full text-left border-collapse text-xs">
-                                        <thead>
-                                            <tr className="bg-gray-50 text-gray-600 font-bold border-b border-gray-100">
-                                                <th className="p-3">No. Transaksi</th>
-                                                <th className="p-3">Waktu</th>
-                                                <th className="p-3">Pasien</th>
-                                                <th className="p-3">Metode</th>
-                                                <th className="p-3 text-right">Total</th>
-                                                <th className="p-3 text-center">Status</th>
-                                                <th className="p-3 text-center">Detail</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {dailyData.txList.map(tx => (
-                                                <tr key={tx.id} onClick={() => openDetailModal(tx)} className="hover:bg-gray-50/50 cursor-pointer">
-                                                    <td className="p-3 font-bold text-gray-800">{tx.transaction_number}</td>
-                                                    <td className="p-3 text-gray-500">
-                                                        {new Date(tx.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                    </td>
-                                                    <td className="p-3 font-bold text-gray-700">{tx.patients?.full_name || 'Walk-in'}</td>
-                                                    <td className="p-3 uppercase font-bold text-gray-500 text-[10px]">{tx.payment_method}</td>
-                                                    <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(tx.total)}</td>
-                                                    <td className="p-3 text-center"><span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-bold">LUNAS</span></td>
-                                                    <td className="p-3 text-center">
-                                                        <button className="text-xs text-ayumi-primary font-semibold hover:underline">Lihat</button>
-                                                    </td>
+                                {/* Breakdown tables */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Payment method breakdown */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Metode Pembayaran</h4>
+                                        <table className="whitespace-nowrap w-full text-left text-xs">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
+                                                    <th className="p-3">Metode Bayar</th>
+                                                    <th className="p-3 text-center">Jumlah Transaksi</th>
+                                                    <th className="p-3 text-right">Pendapatan</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {Object.entries(dailyData.payMethods).map(([method, data]) => (
+                                                    <tr key={method} className="hover:bg-gray-50/50">
+                                                        <td className="p-3 font-bold uppercase text-gray-700">{method}</td>
+                                                        <td className="p-3 text-center font-bold text-gray-600">{data.count}</td>
+                                                        <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(data.total)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Item Type breakdown */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Tipe Produk / Layanan</h4>
+                                        <table className="whitespace-nowrap w-full text-left text-xs">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
+                                                    <th className="p-3">Tipe Item</th>
+                                                    <th className="p-3 text-center">Jumlah Terjual</th>
+                                                    <th className="p-3 text-right">Total Subtotal</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {Object.entries(dailyData.typeBreakdown).map(([type, data]) => (
+                                                    <tr key={type} className="hover:bg-gray-50/50">
+                                                        <td className="p-3 font-bold capitalize text-gray-700">
+                                                            {type === 'treatment' ? 'Layanan Treatment' : type === 'product' ? 'Produk Fisik' : 'Kupon Paket'}
+                                                        </td>
+                                                        <td className="p-3 text-center font-bold text-gray-600">{data.qty}</td>
+                                                        <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(data.total)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
+
+                                {/* Chart: Busy Hours */}
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                    <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Jam Tersibuk (Transaksi Per Jam)</h4>
+                                    <div className="h-64">
+                                        {isMounted ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={dailyData.activeHours} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#888' }} />
+                                                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#888' }} />
+                                                    <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
+                                                    <Bar dataKey="transaksi" fill="#D46221" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Daily Transactions list */}
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-bold text-ayumi-secondary">List Transaksi Hari Terkait</h4>
+                                    {dailyData.txList.length === 0 ? (
+                                        <div className="text-center p-5 md:p-8 text-gray-400 bg-gray-50 rounded-xl">Tidak ada transaksi pada tanggal ini.</div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="whitespace-nowrap w-full text-left border-collapse text-xs">
+                                                <thead>
+                                                    <tr className="bg-gray-50 text-gray-600 font-bold border-b border-gray-100">
+                                                        <th className="p-3">No. Transaksi</th>
+                                                        <th className="p-3">Waktu</th>
+                                                        <th className="p-3">Pasien</th>
+                                                        <th className="p-3">Metode</th>
+                                                        <th className="p-3 text-right">Total</th>
+                                                        <th className="p-3 text-center">Status</th>
+                                                        <th className="p-3 text-center">Detail</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {dailyData.txList.map(tx => (
+                                                        <tr key={tx.id} onClick={() => openDetailModal(tx)} className="hover:bg-gray-50/50 cursor-pointer">
+                                                            <td className="p-3 font-bold text-gray-800">{tx.transaction_number}</td>
+                                                            <td className="p-3 text-gray-500">
+                                                                {new Date(tx.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                            </td>
+                                                            <td className="p-3 font-bold text-gray-700">{tx.patients?.full_name || 'Walk-in'}</td>
+                                                            <td className="p-3 uppercase font-bold text-gray-500 text-[10px]">{tx.payment_method}</td>
+                                                            <td className="p-3 text-right  font-bold text-gray-800">{formatCurrency(tx.total)}</td>
+                                                            <td className="p-3 text-center"><span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-bold">LUNAS</span></td>
+                                                            <td className="p-3 text-center">
+                                                                <button className="text-xs text-ayumi-primary font-semibold hover:underline">Lihat</button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -2279,87 +2565,96 @@ export default function TransactionsPage() {
                             </div>
                         </div>
 
-                        {/* Weekly summaries */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi Minggu Ini</h5>
-                                <p className="text-2xl font-black text-gray-800">{weeklyData.totalTx}</p>
+                        {isWeeklyLoading ? (
+                            <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                                <div className="animate-spin w-8 h-8 border-3 border-ayumi-primary border-t-transparent rounded-full"></div>
+                                <span className="text-sm font-semibold text-gray-500">Memuat laporan mingguan...</span>
                             </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
-                                <p className="text-2xl font-black text-green-600 ">{formatCurrency(weeklyData.revenue)}</p>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Hari Tersibuk (Trx)</h5>
-                                <p className="text-lg font-black text-ayumi-primary">{weeklyData.busiestDay}</p>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pendapatan Tertinggi</h5>
-                                <p className="text-lg font-black text-purple-700">{weeklyData.highestRevDay}</p>
-                            </div>
-                        </div>
-
-                        {/* Comparison vs last week */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
-                            <div>
-                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Perbandingan dengan Minggu Lalu</h4>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm font-semibold text-gray-600">Pendapatan Minggu Lalu: <strong className=" text-gray-800">{formatCurrency(weeklyData.prevRevenue)}</strong></span>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${weeklyData.growthPercent >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                        {weeklyData.growthPercent >= 0 ? `▲ +${weeklyData.growthPercent.toFixed(1)}%` : `▼ ${weeklyData.growthPercent.toFixed(1)}%`}
-                                    </span>
+                        ) : (
+                            <>
+                                {/* Weekly summaries */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi Minggu Ini</h5>
+                                        <p className="text-2xl font-black text-gray-800">{weeklyData.totalTx}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
+                                        <p className="text-2xl font-black text-green-600 ">{formatCurrency(weeklyData.revenue)}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Hari Tersibuk (Trx)</h5>
+                                        <p className="text-lg font-black text-ayumi-primary">{weeklyData.busiestDay}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pendapatan Tertinggi</h5>
+                                        <p className="text-lg font-black text-purple-700">{weeklyData.highestRevDay}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Chart: Revenue per day */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                            <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Pendapatan per Hari (Senin - Minggu)</h4>
-                            <div className="h-64">
-                                {isMounted ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={weeklyData.orderedRevenue} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#888' }} />
-                                            <YAxis tick={{ fontSize: 10, fill: '#888' }} />
-                                            <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                            <Bar dataKey="pendapatan" fill="#6B3A5A" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
-                                )}
-                            </div>
-                        </div>
+                                {/* Comparison vs last week */}
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Perbandingan dengan Minggu Lalu</h4>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-semibold text-gray-600">Pendapatan Minggu Lalu: <strong className=" text-gray-800">{formatCurrency(weeklyData.prevRevenue)}</strong></span>
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${weeklyData.growthPercent >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                {weeklyData.growthPercent >= 0 ? `▲ +${weeklyData.growthPercent.toFixed(1)}%` : `▼ ${weeklyData.growthPercent.toFixed(1)}%`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                        {/* Branch Breakdown for Owner & Admin */}
-                        {(!dbUser || dbUser.role === 'owner') && (
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
-                                <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Pendapatan per Cabang</h4>
-                                <table className="whitespace-nowrap w-full text-left text-xs">
-                                    <thead>
-                                        <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
-                                            <th className="p-3">Cabang</th>
-                                            <th className="p-3 text-center">Jumlah Transaksi</th>
-                                            <th className="p-3 text-right">Total Pendapatan</th>
-                                            <th className="p-3 text-right text-violet-700">Biaya Tambahan QRIS (0.3%)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {weeklyData.branchBreakdown.map(b => (
-                                            <tr key={b.name} className="hover:bg-gray-50/50">
-                                                <td className="p-3 font-bold text-gray-700">{b.name}</td>
-                                                <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
-                                                <td className="p-3 text-right font-bold text-gray-800">{formatCurrency(b.total)}</td>
-                                                <td className="p-3 text-right font-bold text-violet-700">{formatCurrency(b.qrisFee || 0)}</td>
-                                            </tr>
-                                        ))}
-                                        {weeklyData.branchBreakdown.length === 0 && (
-                                            <tr><td colSpan="4" className="p-3 text-center text-gray-400">Tidak ada data per cabang.</td></tr>
+                                {/* Chart: Revenue per day */}
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                    <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Pendapatan per Hari (Senin - Minggu)</h4>
+                                    <div className="h-64">
+                                        {isMounted ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={weeklyData.orderedRevenue} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#888' }} />
+                                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                                    <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
+                                                    <Bar dataKey="pendapatan" fill="#6B3A5A" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
                                         )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    </div>
+                                </div>
+
+                                {/* Branch Breakdown for Owner & Admin */}
+                                {(!dbUser || dbUser.role === 'owner') && (
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown Pendapatan per Cabang</h4>
+                                        <table className="whitespace-nowrap w-full text-left text-xs">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
+                                                    <th className="p-3">Cabang</th>
+                                                    <th className="p-3 text-center">Jumlah Transaksi</th>
+                                                    <th className="p-3 text-right">Total Pendapatan</th>
+                                                    <th className="p-3 text-right text-violet-700">Biaya Tambahan QRIS (0.3%)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {weeklyData.branchBreakdown.map(b => (
+                                                    <tr key={b.name} className="hover:bg-gray-50/50">
+                                                        <td className="p-3 font-bold text-gray-700">{b.name}</td>
+                                                        <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
+                                                        <td className="p-3 text-right font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                                        <td className="p-3 text-right font-bold text-violet-700">{formatCurrency(b.qrisFee || 0)}</td>
+                                                    </tr>
+                                                ))}
+                                                {weeklyData.branchBreakdown.length === 0 && (
+                                                    <tr><td colSpan="4" className="p-3 text-center text-gray-400">Tidak ada data per cabang.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -2409,167 +2704,184 @@ export default function TransactionsPage() {
                             </div>
                         </div>
 
-                        {/* Monthly summaries */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi Bulan Ini</h5>
-                                <p className="text-2xl font-black text-gray-800">{monthlyData.totalTx}</p>
+                        {isMonthlyLoading ? (
+                            <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                                <div className="animate-spin w-8 h-8 border-3 border-ayumi-primary border-t-transparent rounded-full"></div>
+                                <span className="text-sm font-semibold text-gray-500">Memuat laporan bulanan...</span>
                             </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
-                                <p className="text-2xl font-black text-green-600 ">{formatCurrency(monthlyData.revenue)}</p>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pertumbuhan vs Bulan Lalu</h5>
-                                <span className={`text-lg font-black ${monthlyData.growthPercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                    {monthlyData.growthPercent >= 0 ? `▲ +${monthlyData.growthPercent.toFixed(1)}%` : `▼ ${monthlyData.growthPercent.toFixed(1)}%`}
-                                </span>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rata-rata Pendapatan / Hari</h5>
-                                <p className="text-lg font-black text-purple-700 ">{formatCurrency(monthlyData.dailyAvg)}</p>
-                            </div>
-                        </div>
-
-                        {/* Charts layout */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Revenue by week line chart */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm lg:col-span-2">
-                                <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Pendapatan per Minggu</h4>
-                                <div className="h-64">
-                                    {isMounted ? (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart data={monthlyData.weekBins} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#888' }} />
-                                                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
-                                                <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                                <Line type="monotone" dataKey="pendapatan" stroke="#D46221" strokeWidth={3} activeDot={{ r: 6 }} />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    ) : (
-                                        <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
-                                    )}
+                        ) : (
+                            <>
+                                {/* Monthly summaries */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi Bulan Ini</h5>
+                                        <p className="text-2xl font-black text-gray-800">{monthlyData.totalTx}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan</h5>
+                                        <p className="text-2xl font-black text-green-600 ">{formatCurrency(monthlyData.revenue)}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pertumbuhan vs Bulan Lalu</h5>
+                                        <span className={`text-lg font-black ${monthlyData.growthPercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                            {monthlyData.growthPercent >= 0 ? `▲ +${monthlyData.growthPercent.toFixed(1)}%` : `▼ ${monthlyData.growthPercent.toFixed(1)}%`}
+                                        </span>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rata-rata Pendapatan / Hari</h5>
+                                        <p className="text-lg font-black text-purple-700 ">{formatCurrency(monthlyData.dailyAvg)}</p>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Donut Chart of Payment Methods */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                                <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Breakdown Metode Bayar (Volume)</h4>
-                                <div className="h-64 flex flex-col items-center justify-center">
-                                    {isMounted ? (
-                                        monthlyData.pieData.length > 0 ? (
-                                            <div className="relative w-full h-full">
-                                                <ResponsiveContainer width="100%" height="90%">
-                                                    <PieChart>
-                                                        <Pie
-                                                            data={monthlyData.pieData}
-                                                            cx="50%"
-                                                            cy="50%"
-                                                            innerRadius={60}
-                                                            outerRadius={80}
-                                                            paddingAngle={3}
-                                                            dataKey="value"
-                                                        >
-                                                            {monthlyData.pieData.map((entry, index) => (
-                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                            ))}
-                                                        </Pie>
-                                                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                                                    </PieChart>
+                                {/* Charts layout */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Revenue by week line chart */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm lg:col-span-2">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Pendapatan per Minggu</h4>
+                                        <div className="h-64">
+                                            {isMounted ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={monthlyData.weekBins} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#888' }} />
+                                                        <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                                        <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
+                                                        <Line type="monotone" dataKey="pendapatan" stroke="#D46221" strokeWidth={3} activeDot={{ r: 6 }} />
+                                                    </LineChart>
                                                 </ResponsiveContainer>
-                                                {/* Legend */}
-                                                <div className="flex flex-wrap justify-center gap-2 text-[9px] font-bold text-gray-500 mt-[-20px]">
-                                                    {monthlyData.pieData.map((entry, index) => (
-                                                        <span key={entry.name} className="flex items-center gap-1">
-                                                            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                                                            {entry.name}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-gray-400">Tidak ada data pembayaran.</p>
-                                        )
-                                    ) : (
-                                        <div className="w-40 h-40 rounded-full border-8 border-gray-100 border-t-purple-500 animate-spin" />
-                                    )}
+                                            ) : (
+                                                <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Donut Chart of Payment Methods */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Breakdown Metode Bayar (Volume)</h4>
+                                        <div className="h-64 flex flex-col items-center justify-center">
+                                            {isMounted ? (
+                                                monthlyData.pieData.length > 0 ? (
+                                                    <div className="relative w-full h-full">
+                                                        <ResponsiveContainer width="100%" height="90%">
+                                                            <PieChart>
+                                                                <Pie
+                                                                    data={monthlyData.pieData}
+                                                                    cx="50%"
+                                                                    cy="50%"
+                                                                    innerRadius={45}
+                                                                    outerRadius={75}
+                                                                    paddingAngle={4}
+                                                                    dataKey="value"
+                                                                >
+                                                                    {monthlyData.pieData.map((entry, index) => (
+                                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                                    ))}
+                                                                </Pie>
+                                                                <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
+                                                            </PieChart>
+                                                        </ResponsiveContainer>
+                                                        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-1">
+                                                            {monthlyData.pieData.map((entry, index) => (
+                                                                <div key={index} className="flex items-center gap-1 text-[10px]">
+                                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                                                                    <span className="text-gray-600 font-semibold">{entry.name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center text-gray-400 text-xs">Belum ada data pembayaran.</div>
+                                                )
+                                            ) : (
+                                                <div className="h-full w-full bg-gray-50 animate-pulse rounded-2xl" />
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Top 5 Best Sellers Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* Treatments */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-purple-700 border-b border-purple-50 pb-2 mb-3">Top 5 Treatment Terlaris</h4>
-                                <ol className="space-y-2 text-xs font-semibold text-gray-700">
-                                    {monthlyData.topTreatments.map((item, idx) => (
-                                        <li key={item.name} className="flex justify-between items-center py-1">
-                                            <span>{idx + 1}. {item.name}</span>
-                                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold ">{item.qty}x</span>
-                                        </li>
-                                    ))}
-                                    {monthlyData.topTreatments.length === 0 && <p className="text-gray-400 italic">Belum ada data.</p>}
-                                </ol>
-                            </div>
+                                {/* Top Selling Products & Treatments */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Top Treatments */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Top 5 Treatment</h4>
+                                        <div className="space-y-2">
+                                            {monthlyData.topTreatments.map((item, idx) => (
+                                                <div key={item.name} className="flex justify-between items-center text-xs p-2 rounded-xl hover:bg-gray-50">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-purple-700 w-4">{idx + 1}.</span>
+                                                        <span className="font-semibold text-gray-700 truncate max-w-[150px]">{item.name}</span>
+                                                    </div>
+                                                    <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold">{item.qty}x</span>
+                                                </div>
+                                            ))}
+                                            {monthlyData.topTreatments.length === 0 && <p className="text-center text-gray-400 text-xs py-4">Belum ada data.</p>}
+                                        </div>
+                                    </div>
 
-                            {/* Products */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-orange-600 border-b border-orange-50 pb-2 mb-3">Top 5 Produk Terlaris</h4>
-                                <ol className="space-y-2 text-xs font-semibold text-gray-700">
-                                    {monthlyData.topProducts.map((item, idx) => (
-                                        <li key={item.name} className="flex justify-between items-center py-1">
-                                            <span>{idx + 1}. {item.name}</span>
-                                            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold ">{item.qty}x</span>
-                                        </li>
-                                    ))}
-                                    {monthlyData.topProducts.length === 0 && <p className="text-gray-400 italic">Belum ada data.</p>}
-                                </ol>
-                            </div>
+                                    {/* Top Products */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Top 5 Produk</h4>
+                                        <div className="space-y-2">
+                                            {monthlyData.topProducts.map((item, idx) => (
+                                                <div key={item.name} className="flex justify-between items-center text-xs p-2 rounded-xl hover:bg-gray-50">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-orange-700 w-4">{idx + 1}.</span>
+                                                        <span className="font-semibold text-gray-700 truncate max-w-[150px]">{item.name}</span>
+                                                    </div>
+                                                    <span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-bold">{item.qty}x</span>
+                                                </div>
+                                            ))}
+                                            {monthlyData.topProducts.length === 0 && <p className="text-center text-gray-400 text-xs py-4">Belum ada data.</p>}
+                                        </div>
+                                    </div>
 
-                            {/* Coupons */}
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-pink-600 border-b border-pink-50 pb-2 mb-3">Top 5 Paket Kupon Terlaris</h4>
-                                <ol className="space-y-2 text-xs font-semibold text-gray-700">
-                                    {monthlyData.topCoupons.map((item, idx) => (
-                                        <li key={item.name} className="flex justify-between items-center py-1">
-                                            <span>{idx + 1}. {item.name}</span>
-                                            <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold ">{item.qty}x</span>
-                                        </li>
-                                    ))}
-                                    {monthlyData.topCoupons.length === 0 && <p className="text-gray-400 italic">Belum ada data.</p>}
-                                </ol>
-                            </div>
-                        </div>
+                                    {/* Top Coupons */}
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                        <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Top 5 Kupon Paket</h4>
+                                        <div className="space-y-2">
+                                            {monthlyData.topCoupons.map((item, idx) => (
+                                                <div key={item.name} className="flex justify-between items-center text-xs p-2 rounded-xl hover:bg-gray-50">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-pink-700 w-4">{idx + 1}.</span>
+                                                        <span className="font-semibold text-gray-700 truncate max-w-[150px]">{item.name}</span>
+                                                    </div>
+                                                    <span className="bg-pink-50 text-pink-700 px-2 py-0.5 rounded font-bold">{item.qty}x</span>
+                                                </div>
+                                            ))}
+                                            {monthlyData.topCoupons.length === 0 && <p className="text-center text-gray-400 text-xs py-4">Belum ada data.</p>}
+                                        </div>
+                                    </div>
+                                </div>
 
-                        {/* Branch breakdown table */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
-                            <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown per Cabang Bulan Ini</h4>
-                            <table className="whitespace-nowrap w-full text-left text-xs">
-                                <thead>
-                                    <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
-                                        <th className="p-3">Cabang</th>
-                                        <th className="p-3 text-center">Jumlah Transaksi</th>
-                                        <th className="p-3 text-right">Total Pendapatan</th>
-                                        <th className="p-3 text-right text-violet-700">Biaya Tambahan QRIS (0.3%)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {monthlyData.branchBreakdown.map(b => (
-                                        <tr key={b.name} className="hover:bg-gray-50/50">
-                                            <td className="p-3 font-bold text-gray-700">{b.name}</td>
-                                            <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
-                                            <td className="p-3 text-right font-bold text-gray-800">{formatCurrency(b.total)}</td>
-                                            <td className="p-3 text-right font-bold text-violet-700">{formatCurrency(b.qrisFee || 0)}</td>
-                                        </tr>
-                                    ))}
-                                    {monthlyData.branchBreakdown.length === 0 && (
-                                        <tr><td colSpan="4" className="p-3 text-center text-gray-400">Tidak ada data.</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                {/* Branch breakdown table */}
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                                    <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Breakdown per Cabang Bulan Ini</h4>
+                                    <table className="whitespace-nowrap w-full text-left text-xs">
+                                        <thead>
+                                            <tr className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
+                                                <th className="p-3">Cabang</th>
+                                                <th className="p-3 text-center">Jumlah Transaksi</th>
+                                                <th className="p-3 text-right">Total Pendapatan</th>
+                                                <th className="p-3 text-right text-violet-700">Biaya Tambahan QRIS (0.3%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {monthlyData.branchBreakdown.map(b => (
+                                                <tr key={b.name} className="hover:bg-gray-50/50">
+                                                    <td className="p-3 font-bold text-gray-700">{b.name}</td>
+                                                    <td className="p-3 text-center font-bold text-gray-600">{b.count}</td>
+                                                    <td className="p-3 text-right font-bold text-gray-800">{formatCurrency(b.total)}</td>
+                                                    <td className="p-3 text-right font-bold text-violet-700">{formatCurrency(b.qrisFee || 0)}</td>
+                                                </tr>
+                                            ))}
+                                            {monthlyData.branchBreakdown.length === 0 && (
+                                                <tr><td colSpan="4" className="p-3 text-center text-gray-400">Tidak ada data.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -2609,91 +2921,100 @@ export default function TransactionsPage() {
                             </div>
                         </div>
 
-                        {/* Yearly summaries */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi Tahun Ini</h5>
-                                <p className="text-2xl font-black text-gray-800">{yearlyData.totalTx}</p>
+                        {isYearlyLoading ? (
+                            <div className="p-16 text-center text-gray-400 bg-white rounded-2xl border border-gray-100 flex flex-col items-center justify-center gap-3">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ayumi-primary"></div>
+                                <span className="text-sm font-semibold text-gray-500">Memuat laporan tahunan...</span>
                             </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan Setahun</h5>
-                                <p className="text-2xl font-black text-green-600 ">{formatCurrency(yearlyData.revenue)}</p>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Bulan Terbaik (Pendapatan)</h5>
-                                <p className="text-xl font-black text-ayumi-primary">{yearlyData.bestMonth}</p>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">YoY Growth</h5>
-                                <span className={`text-lg font-black ${yearlyData.growthPercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                    {yearlyData.growthPercent >= 0 ? `▲ +${yearlyData.growthPercent.toFixed(1)}%` : `▼ ${yearlyData.growthPercent.toFixed(1)}%`}
-                                </span>
-                            </div>
-                        </div>
+                        ) : (
+                            <>
+                                {/* Yearly summaries */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Transaksi Tahun Ini</h5>
+                                        <p className="text-2xl font-black text-gray-800">{yearlyData.totalTx}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Pendapatan Setahun</h5>
+                                        <p className="text-2xl font-black text-green-600 ">{formatCurrency(yearlyData.revenue)}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Bulan Terbaik (Pendapatan)</h5>
+                                        <p className="text-xl font-black text-ayumi-primary">{yearlyData.bestMonth}</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">YoY Growth</h5>
+                                        <span className={`text-lg font-black ${yearlyData.growthPercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                            {yearlyData.growthPercent >= 0 ? `▲ +${yearlyData.growthPercent.toFixed(1)}%` : `▼ ${yearlyData.growthPercent.toFixed(1)}%`}
+                                        </span>
+                                    </div>
+                                </div>
 
-                        {/* Chart: Revenue per month */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                            <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Pendapatan per Bulan</h4>
-                            <div className="h-64">
-                                {isMounted ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={yearlyData.monthlyRevenue} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#888' }} />
-                                            <YAxis tick={{ fontSize: 10, fill: '#888' }} />
-                                            <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                                            <Line type="monotone" dataKey="pendapatan" stroke="#6B3A5A" strokeWidth={3} activeDot={{ r: 6 }} />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
-                                )}
-                            </div>
-                        </div>
+                                {/* Chart: Revenue per month */}
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                    <h4 className="text-sm font-bold text-ayumi-secondary mb-4">Grafik Pendapatan per Bulan</h4>
+                                    <div className="h-64">
+                                        {isMounted ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <LineChart data={yearlyData.monthlyRevenue} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#888' }} />
+                                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                                    <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
+                                                    <Line type="monotone" dataKey="pendapatan" stroke="#6B3A5A" strokeWidth={3} activeDot={{ r: 6 }} />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full bg-gray-50 animate-pulse rounded-2xl" />
+                                        )}
+                                    </div>
+                                </div>
 
-                        {/* Best Selling Items of the Year */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-purple-50/20 p-5 rounded-2xl border border-purple-100/50">
-                            <div>
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Top Treatment Tahun Ini</h5>
-                                <p className="text-base font-extrabold text-purple-900">{yearlyData.topTreatment}</p>
-                            </div>
-                            <div>
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Top Produk Tahun Ini</h5>
-                                <p className="text-base font-extrabold text-orange-700">{yearlyData.topProduct}</p>
-                            </div>
-                            <div>
-                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Top Kupon Tahun Ini</h5>
-                                <p className="text-base font-extrabold text-pink-700">{yearlyData.topCoupon}</p>
-                            </div>
-                        </div>
+                                {/* Best Selling Items of the Year */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-purple-50/20 p-5 rounded-2xl border border-purple-100/50">
+                                    <div>
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Top Treatment Tahun Ini</h5>
+                                        <p className="text-base font-extrabold text-purple-900">{yearlyData.topTreatment}</p>
+                                    </div>
+                                    <div>
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Top Produk Tahun Ini</h5>
+                                        <p className="text-base font-extrabold text-orange-700">{yearlyData.topProduct}</p>
+                                    </div>
+                                    <div>
+                                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Top Kupon Tahun Ini</h5>
+                                        <p className="text-base font-extrabold text-pink-700">{yearlyData.topCoupon}</p>
+                                    </div>
+                                </div>
 
-                        {/* Pivot comparison table */}
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
-                            <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Tabel Perbandingan Cabang per Bulan</h4>
-                            <table className="whitespace-nowrap w-full text-left text-[11px] border-collapse min-w-[700px]">
-                                <thead>
-                                    <tr className="bg-gray-100 text-gray-600 font-bold border-b border-gray-200">
-                                        <th className="p-2">Cabang</th>
-                                        {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map(m => (
-                                            <th key={m} className="p-2 text-right">{m}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50 font-medium text-gray-700">
-                                    {yearlyData.branchPivotList.map(row => (
-                                        <tr key={row.branchName} className="hover:bg-gray-50/50">
-                                            <td className="p-2 font-bold text-gray-900">{row.branchName}</td>
-                                            {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map(m => (
-                                                <td key={m} className="p-2 text-right  text-[10px]">{row[m] > 0 ? formatCurrency(row[m]).substring(3) : '-'}</td>
+                                {/* Pivot comparison table */}
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+                                    <h4 className="text-sm font-bold text-ayumi-secondary mb-3">Tabel Perbandingan Cabang per Bulan</h4>
+                                    <table className="whitespace-nowrap w-full text-left text-[11px] border-collapse min-w-[700px]">
+                                        <thead>
+                                            <tr className="bg-gray-100 text-gray-600 font-bold border-b border-gray-200">
+                                                <th className="p-2">Cabang</th>
+                                                {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map(m => (
+                                                    <th key={m} className="p-2 text-right">{m}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 font-medium text-gray-700">
+                                            {yearlyData.branchPivotList.map(row => (
+                                                <tr key={row.branchName} className="hover:bg-gray-50/50">
+                                                    <td className="p-2 font-bold text-gray-900">{row.branchName}</td>
+                                                    {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'].map(m => (
+                                                        <td key={m} className="p-2 text-right  text-[10px]">{row[m] > 0 ? formatCurrency(row[m]).substring(3) : '-'}</td>
+                                                    ))}
+                                                </tr>
                                             ))}
-                                        </tr>
-                                    ))}
-                                    {yearlyData.branchPivotList.length === 0 && (
-                                        <tr><td colSpan="13" className="p-4 text-center text-gray-400">Tidak ada data.</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                            {yearlyData.branchPivotList.length === 0 && (
+                                                <tr><td colSpan="13" className="p-4 text-center text-gray-400">Tidak ada data.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -2752,9 +3073,17 @@ export default function TransactionsPage() {
                             <div className="sm:col-span-2 lg:col-span-4 flex justify-between gap-3 pt-2">
                                 <button
                                     onClick={handleGenerateCustomReport}
-                                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex-1"
+                                    disabled={isCustomGenerating}
+                                    className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex-1 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                                 >
-                                    Generate Laporan
+                                    {isCustomGenerating ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            <span>Memuat Laporan...</span>
+                                        </>
+                                    ) : (
+                                        'Generate Laporan'
+                                    )}
                                 </button>
                                 {customReportResult && (
                                     <div className="flex items-center gap-2">
@@ -2858,7 +3187,7 @@ export default function TransactionsPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-center p-12 text-gray-400 bg-gray-50 rounded-2xl font-semibold">Tentukan rentang tanggal dan klik "Generate Laporan".</div>
+                            <div className="text-center p-12 text-gray-400 bg-gray-50 rounded-2xl font-semibold">Tentukan rentang tanggal dan klik &quot;Generate Laporan&quot;.</div>
                         )}
                     </div>
                 )}

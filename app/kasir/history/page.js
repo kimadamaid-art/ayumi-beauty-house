@@ -1,11 +1,19 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser } from '@/lib/cachedUser'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
 import { getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 import toast from 'react-hot-toast'
+
+const getLocalYYYYMMDD = (d = new Date()) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
 
 export default function TransactionsHistoryPage() {
     const [transactions, setTransactions] = useState([])
@@ -15,74 +23,100 @@ export default function TransactionsHistoryPage() {
     const [isDeletingId, setIsDeletingId] = useState(null)
 
     // Filters
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
-    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+    const [startDate, setStartDate] = useState(() => getLocalYYYYMMDD())
+    const [endDate, setEndDate] = useState(() => getLocalYYYYMMDD())
     const [selectedBranch, setSelectedBranch] = useState('')
     const [paymentMethod, setPaymentMethod] = useState('')
 
-    async function fetchInitialData() {
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(25)
+
+    const isInitializedRef = useRef(false)
+
+    // Fetch transactions helper
+    const fetchTransactions = async (activeBranch = selectedBranch, activeStart = startDate, activeEnd = endDate, activeMethod = paymentMethod) => {
         setIsLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-            if (uData) {
-                setDbUser(uData)
-                if (uData.role !== 'owner') {
-                    setSelectedBranch(uData.branch_id || '')
+        try {
+            let query = supabase
+                .from('transactions')
+                .select(`
+                    *,
+                    branches (name),
+                    patients (full_name),
+                    users:users!transactions_cashier_id_fkey(full_name)
+                `)
+                .order('created_at', { ascending: false })
+
+            // Apply filters with local timezone conversion
+            if (activeStart) {
+                query = query.gte('created_at', new Date(`${activeStart}T00:00:00`).toISOString())
+            }
+            if (activeEnd) {
+                query = query.lte('created_at', new Date(`${activeEnd}T23:59:59.999`).toISOString())
+            }
+            if (activeBranch) {
+                query = query.eq('branch_id', activeBranch)
+            }
+            if (activeMethod) {
+                query = query.eq('payment_method', activeMethod)
+            }
+
+            const { data, error } = await query
+            if (error) throw error
+            if (data) setTransactions(data)
+        } catch (err) {
+            console.error('Error fetching transactions:', err)
+            toast.error('Gagal memuat transaksi: ' + (err.message || ''))
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    // Single Initial Load
+    useEffect(() => {
+        let isCurrent = true
+        async function fetchInitialData() {
+            setIsLoading(true)
+            try {
+                const [{ dbUser: profile }, brRes] = await Promise.all([
+                    getCachedUser(),
+                    supabase.from('branches').select('id, name').eq('is_active', true)
+                ])
+
+                if (!isCurrent) return
+
+                let initialBranch = ''
+                if (profile) {
+                    setDbUser(profile)
+                    if (profile.role !== 'owner') {
+                        initialBranch = profile.branch_id || ''
+                        setSelectedBranch(initialBranch)
+                    }
                 }
-            } else {
-                setDbUser({ role: 'owner', id: user.id })
+
+                if (brRes.data) setBranches(brRes.data)
+
+                await fetchTransactions(initialBranch, startDate, endDate, paymentMethod)
+            } catch (err) {
+                console.error('Error in initial load:', err)
+            } finally {
+                if (isCurrent) {
+                    setIsLoading(false)
+                    isInitializedRef.current = true
+                }
             }
         }
 
-        const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
-        if (brData) setBranches(brData)
-    }
-
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchInitialData()
-    }, [supabase])
+        return () => { isCurrent = false }
+    }, [])
 
-    async function fetchTransactions() {
-        setIsLoading(true)
-        
-        let query = supabase
-            .from('transactions')
-            .select(`
-                *,
-                branches (name),
-                patients (full_name),
-                users:users!transactions_cashier_id_fkey(full_name)
-            `)
-            .order('created_at', { ascending: false })
-
-        // Apply filters
-        if (startDate) {
-            query = query.gte('created_at', `${startDate}T00:00:00Z`)
-        }
-        if (endDate) {
-            query = query.lte('created_at', `${endDate}T23:59:59Z`)
-        }
-        if (selectedBranch) {
-            query = query.eq('branch_id', selectedBranch)
-        }
-        if (paymentMethod) {
-            query = query.eq('payment_method', paymentMethod)
-        }
-
-        const { data, error } = await query
-        
-        if (data) setTransactions(data)
-        setIsLoading(false)
-    }
-
+    // Re-fetch when filters change (ONLY after initialization)
     useEffect(() => {
-        if (dbUser) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            fetchTransactions()
-        }
-    }, [dbUser, startDate, endDate, selectedBranch, paymentMethod])
+        if (!isInitializedRef.current) return
+        fetchTransactions(selectedBranch, startDate, endDate, paymentMethod)
+    }, [startDate, endDate, selectedBranch, paymentMethod])
 
     // Single derived state: ONLY transactions with payment_status === 'paid' for financial calculations
     const validTransactions = useMemo(
@@ -99,6 +133,15 @@ export default function TransactionsHistoryPage() {
         () => validTransactions.reduce((sum, trx) => sum + getQrisFee(trx), 0),
         [validTransactions]
     )
+
+    // Pagination calculations
+    const totalPages = Math.ceil(transactions.length / pageSize) || 1
+    const safePage = Math.min(currentPage, totalPages)
+    const paginatedTransactions = useMemo(() => {
+        if (pageSize === -1) return transactions
+        const start = (safePage - 1) * pageSize
+        return transactions.slice(start, start + pageSize)
+    }, [transactions, safePage, pageSize])
 
     const handleDeleteTx = async (trx) => {
         if (!trx) return
@@ -131,7 +174,7 @@ export default function TransactionsHistoryPage() {
             }
 
             toast.success(resData.message || `Transaksi ${trx.transaction_number} berhasil dihapus.`, { id: loadToast })
-            fetchTransactions()
+            fetchTransactions(selectedBranch, startDate, endDate, paymentMethod)
         } catch (err) {
             console.error('Error deleting transaction:', err)
             toast.error(err.message || 'Gagal menghapus transaksi.', { id: loadToast })
@@ -184,6 +227,7 @@ export default function TransactionsHistoryPage() {
                             onChange={(range) => {
                                 setStartDate(range.startDate);
                                 setEndDate(range.endDate);
+                                setCurrentPage(1);
                             }}
                             inputClassName="w-full input-ayumi bg-gray-50 text-sm"
                         />
@@ -193,7 +237,10 @@ export default function TransactionsHistoryPage() {
                             <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Cabang</label>
                             <select
                                 value={selectedBranch}
-                                onChange={(e) => setSelectedBranch(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedBranch(e.target.value);
+                                    setCurrentPage(1);
+                                }}
                                 className="input-ayumi bg-gray-50 text-sm w-full"
                             >
                                 <option value="">Semua Cabang</option>
@@ -207,7 +254,10 @@ export default function TransactionsHistoryPage() {
                         <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Metode Bayar</label>
                         <select
                             value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            onChange={(e) => {
+                                setPaymentMethod(e.target.value);
+                                setCurrentPage(1);
+                            }}
                             className="input-ayumi bg-gray-50 text-sm w-full"
                         >
                             <option value="">Semua Metode</option>
@@ -223,97 +273,177 @@ export default function TransactionsHistoryPage() {
 
             {/* Table */}
             <div className="card-ayumi overflow-hidden">
-                {isLoading ? (
-                    <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat riwayat transaksi...</div>
-                ) : transactions.length === 0 ? (
-                    <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada transaksi pada periode ini.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="whitespace-nowrap w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
-                                    <th className="p-4 font-semibold">No. Transaksi</th>
-                                    <th className="p-4 font-semibold">Tanggal</th>
-                                    <th className="p-4 font-semibold">Cabang</th>
-                                    <th className="p-4 font-semibold">Pelanggan</th>
-                                    <th className="p-4 font-semibold">Metode</th>
-                                    <th className="p-4 font-semibold text-right">Total (Rp)</th>
-                                    <th className="p-4 font-semibold text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50 text-sm">
-                                {transactions.map((trx) => (
-                                    <tr key={trx.id} className="hover:bg-ayumi-table-hover transition-colors">
-                                        <td className="p-4 font-bold text-gray-800 text-xs">
-                                            {trx.transaction_number}
-                                        </td>
-                                        <td className="p-4 text-gray-600">
-                                            {formatDate(trx.created_at)}
-                                        </td>
-                                        <td className="p-4 text-gray-600">
-                                            {trx.branches?.name || '-'}
-                                        </td>
-                                        <td className="p-4">
-                                            {trx.patients?.full_name ? (
-                                                trx.patient_id ? (
-                                                    <Link
-                                                        href={`/patients/${trx.patient_id}`}
-                                                        className="font-bold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group"
-                                                        title="Buka Profil & Riwayat Pasien"
-                                                    >
-                                                        <span>{trx.patients.full_name}</span>
-                                                        <span className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
-                                                    </Link>
-                                                ) : (
-                                                    <span className="font-semibold text-ayumi-primary">{trx.patients.full_name}</span>
-                                                )
-                                            ) : (
-                                                <span className="text-gray-400 italic">Walk-in</span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 text-gray-600 uppercase text-xs font-bold tracking-wider">
-                                            <div className="flex items-center gap-1.5">
-                                                <span>{trx.payment_method}</span>
-                                                {trx.payment_status === 'void' ? (
-                                                    <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-black">VOID</span>
-                                                ) : (
-                                                    <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black">LUNAS</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className={`p-4 text-right font-bold ${trx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                                            {trx.total.toLocaleString('id-ID')}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <Link href={`/kasir/transactions/${trx.id}`}>
-                                                    <button 
-                                                        className="text-ayumi-primary hover:text-ayumi-secondary p-1.5 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors flex items-center gap-1.5 px-3 text-xs font-semibold"
-                                                    >
-                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                        Detail
-                                                    </button>
-                                                </Link>
-                                                {dbUser?.role === 'owner' && (
-                                                    <button
-                                                        onClick={() => handleDeleteTx(trx)}
-                                                        disabled={isDeletingId === trx.id}
-                                                        className="text-rose-600 hover:text-rose-700 p-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors flex items-center gap-1 px-2.5 text-xs font-semibold disabled:opacity-50"
-                                                        title="Hapus Transaksi Permanen (Khusus Owner)"
-                                                    >
-                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                        <span>{isDeletingId === trx.id ? '...' : 'Hapus'}</span>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-gray-50/50">
+                    <div className="text-xs font-bold text-gray-500">
+                        Total {transactions.length} Transaksi Terpilih
                     </div>
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 font-semibold">Tampilkan:</label>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => {
+                                setPageSize(Number(e.target.value))
+                                setCurrentPage(1)
+                            }}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-ayumi-primary"
+                        >
+                            <option value={10}>10 baris</option>
+                            <option value={25}>25 baris</option>
+                            <option value={50}>50 baris</option>
+                            <option value={100}>100 baris</option>
+                            <option value={-1}>Semua ({transactions.length})</option>
+                        </select>
+                    </div>
+                </div>
+
+                {isLoading ? (
+                    <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3">
+                        <div className="animate-spin w-8 h-8 border-3 border-ayumi-primary border-t-transparent rounded-full"></div>
+                        <span className="text-sm font-semibold text-gray-500">Memuat riwayat transaksi...</span>
+                    </div>
+                ) : transactions.length === 0 ? (
+                    <div className="p-10 text-center text-gray-400">Tidak ada transaksi pada periode ini.</div>
+                ) : (
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="whitespace-nowrap w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
+                                        <th className="p-4 font-semibold">No. Transaksi</th>
+                                        <th className="p-4 font-semibold">Tanggal</th>
+                                        <th className="p-4 font-semibold">Cabang</th>
+                                        <th className="p-4 font-semibold">Pelanggan</th>
+                                        <th className="p-4 font-semibold">Metode</th>
+                                        <th className="p-4 font-semibold text-right">Total (Rp)</th>
+                                        <th className="p-4 font-semibold text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50 text-sm">
+                                    {paginatedTransactions.map((trx) => (
+                                        <tr key={trx.id} className="hover:bg-ayumi-table-hover transition-colors">
+                                            <td className="p-4 font-bold text-gray-800 text-xs">
+                                                {trx.transaction_number}
+                                            </td>
+                                            <td className="p-4 text-gray-600">
+                                                {formatDate(trx.created_at)}
+                                            </td>
+                                            <td className="p-4 text-gray-600">
+                                                {trx.branches?.name || '-'}
+                                            </td>
+                                            <td className="p-4">
+                                                {trx.patients?.full_name ? (
+                                                    trx.patient_id ? (
+                                                        <Link
+                                                            href={`/patients/${trx.patient_id}`}
+                                                            className="font-bold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group"
+                                                            title="Buka Profil & Riwayat Pasien"
+                                                        >
+                                                            <span>{trx.patients.full_name}</span>
+                                                            <span className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="font-semibold text-ayumi-primary">{trx.patients.full_name}</span>
+                                                    )
+                                                ) : (
+                                                    <span className="text-gray-400 italic">Walk-in</span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-gray-600 uppercase text-xs font-bold tracking-wider">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span>{trx.payment_method}</span>
+                                                    {trx.payment_status === 'void' ? (
+                                                        <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-black">VOID</span>
+                                                    ) : (
+                                                        <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black">LUNAS</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className={`p-4 text-right font-bold ${trx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                                                {trx.total.toLocaleString('id-ID')}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <Link href={`/kasir/transactions/${trx.id}`}>
+                                                        <button 
+                                                            className="text-ayumi-primary hover:text-ayumi-secondary p-1.5 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors flex items-center gap-1.5 px-3 text-xs font-semibold"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                            Detail
+                                                        </button>
+                                                    </Link>
+                                                    {dbUser?.role === 'owner' && (
+                                                        <button
+                                                            onClick={() => handleDeleteTx(trx)}
+                                                            disabled={isDeletingId === trx.id}
+                                                            className="text-rose-600 hover:text-rose-700 p-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors flex items-center gap-1 px-2.5 text-xs font-semibold disabled:opacity-50"
+                                                            title="Hapus Transaksi Permanen (Khusus Owner)"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                            <span>{isDeletingId === trx.id ? '...' : 'Hapus'}</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination Bar */}
+                        {pageSize !== -1 && transactions.length > pageSize && (
+                            <div className="px-5 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-gray-50/40">
+                                <span className="text-gray-500 font-medium">
+                                    Menampilkan {((safePage - 1) * pageSize) + 1} - {Math.min(safePage * pageSize, transactions.length)} dari {transactions.length} transaksi
+                                </span>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={safePage === 1}
+                                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        &larr; Prev
+                                    </button>
+                                    <div className="flex items-center gap-1 px-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                            .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                                            .reduce((acc, p, idx, arr) => {
+                                                if (idx > 0 && p - arr[idx - 1] > 1) {
+                                                    acc.push(-1 * p)
+                                                }
+                                                acc.push(p)
+                                                return acc
+                                            }, [])
+                                            .map((p, idx) => p < 0 ? (
+                                                <span key={`ellipsis-${idx}`} className="px-1 text-gray-400 font-bold">&hellip;</span>
+                                            ) : (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setCurrentPage(p)}
+                                                    className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
+                                                        safePage === p
+                                                            ? 'bg-ayumi-primary text-white shadow-sm'
+                                                            : 'text-gray-600 hover:bg-white border border-transparent hover:border-gray-200'
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))
+                                        }
+                                    </div>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={safePage === totalPages}
+                                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        Next &rarr;
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
