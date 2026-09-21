@@ -172,6 +172,14 @@ export default function AppointmentsPage() {
         return notes.includes('[INFUS - WORKER') || (isInfusAppointment(apt) && !apt.therapist_id)
     }
 
+    const isTreatmentAppointment = (apt) => {
+        if (!apt) return false
+        // Jika ada terapis yang ditugaskan, jadwal ini melibatkan tindakan terapis
+        if (apt.therapist_id) return true
+        // Atau jika bukan infus murni worker
+        return !isWorkerInfus(apt)
+    }
+
     const getCleanTreatmentTitle = (apt, fallback = 'Treatment') => {
         const directTreatments = apt.appointment_treatments?.map(at => at.treatments?.name).filter(Boolean).join(', ')
         if (directTreatments) return directTreatments
@@ -799,7 +807,7 @@ export default function AppointmentsPage() {
                                                                 })
 
                                                                 const infusApts = hourApts.filter(a => isInfusAppointment(a))
-                                                                const treatmentApts = hourApts.filter(a => !isInfusAppointment(a))
+                                                                const treatmentApts = hourApts.filter(a => isTreatmentAppointment(a))
 
                                                                 return (
                                                                     <div key={hourStr} className="flex items-stretch gap-3 py-2 border-b border-slate-100 hover:bg-slate-50/30 transition-colors min-h-[50px]">
@@ -875,6 +883,11 @@ export default function AppointmentsPage() {
                                                                                                         <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/70">
                                                                                                             • Worker
                                                                                                         </span>
+                                                                                                        {apt.therapist?.full_name && (
+                                                                                                            <span className="text-[9.5px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200/70" title={`Terapis: ${apt.therapist.full_name}`}>
+                                                                                                                + {apt.therapist.full_name.split(' ')[0]}
+                                                                                                            </span>
+                                                                                                        )}
                                                                                                     </div>
                                                                                                 </div>
 
@@ -983,6 +996,11 @@ export default function AppointmentsPage() {
                                                                                                         ) : (
                                                                                                             <span className="text-[9.5px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.2 rounded">
                                                                                                                 • Terapis Kosong
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                        {isInfusAppointment(apt) && (
+                                                                                                            <span className="text-[9.5px] font-bold text-cyan-700 bg-cyan-50 px-1.5 py-0.2 rounded border border-cyan-200/70">
+                                                                                                                + Infus
                                                                                                             </span>
                                                                                                         )}
                                                                                                     </div>

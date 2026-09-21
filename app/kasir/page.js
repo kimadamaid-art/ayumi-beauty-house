@@ -1391,6 +1391,7 @@ function PosPageContent() {
                     price = item.price * (1 - item.discount_percent / 100)
                 }
 
+                const isInfus = type === 'treatment' && isInfusionTreatment(item.name)
                 return [...prev, {
                     id: item.id,
                     product_id: type === 'product' ? item.id : null,
@@ -1403,7 +1404,9 @@ function PosPageContent() {
                     discount_percent: isUsingCoupon ? 100 : (type === 'treatment' ? (item.discount_percent || 0) : 0),
                     quantity: 1,
                     maxQuantity: type === 'product' ? item.quantity : null,
-                    commission_percent: type === 'treatment' ? (item.commission_percent || 0) : 0,
+                    commission_percent: type === 'treatment' ? (isInfus ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : 5)) : 0,
+                    therapist_id: isInfus ? 'worker' : null,
+                    is_worker: isInfus,
                     is_using_coupon: isUsingCoupon,
                     coupon_already_deducted: false, // direct pos addition, will deduct upon checkout
                     used_coupon_item_id: usedCouponItemId,
@@ -1510,13 +1513,14 @@ function PosPageContent() {
                     discount_percent: discountPercent,
                     custom_discount_nominal: customDiscountNominal,
                     subtotal: unitPrice * qty,
-                    commission_percent: itemType === 'treatment' ? (item.commission_percent || 0) : 0,
+                    commission_percent: itemType === 'treatment' ? (isInfusionTreatment(cartItemName || item.name) ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : 5)) : 0,
                     is_using_coupon: isUsingCoupon,
                     coupon_already_deducted: false,
                     used_coupon_item_id: usedCouponItemId,
                     coupon_package_name: couponPackageName,
                     remaining_sessions: remainingSessions,
-                    therapist_id: selectedTherapistId || (therapists[0]?.id || '')
+                    therapist_id: (itemType === 'treatment' && isInfusionTreatment(cartItemName || item.name)) ? 'worker' : (selectedTherapistId || (therapists[0]?.id || '')),
+                    is_worker: itemType === 'treatment' && isInfusionTreatment(cartItemName || item.name)
                 }
             ]
         })
@@ -1925,17 +1929,21 @@ function PosPageContent() {
                     await supabase.from('treatment_record_items').delete().eq('treatment_record_id', finalTrId)
 
                     // 2. Masukkan item baru sesuai isi keranjang yang dibayar
-                    const trItemPayloads = treatmentItems.map((it, sIdx) => ({
-                        treatment_record_id: finalTrId,
-                        treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
-                        price_at_time: it.price,
-                        original_price: it.original_price || it.price,
-                        discount_percent: it.discount_percent || 0,
-                        commission_percent: it.commission_percent !== undefined && it.commission_percent !== null ? it.commission_percent : 5,
-                        notes: it.name,
-                        sort_order: sIdx + 1,
-                        ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
-                    }))
+                    const trItemPayloads = treatmentItems.map((it, sIdx) => {
+                        const isInfus = isInfusionTreatment(it.name, it.notes)
+                        const isWorker = isInfus || it.is_worker || it.therapist_id === 'worker'
+                        return {
+                            treatment_record_id: finalTrId,
+                            treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
+                            price_at_time: it.price,
+                            original_price: it.original_price || it.price,
+                            discount_percent: it.discount_percent || 0,
+                            commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
+                            notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
+                            sort_order: sIdx + 1,
+                            ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
+                        }
+                    })
                     await supabase.from('treatment_record_items').insert(trItemPayloads)
 
                     // 3. Pastikan terapis pelaksana tercatat
@@ -1991,8 +1999,9 @@ function PosPageContent() {
                 const itemsForExistingTr = []
 
                 directTreatmentItems.forEach(tItem => {
-                    const thId = tItem.therapist_id || selectedTherapistId || existingPerformer
-                    const isWorker = thId === 'worker'
+                    const isInfus = isInfusionTreatment(tItem.name, tItem.notes)
+                    const thId = isInfus ? 'worker' : (tItem.therapist_id || selectedTherapistId || existingPerformer)
+                    const isWorker = isInfus || thId === 'worker'
 
                     if (finalTrId && !isWorker && (!thId || thId === existingPerformer)) {
                         itemsForExistingTr.push(tItem)
@@ -2016,17 +2025,21 @@ function PosPageContent() {
                         .select('*', { count: 'exact', head: true })
                         .eq('treatment_record_id', finalTrId)
 
-                    const trItemPayloads = itemsForExistingTr.map((it, sIdx) => ({
-                        treatment_record_id: finalTrId,
-                        treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
-                        price_at_time: it.price,
-                        original_price: it.original_price || it.price,
-                        discount_percent: it.discount_percent || 0,
-                        commission_percent: it.commission_percent || 5,
-                        notes: it.name,
-                        sort_order: (currentCount || 0) + sIdx + 1,
-                        ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
-                    }))
+                    const trItemPayloads = itemsForExistingTr.map((it, sIdx) => {
+                        const isInfus = isInfusionTreatment(it.name, it.notes)
+                        const isWorker = isInfus || it.is_worker || it.therapist_id === 'worker'
+                        return {
+                            treatment_record_id: finalTrId,
+                            treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
+                            price_at_time: it.price,
+                            original_price: it.original_price || it.price,
+                            discount_percent: it.discount_percent || 0,
+                            commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
+                            notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
+                            sort_order: (currentCount || 0) + sIdx + 1,
+                            ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
+                        }
+                    })
                     await supabase.from('treatment_record_items').insert(trItemPayloads)
                 }
 
@@ -2052,17 +2065,21 @@ function PosPageContent() {
                     if (newTr?.id) {
                         if (!finalTrId) finalTrId = newTr.id
 
-                        const trItemPayloads = group.items.map((it, sIdx) => ({
-                            treatment_record_id: newTr.id,
-                            treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
-                            price_at_time: it.price,
-                            original_price: it.original_price || it.price,
-                            discount_percent: it.discount_percent || 0,
-                            commission_percent: it.commission_percent || 5,
-                            notes: it.name,
-                            sort_order: sIdx + 1,
-                            ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
-                        }))
+                        const trItemPayloads = group.items.map((it, sIdx) => {
+                            const isInfus = isInfusionTreatment(it.name, it.notes)
+                            const isWorker = group.isWorker || isInfus || it.is_worker || it.therapist_id === 'worker'
+                            return {
+                                treatment_record_id: newTr.id,
+                                treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
+                                price_at_time: it.price,
+                                original_price: it.original_price || it.price,
+                                discount_percent: it.discount_percent || 0,
+                                commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
+                                notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
+                                sort_order: sIdx + 1,
+                                ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
+                            }
+                        })
                         await supabase.from('treatment_record_items').insert(trItemPayloads)
                     }
                 }
