@@ -12,19 +12,7 @@ import StatCard from '@/components/ui/StatCard'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
 import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
-import { 
-    BarChart, 
-    Bar, 
-    XAxis, 
-    YAxis, 
-    CartesianGrid, 
-    Tooltip as RechartsTooltip, 
-    ResponsiveContainer, 
-    Legend,
-    PieChart,
-    Pie,
-    Cell
-} from 'recharts'
+import LazyRecharts from '@/components/charts/LazyRecharts'
 
 // Module-level persistent caches (preserved across client navigation within session)
 let globalCategoriesCache = null
@@ -1738,15 +1726,16 @@ export default function Dashboard() {
                                 {/* Recharts Bar Chart Grouped */}
                                 <div className="h-64 sm:h-72 w-full pt-2">
                             {isMounted && branchDailyComparison.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart 
+                                <LazyRecharts render={(R) => (
+                                <R.ResponsiveContainer width="100%" height="100%">
+                                    <R.BarChart 
                                         data={branchDailyComparison} 
                                         barGap={4} 
                                         barCategoryGap="18%"
                                         margin={{ top: 15, right: 10, left: 0, bottom: 20 }}
                                     >
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                        <XAxis 
+                                        <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <R.XAxis 
                                             dataKey="branchName" 
                                             interval={0}
                                             tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
@@ -1754,7 +1743,7 @@ export default function Dashboard() {
                                             axisLine={{ stroke: '#cbd5e1' }}
                                             tickLine={false} 
                                         />
-                                        <YAxis 
+                                        <R.YAxis 
                                             width={42}
                                             tickFormatter={(val) => {
                                                 if (val === 0) return '0'
@@ -1766,23 +1755,24 @@ export default function Dashboard() {
                                             axisLine={false}
                                             tickLine={false}
                                         />
-                                        <RechartsTooltip 
+                                        <R.Tooltip 
                                             formatter={(value, name) => ['Rp ' + Number(value).toLocaleString('id-ID'), name]}
                                             itemSorter={(item) => (item.name.includes('Treatment') ? -1 : 1)}
                                             labelStyle={{ fontWeight: 'bold', color: '#5c3316', fontSize: '13px' }}
                                             contentStyle={{ borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', border: '1px solid #f472b6', padding: '10px 14px' }}
                                         />
-                                        <Legend 
+                                        <R.Legend 
                                             verticalAlign="top" 
                                             align="center"
                                             wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '12px', color: '#0f172a' }} 
                                         />
-                                        <Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#EC4899" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <Bar dataKey="couponUsedValue" name="Pemakaian Sesi" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                        <R.Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#EC4899" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <R.Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <R.Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                        <R.Bar dataKey="couponUsedValue" name="Pemakaian Sesi" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                    </R.BarChart>
+                                </R.ResponsiveContainer>
+                                )} />
                             ) : (
                                 <div className="h-full flex items-center justify-center text-sm font-semibold text-gray-500">
                                     Mengambil data cabang...
@@ -2342,11 +2332,12 @@ export default function Dashboard() {
                                     </div>
                                     <div className="h-60 sm:h-64 w-full pt-2">
                                         {isMounted && dayOfWeekStats.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart data={dayOfWeekStats} margin={{ top: 15, right: 10, left: 0, bottom: 5 }}>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                    <XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 700, fill: '#334155' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                                                    <YAxis 
+                                            <LazyRecharts render={(R) => (
+                                            <R.ResponsiveContainer width="100%" height="100%">
+                                                <R.BarChart data={dayOfWeekStats} margin={{ top: 15, right: 10, left: 0, bottom: 5 }}>
+                                                    <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                    <R.XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 700, fill: '#334155' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                                                    <R.YAxis 
                                                         width={salesInsightMetric === 'sales' ? 45 : 30}
                                                         tickFormatter={(val) => {
                                                             if (salesInsightMetric === 'sales') {
@@ -2358,7 +2349,7 @@ export default function Dashboard() {
                                                         }}
                                                         tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} 
                                                     />
-                                                    <RechartsTooltip 
+                                                    <R.Tooltip 
                                                         formatter={(value) => [
                                                             salesInsightMetric === 'sales'
                                                                 ? 'Rp ' + Number(value).toLocaleString('id-ID')
@@ -2367,14 +2358,15 @@ export default function Dashboard() {
                                                         ]}
                                                         contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #fdba74' }}
                                                     />
-                                                    <Bar 
+                                                    <R.Bar 
                                                         dataKey={salesInsightMetric === 'sales' ? 'sales' : 'count'} 
                                                         fill="#f97316" 
                                                         radius={[6, 6, 0, 0]} 
                                                         maxBarSize={36} 
                                                     />
-                                                </BarChart>
-                                            </ResponsiveContainer>
+                                                </R.BarChart>
+                                            </R.ResponsiveContainer>
+                                            )} />
                                         ) : (
                                             <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat data harian...</div>
                                         )}
@@ -2404,11 +2396,12 @@ export default function Dashboard() {
                                     </div>
                                     <div className="h-60 sm:h-64 w-full pt-2">
                                         {isMounted && hourlyStats.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart data={hourlyStats} margin={{ top: 15, right: 10, left: 0, bottom: 5 }}>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                    <XAxis dataKey="hour" tick={{ fontSize: 10, fontWeight: 700, fill: '#334155' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                                                    <YAxis 
+                                            <LazyRecharts render={(R) => (
+                                            <R.ResponsiveContainer width="100%" height="100%">
+                                                <R.BarChart data={hourlyStats} margin={{ top: 15, right: 10, left: 0, bottom: 5 }}>
+                                                    <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                    <R.XAxis dataKey="hour" tick={{ fontSize: 10, fontWeight: 700, fill: '#334155' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                                                    <R.YAxis 
                                                         width={salesInsightMetric === 'sales' ? 45 : 30}
                                                         tickFormatter={(val) => {
                                                             if (salesInsightMetric === 'sales') {
@@ -2420,7 +2413,7 @@ export default function Dashboard() {
                                                         }}
                                                         tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} 
                                                     />
-                                                    <RechartsTooltip 
+                                                    <R.Tooltip 
                                                         formatter={(value) => [
                                                             salesInsightMetric === 'sales'
                                                                 ? 'Rp ' + Number(value).toLocaleString('id-ID')
@@ -2429,14 +2422,15 @@ export default function Dashboard() {
                                                         ]}
                                                         contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #fdba74' }}
                                                     />
-                                                    <Bar 
+                                                    <R.Bar 
                                                         dataKey={salesInsightMetric === 'sales' ? 'sales' : 'count'} 
                                                         fill="#ea580c" 
                                                         radius={[5, 5, 0, 0]} 
                                                         maxBarSize={22} 
                                                     />
-                                                </BarChart>
-                                            </ResponsiveContainer>
+                                                </R.BarChart>
+                                            </R.ResponsiveContainer>
+                                            )} />
                                         ) : (
                                             <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat data jam sibuk...</div>
                                         )}
@@ -2485,10 +2479,11 @@ export default function Dashboard() {
                                 </div>
                                 <div className="h-64 sm:h-72 w-full pt-2">
                                     {isMounted && categoryVolumeStats.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={categoryVolumeStats} margin={{ top: 15, right: 10, left: 0, bottom: 40 }}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                <XAxis 
+                                        <LazyRecharts render={(R) => (
+                                        <R.ResponsiveContainer width="100%" height="100%">
+                                            <R.BarChart data={categoryVolumeStats} margin={{ top: 15, right: 10, left: 0, bottom: 40 }}>
+                                                <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <R.XAxis 
                                                     dataKey="category" 
                                                     interval={0}
                                                     angle={-25}
@@ -2497,12 +2492,12 @@ export default function Dashboard() {
                                                     axisLine={{ stroke: '#cbd5e1' }} 
                                                     tickLine={false} 
                                                 />
-                                                <YAxis tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} width={30} />
-                                                <RechartsTooltip 
+                                                <R.YAxis tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} width={30} />
+                                                <R.Tooltip 
                                                     formatter={(value) => [`${value} Item / Sesi`, 'Kuantitas Terjual']}
                                                     contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #f472b6' }}
                                                 />
-                                                <Bar 
+                                                <R.Bar 
                                                     dataKey="volume" 
                                                     fill="#f97316" 
                                                     radius={[6, 6, 0, 0]} 
@@ -2512,8 +2507,9 @@ export default function Dashboard() {
                                                     }}
                                                     className="cursor-pointer"
                                                 />
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                            </R.BarChart>
+                                        </R.ResponsiveContainer>
+                                        )} />
                                     ) : (
                                         <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat kategori...</div>
                                     )}
@@ -2532,10 +2528,11 @@ export default function Dashboard() {
                                 </div>
                                 <div className="h-64 sm:h-72 w-full pt-2">
                                     {isMounted && categorySalesStats.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={categorySalesStats} margin={{ top: 15, right: 10, left: 0, bottom: 40 }}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                <XAxis 
+                                        <LazyRecharts render={(R) => (
+                                        <R.ResponsiveContainer width="100%" height="100%">
+                                            <R.BarChart data={categorySalesStats} margin={{ top: 15, right: 10, left: 0, bottom: 40 }}>
+                                                <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <R.XAxis 
                                                     dataKey="category" 
                                                     interval={0}
                                                     angle={-25}
@@ -2544,7 +2541,7 @@ export default function Dashboard() {
                                                     axisLine={{ stroke: '#cbd5e1' }} 
                                                     tickLine={false} 
                                                 />
-                                                <YAxis 
+                                                <R.YAxis 
                                                     width={46}
                                                     tickFormatter={(val) => {
                                                         if (val >= 1000000) return (val / 1000000).toFixed(0) + ' Jt'
@@ -2553,11 +2550,11 @@ export default function Dashboard() {
                                                     }}
                                                     tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} 
                                                 />
-                                                <RechartsTooltip 
+                                                <R.Tooltip 
                                                     formatter={(value) => ['Rp ' + Number(value).toLocaleString('id-ID'), 'Total Omset']}
                                                     contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #f472b6' }}
                                                 />
-                                                <Bar 
+                                                <R.Bar 
                                                     dataKey="sales" 
                                                     fill="#ec4899" 
                                                     radius={[6, 6, 0, 0]} 
@@ -2567,8 +2564,9 @@ export default function Dashboard() {
                                                     }}
                                                     className="cursor-pointer"
                                                 />
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                            </R.BarChart>
+                                        </R.ResponsiveContainer>
+                                        )} />
                                     ) : (
                                         <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat kategori...</div>
                                     )}
@@ -2969,9 +2967,10 @@ export default function Dashboard() {
                                             <div className="h-44 w-full relative flex items-center justify-center my-auto">
                                                 {isMounted && demographicGender.length > 0 ? (
                                                     <>
-                                                        <ResponsiveContainer width="100%" height="100%">
-                                                            <PieChart>
-                                                                <Pie
+                                                        <LazyRecharts render={(R) => (
+                                                        <R.ResponsiveContainer width="100%" height="100%">
+                                                            <R.PieChart>
+                                                                <R.Pie
                                                                     data={demographicGender}
                                                                     dataKey="value"
                                                                     nameKey="name"
@@ -2981,12 +2980,13 @@ export default function Dashboard() {
                                                                     outerRadius={72}
                                                                     paddingAngle={4}
                                                                 >
-                                                                    <Cell fill="#EC4899" />
-                                                                    <Cell fill="#06B6D4" />
-                                                                </Pie>
-                                                                <RechartsTooltip formatter={(val, name) => [`${val} Pasien`, name]} />
-                                                            </PieChart>
-                                                        </ResponsiveContainer>
+                                                                    <R.Cell fill="#EC4899" />
+                                                                    <R.Cell fill="#06B6D4" />
+                                                                </R.Pie>
+                                                                <R.Tooltip formatter={(val, name) => [`${val} Pasien`, name]} />
+                                                            </R.PieChart>
+                                                        </R.ResponsiveContainer>
+                                                        )} />
                                                         {/* Center Stat Inside Donut */}
                                                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                                             <span className="text-xl font-black text-[#EC4899] leading-none">
@@ -3246,9 +3246,10 @@ export default function Dashboard() {
                                                             <div className="w-36 h-36 relative flex items-center justify-center">
                                                                 {isMounted && totalPats > 0 ? (
                                                                     <>
-                                                                        <ResponsiveContainer width="100%" height="100%">
-                                                                            <PieChart>
-                                                                                <Pie
+                                                                        <LazyRecharts render={(R) => (
+                                                                        <R.ResponsiveContainer width="100%" height="100%">
+                                                                            <R.PieChart>
+                                                                                <R.Pie
                                                                                     data={[
                                                                                         { name: 'Pasien Baru', value: retentionStats.treatment.newCount },
                                                                                         { name: 'Pasien Loyal (Repeat)', value: retentionStats.treatment.oldCount }
@@ -3263,12 +3264,13 @@ export default function Dashboard() {
                                                                                     stroke="#ffffff"
                                                                                     strokeWidth={2.5}
                                                                                 >
-                                                                                    <Cell fill="#10B981" />
-                                                                                    <Cell fill="#B5588A" />
-                                                                                </Pie>
-                                                                                <RechartsTooltip formatter={(val, name) => [`${val} Pasien`, name]} />
-                                                                            </PieChart>
-                                                                        </ResponsiveContainer>
+                                                                                    <R.Cell fill="#10B981" />
+                                                                                    <R.Cell fill="#B5588A" />
+                                                                                </R.Pie>
+                                                                                <R.Tooltip formatter={(val, name) => [`${val} Pasien`, name]} />
+                                                                            </R.PieChart>
+                                                                        </R.ResponsiveContainer>
+                                                                        )} />
                                                                         {/* Center Stat inside Circle */}
                                                                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                                                             <span className="text-xl font-black text-[#B5588A] tracking-tight leading-none">
@@ -3414,9 +3416,10 @@ export default function Dashboard() {
                                                             <div className="w-36 h-36 relative flex items-center justify-center">
                                                                 {isMounted && totalPats > 0 ? (
                                                                     <>
-                                                                        <ResponsiveContainer width="100%" height="100%">
-                                                                            <PieChart>
-                                                                                <Pie
+                                                                        <LazyRecharts render={(R) => (
+                                                                        <R.ResponsiveContainer width="100%" height="100%">
+                                                                            <R.PieChart>
+                                                                                <R.Pie
                                                                                     data={[
                                                                                         { name: 'Pembeli Baru', value: retentionStats.product.newCount },
                                                                                         { name: 'Pembeli Loyal (Repeat)', value: retentionStats.product.oldCount }
@@ -3431,12 +3434,13 @@ export default function Dashboard() {
                                                                                     stroke="#ffffff"
                                                                                     strokeWidth={2.5}
                                                                                 >
-                                                                                    <Cell fill="#10B981" />
-                                                                                    <Cell fill="#06B6D4" />
-                                                                                </Pie>
-                                                                                <RechartsTooltip formatter={(val, name) => [`${val} Pasien`, name]} />
-                                                                            </PieChart>
-                                                                        </ResponsiveContainer>
+                                                                                    <R.Cell fill="#10B981" />
+                                                                                    <R.Cell fill="#06B6D4" />
+                                                                                </R.Pie>
+                                                                                <R.Tooltip formatter={(val, name) => [`${val} Pasien`, name]} />
+                                                                            </R.PieChart>
+                                                                        </R.ResponsiveContainer>
+                                                                        )} />
                                                                         {/* Center Stat inside Circle */}
                                                                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                                                             <span className="text-xl font-black text-[#06B6D4] tracking-tight leading-none">
@@ -3862,15 +3866,16 @@ export default function Dashboard() {
 
                     <div className="h-60 w-full pt-2">
                         {isMounted && branchDailyComparison.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart 
+                            <LazyRecharts render={(R) => (
+                            <R.ResponsiveContainer width="100%" height="100%">
+                                <R.BarChart 
                                     data={branchDailyComparison} 
                                     barGap={4} 
                                     barCategoryGap="25%"
                                     margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis 
+                                    <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <R.XAxis 
                                         dataKey="branchName" 
                                         interval={0}
                                         tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
@@ -3878,7 +3883,7 @@ export default function Dashboard() {
                                         axisLine={{ stroke: '#e2e8f0' }}
                                         tickLine={false} 
                                     />
-                                    <YAxis 
+                                    <R.YAxis 
                                         width={45}
                                         tickFormatter={(val) => {
                                             if (val === 0) return '0'
@@ -3890,20 +3895,21 @@ export default function Dashboard() {
                                         axisLine={false}
                                         tickLine={false} 
                                     />
-                                    <RechartsTooltip 
+                                    <R.Tooltip 
                                         formatter={(value, name) => ['Rp ' + Number(value).toLocaleString('id-ID'), name]}
                                         contentStyle={{ borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', fontSize: '12px' }}
                                     />
-                                    <Legend 
+                                    <R.Legend 
                                         verticalAlign="top" 
                                         align="right"
                                         wrapperStyle={{ paddingBottom: '8px', fontSize: '11px', fontWeight: '700' }} 
                                     />
-                                    <Bar dataKey="treatmentIncome" name="Treatment" fill="#EC4899" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                                    <Bar dataKey="productIncome" name="Produk" fill="#06B6D4" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                                    <Bar dataKey="couponSalesIncome" name="Kupon" fill="#8B5CF6" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                                    <R.Bar dataKey="treatmentIncome" name="Treatment" fill="#EC4899" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                                    <R.Bar dataKey="productIncome" name="Produk" fill="#06B6D4" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                                    <R.Bar dataKey="couponSalesIncome" name="Kupon" fill="#8B5CF6" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                                </R.BarChart>
+                            </R.ResponsiveContainer>
+                            )} />
                         ) : (
                             <div className="h-full flex items-center justify-center text-xs font-semibold text-stone-400">
                                 Memuat data grafik...
