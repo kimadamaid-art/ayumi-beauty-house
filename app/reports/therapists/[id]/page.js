@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
-import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -299,7 +298,7 @@ export default function TherapistDetailPage() {
     ]
 
     // Export to Excel
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (treatmentRecords.length === 0) {
             alert('Tidak ada data untuk diekspor pada filter terpilih.')
             return
@@ -326,6 +325,9 @@ export default function TherapistDetailPage() {
             }
         })
 
+        // xlsx (~860 KB) dimuat hanya saat benar-benar dipakai -- setelah pengecekan data
+        // kosong di atas, supaya pesan 'tidak ada data' tetap muncul seketika.
+        const XLSX = await import('xlsx')
         const ws = XLSX.utils.json_to_sheet(rows)
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, "Riwayat_Treatment")

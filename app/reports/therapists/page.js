@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
-import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
@@ -286,7 +285,7 @@ export default function TherapistsReportPage() {
 
     const fileInputRef = useRef(null)
 
-    const handleExcelExport = () => {
+    const handleExcelExport = async () => {
         if (therapistMetrics.length === 0) {
             alert('Tidak ada data untuk diexpor.')
             return
@@ -321,6 +320,9 @@ export default function TherapistsReportPage() {
             "Rata-rata Pendapatan / Sesi": ""
         })
 
+        // xlsx (~860 KB) dimuat hanya saat benar-benar dipakai -- setelah pengecekan data
+        // kosong di atas, supaya pesan 'tidak ada data' tetap muncul seketika.
+        const XLSX = await import('xlsx')
         const ws = XLSX.utils.json_to_sheet(rows)
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, "Laporan Komisi Terapis")

@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
-import * as XLSX from 'xlsx'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
 import { getWhatsAppUrl } from '@/lib/whatsapp'
@@ -367,7 +366,7 @@ export default function TreatmentDetailReportPage() {
     }, [patientVisits])
 
     // Excel Exporter
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (filteredRecords.length === 0) {
             alert('Tidak ada data untuk diekspor pada filter terpilih.')
             return
@@ -406,6 +405,9 @@ export default function TreatmentDetailReportPage() {
         ])
 
         const allSheetData = [...titleRow, ...metaRows, headers, ...patientRows]
+        // xlsx (~860 KB) dimuat hanya saat benar-benar dipakai -- setelah pengecekan data
+        // kosong di atas, supaya pesan 'tidak ada data' tetap muncul seketika.
+        const XLSX = await import('xlsx')
         const ws = XLSX.utils.aoa_to_sheet(allSheetData)
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, "Laporan_Treatment")

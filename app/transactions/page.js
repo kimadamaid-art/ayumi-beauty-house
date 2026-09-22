@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import * as XLSX from 'xlsx'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from "@/components/ui/BranchFilter"
 import toast from 'react-hot-toast'
@@ -965,7 +964,7 @@ export default function TransactionsPage() {
     }
 
     // Helper for Excel export
-    const handleExcelExport = (reportType, title, dataset) => {
+    const handleExcelExport = async (reportType, title, dataset) => {
         if (!dataset || dataset.length === 0) {
             alert('Tidak ada data untuk diexport.')
             return
@@ -1003,6 +1002,9 @@ export default function TransactionsPage() {
             ["Produk Fisik", pQty],
             ["Kupon Paket", cQty]
         ]
+        // xlsx (~860 KB) dimuat hanya saat benar-benar dipakai -- setelah pengecekan data
+        // kosong di atas, supaya pesan 'tidak ada data' tetap muncul seketika.
+        const XLSX = await import('xlsx')
         const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
 
         // Sheet 2: Detail Transaksi

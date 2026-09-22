@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { openWhatsApp } from '@/lib/whatsapp'
-import html2canvas from 'html2canvas'
 import { toast } from 'react-hot-toast'
 import { getQrisFee } from '@/lib/paymentUtils'
 
@@ -369,6 +368,7 @@ export default function ReceiptPage() {
             setIsGeneratingImage(true)
             toast.loading('Memproses file PDF struk...', { id: 'receipt-pdf' })
 
+            const { default: html2canvas } = await import('html2canvas')
             const canvas = await html2canvas(receiptEl, {
                 scale: 3,
                 useCORS: true,
@@ -423,6 +423,7 @@ export default function ReceiptPage() {
             toast.loading(mode === 'download' ? 'Mengunduh foto struk...' : 'Memproses foto struk & pesan WA...', { id: 'receipt-img' })
 
             // Generate high-resolution canvas
+            const { default: html2canvas } = await import('html2canvas')
             const canvas = await html2canvas(receiptEl, {
                 scale: 3,
                 useCORS: true,

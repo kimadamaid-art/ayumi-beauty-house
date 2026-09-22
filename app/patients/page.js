@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
-import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
 import BranchFilter from '@/components/ui/BranchFilter'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
@@ -199,8 +198,10 @@ export default function PatientsPage() {
     }, [supabase, page, searchQuery, branchFilter, sortBy])
 
     // --- EXCEL IMPORT LOGIC ---
-    const handleDownloadTemplate = () => {
-        const headers = ['full_name', 'whatsapp', 'birth_date', 'gender', 'address', 'instagram', 'skin_type', 'allergies', 'medical_notes', 'notes']
+    const handleDownloadTemplate = async () => {
+        // xlsx (~860 KB) dimuat hanya saat dibutuhkan, bukan saat halaman dibuka.
+        const XLSX = await import('xlsx')
+        const headers =['full_name', 'whatsapp', 'birth_date', 'gender', 'address', 'instagram', 'skin_type', 'allergies', 'medical_notes', 'notes']
         const ws = XLSX.utils.aoa_to_sheet([headers])
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, "Template_Pasien")
@@ -248,6 +249,10 @@ export default function PatientsPage() {
             return
         }
         setIsLoadingWaList(false)
+
+        // Dimuat di sini, sebelum FileReader, supaya callback onload di bawah tetap
+        // sinkron seperti semula dan cukup memakai XLSX lewat closure.
+        const XLSX = await import('xlsx')
 
         const reader = new FileReader()
         reader.onload = (evt) => {
