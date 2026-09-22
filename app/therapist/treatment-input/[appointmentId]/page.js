@@ -200,17 +200,25 @@ export default function TreatmentInputPage() {
                     .eq('treatment_record_id', existingRecord.id)
 
                 if (existingPhotos && existingPhotos.length > 0) {
-                    const previews = {}
-                    for (let i = 0; i < existingPhotos.length; i++) {
-                        const photo = existingPhotos[i]
-                        let photoUrl = null
-
+                    // Signed URL semua foto diminta sekaligus, bukan satu per satu -- satu
+                    // perjalanan jaringan alih-alih satu per foto. Penentuan slot di bawah tetap
+                    // berjalan berurutan sesuai indeks, karena cabang fallback-nya membaca
+                    // indeks foto dan slot yang sudah terisi sebelumnya.
+                    const signedUrls = await Promise.all(existingPhotos.map(async (photo) => {
                         try {
                             const { data: signedData } = await supabase.storage
                                 .from('patient-photos')
                                 .createSignedUrl(photo.storage_path, 60 * 60)
-                            if (signedData?.signedUrl) photoUrl = signedData.signedUrl
-                        } catch (e) {}
+                            return signedData?.signedUrl || null
+                        } catch (e) {
+                            return null
+                        }
+                    }))
+
+                    const previews = {}
+                    for (let i = 0; i < existingPhotos.length; i++) {
+                        const photo = existingPhotos[i]
+                        let photoUrl = signedUrls[i]
 
                         if (!photoUrl) {
                             try {

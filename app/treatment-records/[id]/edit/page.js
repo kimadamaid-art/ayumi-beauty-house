@@ -174,11 +174,19 @@ function EditRecordForm() {
                 .eq('treatment_record_id', id)
 
             if (photosData && photosData.length > 0) {
-                const previews = {}
-                for (const photo of photosData) {
-                    const { data: signedData, error: signedErr } = await supabase.storage
+                // Signed URL diminta sekaligus alih-alih satu per satu. Pengisian slot tetap
+                // mengikuti urutan asli, supaya bila dua foto memetakan ke slot yang sama,
+                // yang terakhir tetap menang seperti sebelumnya.
+                const signedResults = await Promise.all(photosData.map(photo =>
+                    supabase.storage
                         .from('patient-photos')
                         .createSignedUrl(photo.storage_path, 60 * 60)
+                ))
+
+                const previews = {}
+                for (let i = 0; i < photosData.length; i++) {
+                    const photo = photosData[i]
+                    const { data: signedData, error: signedErr } = signedResults[i]
 
                     if (signedData && !signedErr) {
                         const key = photo.caption || photo.storage_path.split('/').pop().split('.')[0]
