@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser } from '@/lib/cachedUser'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { notifyTherapistReady } from '@/lib/notifications'
@@ -58,6 +59,15 @@ export default function TherapistDashboard() {
         dbUserRef.current = dbUser
     }, [selectedBranch, scheduleStartDate, scheduleEndDate, dbUser])
 
+    // Satu aksi (misalnya checkout di kasir) bisa memicu beberapa event realtime beruntun
+    // di tiga tabel; masing-masing sebelumnya memuat ulang seluruh jadwal. Event yang datang
+    // berdekatan kini digabung menjadi satu kali muat ulang.
+    const realtimeRefreshTimerRef = useRef(null)
+    const scheduleRealtimeRefresh = () => {
+        clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = setTimeout(() => fetchAppointments(true), 400)
+    }
+
     useEffect(() => {
         fetchUserAndData()
 
@@ -67,23 +77,17 @@ export default function TherapistDashboard() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'appointments' },
-                () => {
-                    fetchAppointments(true)
-                }
+                scheduleRealtimeRefresh
             )
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'appointment_treatments' },
-                () => {
-                    fetchAppointments(true)
-                }
+                scheduleRealtimeRefresh
             )
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'treatment_records' },
-                () => {
-                    fetchAppointments(true)
-                }
+                scheduleRealtimeRefresh
             )
             .subscribe()
 
@@ -108,6 +112,7 @@ export default function TherapistDashboard() {
             window.removeEventListener('focus', handleFocusOrVisibility)
             document.removeEventListener('visibilitychange', handleFocusOrVisibility)
             clearInterval(interval)
+            clearTimeout(realtimeRefreshTimerRef.current)
         }
     }, [])
 
@@ -119,17 +124,13 @@ export default function TherapistDashboard() {
 
     const fetchUserAndData = async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
+        // Dari cache bersama: kembali ke halaman ini tidak lagi menunggu dua permintaan.
+        // Join branches(name) pada query lama tidak dipakai di mana pun di halaman ini.
+        const { user, dbUser: userData } = await getCachedUser()
         if (!user) {
             router.push('/login')
             return
         }
-
-        const { data: userData } = await supabase
-            .from('users')
-            .select('*, branches(name)')
-            .eq('id', user.id)
-            .maybeSingle()
 
         if (!userData || userData.role !== 'therapist') {
             router.push('/dashboard')
@@ -254,10 +255,17 @@ export default function TherapistDashboard() {
             .order('treatment_records(treatment_date)', { ascending: false })
 
         if (!error && data) {
-            // Ambil kupon usage logs untuk mencocokkan harga riil per sesi kupon
-            const { data: cLogs } = await supabase
-                .from('coupon_usage_logs')
-                .select(`
+            // Ambil kupon usage logs untuk mencocokkan harga riil per sesi kupon.
+            // Sebelumnya riwayat kupon seluruh klinik diunduh tanpa filter -- dan akan terpotong
+            // di 1000 baris seiring waktu, membuat harga dasar komisi item kupon salah. Kini hanya
+            // riwayat milik rekam medis terapis ini yang diambil.
+            //
+            // Kolomnya sengaja sama persis dengan query lama. Query ini tidak memilih
+            // patient_coupon_item_id, sehingga buildCouponPriceMap hanya mengisi kunci per rekam
+            // medis dan pencarian lewat [KUPON_LAMA:<id>] di bawah tidak pernah cocok -- perilaku
+            // yang sama di semua halaman komisi. Menambahkan kolom itu akan mengubah angka komisi.
+            // Dengan demikian riwayat yang relevan hanyalah yang terkait rekam medis di data ini.
+            const LOG_COLUMNS = `
                     id,
                     treatment_record_id,
                     patient_coupon_items(
@@ -275,7 +283,15 @@ export default function TherapistDashboard() {
                             )
                         )
                     )
-                `)
+                `
+            const recordIds = [...new Set(data.map(it => it.treatment_records?.id).filter(Boolean))]
+            const BATCH = 100
+            const logQueries = []
+            for (let i = 0; i < recordIds.length; i += BATCH) {
+                logQueries.push(supabase.from('coupon_usage_logs').select(LOG_COLUMNS).in('treatment_record_id', recordIds.slice(i, i + BATCH)))
+            }
+            const logResults = await Promise.all(logQueries)
+            const cLogs = logResults.flatMap(r => r.data || [])
 
             const couponMap = buildCouponPriceMap(cLogs || [])
             const enhanced = data
