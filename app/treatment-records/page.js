@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
@@ -46,7 +47,9 @@ export default function TreatmentRecordsPage() {
         try {
             const [{ user, dbUser: userData }, branchRes, thRes] = await Promise.all([
                 getCachedUser(),
-                supabase.from('branches').select('id, name').order('name'),
+                // Cabang dari cache bersama (tanpa request saat kembali ke halaman ini),
+                // dibentuk sama dengan query lama: semua cabang, kolom id dan name.
+                getCachedBranches().then(list => ({ data: (list || []).map(b => ({ id: b.id, name: b.name })) })),
                 supabase.from('users').select('id, full_name, branch_id').eq('role', 'therapist').eq('is_active', true).order('full_name')
             ])
 
