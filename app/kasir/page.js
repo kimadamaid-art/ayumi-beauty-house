@@ -15,6 +15,9 @@ import ItemVariantModal from '@/components/pos/ItemVariantModal'
 import { getItemInitials, getItemCategory, getProductVariants, formatProductDescription, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import { notifyLowStock } from '@/lib/notifications'
+import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedBranches } from '@/lib/cachedBranches'
+import { getCachedPosCatalog } from '@/lib/cachedPosCatalog'
 
 const getLocalYYYYMMDD = (d = new Date()) => {
     const year = d.getFullYear()
@@ -352,21 +355,31 @@ function PosPageContent() {
     async function fetchInitialData() {
         setIsLoading(true)
         
-        // Fetch User and Master Data in parallel (eliminate waterfall lag)
-        const [userRes, brRes, trRes, prodRes, cpRes, thRes, catRes] = await Promise.all([
-            supabase.auth.getUser(),
-            supabase.from('branches').select('id, name').eq('is_active', true),
-            supabase.from('treatments').select('*, treatment_categories(id, name, sort_order)').eq('is_active', true).order('name', { ascending: true }),
-            supabase.from('products').select('id, name, description, price, is_active').eq('is_active', true).order('name', { ascending: true }),
-            supabase.from('coupon_packages').select('*').eq('is_active', true).order('name', { ascending: true }),
-            supabase.from('users').select('id, full_name').eq('role', 'therapist').eq('is_active', true).order('full_name'),
-            supabase.from('treatment_categories').select('*').eq('is_active', true).order('sort_order', { ascending: true })
+        // Pengguna, cabang, dan katalog diambil dari cache bersama. Saat kasir kembali dari
+        // halaman lain dalam beberapa menit, ketiganya tersedia tanpa request jaringan.
+        // Stok produk dan tagihan tertunda tetap diambil langsung di bawah.
+        const [cachedUser, allBranches, catalog] = await Promise.all([
+            getCachedUser(),
+            getCachedBranches(),
+            getCachedPosCatalog()
         ])
 
-        const user = userRes.data?.user
+        // Bentuk data disamakan dengan query lama: hanya cabang aktif, kolom id dan name.
+        const brRes = {
+            data: (allBranches || [])
+                .filter(b => b.is_active)
+                .map(b => ({ id: b.id, name: b.name }))
+        }
+        const trRes = { data: catalog.treatments }
+        const prodRes = { data: catalog.products }
+        const cpRes = { data: catalog.couponPackages }
+        const thRes = { data: catalog.therapists }
+        const catRes = { data: catalog.categories }
+
+        const user = cachedUser.user
         let currentUData = null
         if (user) {
-            const { data: uData } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+            const uData = cachedUser.dbUser
             currentUData = uData
             if (uData) {
                 if (uData.role === 'therapist') {
