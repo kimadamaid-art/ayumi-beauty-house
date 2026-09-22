@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
+import { getProductVariants, getProductOriginalPrice } from '@/lib/productVariants'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -43,22 +44,31 @@ const TRANSACTION_SELECT_FIELDS = `
     branch_id,
     patient_id,
     branches (name),
-    patients (full_name, whatsapp),
+    patients (id, full_name, whatsapp, gender, birth_date, created_at),
     users:users!transactions_cashier_id_fkey(full_name),
     treatment_records (
         id,
         performed_by,
-        therapist:users!treatment_records_performed_by_fkey (full_name)
+        therapist:users!treatment_records_performed_by_fkey (full_name),
+        treatment_record_items (
+            price_at_time,
+            original_price,
+            discount_percent,
+            notes,
+            treatments (name, price)
+        )
     ),
     transaction_items (
         id,
         name,
         item_type,
+        product_id,
         quantity,
         price,
         subtotal,
         original_price,
-        discount_percent
+        discount_percent,
+        products (id, name, price, description)
     )
 `
 
@@ -126,6 +136,7 @@ export default function TransactionsPage() {
     const [filterBranch, setFilterBranch] = useState('') // empty means 'all'
     const [filterPaymentMethod, setFilterPaymentMethod] = useState('') // empty means 'all'
     const [filterTxType, setFilterTxType] = useState('') // empty means 'all'
+    const [filterCustomerType, setFilterCustomerType] = useState('') // '' | 'new' | 'repeat' | 'walk-in'
     const [customStartDate, setCustomStartDate] = useState(() => {
         return getLocalYYYYMMDD()
     })
@@ -135,6 +146,30 @@ export default function TransactionsPage() {
 
     // Data State
     const [transactions, setTransactions] = useState([]) // all loaded transactions for current & comparison periods
+    const [patientFirstTxMap, setPatientFirstTxMap] = useState({})
+    const [productCatalogMap, setProductCatalogMap] = useState(() => new Map())
+
+    // Load active product catalog once for accurate original price before discount lookup
+    useEffect(() => {
+        let isMounted = true
+        async function loadProductCatalog() {
+            try {
+                const { data } = await supabase.from('products').select('id, name, price, description')
+                if (data && data.length > 0 && isMounted) {
+                    const map = new Map()
+                    data.forEach(p => {
+                        map.set(p.id, p)
+                        if (p.name) map.set(p.name.trim().toLowerCase(), p)
+                    })
+                    setProductCatalogMap(map)
+                }
+            } catch (err) {
+                console.warn('Could not load products catalog for pricing:', err)
+            }
+        }
+        loadProductCatalog()
+        return () => { isMounted = false }
+    }, [])
 
     // Detail Modal State
     const [selectedTx, setSelectedTx] = useState(null)
@@ -193,6 +228,11 @@ export default function TransactionsPage() {
     const [customReportResult, setCustomReportResult] = useState(null)
     const [isCustomGenerating, setIsCustomGenerating] = useState(false)
 
+    // Coupon Redeem / Sesi Kupon Terpakai State
+    const [couponRedeemedData, setCouponRedeemedData] = useState({ totalSessions: 0, totalValue: 0, logs: [] })
+    const [isCouponRedeemModalOpen, setIsCouponRedeemModalOpen] = useState(false)
+    const [couponRedeemSearch, setCouponRedeemSearch] = useState('')
+
     // Coordinated Initialization Flag (Prevents double-fetch on mount)
     const isInitializedRef = useRef(false)
 
@@ -205,13 +245,73 @@ export default function TransactionsPage() {
 
         setIsTableLoading(true)
         try {
-            const rows = await queryTransactionsWithRange(supabase, {
+            const rowsPromise = queryTransactionsWithRange(supabase, {
                 startDate: effectiveStart,
                 endDate: effectiveEnd,
                 branchId: effectiveBranch,
                 effectiveUser
             })
+
+            let logsQuery = supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    id,
+                    used_at,
+                    notes,
+                    branch_id,
+                    transaction_id,
+                    treatment_record_id,
+                    branches (id, name),
+                    patients (id, full_name, whatsapp),
+                    patient_coupon_items (
+                        id,
+                        total_sessions,
+                        used_sessions,
+                        remaining_sessions,
+                        treatments (id, name, price),
+                        patient_coupons (
+                            id,
+                            coupon_packages (id, name, price)
+                        )
+                    ),
+                    users:users!coupon_usage_logs_used_by_fkey (id, full_name)
+                `)
+                .is('voided_at', null)
+                .gte('used_at', new Date(`${effectiveStart}T00:00:00`).toISOString())
+                .lte('used_at', new Date(`${effectiveEnd}T23:59:59.999`).toISOString())
+                .order('used_at', { ascending: false })
+
+            if (effectiveBranch) {
+                logsQuery = logsQuery.eq('branch_id', effectiveBranch)
+            } else if (effectiveUser && effectiveUser.role !== 'owner' && effectiveUser.branch_id) {
+                logsQuery = logsQuery.eq('branch_id', effectiveUser.branch_id)
+            }
+
+            const [rows, { data: couponLogs, error: couponErr }] = await Promise.all([
+                rowsPromise,
+                logsQuery
+            ])
+
+            if (couponErr) {
+                console.warn('Error fetching coupon_usage_logs for transactions:', couponErr)
+            }
+
+            const validLogs = couponLogs || []
+            let totalVal = 0
+            validLogs.forEach(log => {
+                const item = log.patient_coupon_items
+                const tP = Number(item?.treatments?.price || 0)
+                const pP = Number(item?.patient_coupons?.coupon_packages?.price || 0)
+                const tS = Number(item?.total_sessions || 1)
+                totalVal += (tP > 0 ? tP : (pP > 0 ? Math.round(pP / tS) : 0))
+            })
+
             setTransactions(rows)
+            setCouponRedeemedData({
+                totalSessions: validLogs.length,
+                totalValue: totalVal,
+                logs: validLogs
+            })
         } catch (err) {
             console.error('Error fetching transactions:', err)
             toast.error('Gagal memuat data transaksi: ' + (err.message || ''))
@@ -222,14 +322,16 @@ export default function TransactionsPage() {
 
     // Coordinated single initial mount
     useEffect(() => {
-        setIsMounted(true)
         let isCurrent = true
+        setTimeout(() => {
+            if (isCurrent) setIsMounted(true)
+        }, 0)
         async function fetchInitialData() {
             setIsLoading(true)
             try {
-                const [{ user, dbUser: profile }, brRes] = await Promise.all([
+                const [{ user, dbUser: profile }, branchesData] = await Promise.all([
                     getCachedUser(),
-                    supabase.from('branches').select('id, name').eq('is_active', true)
+                    getCachedBranches()
                 ])
 
                 if (!isCurrent) return
@@ -243,7 +345,7 @@ export default function TransactionsPage() {
                         setCustomTabBranch(effectiveBranch)
                     }
                 }
-                if (brRes.data) setBranches(brRes.data)
+                if (branchesData) setBranches(branchesData)
 
                 await fetchTransactions(profile, effectiveBranch, customStartDate, customEndDate)
             } catch (err) {
@@ -381,6 +483,192 @@ export default function TransactionsPage() {
         [transactions]
     )
 
+    // Resolusi transaksi pertama per pasien untuk deteksi akurat New Customer vs Repeat
+    useEffect(() => {
+        let isCurrent = true
+        async function resolveFirstTransactions() {
+            const patientIds = [...new Set(transactions.map(t => t.patient_id).filter(Boolean))]
+            if (patientIds.length === 0) {
+                if (isCurrent) setPatientFirstTxMap({})
+                return
+            }
+            try {
+                const batchSize = 100
+                const batches = []
+                for (let i = 0; i < patientIds.length; i += batchSize) {
+                    batches.push(patientIds.slice(i, i + batchSize))
+                }
+                const results = await Promise.all(
+                    batches.map(chunk =>
+                        supabase
+                            .from('transactions')
+                            .select('id, patient_id, created_at')
+                            .in('patient_id', chunk)
+                            .order('created_at', { ascending: true })
+                    )
+                )
+                if (!isCurrent) return
+                const map = {}
+                results.forEach(({ data, error }) => {
+                    if (!error && data) {
+                        data.forEach(t => {
+                            if (t.patient_id && !map[t.patient_id]) {
+                                map[t.patient_id] = { id: t.id, created_at: t.created_at }
+                            }
+                        })
+                    }
+                })
+                setPatientFirstTxMap(map)
+            } catch (e) {
+                console.error('Error resolving patient first transactions:', e)
+            }
+        }
+        resolveFirstTransactions()
+        return () => { isCurrent = false }
+    }, [transactions])
+
+    // Helper jenis kelamin & umur pasien (format ringkas: Pr • 22 th / Lk • 28 th)
+    const formatGenderAge = (patient) => {
+        if (!patient) return null
+        const parts = []
+        if (patient.gender) {
+            const g = String(patient.gender).toLowerCase().trim()
+            if (g === 'female' || g === 'wanita' || g === 'perempuan') parts.push('PR')
+            else if (g === 'male' || g === 'pria' || g === 'laki-laki') parts.push('LK')
+        }
+        if (patient.birth_date) {
+            const birthDate = new Date(patient.birth_date)
+            if (!isNaN(birthDate.getTime())) {
+                const today = new Date()
+                let age = today.getFullYear() - birthDate.getFullYear()
+                const m = today.getMonth() - birthDate.getMonth()
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--
+                }
+                if (age > 0 && age < 120) {
+                    parts.push(`${age} th`)
+                }
+            }
+        }
+        return parts.length > 0 ? parts.join(' • ') : null
+    }
+
+    // Helper kalkulasi akurat harga sebelum diskon, total diskon, dan total bayar
+    const getCleanTxPricing = (tx) => {
+        if (!tx) return { sebelumDiskon: 0, total: 0, discount: 0 }
+
+        const subtotal = Number(tx.subtotal) || 0
+        const total = Number(tx.total) || 0
+        const cartDiscount = Number(tx.discount) || 0
+
+        // 1. Treatment record items map (menampung promo/diskon tindakan yang dimasukkan terapis)
+        const triList = tx.treatment_records?.treatment_record_items || []
+        const triMap = new Map()
+        for (const tri of triList) {
+            const orig = Number(tri.original_price) || Number(tri.treatments?.price) || Number(tri.price_at_time) || 0
+            const charged = Number(tri.price_at_time) || 0
+            const key = (tri.treatments?.name || tri.notes || '').trim().toLowerCase()
+            if (key) triMap.set(key, { orig, charged })
+        }
+
+        // 2. Gross items sum from transaction_items
+        let sumGrossItems = 0
+        let sumChargedItems = 0
+        if (tx.transaction_items && tx.transaction_items.length > 0) {
+            for (const item of tx.transaction_items) {
+                const qty = Number(item.quantity) || 1
+                const charged = Number(item.price) || 0
+                let orig = Number(item.original_price) || 0
+
+                const key = (item.name || '').trim().toLowerCase()
+                if (orig <= charged && triMap.has(key)) {
+                    const tri = triMap.get(key)
+                    if (tri.orig > charged) {
+                        orig = tri.orig
+                    }
+                }
+
+                // Kalkulasi harga asli sebelum diskon untuk produk skincare
+                if (item.item_type === 'product') {
+                    const prod = item.products || productCatalogMap?.get(item.product_id) || productCatalogMap?.get(key)
+                    if (prod) {
+                        const pOrig = getProductOriginalPrice(item, prod)
+                        if (pOrig > charged && (orig <= charged || pOrig > orig)) {
+                            orig = pOrig
+                        }
+                    }
+                }
+
+                const unitGross = orig > charged ? orig : charged
+                sumGrossItems += unitGross * qty
+                sumChargedItems += charged * qty
+            }
+        }
+
+        const itemDiscount = Math.max(0, sumGrossItems - sumChargedItems)
+
+        let sebelumDiskon = 0
+        let finalDiscount = 0
+
+        if (cartDiscount > 0) {
+            if (subtotal > total) {
+                sebelumDiskon = Math.max(sumGrossItems, subtotal)
+                finalDiscount = cartDiscount + itemDiscount
+            } else {
+                sebelumDiskon = Math.max(sumGrossItems, total + cartDiscount)
+                finalDiscount = cartDiscount + itemDiscount
+            }
+        } else if (itemDiscount > 0) {
+            sebelumDiskon = sumGrossItems
+            finalDiscount = itemDiscount
+        } else {
+            sebelumDiskon = subtotal > 0 ? subtotal : total
+            finalDiscount = 0
+        }
+
+        if (sebelumDiskon < total && finalDiscount === 0) {
+            sebelumDiskon = subtotal > 0 ? subtotal : total
+        }
+
+        return {
+            sebelumDiskon,
+            total,
+            discount: finalDiscount
+        }
+    }
+
+    // Helper status customer: New Customer vs Repeat vs Walk-in
+    const getCustomerStatus = (tx) => {
+        if (!tx || !tx.patient_id) {
+            return {
+                type: 'walk-in',
+                label: 'Walk-in',
+                fullLabel: 'Walk-in Customer',
+                badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/80'
+            }
+        }
+        const firstTx = patientFirstTxMap[tx.patient_id]
+        const isFirst = firstTx?.id === tx.id
+        const txDateStr = tx.created_at ? tx.created_at.slice(0, 10) : ''
+        const patRegStr = tx.patients?.created_at ? tx.patients.created_at.slice(0, 10) : ''
+        const isSameDayReg = txDateStr && patRegStr && txDateStr === patRegStr
+
+        if (isFirst || isSameDayReg) {
+            return {
+                type: 'new',
+                label: 'Baru',
+                fullLabel: 'Pasien Baru',
+                badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+            }
+        }
+        return {
+            type: 'repeat',
+            label: 'Repeat',
+            fullLabel: 'Repeat Customer',
+            badgeClass: 'bg-blue-50 text-blue-700 border-blue-200/80'
+        }
+    }
+
     // Get filtered valid transactions for Main Tab KPI & summary calculations
     const filteredValidTransactions = useMemo(() => {
         return validTransactions.filter(tx => {
@@ -396,13 +684,19 @@ export default function TransactionsPage() {
                 if (!hasType) return false
             }
 
-            // 4. Period Date Filter
+            // 4. Customer Type Filter
+            if (filterCustomerType) {
+                const cStatus = getCustomerStatus(tx)
+                if (cStatus.type !== filterCustomerType) return false
+            }
+
+            // 5. Period Date Filter
             const txDate = new Date(tx.created_at)
             const start = new Date(customStartDate + 'T00:00:00')
             const end = new Date(customEndDate + 'T23:59:59')
             return txDate >= start && txDate <= end
         })
-    }, [validTransactions, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
+    }, [validTransactions, filterBranch, filterPaymentMethod, filterTxType, filterCustomerType, customStartDate, customEndDate, patientFirstTxMap])
 
     // Get current raw transactions list based on main tab filter & parameters (for Table listing so VOID rows remain visible)
     const filteredTransactions = useMemo(() => {
@@ -419,13 +713,19 @@ export default function TransactionsPage() {
                 if (!hasType) return false
             }
 
-            // 4. Period Date Filter
+            // 4. Customer Type Filter
+            if (filterCustomerType) {
+                const cStatus = getCustomerStatus(tx)
+                if (cStatus.type !== filterCustomerType) return false
+            }
+
+            // 5. Period Date Filter
             const txDate = new Date(tx.created_at)
             const start = new Date(customStartDate + 'T00:00:00')
             const end = new Date(customEndDate + 'T23:59:59')
             return txDate >= start && txDate <= end
         })
-    }, [transactions, filterBranch, filterPaymentMethod, filterTxType, customStartDate, customEndDate])
+    }, [transactions, filterBranch, filterPaymentMethod, filterTxType, filterCustomerType, customStartDate, customEndDate, patientFirstTxMap])
 
     // Paginated transactions for Tab 1
     const totalPages = Math.ceil(filteredTransactions.length / pageSize) || 1
@@ -516,6 +816,14 @@ export default function TransactionsPage() {
             hour: '2-digit',
             minute: '2-digit'
         })
+    }
+
+    const formatDateParts = (isoString) => {
+        if (!isoString) return { dateStr: '-', timeStr: '' }
+        const d = new Date(isoString)
+        const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+        const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':')
+        return { dateStr, timeStr }
     }
 
     // WA Share Link creator
@@ -698,26 +1006,34 @@ export default function TransactionsPage() {
         const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
 
         // Sheet 2: Detail Transaksi
-        const detailRows = dataset.map((tx, idx) => ({
-            "No.": idx + 1,
-            "No. Transaksi": tx.transaction_number,
-            "Tanggal": formatDate(tx.created_at),
-            "Cabang": tx.branches?.name || "-",
-            "Pasien": tx.patients?.full_name || "Walk-in Customer",
-            "WhatsApp": tx.patients?.whatsapp || "-",
-            "Item Ringkasan": tx.transaction_items?.map(i => `${i.name} (x${i.quantity})`).join(', ') || "-",
-            "Metode Bayar": tx.payment_method?.toUpperCase(),
-            "Subtotal": Number(tx.subtotal || 0),
-            "Diskon": Number(tx.discount || 0),
-            "Total": Number(tx.total || 0),
-            "Status": (tx.payment_status || 'paid').toUpperCase(),
-            "Kasir": tx.users?.full_name || "-"
-        }))
+        const detailRows = dataset.map((tx, idx) => {
+            const custStatus = getCustomerStatus(tx)
+            const therapistName = tx.treatment_records?.therapist?.full_name || "-"
+            const pricing = getCleanTxPricing(tx)
+            return {
+                "No.": idx + 1,
+                "No. Transaksi": tx.transaction_number,
+                "Tanggal": formatDate(tx.created_at),
+                "Cabang": tx.branches?.name || "-",
+                "Pasien": tx.patients?.full_name || "Walk-in Customer",
+                "Tipe Pelanggan": custStatus.fullLabel || custStatus.label,
+                "Gender & Usia": formatGenderAge(tx.patients) || "-",
+                "WhatsApp": tx.patients?.whatsapp || "-",
+                "Item Ringkasan": tx.transaction_items?.map(i => `${i.name} (x${i.quantity})`).join(', ') || "-",
+                "Terapis": therapistName,
+                "Metode Bayar": tx.payment_method?.toUpperCase(),
+                "Sebelum Diskon": pricing.sebelumDiskon,
+                "Diskon": pricing.discount,
+                "Total Bayar": pricing.total,
+                "Status": (tx.payment_status || 'paid').toUpperCase(),
+                "Kasir": tx.users?.full_name || "-"
+            }
+        })
 
         // Hitung total untuk Detail Transaksi
-        const sumSubtotal = detailRows.reduce((a, b) => a + b["Subtotal"], 0)
+        const sumSubtotal = detailRows.reduce((a, b) => a + b["Sebelum Diskon"], 0)
         const sumDiscount = detailRows.reduce((a, b) => a + b["Diskon"], 0)
-        const sumTotal = detailRows.reduce((a, b) => a + b["Total"], 0)
+        const sumTotal = detailRows.reduce((a, b) => a + b["Total Bayar"], 0)
 
         // Append Total Row to Detail Transaksi
         detailRows.push({
@@ -726,12 +1042,14 @@ export default function TransactionsPage() {
             "Tanggal": "",
             "Cabang": "",
             "Pasien": "",
+            "Tipe Pelanggan": "",
             "WhatsApp": "",
             "Item Ringkasan": "",
+            "Terapis": "",
             "Metode Bayar": "",
-            "Subtotal": sumSubtotal,
+            "Sebelum Diskon": sumSubtotal,
             "Diskon": sumDiscount,
-            "Total": sumTotal,
+            "Total Bayar": sumTotal,
             "Status": "",
             "Kasir": ""
         })
@@ -1872,8 +2190,6 @@ export default function TransactionsPage() {
     // ==========================================
     // DATA COMPUTATIONS FOR TAB 6: CUSTOM REPORT
     // ==========================================
-    const [customReportResult, setCustomReportResult] = useState(null)
-    
     const handleGenerateCustomReport = async () => {
         setIsCustomGenerating(true)
         try {
@@ -1956,13 +2272,17 @@ export default function TransactionsPage() {
     return (
         <div className="space-y-6">
             
-            {/* TAMPILAN UTAMA: GLOBAL FILTER BAR */}
-            <div className="card-ayumi p-4 md:p-6 flex flex-col gap-4 bg-white relative">
-                <div className="flex justify-end items-center gap-2">
-                    {/* Excel & PDF Export Buttons in Top Right */}
+            {/* TAMPILAN UTAMA: HEADER ATAS & EXPORT ACTIONS */}
+            <div className="card-ayumi p-4 md:p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white shadow-sm border border-pink-100">
+                <div>
+                    <h2 className="text-xl font-extrabold text-gray-800 tracking-tight">Riwayat Transaksi</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Pantau catatan transaksi penjualan, pencetakan struk, dan laporan berkala klinik.</p>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                    {/* Excel & PDF Export Buttons */}
                     <button
                         onClick={() => handleExcelExport('Main', 'Semua_Transaksi', filteredTransactions)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-green-600/20 flex items-center gap-2 transition-all cursor-pointer"
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-green-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer flex-1 sm:flex-initial"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1971,7 +2291,7 @@ export default function TransactionsPage() {
                     </button>
                     <button
                         onClick={() => handlePDFExport('Main', 'Semua_Transaksi', filteredTransactions)}
-                        className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-orange-600/20 flex items-center gap-2 transition-all cursor-pointer"
+                        className="bg-ayumi-primary hover:bg-ayumi-primary-hover text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-orange-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer flex-1 sm:flex-initial"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -1979,69 +2299,11 @@ export default function TransactionsPage() {
                         Cetak Laporan PDF
                     </button>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 border-t border-gray-100 pt-4">
-                    {/* Branch Filter */}
-                    <BranchFilter
-                        value={filterBranch}
-                        onChange={setFilterBranch}
-                        branches={branches}
-                        userRole={dbUser?.role}
-                        userBranchId={dbUser?.branch_id}
-                    />
-
-                    {/* Payment Method */}
-                    <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Metode Bayar</label>
-                        <select
-                            value={filterPaymentMethod}
-                            onChange={(e) => setFilterPaymentMethod(e.target.value)}
-                            className="input-ayumi py-2 text-xs bg-gray-50 font-semibold text-gray-700"
-                        >
-                            <option value="">Semua Metode</option>
-                            <option value="cash">Cash</option>
-                            <option value="transfer">Transfer Bank</option>
-                            <option value="qris">QRIS</option>
-                            <option value="debit">Debit</option>
-                            <option value="credit">Credit</option>
-                        </select>
-                    </div>
-
-                    {/* Tx Type */}
-                    <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Tipe Item</label>
-                        <select
-                            value={filterTxType}
-                            onChange={(e) => setFilterTxType(e.target.value)}
-                            className="input-ayumi py-2 text-xs bg-gray-50 font-semibold text-gray-700"
-                        >
-                            <option value="">Semua Tipe</option>
-                            <option value="treatment">Treatment</option>
-                            <option value="product">Produk</option>
-                            <option value="coupon">Kupon Paket</option>
-                        </select>
-                    </div>
-
-                    {/* Rentang Tanggal Filter */}
-                    <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex flex-col relative z-20">
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rentang Tanggal</label>
-                        <DateRangePicker 
-                            startDate={customStartDate}
-                            endDate={customEndDate}
-                            onChange={(range) => {
-                                setCustomStartDate(range.startDate);
-                                setCustomEndDate(range.endDate);
-                            }}
-                            inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg"
-                            align="right"
-                        />
-                    </div>
-                </div>
             </div>
 
             {/* SUMMARY CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-                {/* Total Pendapatan */}
+                {/* 1. Total Pendapatan */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm border border-emerald-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-inner shrink-0">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -2052,7 +2314,7 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Pendapatan Treatment */}
+                {/* 2. Pendapatan Treatment */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-purple-50/50 to-white shadow-sm border border-purple-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-inner shrink-0">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 9.172V5L8 4z" /></svg>
@@ -2063,7 +2325,7 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Pendapatan Skincare */}
+                {/* 3. Pendapatan Skincare / Produk */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-orange-50/50 to-white shadow-sm border border-orange-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-700 flex items-center justify-center shadow-inner shrink-0">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
@@ -2074,7 +2336,34 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Biaya Tambahan QRIS */}
+                {/* 4. Sesi Kupon Terpakai (Redeem) */}
+                <div 
+                    onClick={() => setIsCouponRedeemModalOpen(true)}
+                    className="card-ayumi p-5 flex items-center justify-between bg-gradient-to-br from-amber-50/60 to-white shadow-sm border border-amber-200/80 hover:border-amber-300 hover:shadow-md transition-all duration-300 cursor-pointer group/kpn"
+                    title="Klik untuk melihat rincian penukaran sesi kupon"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shadow-inner shrink-0 group-hover/kpn:scale-105 transition-transform text-xl">
+                            🎟️
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Sesi Kupon Terpakai</h4>
+                                <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100/90 group-hover/kpn:bg-amber-200 px-1.5 py-0.5 rounded transition-colors">
+                                    Rincian ↗
+                                </span>
+                            </div>
+                            <p className="text-xl font-black text-amber-950 mt-0.5">
+                                {formatCurrency(couponRedeemedData.totalValue)}
+                            </p>
+                            <p className="text-[11px] font-bold text-amber-700 mt-0.5">
+                                {couponRedeemedData.totalSessions} Sesi Terpakai
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 5. Biaya Tambahan QRIS */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-gradient-to-br from-violet-50/50 to-white shadow-sm border border-violet-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center shadow-inner shrink-0">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
@@ -2088,7 +2377,7 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Total Transaksi */}
+                {/* 6. Total Transaksi */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-pink-100/50 text-ayumi-primary flex items-center justify-center shadow-inner shrink-0">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -2099,7 +2388,7 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Rata-rata Penjualan */}
+                {/* 7. Rata-rata Penjualan */}
                 <div className="card-ayumi p-5 flex items-center gap-4 bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
                     <div className="w-12 h-12 rounded-2xl bg-blue-100/50 text-blue-700 flex items-center justify-center shadow-inner shrink-0">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
@@ -2110,8 +2399,8 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Item Terjual */}
-                <div className="card-ayumi p-5 flex flex-col justify-center bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300 sm:col-span-2 lg:col-span-2">
+                {/* 8. Kuantitas Item Terjual */}
+                <div className="card-ayumi p-5 flex flex-col justify-center bg-white shadow-sm border border-pink-100 hover:shadow-md transition-all duration-300">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Kuantitas Item Terjual</h4>
                     <div className="flex justify-between items-center text-xs font-semibold text-gray-600">
                         <div className="flex flex-col items-center">
@@ -2165,52 +2454,137 @@ export default function TransactionsPage() {
                 {/* ======================================================== */}
                 {activeMainTab === 'all' && (
                     <div className="space-y-4">
-                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                            <h3 className="text-lg font-bold text-ayumi-secondary">Daftar Transaksi</h3>
-                            <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 font-semibold">Tampilkan:</label>
-                                <select
-                                    value={pageSize}
-                                    onChange={(e) => {
-                                        setPageSize(Number(e.target.value))
-                                        setCurrentPage(1)
-                                    }}
-                                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-ayumi-primary"
-                                >
-                                    <option value={10}>10 baris</option>
-                                    <option value={25}>25 baris</option>
-                                    <option value={50}>50 baris</option>
-                                    <option value={100}>100 baris</option>
-                                    <option value={-1}>Semua ({filteredTransactions.length})</option>
-                                </select>
+                        {/* HEADER DAFTAR TRANSAKSI & FILTER LANGSUNG DI ATAS TABEL */}
+                        <div className="card-ayumi p-4 md:p-5 flex flex-col gap-4 bg-white border border-gray-100 shadow-sm rounded-2xl">
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                                <div>
+                                    <h3 className="text-lg font-bold text-ayumi-secondary">Daftar Transaksi</h3>
+                                    <p className="text-xs text-gray-400">Total {filteredTransactions.length} transaksi ditemukan berdasarkan filter</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500 font-semibold">Tampilkan:</label>
+                                    <select
+                                        value={pageSize}
+                                        onChange={(e) => {
+                                            setPageSize(Number(e.target.value))
+                                            setCurrentPage(1)
+                                        }}
+                                        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white font-semibold text-gray-700 focus:outline-none focus:ring-1 focus:ring-ayumi-primary"
+                                    >
+                                        <option value={10}>10 baris</option>
+                                        <option value={25}>25 baris</option>
+                                        <option value={50}>50 baris</option>
+                                        <option value={100}>100 baris</option>
+                                        <option value={-1}>Semua ({filteredTransactions.length})</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Grid Filter Langsung di Atas Kolom Tabel */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 border-t border-gray-100 pt-3">
+                                {/* Branch Filter */}
+                                <BranchFilter
+                                    value={filterBranch}
+                                    onChange={setFilterBranch}
+                                    branches={branches}
+                                    userRole={dbUser?.role}
+                                    userBranchId={dbUser?.branch_id}
+                                />
+
+                                {/* Customer Type Filter */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Tipe Pasien</label>
+                                    <select
+                                        value={filterCustomerType}
+                                        onChange={(e) => {
+                                            setFilterCustomerType(e.target.value)
+                                            setCurrentPage(1)
+                                        }}
+                                        className="input-ayumi py-2 text-xs bg-gray-50 font-semibold text-gray-700"
+                                    >
+                                        <option value="">Semua Pasien</option>
+                                        <option value="new">Pasien Baru</option>
+                                        <option value="repeat">Pasien Repeat</option>
+                                        <option value="walk-in">Walk-in Customer</option>
+                                    </select>
+                                </div>
+
+                                {/* Payment Method */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Metode Bayar</label>
+                                    <select
+                                        value={filterPaymentMethod}
+                                        onChange={(e) => setFilterPaymentMethod(e.target.value)}
+                                        className="input-ayumi py-2 text-xs bg-gray-50 font-semibold text-gray-700"
+                                    >
+                                        <option value="">Semua Metode</option>
+                                        <option value="cash">Cash</option>
+                                        <option value="transfer">Transfer Bank</option>
+                                        <option value="qris">QRIS</option>
+                                        <option value="debit">Debit</option>
+                                        <option value="credit">Credit</option>
+                                    </select>
+                                </div>
+
+                                {/* Tx Type */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Tipe Item</label>
+                                    <select
+                                        value={filterTxType}
+                                        onChange={(e) => setFilterTxType(e.target.value)}
+                                        className="input-ayumi py-2 text-xs bg-gray-50 font-semibold text-gray-700"
+                                    >
+                                        <option value="">Semua Tipe</option>
+                                        <option value="treatment">Treatment</option>
+                                        <option value="product">Produk</option>
+                                        <option value="coupon">Kupon Paket</option>
+                                    </select>
+                                </div>
+
+                                {/* Rentang Tanggal Filter */}
+                                <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex flex-col relative z-20">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Rentang Tanggal</label>
+                                    <DateRangePicker 
+                                        startDate={customStartDate}
+                                        endDate={customEndDate}
+                                        onChange={(range) => {
+                                            setCustomStartDate(range.startDate);
+                                            setCustomEndDate(range.endDate);
+                                        }}
+                                        inputClassName="w-full input-ayumi bg-gray-50 focus:bg-white text-xs py-2 px-3 rounded-lg font-semibold"
+                                        align="right"
+                                    />
+                                </div>
                             </div>
                         </div>
 
                         {isTableLoading ? (
-                            <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3">
+                            <div className="p-16 text-center text-gray-400 flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
                                 <div className="animate-spin w-8 h-8 border-3 border-ayumi-primary border-t-transparent rounded-full"></div>
                                 <span className="text-sm font-semibold text-gray-500">Memuat transaksi...</span>
                             </div>
                         ) : filteredTransactions.length === 0 ? (
-                            <div className="p-10 text-center text-gray-400">Tidak ada transaksi ditemukan. Silakan ubah filter.</div>
+                            <div className="p-10 text-center text-gray-400 bg-white rounded-2xl border border-gray-100 shadow-sm">Tidak ada transaksi ditemukan. Silakan ubah filter.</div>
                         ) : (
-                            <>
+                            <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm bg-white">
                                 <div className="overflow-x-auto">
                                     <table className="whitespace-nowrap w-full text-left border-collapse text-sm">
                                         <thead>
-                                            <tr className="bg-ayumi-table-header text-ayumi-secondary font-bold border-b border-gray-100">
-                                                <th className="p-4">No. Transaksi</th>
-                                                <th className="p-4">Tanggal & Jam</th>
-                                                <th className="p-4">Pasien</th>
-                                                <th className="p-4">Cabang</th>
-                                                <th className="p-4">Ringkasan Item</th>
-                                                <th className="p-4 text-center">Metode Bayar</th>
-                                                <th className="p-4 text-right">Total</th>
-                                                <th className="p-4 text-center">Status</th>
-                                                <th className="p-4 text-center">Aksi</th>
+                                            <tr className="bg-ayumi-table-header text-ayumi-secondary border-b border-[#E8D0BD]">
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary w-[13%] min-w-[155px]">No. Transaksi</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary w-[10%] min-w-[110px]">Tanggal & Jam</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary w-[18%] min-w-[185px]">Pasien</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary w-[10%] min-w-[110px]">Cabang</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary w-[11%] min-w-[125px]">Ringkasan Item</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary w-[10%] min-w-[100px]">Terapis</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary text-center w-[7%] min-w-[85px]">Metode Bayar</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary text-right w-[8%] min-w-[105px]">Sebelum Diskon</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary text-right w-[9%] min-w-[115px]">Total</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary text-center w-[4%] min-w-[65px]">Status</th>
+                                                <th className="py-3.5 px-4 text-xs font-bold tracking-tight text-ayumi-secondary text-center w-[4%] min-w-[60px]">Aksi</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-50">
+                                        <tbody className="divide-y divide-gray-100">
                                             {paginatedTransactions.map((tx) => {
                                                 // Compute brief summary string
                                                 let t = 0, p = 0, c = 0
@@ -2219,70 +2593,156 @@ export default function TransactionsPage() {
                                                     if (i.item_type === 'product') p += i.quantity
                                                     if (i.item_type === 'coupon') c += i.quantity
                                                 })
-                                                const summaryStr = [
-                                                    t > 0 ? `${t} Treatment` : null,
-                                                    p > 0 ? `${p} Produk` : null,
-                                                    c > 0 ? `${c} Kupon` : null
-                                                ].filter(Boolean).join(', ') || '0 Item'
+
+                                                // Customer status badge (New Customer vs Repeat vs Walk-in)
+                                                const custStatus = getCustomerStatus(tx)
+
+                                                // Pricing akurat sebelum diskon vs total
+                                                const pricing = getCleanTxPricing(tx)
+
+                                                // Therapist Name
+                                                const therapistName = tx.treatment_records?.therapist?.full_name || null
+
+                                                // Date and time parts
+                                                const { dateStr, timeStr } = formatDateParts(tx.created_at)
 
                                                 // Payment Method badge color
                                                 let payBadgeClass = "bg-gray-100 text-gray-700 border-gray-200"
-                                                if (tx.payment_method === 'cash') payBadgeClass = "bg-pink-50 text-pink-700 border-pink-100"
-                                                if (tx.payment_method === 'transfer') payBadgeClass = "bg-blue-50 text-blue-700 border-blue-100"
-                                                if (tx.payment_method === 'qris') payBadgeClass = "bg-green-50 text-green-700 border-green-100"
-                                                if (tx.payment_method === 'debit' || tx.payment_method === 'credit') payBadgeClass = "bg-purple-50 text-purple-700 border-purple-100"
+                                                if (tx.payment_method === 'cash') payBadgeClass = "bg-pink-50 text-pink-700 border-pink-200/80"
+                                                if (tx.payment_method === 'transfer') payBadgeClass = "bg-blue-50 text-blue-700 border-blue-200/80"
+                                                if (tx.payment_method === 'qris') payBadgeClass = "bg-green-50 text-green-700 border-green-200/80"
+                                                if (tx.payment_method === 'debit' || tx.payment_method === 'credit') payBadgeClass = "bg-purple-50 text-purple-700 border-purple-200/80"
 
                                                 return (
                                                     <tr 
                                                         key={tx.id} 
                                                         onClick={() => openDetailModal(tx)} 
-                                                        className={`hover:bg-ayumi-table-hover transition-colors cursor-pointer group ${tx.payment_status === 'void' ? 'opacity-70 bg-rose-50/20' : ''}`}
+                                                        className={`hover:bg-pink-50/25 transition-colors cursor-pointer group ${tx.payment_status === 'void' ? 'opacity-70 bg-rose-50/20' : ''}`}
                                                     >
-                                                        <td className="p-4 font-bold text-gray-800 text-xs">
-                                                            <span className={tx.payment_status === 'void' ? 'line-through text-gray-400' : ''}>{tx.transaction_number}</span>
+                                                        <td className="py-3 px-4 font-mono font-bold text-xs text-gray-700 align-middle">
+                                                            <span className={`inline-block px-2 py-0.5 rounded bg-gray-100/80 border border-gray-200 text-gray-700 ${tx.payment_status === 'void' ? 'line-through text-gray-400' : ''}`}>
+                                                                {tx.transaction_number}
+                                                            </span>
                                                         </td>
-                                                        <td className="p-4 text-gray-600 text-xs">{formatDate(tx.created_at)}</td>
-                                                        <td className="p-4">
-                                                            {tx.patient_id ? (
-                                                                <Link 
-                                                                    href={`/patients/${tx.patient_id}`}
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    className="font-extrabold text-ayumi-primary hover:text-ayumi-secondary hover:underline transition-colors inline-flex items-center gap-1 group/p text-sm"
-                                                                    title="Buka Rekam Medis & Riwayat Pasien"
+                                                        <td className="py-3 px-4 text-xs align-middle">
+                                                            <div className="font-semibold text-gray-800">{dateStr}</div>
+                                                            <div className="text-[11px] text-gray-400 font-medium">{timeStr} WIB</div>
+                                                        </td>
+                                                        <td className="py-3 px-4 align-middle">
+                                                            <div className="flex flex-col items-start gap-1">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {tx.patient_id ? (
+                                                                        <Link 
+                                                                            href={`/patients/${tx.patient_id}`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="font-bold text-gray-900 hover:text-ayumi-primary hover:underline transition-colors text-sm inline-flex items-center gap-1 group/p"
+                                                                            title="Buka Rekam Medis & Riwayat Pasien"
+                                                                        >
+                                                                            <span>{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                                            <span className="text-[11px] text-gray-400 group-hover/p:text-ayumi-primary group-hover/p:translate-x-0.5 group-hover/p:-translate-y-0.5 transition-transform">↗</span>
+                                                                        </Link>
+                                                                    ) : (
+                                                                        <span className="font-bold text-gray-800 text-sm">{tx.patients?.full_name || 'Walk-in Customer'}</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${custStatus.badgeClass}`}>
+                                                                        {custStatus.label}
+                                                                    </span>
+                                                                    {formatGenderAge(tx.patients) && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-600 border border-gray-200/80">
+                                                                            {formatGenderAge(tx.patients)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-gray-700 font-semibold text-xs align-middle">
+                                                            {tx.branches?.name || '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-xs align-middle">
+                                                            <div className="flex flex-wrap items-center gap-1">
+                                                                {t > 0 && (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+                                                                        {t} Treatment
+                                                                    </span>
+                                                                )}
+                                                                {p > 0 && (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-100">
+                                                                        {p} Produk
+                                                                    </span>
+                                                                )}
+                                                                {c > 0 && (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                                                        {c} Kupon
+                                                                    </span>
+                                                                )}
+                                                                {t === 0 && p === 0 && c === 0 && (
+                                                                    <span className="text-gray-400 font-medium">-</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-xs align-middle">
+                                                            {therapistName ? (
+                                                                <span className="inline-flex items-center gap-1.5 font-bold text-gray-800 bg-pink-50/70 px-2.5 py-1 rounded-full border border-pink-100/90">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-ayumi-primary shrink-0"></span>
+                                                                    <span>{therapistName}</span>
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-400 font-medium px-2">-</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center align-middle">
+                                                            <div className="flex justify-center">
+                                                                <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wide ${payBadgeClass}`}>
+                                                                    {tx.payment_method}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-right text-xs align-middle">
+                                                            <span className={`font-bold ${pricing.discount > 0 ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                                                                {formatCurrency(pricing.sebelumDiskon)}
+                                                            </span>
+                                                        </td>
+                                                        <td className={`py-3 px-4 text-right align-middle ${tx.payment_status === 'void' ? 'text-gray-400 line-through font-bold' : 'text-gray-900 font-extrabold'}`}>
+                                                            <div className="flex flex-col items-end justify-center">
+                                                                <span className="text-sm font-extrabold text-gray-900 tracking-tight">
+                                                                    {formatCurrency(pricing.total)}
+                                                                </span>
+                                                                {pricing.discount > 0 && (
+                                                                    <div className="mt-1 flex items-center justify-end">
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200/90 shadow-2xs">
+                                                                            <svg className="w-2.5 h-2.5 text-rose-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                                                <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                                                            </svg>
+                                                                            <span>Disc -{formatCurrency(pricing.discount)}</span>
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center align-middle">
+                                                            <div className="flex justify-center">
+                                                                {tx.payment_status === 'void' ? (
+                                                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-200">
+                                                                        VOID
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                        LUNAS
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center align-middle">
+                                                            <div className="flex justify-center">
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); openDetailModal(tx) }}
+                                                                    className="text-xs font-bold text-ayumi-primary hover:text-white hover:bg-ayumi-primary bg-pink-50/80 hover:border-ayumi-primary border border-pink-200/80 px-3 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
                                                                 >
-                                                                    <span>{tx.patients?.full_name || 'Walk-in Customer'}</span>
-                                                                    <span className="text-[11px] text-ayumi-primary group-hover/p:translate-x-0.5 group-hover/p:-translate-y-0.5 transition-transform">↗</span>
-                                                                </Link>
-                                                            ) : (
-                                                                <span className="font-extrabold text-gray-800 text-sm">{tx.patients?.full_name || 'Walk-in Customer'}</span>
-                                                            )}
-                                                        </td>
-                                                        <td className="p-4 text-gray-500 font-semibold text-xs">{tx.branches?.name || '-'}</td>
-                                                        <td className="p-4 text-gray-600 text-xs font-semibold">{summaryStr}</td>
-                                                        <td className="p-4 text-center">
-                                                            <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${payBadgeClass}`}>{tx.payment_method}</span>
-                                                        </td>
-                                                        <td className={`p-4 text-right font-bold ${tx.payment_status === 'void' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                                                            {formatCurrency(tx.total)}
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            {tx.payment_status === 'void' ? (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-200">
-                                                                    VOID
-                                                                </span>
-                                                            ) : (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-green-100 text-green-800 border border-green-200">
-                                                                    LUNAS
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); openDetailModal(tx) }}
-                                                                className="text-xs font-bold text-ayumi-primary hover:text-ayumi-secondary bg-pink-50 hover:bg-pink-100 px-3 py-1 rounded-lg transition-colors"
-                                                            >
-                                                                Lihat
-                                                            </button>
+                                                                    Lihat
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 )
@@ -2342,7 +2802,7 @@ export default function TransactionsPage() {
                                         </div>
                                     </div>
                                 )}
-                            </>
+                            </div>
                         )}
                     </div>
                 )}
@@ -3231,18 +3691,24 @@ export default function TransactionsPage() {
                             )}
 
                             {/* Transaction Info Grid */}
-                            <div className="grid grid-cols-2 gap-3 border-b border-dashed border-gray-200 pb-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 border-b border-dashed border-gray-200 pb-3">
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Tanggal (Terkunci)</span>
                                     <span className="text-gray-800 font-bold">{formatDate(selectedTx.created_at)}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Kasir</span>
-                                    <span>{selectedTx.users?.full_name || 'System Admin'}</span>
+                                    <span className="font-semibold text-gray-800">{selectedTx.users?.full_name || 'System Admin'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[9px] text-gray-400 font-bold uppercase">Terapis Pelaksana</span>
+                                    <span className="font-semibold text-gray-800">
+                                        {selectedTx.treatment_records?.therapist?.full_name || '-'}
+                                    </span>
                                 </div>
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Klinik Cabang</span>
-                                    <span>{selectedTx.branches?.name || '-'}</span>
+                                    <span className="font-semibold text-gray-800">{selectedTx.branches?.name || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase">Metode Pembayaran</span>
@@ -3268,9 +3734,24 @@ export default function TransactionsPage() {
                             <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100 flex items-center justify-between gap-2">
                                 <div>
                                     <span className="block text-[9px] text-gray-400 font-bold uppercase mb-0.5">Informasi Pasien</span>
-                                    <p className="font-extrabold text-gray-800 text-sm">{selectedTx.patients?.full_name || 'Walk-in Customer'}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-extrabold text-gray-800 text-sm">{selectedTx.patients?.full_name || 'Walk-in Customer'}</p>
+                                        {(() => {
+                                            const s = getCustomerStatus(selectedTx)
+                                            return (
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.badgeClass}`}>
+                                                    {s.fullLabel || s.label}
+                                                </span>
+                                            )
+                                        })()}
+                                    </div>
                                     {selectedTx.patients?.whatsapp && (
                                         <p className="text-[10px] text-gray-500 mt-0.5">WhatsApp: {selectedTx.patients.whatsapp}</p>
+                                    )}
+                                    {formatGenderAge(selectedTx.patients) && (
+                                        <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                                            Profil: <span className="text-gray-700 font-bold">{formatGenderAge(selectedTx.patients)}</span>
+                                        </p>
                                     )}
                                 </div>
                                 {selectedTx.patient_id && (
@@ -3290,35 +3771,78 @@ export default function TransactionsPage() {
                             <div>
                                 <span className="block text-[9px] text-gray-400 font-bold uppercase mb-2">Item Belanja</span>
                                 <div className="space-y-2">
-                                    {selectedTx.transaction_items?.map((item) => (
-                                        <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-gray-50 last:border-0">
-                                            <div className="flex-1">
-                                                <p className="font-bold text-gray-800 text-[11px] leading-tight pr-4">{item.name}</p>
-                                                <span className="text-[10px] text-gray-400  font-medium">Rp {Number(item.price).toLocaleString('id-ID')} x{item.quantity}</span>
+                                    {selectedTx.transaction_items?.map((item) => {
+                                        const qty = Number(item.quantity) || 1
+                                        const charged = Number(item.price) || 0
+                                        let orig = Number(item.original_price) || 0
+                                        if (item.item_type === 'product') {
+                                            const prod = item.products || productCatalogMap?.get(item.product_id) || productCatalogMap?.get((item.name || '').trim().toLowerCase())
+                                            if (prod) {
+                                                const pOrig = getProductOriginalPrice(item, prod)
+                                                if (pOrig > charged) orig = pOrig
+                                            }
+                                        } else if (item.item_type === 'treatment') {
+                                            const triList = selectedTx.treatment_records?.treatment_record_items || []
+                                            const tri = triList.find(t => (t.treatments?.name || t.notes || '').trim().toLowerCase() === (item.name || '').trim().toLowerCase())
+                                            if (tri) {
+                                                const tOrig = Number(tri.original_price) || Number(tri.treatments?.price) || Number(tri.price_at_time) || 0
+                                                if (tOrig > charged) orig = tOrig
+                                            }
+                                        }
+                                        const hasItemDisc = orig > charged
+
+                                        return (
+                                            <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-gray-50 last:border-0">
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-gray-800 text-[11px] leading-tight pr-4">{item.name}</p>
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-medium mt-0.5">
+                                                        {hasItemDisc ? (
+                                                            <>
+                                                                <span className="text-gray-400 line-through">Rp {orig.toLocaleString('id-ID')}</span>
+                                                                <span className="text-emerald-700 font-bold">Rp {charged.toLocaleString('id-ID')}</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-gray-400">Rp {charged.toLocaleString('id-ID')}</span>
+                                                        )}
+                                                        <span className="text-gray-400">x{qty}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-bold text-gray-800 text-[11px]">{formatCurrency(item.subtotal)}</span>
+                                                    {hasItemDisc && (
+                                                        <div className="text-[9px] font-extrabold text-rose-600">
+                                                            Hemat Rp {((orig - charged) * qty).toLocaleString('id-ID')}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <span className=" font-bold text-gray-800 text-[11px]">{formatCurrency(item.subtotal)}</span>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </div>
 
                             {/* Calculations */}
-                            <div className="border-t border-dashed border-gray-200 pt-3 space-y-1.5 font-bold">
-                                <div className="flex justify-between text-gray-500">
-                                    <span>Subtotal</span>
-                                    <span className="">{formatCurrency(selectedTx.subtotal)}</span>
-                                </div>
-                                {selectedTx.discount > 0 && (
-                                    <div className="flex justify-between text-red-500">
-                                        <span>Potongan Diskon</span>
-                                        <span className="">- {formatCurrency(selectedTx.discount)}</span>
+                            {(() => {
+                                const modalPricing = getCleanTxPricing(selectedTx)
+                                return (
+                                    <div className="border-t border-dashed border-gray-200 pt-3 space-y-1.5 font-bold">
+                                        <div className="flex justify-between text-gray-500">
+                                            <span>Sebelum Diskon</span>
+                                            <span className="">{formatCurrency(modalPricing.sebelumDiskon)}</span>
+                                        </div>
+                                        {modalPricing.discount > 0 && (
+                                            <div className="flex justify-between text-red-500">
+                                                <span>Potongan Diskon</span>
+                                                <span className="">- {formatCurrency(modalPricing.discount)}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between text-sm border-t border-gray-100 pt-2 text-gray-900 font-black">
+                                            <span>TOTAL BAYAR</span>
+                                            <span className=" text-base text-ayumi-secondary">{formatCurrency(modalPricing.total)}</span>
+                                        </div>
                                     </div>
-                                )}
-                                <div className="flex justify-between text-sm border-t border-gray-100 pt-2 text-gray-900 font-black">
-                                    <span>TOTAL BAYAR</span>
-                                    <span className=" text-base text-ayumi-secondary">{formatCurrency(selectedTx.total)}</span>
-                                </div>
-                            </div>
+                                )
+                            })()}
 
                             {/* Notes if exists */}
                             {(isEditingTx || selectedTx.notes) && (
@@ -3415,6 +3939,155 @@ export default function TransactionsPage() {
                                     </button>
                                 </>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: RINCIAN PENUKARAN SESI KUPON (REDEEM) */}
+            {isCouponRedeemModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+                        {/* Modal Header */}
+                        <div className="p-5 sm:p-6 border-b border-stone-100 flex items-center justify-between bg-gradient-to-r from-amber-50/50 via-white to-white">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg shadow-sm">
+                                    🎟️
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-extrabold text-stone-900">Rincian Penukaran Sesi Kupon (Redeem)</h3>
+                                    <p className="text-xs text-stone-500 font-medium mt-0.5">
+                                        Periode {customStartDate} s/d {customEndDate} • {filterBranch ? (branches.find(b => b.id === filterBranch)?.name || 'Cabang Terpilih') : 'Semua Cabang'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsCouponRedeemModalOpen(false)} 
+                                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Summary Bar & Search */}
+                        <div className="p-4 bg-stone-50/80 border-b border-stone-100 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <span className="text-xs font-extrabold text-stone-700 bg-white border border-stone-200 px-3 py-1 rounded-xl shadow-xs">
+                                    Total Sesi: <strong className="text-amber-700">{couponRedeemedData.totalSessions}</strong> Sesi
+                                </span>
+                                <span className="text-xs font-extrabold text-amber-900 bg-amber-100/90 border border-amber-200 px-3 py-1 rounded-xl shadow-xs">
+                                    Total Valuasi: <strong className="text-amber-800">{formatCurrency(couponRedeemedData.totalValue)}</strong>
+                                </span>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={couponRedeemSearch}
+                                    onChange={(e) => setCouponRedeemSearch(e.target.value)}
+                                    placeholder="Cari pasien / layanan..."
+                                    className="pl-8 pr-3 py-1.5 bg-white border border-stone-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 w-56 shadow-xs"
+                                />
+                                <svg className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            </div>
+                        </div>
+
+                        {/* Table Content */}
+                        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                            {(() => {
+                                const filteredLogs = (couponRedeemedData.logs || []).filter(log => {
+                                    if (!couponRedeemSearch) return true
+                                    const q = couponRedeemSearch.toLowerCase()
+                                    const pName = (log.patients?.full_name || '').toLowerCase()
+                                    const tName = (log.patient_coupon_items?.treatments?.name || '').toLowerCase()
+                                    const pkgName = (log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || '').toLowerCase()
+                                    return pName.includes(q) || tName.includes(q) || pkgName.includes(q)
+                                })
+
+                                if (filteredLogs.length === 0) {
+                                    return (
+                                        <div className="text-center py-12">
+                                            <p className="text-sm font-semibold text-stone-400">Tidak ada penukaran sesi kupon pada periode/filter ini.</p>
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <div className="border border-stone-200 rounded-2xl overflow-hidden shadow-xs">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead>
+                                                <tr className="bg-stone-50 text-stone-600 font-bold border-b border-stone-200 uppercase text-[10px] tracking-wider">
+                                                    <th className="p-3">Waktu</th>
+                                                    <th className="p-3">Pasien</th>
+                                                    <th className="p-3">Paket & Layanan</th>
+                                                    <th className="p-3">Cabang</th>
+                                                    <th className="p-3 text-center">Status Sesi</th>
+                                                    <th className="p-3 text-right">Nilai Sesi</th>
+                                                    <th className="p-3">Petugas</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-stone-100">
+                                                {filteredLogs.map((log, idx) => {
+                                                    const item = log.patient_coupon_items
+                                                    const tP = Number(item?.treatments?.price || 0)
+                                                    const pP = Number(item?.patient_coupons?.coupon_packages?.price || 0)
+                                                    const tS = Number(item?.total_sessions || 1)
+                                                    const val = tP > 0 ? tP : (pP > 0 ? Math.round(pP / tS) : 0)
+
+                                                    return (
+                                                        <tr key={log.id || idx} className="hover:bg-amber-50/30 transition-colors">
+                                                            <td className="p-3 text-stone-500 whitespace-nowrap">
+                                                                {log.used_at ? new Date(log.used_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                            </td>
+                                                            <td className="p-3 whitespace-nowrap">
+                                                                {log.patients?.id ? (
+                                                                    <Link 
+                                                                        href={`/patients/${log.patients.id}`}
+                                                                        className="font-bold text-stone-900 hover:text-ayumi-primary hover:underline inline-flex items-center gap-1 group/pat"
+                                                                        title="Lihat Profil Pasien"
+                                                                    >
+                                                                        <span>{log.patients?.full_name || 'Pasien'}</span>
+                                                                        <span className="text-[10px] text-ayumi-primary font-bold group-hover/pat:translate-x-0.5 group-hover/pat:-translate-y-0.5 transition-transform">↗</span>
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span className="font-bold text-stone-900">{log.patients?.full_name || 'Pasien'}</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <p className="font-bold text-stone-900">{log.patient_coupon_items?.treatments?.name || 'Treatment'}</p>
+                                                                <p className="text-[10px] text-stone-400">{log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || 'Paket'}</p>
+                                                            </td>
+                                                            <td className="p-3 text-stone-600 whitespace-nowrap">
+                                                                {log.branches?.name || '-'}
+                                                            </td>
+                                                            <td className="p-3 text-center whitespace-nowrap">
+                                                                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                                                    Sesi {log.patient_coupon_items?.used_sessions || 1}/{log.patient_coupon_items?.total_sessions || 1}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-3 text-right font-extrabold text-amber-900 whitespace-nowrap tabular-nums">
+                                                                {formatCurrency(val)}
+                                                            </td>
+                                                            <td className="p-3 text-stone-600 whitespace-nowrap">
+                                                                {log.users?.full_name || '-'}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )
+                            })()}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 bg-stone-50 border-t border-stone-100 flex justify-end">
+                            <button 
+                                onClick={() => setIsCouponRedeemModalOpen(false)} 
+                                className="px-5 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                            >
+                                Tutup
+                            </button>
                         </div>
                     </div>
                 </div>

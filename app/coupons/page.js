@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
@@ -15,15 +16,18 @@ export default function CouponsDashboardPage() {
 
     useEffect(() => {
         fetchUser()
+        fetchBranches()
     }, [])
 
     const fetchUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-            if (data) setDbUser(data)
+        try {
+            const { dbUser: userProfile } = await getCachedUser()
+            if (userProfile) setDbUser(userProfile)
+        } catch (err) {
+            console.error('Error fetching cached user:', err)
+        } finally {
+            setUserLoaded(true)
         }
-        setUserLoaded(true)
     }
 
     // --- STATES FOR TAB 1: MASTER PAKET ---
@@ -58,13 +62,15 @@ export default function CouponsDashboardPage() {
         if (activeTab === 'master') fetchPackages()
         else if (activeTab === 'patients') fetchPatientCoupons()
         else if (activeTab === 'history') fetchHistoryLogs()
-        
-        if (activeTab === 'history' && branches.length === 0) fetchBranches()
     }, [activeTab, userLoaded, dbUser])
 
     const fetchBranches = async () => {
-        const { data } = await supabase.from('branches').select('id, name')
-        if (data) setBranches(data)
+        try {
+            const data = await getCachedBranches()
+            if (data) setBranches(data)
+        } catch (err) {
+            console.error('Error fetching branches:', err)
+        }
     }
 
     // --- TAB 1: MASTER PAKET LOGIC ---

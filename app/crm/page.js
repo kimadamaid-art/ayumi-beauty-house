@@ -9,6 +9,8 @@ import BranchFilter from '@/components/ui/BranchFilter'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 import { openWhatsApp } from '@/lib/whatsapp'
+import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedBranches } from '@/lib/cachedBranches'
 
 export default function CRMPage() {
 
@@ -102,32 +104,23 @@ export default function CRMPage() {
 
     const fetchData = async () => {
         setLoading(true)
-        const { data: { user: currentUser } } = await supabase.auth.getUser()
-        setUser(currentUser)
-        
-        let userBranch = null
-        let ownerFlag = false
 
-        if (currentUser) {
-            const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', currentUser.id).maybeSingle()
-            if (userData) {
-                ownerFlag = userData.role === 'owner'
-                userBranch = userData.branch_id
-            } else {
-                ownerFlag = true
-            }
-        }
+        // 1. Get cached user & branches instantly (0ms)
+        const [{ user: currentUser, dbUser: userData }, brData] = await Promise.all([
+            getCachedUser(),
+            getCachedBranches()
+        ])
+
+        setUser(currentUser)
+        const ownerFlag = userData?.role === 'owner' || !currentUser
+        const userBranch = userData?.branch_id || null
         setIsOwner(ownerFlag)
         setUserBranchId(userBranch)
-
-        if (ownerFlag) {
-            const { data: brData } = await supabase.from('branches').select('id, name').eq('is_active', true)
-            if (brData) setBranches(brData)
-        }
+        if (brData) setBranches(brData)
 
         const todayDateStr = new Date().toISOString().split('T')[0]
 
-        // 1. Fetch Follow Up Queue
+        // 1. Follow Up Queue Query
         let qQuery = supabase
             .from('followup_queue')
             .select(`
@@ -155,8 +148,59 @@ export default function CRMPage() {
             qQuery = qQuery.order('scheduled_date', { ascending: false })
         }
 
-        const { data: rawQData } = await qQuery
-            
+        // 2. Patients for Birthdays Query
+        let pQuery = supabase.from('patients').select('id, full_name, whatsapp, birth_date, branch_id').eq('is_active', true).not('birth_date', 'is', null)
+        if (!ownerFlag && userBranch) {
+            pQuery = pQuery.eq('branch_id', userBranch)
+        }
+
+        // 3. Treatment Records for Dormant Query (Limit to records within 18 months for high speed)
+        const eighteenMonthsAgo = new Date()
+        eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18)
+        let trQuery = supabase
+            .from('treatment_records')
+            .select('id, patient_id, treatment_date, branch_id, patients!inner(full_name, whatsapp)')
+            .gte('treatment_date', eighteenMonthsAgo.toISOString().split('T')[0])
+            .order('treatment_date', { ascending: false })
+
+        // 4. All Active Patients Query
+        let allPQuery = supabase.from('patients').select('id, full_name, whatsapp, branch_id').eq('is_active', true)
+        if (!ownerFlag && userBranch) {
+            allPQuery = allPQuery.eq('branch_id', userBranch)
+        }
+
+        // 5. Logs for Analytics Query
+        const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+        let logsQuery = supabase
+            .from('followup_logs')
+            .select('*')
+            .gte('created_at', firstDayOfMonth)
+        if (!ownerFlag && userBranch) {
+            logsQuery = logsQuery.eq('branch_id', userBranch)
+        }
+
+        // EXECUTE ALL 5 QUERIES SIMULTANEOUSLY IN PARALLEL!
+        const [
+            qRes,
+            pRes,
+            trRes,
+            allPRes,
+            logRes
+        ] = await Promise.all([
+            qQuery,
+            pQuery,
+            trQuery,
+            allPQuery,
+            logsQuery
+        ])
+
+        const rawQData = qRes?.data
+        const pData = pRes?.data
+        const trData = trRes?.data
+        const allPData = allPRes?.data
+        const logData = logRes?.data
+
+        // Process Queue
         let qData = []
         if (rawQData) {
             if (!ownerFlag && userBranch) {
@@ -177,12 +221,7 @@ export default function CRMPage() {
             setQueue(qData)
         }
 
-        // 2. Fetch Patients for Birthdays
-        let pQuery = supabase.from('patients').select('id, full_name, whatsapp, birth_date, branch_id').eq('is_active', true).not('birth_date', 'is', null)
-        if (!ownerFlag && userBranch) {
-            pQuery = pQuery.eq('branch_id', userBranch)
-        }
-        const { data: pData } = await pQuery
+        // Process Birthdays
         if (pData) {
             const today = new Date()
             today.setHours(0,0,0,0)
@@ -205,9 +244,7 @@ export default function CRMPage() {
             setBirthdays(upcoming)
         }
 
-        // 3. Fetch Treatment Records for Dormant
-        let trQuery = supabase.from('treatment_records').select('id, patient_id, treatment_date, branch_id, patients!inner(full_name, whatsapp)')
-        const { data: trData } = await trQuery
+        // Process Dormant
         if (trData) {
             const latestRecords = {}
             trData.forEach(r => {
@@ -241,27 +278,15 @@ export default function CRMPage() {
             setDormant(dormantList)
         }
 
-        // 4. Fetch All Active Patients (for manual follow-up selection)
-        let allPQuery = supabase.from('patients').select('id, full_name, whatsapp, branch_id').eq('is_active', true)
-        if (!ownerFlag && userBranch) {
-            allPQuery = allPQuery.eq('branch_id', userBranch)
-        }
-        const { data: allPData } = await allPQuery
+        // Process Active Patients
         if (allPData) {
             setAllPatients(allPData)
         }
 
-        // 5. Fetch Logs for Analytics (Current Month)
-        const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-        let logsQuery = supabase
-            .from('followup_logs')
-            .select('*')
-            .gte('created_at', firstDayOfMonth)
-        if (!ownerFlag && userBranch) {
-            logsQuery = logsQuery.eq('branch_id', userBranch)
+        // Process Logs
+        if (logData) {
+            setLogs(logData)
         }
-        const { data: logData } = await logsQuery
-        if (logData) setLogs(logData)
 
         setLoading(false)
     }

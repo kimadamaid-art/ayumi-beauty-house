@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -79,44 +80,46 @@ export default function TreatmentsReportPage() {
     }, [userLoaded, customStart, customEnd, selectedBranch])
 
     const checkAccessAndFetchInitialData = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-            router.push('/login')
-            return
+        try {
+            const [{ user, dbUser: userData }, branchData, { data: catData }, { data: pCatData }] = await Promise.all([
+                getCachedUser(),
+                getCachedBranches(),
+                supabase.from('treatment_categories').select('id, name').order('name'),
+                supabase.from('product_categories').select('id, name').order('name')
+            ])
+
+            if (!user) {
+                router.push('/login')
+                return
+            }
+
+            if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
+                toast.error('Akses ditolak. Halaman ini khusus untuk Owner dan Admin.')
+                router.push('/dashboard')
+                return
+            }
+
+            const owner = userData.role === 'owner'
+            setIsOwner(owner)
+            setUserBranchId(userData.branch_id)
+
+            if (branchData) setBranches(branchData)
+            if (catData) setTreatmentCategories(catData)
+            if (pCatData) setProductCategories(pCatData)
+
+            // Branch Access Enforcement:
+            // Non-owner (Admin) is STRICTLY LOCKED to their assigned branch!
+            if (!owner && userData.branch_id) {
+                setSelectedBranch(userData.branch_id)
+            } else if (owner) {
+                setSelectedBranch('all')
+            }
+
+            setUserLoaded(true)
+        } catch (err) {
+            console.error('Error initializing treatments report:', err)
+            setUserLoaded(true)
         }
-
-        const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-        if (!userData || (userData.role !== 'owner' && userData.role !== 'admin')) {
-            toast.error('Akses ditolak. Halaman ini khusus untuk Owner dan Admin.')
-            router.push('/dashboard')
-            return
-        }
-
-        const owner = userData.role === 'owner'
-        setIsOwner(owner)
-        setUserBranchId(userData.branch_id)
-        
-        // Fetch Active Branches
-        const { data: branchData } = await supabase.from('branches').select('id, name').eq('is_active', true).order('name')
-        if (branchData) setBranches(branchData)
-
-        // Fetch Treatment Categories
-        const { data: catData } = await supabase.from('treatment_categories').select('id, name').order('name')
-        if (catData) setTreatmentCategories(catData)
-
-        // Fetch Product Categories
-        const { data: pCatData } = await supabase.from('product_categories').select('id, name').order('name')
-        if (pCatData) setProductCategories(pCatData)
-
-        // Branch Access Enforcement:
-        // Non-owner (Admin) is STRICTLY LOCKED to their assigned branch!
-        if (!owner && userData.branch_id) {
-            setSelectedBranch(userData.branch_id)
-        } else if (owner) {
-            setSelectedBranch('all')
-        }
-
-        setUserLoaded(true)
     }
 
     const fetchReportData = async () => {

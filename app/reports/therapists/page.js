@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -55,39 +56,35 @@ export default function TherapistsReportPage() {
     }, [userLoaded, startDate, endDate, selectedBranch])
 
     const checkAccessAndFetchInitialData = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-            router.push('/login')
-            return
+        try {
+            const [{ user, dbUser: userData }, branchData, { data: therapistData }] = await Promise.all([
+                getCachedUser(),
+                getCachedBranches(),
+                supabase.from('users').select('id, full_name, role, branch_id, branches(name)').eq('role', 'therapist').order('full_name')
+            ])
+
+            if (!user) {
+                router.push('/login')
+                return
+            }
+
+            if (!userData || userData.role !== 'owner') {
+                alert('Akses ditolak. Halaman ini khusus untuk Owner.')
+                router.push('/dashboard')
+                return
+            }
+
+            setIsOwner(true)
+            setUserBranchId(userData.branch_id)
+
+            if (branchData) setBranches(branchData)
+            if (therapistData) setTherapists(therapistData)
+
+            setUserLoaded(true)
+        } catch (err) {
+            console.error('Error loading therapists report init:', err)
+            setUserLoaded(true)
         }
-
-        const { data: userData } = await supabase.from('users').select('role, branch_id').eq('id', user.id).maybeSingle()
-        if (!userData || userData.role !== 'owner') {
-            alert('Akses ditolak. Halaman ini khusus untuk Owner.')
-            router.push('/dashboard')
-            return
-        }
-
-        setIsOwner(true)
-        setUserBranchId(userData.branch_id)
-
-        // Fetch Branches
-        const { data: branchData } = await supabase
-            .from('branches')
-            .select('id, name')
-            .eq('is_active', true)
-            .order('name')
-        if (branchData) setBranches(branchData)
-
-        // Fetch Active Therapists
-        const { data: therapistData } = await supabase
-            .from('users')
-            .select('id, full_name, role, branch_id, branches(name)')
-            .eq('role', 'therapist')
-            .order('full_name')
-        if (therapistData) setTherapists(therapistData)
-
-        setUserLoaded(true)
     }
 
     const fetchReportData = async () => {

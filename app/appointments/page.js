@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast'
 import DateRangePicker from '../../components/DateRangePicker'
 import { notifyPatientArrived } from '@/lib/notifications'
 import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedBranches } from '@/lib/cachedBranches'
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([])
@@ -41,12 +42,22 @@ export default function AppointmentsPage() {
     const startDateRef = useRef(startDate)
     const endDateRef = useRef(endDate)
 
+    const isFirstMountRef = useRef(true)
+
     useEffect(() => {
         filterBranchRef.current = filterBranch
         filterStatusRef.current = filterStatus
         startDateRef.current = startDate
         endDateRef.current = endDate
     }, [filterBranch, filterStatus, startDate, endDate])
+
+    useEffect(() => {
+        if (isFirstMountRef.current) {
+            isFirstMountRef.current = false
+            return
+        }
+        fetchData(false)
+    }, [startDate, endDate, filterBranch])
 
     useEffect(() => {
         fetchData(false)
@@ -114,7 +125,9 @@ export default function AppointmentsPage() {
                 setFilterBranch(userBranchId)
             }
 
-            // Build appointments query
+            // Build appointments query with database-level date filtering
+            const curStartDate = startDateRef.current || startDate
+            const curEndDate = endDateRef.current || endDate
             let aptQuery = supabase
                 .from('appointments')
                 .select(`
@@ -134,20 +147,29 @@ export default function AppointmentsPage() {
                 .order('appointment_date', { ascending: false })
                 .order('start_time', { ascending: true })
 
+            if (curStartDate) {
+                aptQuery = aptQuery.gte('appointment_date', curStartDate)
+            }
+            if (curEndDate) {
+                aptQuery = aptQuery.lte('appointment_date', curEndDate)
+            }
+
             if (!ownerFlag && userBranchId) {
                 aptQuery = aptQuery.eq('branch_id', userBranchId)
+            } else if (filterBranchRef.current) {
+                aptQuery = aptQuery.eq('branch_id', filterBranchRef.current)
             }
 
             // Fetch branches, appointments, and infus treatments concurrently in parallel
-            const [brRes, aptRes, infRes] = await Promise.all([
-                branches.length === 0 ? supabase.from('branches').select('id, name') : Promise.resolve({ data: null }),
+            const [brData, aptRes, infRes] = await Promise.all([
+                branches.length === 0 ? getCachedBranches() : Promise.resolve(branches),
                 aptQuery,
                 infusTreatmentsList.length === 0 
                     ? supabase.from('treatments').select('id, name, price, commission_percent').ilike('name', '%infus%').eq('is_active', true).order('price', { ascending: true })
                     : Promise.resolve({ data: null })
             ])
 
-            if (brRes.data) setBranches(brRes.data)
+            if (brData) setBranches(brData)
             if (aptRes.data) setAppointments(aptRes.data)
             if (infRes.data) setInfusTreatmentsList(infRes.data)
         } catch (err) {

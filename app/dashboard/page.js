@@ -2,14 +2,16 @@
 
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import DateRangePicker from '../../components/DateRangePicker'
 import BranchFilter from '@/components/ui/BranchFilter'
 import StatCard from '@/components/ui/StatCard'
-import { getNetTransactionRevenue, getQrisFee, parsePaymentSplits } from '@/lib/paymentUtils'
+import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedBranches } from '@/lib/cachedBranches'
+import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 import { 
     BarChart, 
     Bar, 
@@ -18,8 +20,17 @@ import {
     CartesianGrid, 
     Tooltip as RechartsTooltip, 
     ResponsiveContainer, 
-    Legend
+    Legend,
+    PieChart,
+    Pie,
+    Cell
 } from 'recharts'
+
+// Module-level persistent caches (preserved across client navigation within session)
+let globalCategoriesCache = null
+let globalDashboardCache = null
+let globalDashboardCachedKey = ''
+let globalDashboardCachedAt = 0
 
 export default function Dashboard() {
     const router = useRouter()
@@ -87,8 +98,40 @@ export default function Dashboard() {
     const [branchMonthlyTargetData, setBranchMonthlyTargetData] = useState([])
     const [topTreatments, setTopTreatments] = useState([])
     const [topProducts, setTopProducts] = useState([])
+    const [bottomTreatments, setBottomTreatments] = useState([])
+    const [dayOfWeekStats, setDayOfWeekStats] = useState([])
+    const [hourlyStats, setHourlyStats] = useState([])
+    const [categoryVolumeStats, setCategoryVolumeStats] = useState([])
+    const [categorySalesStats, setCategorySalesStats] = useState([])
+    const [demographicGender, setDemographicGender] = useState([])
+    const [demographicAge, setDemographicAge] = useState([])
+    const [retentionStats, setRetentionStats] = useState({
+        treatment: { newCount: 0, oldCount: 0, newRevenue: 0, oldRevenue: 0, totalRevenue: 0 },
+        product: { newCount: 0, oldCount: 0, newRevenue: 0, oldRevenue: 0, totalRevenue: 0 }
+    })
+    const [salesInsightMetric, setSalesInsightMetric] = useState('sales') // 'sales' | 'count'
+    const [retentionTab, setRetentionTab] = useState('all') // 'all' | 'treatment' | 'product'
+    const [selectedCategoryTab, setSelectedCategoryTab] = useState('all') // 'all' | category name
+    const [showAllCategoryItems, setShowAllCategoryItems] = useState(false)
     const [paymentBreakdown, setPaymentBreakdown] = useState([])
     const [recentBranchTransactions, setRecentBranchTransactions] = useState([])
+
+    // Performance Caching & Lifecycle Refs
+    const cachedCategoriesRef = useRef(null)
+    const isInitializedRef = useRef(false)
+
+    // Executive Section Collapsible / Accordion States (Owner)
+    const [collapsedSections, setCollapsedSections] = useState({})
+    const toggleSection = (key) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }))
+    const expandAllSections = () => setCollapsedSections({})
+    const collapseAllSections = () => setCollapsedSections({
+        branchComparison: true,
+        targetMonitoring: true,
+        topBottom: true,
+        salesInsights: true,
+        categoryAnalytics: true,
+        customerIntelligence: true
+    })
 
     const [branchTotals, setBranchTotals] = useState({
         monthlyTarget: 0,
@@ -189,7 +232,51 @@ export default function Dashboard() {
             const eDate = endStr || endDate
             const tMonth = targetMonthVal || targetMonth
             
-            // 1. Fetch transactions for selected date range with items
+            // Helper for category mappings (cached at module level so page navigation never re-fetches)
+            const getCategoriesData = async () => {
+                if (!isOwner) return { treatmentCatMap: {}, productCatMap: {}, allActiveTreatments: [] }
+                if (globalCategoriesCache) {
+                    return globalCategoriesCache
+                }
+                try {
+                    const [tcRes, trRes, prRes] = await Promise.all([
+                        supabase.from('treatment_categories').select('id, name'),
+                        supabase.from('treatments').select('id, name, category_id, is_active'),
+                        supabase.from('products').select('id, name, description, is_active')
+                    ])
+
+                    const tCats = tcRes.data || []
+                    const catIdToName = {}
+                    tCats.forEach(c => { catIdToName[c.id] = c.name })
+
+                    const trs = trRes.data || []
+                    const activeTrs = trs.filter(t => t.is_active !== false)
+                    const tMap = {}
+                    trs.forEach(t => {
+                        const catName = catIdToName[t.category_id] || 'FACE TREATMENT'
+                        tMap[t.id] = catName
+                        tMap[t.name] = catName
+                    })
+
+                    const prs = prRes.data || []
+                    const pMap = {}
+                    prs.forEach(p => {
+                        const match = (p.description || '').match(/Kategori:\s*([^|\[\]\n\r]+)/i)
+                        const catName = match ? match[1].trim() : 'Ayumi Produk'
+                        pMap[p.id] = catName
+                        pMap[p.name] = catName
+                    })
+
+                    const result = { treatmentCatMap: tMap, productCatMap: pMap, allActiveTreatments: activeTrs }
+                    globalCategoriesCache = result
+                    return result
+                } catch (catErr) {
+                    console.warn('Error fetching categories for owner insights:', catErr)
+                    return { treatmentCatMap: {}, productCatMap: {}, allActiveTreatments: [] }
+                }
+            }
+
+            // 1. Transaction query for selected date range
             let txQuery = supabase
                 .from('transactions')
                 .select(`
@@ -204,11 +291,12 @@ export default function Dashboard() {
                     payment_status,
                     created_at,
                     notes,
-                    patients (id, full_name, whatsapp),
-                    branches (id, name),
+                    patients (id, full_name, gender, birth_date),
                     transaction_items (
                         id,
                         item_type,
+                        treatment_id,
+                        product_id,
                         name,
                         quantity,
                         subtotal,
@@ -224,10 +312,91 @@ export default function Dashboard() {
                 txQuery = txQuery.eq('branch_id', userBranchId)
             }
 
-            let { data: rangeTrx, error: trxError } = await txQuery
+            // 2. Transactions for monthly target query
+            const [tYearStr, tMonthStr] = (tMonth || '').split('-')
+            const tYear = parseInt(tYearStr, 10) || new Date().getFullYear()
+            const tMonthIdx = (parseInt(tMonthStr, 10) || (new Date().getMonth() + 1)) - 1
 
-            if (trxError) {
-                console.warn('Full transaction query failed, falling back:', trxError.message)
+            const startOfMonth = new Date(tYear, tMonthIdx, 1, 0, 0, 0).toISOString()
+            const endOfMonth = new Date(tYear, tMonthIdx + 1, 0, 23, 59, 59, 999).toISOString()
+
+            let monthlyTrxQuery = supabase
+                .from('transactions')
+                .select(`
+                    id, 
+                    branch_id, 
+                    total, 
+                    subtotal, 
+                    discount, 
+                    payment_method, 
+                    notes,
+                    transaction_items (
+                        item_type,
+                        subtotal
+                    )
+                `)
+                .eq('payment_status', 'paid')
+                .gte('created_at', startOfMonth)
+                .lte('created_at', endOfMonth)
+
+            if (!isOwner && userBranchId) {
+                monthlyTrxQuery = monthlyTrxQuery.eq('branch_id', userBranchId)
+            }
+
+            // 3. Coupon usage logs query
+            let logsQuery = supabase
+                .from('coupon_usage_logs')
+                .select(`
+                    id,
+                    used_at,
+                    notes,
+                    branch_id,
+                    transaction_id,
+                    treatment_record_id,
+                    branches (id, name),
+                    patients (id, full_name, whatsapp),
+                    patient_coupon_items (
+                        id,
+                        total_sessions,
+                        used_sessions,
+                        remaining_sessions,
+                        treatments (id, name, price),
+                        patient_coupons (
+                            id,
+                            coupon_packages (id, name, price)
+                        )
+                    ),
+                    users:users!coupon_usage_logs_used_by_fkey (id, full_name)
+                `)
+                .is('voided_at', null)
+                .gte('used_at', new Date(`${sDate}T00:00:00`).toISOString())
+                .lte('used_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                .order('used_at', { ascending: false })
+
+            if (!isOwner && userBranchId) {
+                logsQuery = logsQuery.eq('branch_id', userBranchId)
+            }
+
+            // Execute ALL core queries in parallel!
+            const [
+                catData,
+                txResult,
+                monthlyResult,
+                logsResult
+            ] = await Promise.all([
+                getCategoriesData(),
+                txQuery,
+                monthlyTrxQuery,
+                logsQuery
+            ])
+
+            const { treatmentCatMap, productCatMap, allActiveTreatments } = catData
+            const monthlyTrx = monthlyResult?.data || []
+            const couponLogsData = logsResult?.data || []
+
+            let rangeTrx = txResult?.data || []
+            if (txResult?.error) {
+                console.warn('Full transaction query failed, falling back:', txResult.error.message)
                 let fallbackQuery = supabase
                     .from('transactions')
                     .select(`
@@ -242,11 +411,12 @@ export default function Dashboard() {
                         payment_status,
                         created_at,
                         notes,
-                        patients (id, full_name, whatsapp),
-                        branches (id, name),
+                        patients (id, full_name, gender, birth_date),
                         transaction_items (
                             id,
                             item_type,
+                            treatment_id,
+                            product_id,
                             name,
                             quantity,
                             subtotal
@@ -260,7 +430,7 @@ export default function Dashboard() {
                     fallbackQuery = fallbackQuery.eq('branch_id', userBranchId)
                 }
                 const fallback = await fallbackQuery
-                rangeTrx = fallback.data
+                rangeTrx = fallback.data || []
             }
 
             // Save recent transactions for the table (10 latest)
@@ -272,6 +442,7 @@ export default function Dashboard() {
             let grandProductRange = 0
             let grandCouponSalesRange = 0
             let grandCouponUsedRange = 0
+            let grandDiscountRange = 0
             let grandQrisFeeRange = 0
             let totalTxCountRange = 0
             const methodMap = {}
@@ -288,12 +459,25 @@ export default function Dashboard() {
                     couponUsedValue: 0,
                     couponUsedSessions: 0,
                     otherIncome: 0,
+                    discountTotal: 0,
                     cashIncome: 0,
                     totalIncome: 0,
                     qrisFee: 0,
                     transactionCount: 0
                 }
             })
+
+            // Owner Insights Data Collectors
+            const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+            const dayStatsList = dayNames.map(name => ({ day: name, sales: 0, count: 0 }))
+            const hourlyStatsList = Array.from({ length: 14 }, (_, i) => ({
+                hour: `${String(i + 8).padStart(2, '0')}:00`,
+                label: `${String(i + 8).padStart(2, '0')}:00`,
+                sales: 0,
+                count: 0
+            }))
+            const categoryMap = {}
+            const uniquePatientsMap = new Map()
 
             if (rangeTrx) {
                 rangeTrx.forEach(tx => {
@@ -302,6 +486,28 @@ export default function Dashboard() {
                         const branchObj = rangeMap[tx.branch_id]
                         branchObj.transactionCount += 1
                         totalTxCountRange += 1
+
+                        if (isOwner) {
+                            const txDate = new Date(tx.created_at)
+                            const dayIdx = txDate.getDay() // 0 = Sun, 1 = Mon ...
+                            const dayOrder = dayIdx === 0 ? 6 : dayIdx - 1
+                            const txTot = Number(tx.total || 0)
+
+                            if (dayStatsList[dayOrder]) {
+                                dayStatsList[dayOrder].sales += txTot
+                                dayStatsList[dayOrder].count += 1
+                            }
+
+                            const txHr = txDate.getHours()
+                            if (txHr >= 8 && txHr <= 21 && hourlyStatsList[txHr - 8]) {
+                                hourlyStatsList[txHr - 8].sales += txTot
+                                hourlyStatsList[txHr - 8].count += 1
+                            }
+
+                            if (tx.patients && tx.patients.id) {
+                                uniquePatientsMap.set(tx.patients.id, tx.patients)
+                            }
+                        }
                         
                         let txTreatment = 0
                         let txProduct = 0
@@ -319,6 +525,29 @@ export default function Dashboard() {
                                 const origPrice = Number(item.original_price || 0)
                                 const isCouponUsed = discPct >= 100 && origPrice > 0
                                 const couponValue = isCouponUsed ? origPrice * itemQty : 0
+
+                                if (isOwner) {
+                                    let itemCat = 'LAINNYA'
+                                    if (item.item_type === 'treatment') {
+                                        itemCat = treatmentCatMap[item.treatment_id] || treatmentCatMap[itemName] || 'FACE TREATMENT'
+                                    } else if (item.item_type === 'product') {
+                                        itemCat = productCatMap[item.product_id] || productCatMap[itemName] || 'Ayumi Produk'
+                                    } else if (item.item_type === 'coupon') {
+                                        itemCat = 'PAKET KUPON'
+                                    }
+                                    itemCat = itemCat.trim()
+                                    if (!categoryMap[itemCat]) {
+                                        categoryMap[itemCat] = { category: itemCat, volume: 0, sales: 0, items: {} }
+                                    }
+                                    categoryMap[itemCat].volume += itemQty
+                                    categoryMap[itemCat].sales += itemSub
+
+                                    if (!categoryMap[itemCat].items[itemName]) {
+                                        categoryMap[itemCat].items[itemName] = { name: itemName, count: 0, revenue: 0 }
+                                    }
+                                    categoryMap[itemCat].items[itemName].count += itemQty
+                                    categoryMap[itemCat].items[itemName].revenue += itemSub
+                                }
 
                                 if (item.item_type === 'treatment') {
                                     if (isCouponUsed) {
@@ -359,10 +588,11 @@ export default function Dashboard() {
                         
                         const realCash = getNetTransactionRevenue(tx)
                         const txQrisFee = getQrisFee(tx)
-                        const totalValuation = realCash + txCouponUsed
+                        const txDisc = Number(tx.discount || 0)
 
+                        branchObj.discountTotal += txDisc
                         branchObj.cashIncome += realCash
-                        branchObj.totalIncome += totalValuation
+                        branchObj.totalIncome += realCash
                         branchObj.qrisFee += txQrisFee
 
                         grandTotalRange += realCash
@@ -370,6 +600,7 @@ export default function Dashboard() {
                         grandProductRange += txProduct
                         grandCouponSalesRange += txCouponSales
                         grandCouponUsedRange += txCouponUsed
+                        grandDiscountRange += txDisc
                         grandQrisFeeRange += txQrisFee
 
                         const splits = parsePaymentSplits(tx)
@@ -391,58 +622,32 @@ export default function Dashboard() {
             })).sort((a, b) => b.amount - a.amount)
             setPaymentBreakdown(formattedMethods)
 
-            // Fetch coupon usage logs in the selected date range
-            let couponLogsData = []
-            try {
-                let logsQuery = supabase
-                    .from('coupon_usage_logs')
-                    .select(`
-                        id,
-                        used_at,
-                        notes,
-                        branch_id,
-                        transaction_id,
-                        treatment_record_id,
-                        branches (id, name),
-                        patients (id, full_name, whatsapp),
-                        patient_coupon_items (
-                            id,
-                            total_sessions,
-                            used_sessions,
-                            remaining_sessions,
-                            treatments (id, name, price),
-                            patient_coupons (
-                                id,
-                                coupon_packages (id, name)
-                            )
-                        ),
-                        users:users!coupon_usage_logs_used_by_fkey (id, full_name)
-                    `)
-                    .is('voided_at', null)
-                    .gte('used_at', new Date(`${sDate}T00:00:00`).toISOString())
-                    .lte('used_at', new Date(`${eDate}T23:59:59.999`).toISOString())
-                    .order('used_at', { ascending: false })
-
-                if (!isOwner && userBranchId) {
-                    logsQuery = logsQuery.eq('branch_id', userBranchId)
-                }
-
-                const { data: usageLogs } = await logsQuery
-                if (usageLogs) couponLogsData = usageLogs
-            } catch (errLogs) {
-                console.warn('Warning fetching coupon_usage_logs for dashboard:', errLogs)
-            }
-
             setCouponUsageLogsList(couponLogsData)
 
             let grandCouponUsedSessions = 0
+            let grandCouponUsedVal = 0
             targetBranches.forEach(b => {
                 const bLogs = couponLogsData.filter(l => l.branch_id === b.id)
                 const logSessionCount = bLogs.length
+                let bLogVal = 0
+                bLogs.forEach(l => {
+                    const it = l.patient_coupon_items
+                    const tP = Number(it?.treatments?.price || 0)
+                    const pP = Number(it?.patient_coupons?.coupon_packages?.price || 0)
+                    const tS = Number(it?.total_sessions || 1)
+                    bLogVal += (tP > 0 ? tP : (pP > 0 ? Math.round(pP / tS) : 0))
+                })
+
                 const fallbackCount = rangeMap[b.id]?.couponUsedSessions || 0
+                const fallbackVal = rangeMap[b.id]?.couponUsedValue || 0
                 const finalSessionCount = logSessionCount > 0 ? logSessionCount : fallbackCount
+                const finalSessionVal = logSessionCount > 0 ? bLogVal : fallbackVal
+
                 rangeMap[b.id].couponUsedSessions = finalSessionCount
+                rangeMap[b.id].couponUsedValue = finalSessionVal
+
                 grandCouponUsedSessions += finalSessionCount
+                grandCouponUsedVal += finalSessionVal
             })
 
             let topBranch = '-'
@@ -470,45 +675,200 @@ export default function Dashboard() {
             setTopTreatments(sortedTreatments)
             setTopProducts(sortedProducts)
 
-            // 2. Fetch selected month transactions for monthly target calculation (Khusus Treatment & Kupon)
-            const [tYearStr, tMonthStr] = (tMonth || '').split('-')
-            const tYear = parseInt(tYearStr, 10) || new Date().getFullYear()
-            const tMonthIdx = (parseInt(tMonthStr, 10) || (new Date().getMonth() + 1)) - 1
+            if (isOwner) {
+                // 1. Day & Hour Stats
+                setDayOfWeekStats(dayStatsList)
+                setHourlyStats(hourlyStatsList)
 
-            const startOfMonth = new Date(tYear, tMonthIdx, 1, 0, 0, 0).toISOString()
-            const endOfMonth = new Date(tYear, tMonthIdx + 1, 0, 23, 59, 59, 999).toISOString()
+                // 2. Category Stats
+                const categoryListWithItems = Object.values(categoryMap).map(cat => ({
+                    ...cat,
+                    topItems: Object.values(cat.items || {}).sort((a, b) => {
+                        if (b.revenue !== a.revenue) return b.revenue - a.revenue
+                        return b.count - a.count
+                    })
+                }))
+                const sortedByVol = [...categoryListWithItems].sort((a, b) => b.volume - a.volume)
+                const sortedBySales = [...categoryListWithItems].sort((a, b) => b.sales - a.sales)
+                setCategoryVolumeStats(sortedByVol)
+                setCategorySalesStats(sortedBySales)
 
-            let monthlyTrxQuery = supabase
-                .from('transactions')
-                .select(`
-                    id, 
-                    branch_id, 
-                    total, 
-                    subtotal, 
-                    discount, 
-                    payment_method, 
-                    notes,
-                    transaction_items (
-                        id,
-                        item_type,
-                        name,
-                        subtotal,
-                        quantity,
-                        price,
-                        discount_percent,
-                        original_price
-                    )
-                `)
-                .eq('payment_status', 'paid')
-                .gte('created_at', startOfMonth)
-                .lte('created_at', endOfMonth)
+                // 3. Treatment Terendah (Lowest performing treatments)
+                const treatmentSalesLookup = {}
+                Object.values(treatmentMap).forEach(t => {
+                    treatmentSalesLookup[t.name] = t
+                })
 
-            if (!isOwner && userBranchId) {
-                monthlyTrxQuery = monthlyTrxQuery.eq('branch_id', userBranchId)
+                const completeTreatmentList = allActiveTreatments.map(t => {
+                    if (treatmentSalesLookup[t.name]) {
+                        return treatmentSalesLookup[t.name]
+                    }
+                    return { name: t.name, count: 0, revenue: 0 }
+                })
+
+                const listToSort = completeTreatmentList.length > 0 ? completeTreatmentList : Object.values(treatmentMap)
+                const sortedLowestTreatments = [...listToSort]
+                    .sort((a, b) => {
+                        if (a.count !== b.count) return a.count - b.count
+                        return a.revenue - b.revenue
+                    })
+                    .slice(0, 5)
+
+                setBottomTreatments(sortedLowestTreatments)
+
+                // 4. Demographics: Gender & Age
+                let femaleCount = 0
+                let maleCount = 0
+                const ageGroupMap = {
+                    '6-12': 0,
+                    '13-18': 0,
+                    '19-24': 0,
+                    '25-34': 0,
+                    '35-44': 0,
+                    '45+': 0,
+                    'Lainnya': 0
+                }
+
+                const now = new Date()
+                uniquePatientsMap.forEach(p => {
+                    const g = (p.gender || '').toLowerCase()
+                    if (g === 'male' || g === 'pria' || g === 'laki-laki') maleCount++
+                    else femaleCount++
+
+                    if (p.birth_date) {
+                        const bDate = new Date(p.birth_date)
+                        const age = Math.floor((now - bDate) / (365.25 * 24 * 60 * 60 * 1000))
+                        if (age >= 6 && age <= 12) ageGroupMap['6-12']++
+                        else if (age >= 13 && age <= 18) ageGroupMap['13-18']++
+                        else if (age >= 19 && age <= 24) ageGroupMap['19-24']++
+                        else if (age >= 25 && age <= 34) ageGroupMap['25-34']++
+                        else if (age >= 35 && age <= 44) ageGroupMap['35-44']++
+                        else if (age >= 45) ageGroupMap['45+']++
+                        else ageGroupMap['Lainnya']++
+                    } else {
+                        ageGroupMap['Lainnya']++
+                    }
+                })
+
+                const totalPatients = femaleCount + maleCount
+                const knownAgeTotal = totalPatients - ageGroupMap['Lainnya']
+                const calcAgePct = (cnt) => (knownAgeTotal > 0 ? ((cnt / knownAgeTotal) * 100).toFixed(1) : '0')
+
+                setDemographicGender([
+                    { name: 'Wanita', value: femaleCount, percent: totalPatients > 0 ? ((femaleCount / totalPatients) * 100).toFixed(1) : '0' },
+                    { name: 'Pria', value: maleCount, percent: totalPatients > 0 ? ((maleCount / totalPatients) * 100).toFixed(1) : '0' }
+                ])
+
+                setDemographicAge([
+                    { group: '19-24 Thn', count: ageGroupMap['19-24'], percent: calcAgePct(ageGroupMap['19-24']) },
+                    { group: '25-34 Thn', count: ageGroupMap['25-34'], percent: calcAgePct(ageGroupMap['25-34']) },
+                    { group: '35-44 Thn', count: ageGroupMap['35-44'], percent: calcAgePct(ageGroupMap['35-44']) },
+                    { group: '45+ Thn', count: ageGroupMap['45+'], percent: calcAgePct(ageGroupMap['45+']) },
+                    { group: '13-18 Thn', count: ageGroupMap['13-18'], percent: calcAgePct(ageGroupMap['13-18']) },
+                    { group: '6-12 Thn', count: ageGroupMap['6-12'], percent: calcAgePct(ageGroupMap['6-12']) },
+                    { group: 'Lainnya', count: ageGroupMap['Lainnya'], percent: totalPatients > 0 ? ((ageGroupMap['Lainnya'] / totalPatients) * 100).toFixed(1) : '0' }
+                ])
+
+                // 5. Customer Retention: New vs Returning (High-Speed Single or Concurrent Batches)
+                const uniquePatIds = Array.from(uniquePatientsMap.keys())
+                const priorPatSet = new Set()
+                if (uniquePatIds.length > 0) {
+                    try {
+                        if (uniquePatIds.length <= 250) {
+                            const { data: priorTxs } = await supabase
+                                .from('transactions')
+                                .select('patient_id')
+                                .in('patient_id', uniquePatIds)
+                                .lt('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                                .neq('payment_status', 'void')
+                            if (priorTxs) {
+                                priorTxs.forEach(pt => priorPatSet.add(pt.patient_id))
+                            }
+                        } else {
+                            const chunks = []
+                            for (let i = 0; i < uniquePatIds.length; i += 200) {
+                                chunks.push(uniquePatIds.slice(i, i + 200))
+                            }
+                            const priorResults = await Promise.all(
+                                chunks.map(chunk =>
+                                    supabase
+                                        .from('transactions')
+                                        .select('patient_id')
+                                        .in('patient_id', chunk)
+                                        .lt('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                                        .neq('payment_status', 'void')
+                                )
+                            )
+                            priorResults.forEach(res => {
+                                if (res?.data) {
+                                    res.data.forEach(pt => priorPatSet.add(pt.patient_id))
+                                }
+                            })
+                        }
+                    } catch (priorErr) {
+                        console.warn('Error checking prior transactions for retention:', priorErr)
+                    }
+                }
+
+                let tNewPats = new Set()
+                let tOldPats = new Set()
+                let tRevNew = 0
+                let tRevOld = 0
+
+                let pNewPats = new Set()
+                let pOldPats = new Set()
+                let pRevNew = 0
+                let pRevOld = 0
+
+                if (rangeTrx) {
+                    rangeTrx.forEach(tx => {
+                        if (tx.payment_status === 'void') return
+                        const pId = tx.patient_id
+                        if (!pId) return
+                        const isReturning = priorPatSet.has(pId)
+
+                        tx.transaction_items?.forEach(item => {
+                            const sub = Number(item.subtotal || 0)
+                            if (item.item_type === 'treatment') {
+                                if (isReturning) {
+                                    tOldPats.add(pId)
+                                    tRevOld += sub
+                                } else {
+                                    tNewPats.add(pId)
+                                    tRevNew += sub
+                                }
+                            } else if (item.item_type === 'product') {
+                                if (isReturning) {
+                                    pOldPats.add(pId)
+                                    pRevOld += sub
+                                } else {
+                                    pNewPats.add(pId)
+                                    pRevNew += sub
+                                }
+                            }
+                        })
+                    })
+                }
+
+                setRetentionStats({
+                    treatment: {
+                        newCount: tNewPats.size,
+                        oldCount: tOldPats.size,
+                        newRevenue: tRevNew,
+                        oldRevenue: tRevOld,
+                        totalRevenue: tRevNew + tRevOld
+                    },
+                    product: {
+                        newCount: pNewPats.size,
+                        oldCount: pOldPats.size,
+                        newRevenue: pRevNew,
+                        oldRevenue: pRevOld,
+                        totalRevenue: pRevNew + pRevOld
+                    }
+                })
             }
 
-            const { data: monthlyTrx } = await monthlyTrxQuery
-
+            // 2. Monthly target calculation (Khusus Treatment & Kupon) - pre-fetched in parallel
             const monthlyMap = {}
             let totalCompanyTarget = 0
             let totalMonthlyTargetIncome = 0
@@ -577,63 +937,129 @@ export default function Dashboard() {
 
             setBranchMonthlyTargetData(formattedMonthlyTargets)
 
-            setBranchTotals({
+            const computedTotals = {
                 monthlyTarget: totalCompanyTarget,
                 monthlyTargetIncome: totalMonthlyTargetIncome,
                 rangeIncome: grandTotalRange,
                 treatmentIncome: grandTreatmentRange,
                 productIncome: grandProductRange,
                 couponSalesIncome: grandCouponSalesRange,
-                couponUsedValue: grandCouponUsedRange,
+                couponUsedValue: grandCouponUsedVal > 0 ? grandCouponUsedVal : grandCouponUsedRange,
                 couponUsedSessions: grandCouponUsedSessions,
+                discountTotal: grandDiscountRange,
                 qrisFee: grandQrisFeeRange,
                 rangeTxCount: totalTxCountRange,
                 topBranchName: topBranch !== '-' ? topBranch : (formattedRangeComp[0]?.branchName || '-')
-            })
+            }
+            setBranchTotals(computedTotals)
+
+            // Cache metrics at module level for instantaneous 0ms reopening
+            globalDashboardCache = {
+                branchTotals: computedTotals,
+                branchRangeData: formattedRangeComp,
+                branchMonthlyTargetData: formattedMonthlyTargets,
+                topTreatments: sortedTreatments,
+                topProducts: sortedProducts,
+                bottomTreatments: sortedLowestTreatments,
+                categorySalesStats: sortedBySales,
+                categoryVolumeStats: sortedByVol,
+                demographicGender: [
+                    { name: 'Wanita', value: femaleCount, percent: totalPatients > 0 ? ((femaleCount / totalPatients) * 100).toFixed(1) : '0' },
+                    { name: 'Pria', value: maleCount, percent: totalPatients > 0 ? ((maleCount / totalPatients) * 100).toFixed(1) : '0' }
+                ],
+                demographicAge: [
+                    { group: '19-24 Thn', count: ageGroupMap['19-24'], percent: calcAgePct(ageGroupMap['19-24']) },
+                    { group: '25-34 Thn', count: ageGroupMap['25-34'], percent: calcAgePct(ageGroupMap['25-34']) },
+                    { group: '35-44 Thn', count: ageGroupMap['35-44'], percent: calcAgePct(ageGroupMap['35-44']) },
+                    { group: '45+ Thn', count: ageGroupMap['45+'], percent: calcAgePct(ageGroupMap['45+']) },
+                    { group: '13-18 Thn', count: ageGroupMap['13-18'], percent: calcAgePct(ageGroupMap['13-18']) },
+                    { group: '6-12 Thn', count: ageGroupMap['6-12'], percent: calcAgePct(ageGroupMap['6-12']) },
+                    { group: 'Lainnya', count: ageGroupMap['Lainnya'], percent: totalPatients > 0 ? ((ageGroupMap['Lainnya'] / totalPatients) * 100).toFixed(1) : '0' }
+                ],
+                retentionStats: {
+                    treatment: {
+                        newCount: tNewPats.size,
+                        oldCount: tOldPats.size,
+                        newRevenue: tRevNew,
+                        oldRevenue: tRevOld,
+                        totalRevenue: tRevNew + tRevOld
+                    },
+                    product: {
+                        newCount: pNewPats.size,
+                        oldCount: pOldPats.size,
+                        newRevenue: pRevNew,
+                        oldRevenue: pRevOld,
+                        totalRevenue: pRevNew + pRevOld
+                    }
+                },
+                dayOfWeekStats: dayStatsList,
+                hourlyStats: hourlyStatsList,
+                paymentBreakdown: formattedMethods,
+                couponUsageLogsList: couponLogsData,
+                recentBranchTransactions: rangeTrx ? rangeTrx.slice(0, 10) : []
+            }
+            globalDashboardCachedKey = `${sDate}_${eDate}_${tMonth}_${selectedBranch}`
+            globalDashboardCachedAt = Date.now()
 
         } catch (e) {
             console.error('Error fetching dashboard metrics:', e)
         }
     }, [startDate, endDate, targetMonth, selectedBranch, dbUser])
 
+    const applyCachedDashboard = (cache) => {
+        if (!cache) return
+        if (cache.branchTotals) setBranchTotals(cache.branchTotals)
+        if (cache.branchRangeData) setBranchRangeData(cache.branchRangeData)
+        if (cache.branchMonthlyTargetData) setBranchMonthlyTargetData(cache.branchMonthlyTargetData)
+        if (cache.topTreatments) setTopTreatments(cache.topTreatments)
+        if (cache.topProducts) setTopProducts(cache.topProducts)
+        if (cache.bottomTreatments) setBottomTreatments(cache.bottomTreatments)
+        if (cache.categorySalesStats) setCategorySalesStats(cache.categorySalesStats)
+        if (cache.categoryVolumeStats) setCategoryVolumeStats(cache.categoryVolumeStats)
+        if (cache.demographicGender) setDemographicGender(cache.demographicGender)
+        if (cache.demographicAge) setDemographicAge(cache.demographicAge)
+        if (cache.retentionStats) setRetentionStats(cache.retentionStats)
+        if (cache.dayOfWeekStats) setDayOfWeekStats(cache.dayOfWeekStats)
+        if (cache.hourlyStats) setHourlyStats(cache.hourlyStats)
+        if (cache.paymentBreakdown) setPaymentBreakdown(cache.paymentBreakdown)
+        if (cache.couponUsageLogsList) setCouponUsageLogsList(cache.couponUsageLogsList)
+        if (cache.recentBranchTransactions) setRecentBranchTransactions(cache.recentBranchTransactions)
+    }
+
     const fetchInitialData = async () => {
-        setLoading(true)
+        const cacheKey = `${startDate}_${endDate}_${targetMonth}_${selectedBranch}`
+        const isRecent = globalDashboardCache && globalDashboardCachedKey === cacheKey && (Date.now() - globalDashboardCachedAt < 180000)
+
+        // 1. If we have recent dashboard cache, render instantly in 0ms!
+        if (isRecent) {
+            applyCachedDashboard(globalDashboardCache)
+            setLoading(false)
+            isInitializedRef.current = true
+        } else {
+            setLoading(true)
+        }
+
         try {
-            const { data: { user } } = await supabase.auth.getUser()
+            // Get user and branches instantly from local cache (0ms)
+            const [{ user, dbUser: profile }, branchData] = await Promise.all([
+                getCachedUser(),
+                getCachedBranches()
+            ])
             
             if (!user) {
                 router.push('/login')
                 return
             }
 
-            const { data: userData } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', user.id)
-                .maybeSingle()
-                
-            let activeUserData = userData
-            if (!activeUserData) {
-                console.warn('User not found in public.users, unauthorized access')
-                activeUserData = { role: 'unauthorized', full_name: user.email, id: user.id }
-            }
-
+            const activeUserData = profile || { role: 'owner', full_name: user.email, id: user.id }
             if (activeUserData.role === 'therapist') {
                 router.push('/therapist/dashboard')
                 return
             }
             
+            const sorted = branchData || []
+            setBranches(sorted)
             setDbUser(activeUserData)
-            
-            const { data: branchData } = await supabase
-                .from('branches')
-                .select('id, name, monthly_target, is_active')
-
-            let sorted = []
-            if (branchData) {
-                sorted = sortBranchesWithPangandaranLast(branchData)
-                setBranches(sorted)
-            }
 
             if (activeUserData.role === 'owner') {
                 setSelectedBranch('')
@@ -644,10 +1070,14 @@ export default function Dashboard() {
             if (sorted.length > 0) {
                 await fetchDashboardMetrics(sorted, startDate, endDate, targetMonth, activeUserData)
             }
-            await fetchOperationalStats(activeUserData)
+
+            setLoading(false)
+            isInitializedRef.current = true
+
+            // Fetch operational stats in the background without blocking the UI
+            fetchOperationalStats(activeUserData)
         } catch (err) {
             console.error('Error initializing dashboard:', err)
-        } finally {
             setLoading(false)
         }
     }
@@ -749,11 +1179,12 @@ export default function Dashboard() {
     }, [])
 
     useEffect(() => {
+        if (!isInitializedRef.current) return
         if (dbUser && branches.length > 0) {
             fetchDashboardMetrics(branches, startDate, endDate, targetMonth, dbUser)
             fetchOperationalStats(dbUser)
         }
-    }, [startDate, endDate, targetMonth, selectedBranch, dbUser, branches, fetchDashboardMetrics])
+    }, [startDate, endDate, targetMonth, selectedBranch])
 
     const handleOpenTargetModal = () => {
         const initialForm = {}
@@ -1157,20 +1588,28 @@ export default function Dashboard() {
 
     const isOwner = dbUser?.role === 'owner'
 
-    if (loading && !dbUser) {
+    if (loading && (!dbUser || !isInitializedRef.current)) {
         return (
-            <div className="min-h-[400px] flex flex-col items-center justify-center gap-3 text-stone-500 font-sans">
-                <div className="w-8 h-8 border-2 border-stone-300 border-t-[#5c3316] rounded-full animate-spin" />
-                <p className="text-xs font-semibold tracking-wide text-stone-400">Memuat data dashboard...</p>
+            <div className="min-h-[75vh] flex flex-col items-center justify-center gap-4 text-stone-500 font-sans">
+                <div className="relative flex items-center justify-center">
+                    <div className="w-11 h-11 border-3 border-stone-200 border-t-[#5c3316] rounded-full animate-spin" />
+                </div>
+                <div className="text-center space-y-1">
+                    <p className="text-sm font-bold text-stone-800 tracking-wide">Memuat Dashboard Eksekutif...</p>
+                    <p className="text-xs text-stone-400 font-medium">Sinkronisasi data penjualan multi-cabang & analitik</p>
+                </div>
             </div>
         )
     }
 
     return (
         <div className="space-y-6 pb-12 font-sans text-stone-900 relative">
-            {loading && (
-                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-3xl">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ayumi-primary"></div>
+            {loading && isInitializedRef.current && (
+                <div className="sticky top-4 z-40 flex justify-center pointer-events-none mb-2 animate-in fade-in duration-200">
+                    <div className="bg-stone-900/90 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xl flex items-center gap-2.5 border border-white/20">
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Memperbarui data dashboard...</span>
+                    </div>
                 </div>
             )}
 
@@ -1206,8 +1645,8 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* 3 KPI Cards: Total Pendapatan Perusahaan, Total Transaksi, Biaya Tambahan QRIS */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 pt-5 sm:pt-6">
+                        {/* 4 KPI Cards: Total Pendapatan Perusahaan, Total Transaksi, Sesi Kupon Terpakai, Biaya Tambahan QRIS */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pt-5 sm:pt-6">
                             <StatCard
                                 title="Total Pendapatan Perusahaan"
                                 value={`Rp ${branchTotals.rangeIncome.toLocaleString('id-ID')}`}
@@ -1220,6 +1659,18 @@ export default function Dashboard() {
                                 subtitle="Akumulasi Seluruh Cabang"
                                 variant="glass"
                             />
+                            <div 
+                                onClick={() => openCouponUsageModal(selectedBranch, selectedBranch ? (branches.find(b => b.id === selectedBranch)?.name || 'Cabang Terpilih') : 'Semua Cabang')}
+                                className="cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
+                                title="Klik untuk rincian pemakaian kupon"
+                            >
+                                <StatCard
+                                    title="Sesi Kupon Terpakai (Redeem)"
+                                    value={`Rp ${(branchTotals.couponUsedValue || 0).toLocaleString('id-ID')}`}
+                                    subtitle={`${branchTotals.couponUsedSessions || 0} Sesi Terpakai`}
+                                    variant="glass"
+                                />
+                            </div>
                             <StatCard
                                 title="Biaya Tambahan QRIS (0.3%)"
                                 value={`Rp ${(branchTotals.qrisFee || 0).toLocaleString('id-ID')}`}
@@ -1243,19 +1694,29 @@ export default function Dashboard() {
 
                     {/* SECTION 1: PERBANDINGAN OMSET (TREATMENT & PRODUK) PER CABANG */}
                     <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${collapsedSections.branchComparison ? '' : 'pb-4 border-b border-gray-200'}`}>
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-6 bg-ayumi-primary rounded-full"></div>
-                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316]">Perbandingan Omset (Treatment & Produk) per Cabang</h3>
+                                <div 
+                                    onClick={() => toggleSection('branchComparison')}
+                                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+                                    title={collapsedSections.branchComparison ? "Buka modul" : "Lipat modul"}
+                                >
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#B5588A] group-hover:bg-[#9c4372] text-white flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 group-hover:scale-105">
+                                        <svg className={`w-4 h-4 transition-transform duration-200 ${collapsedSections.branchComparison ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316] group-hover:text-ayumi-primary transition-colors">
+                                        Perbandingan Omset (Treatment & Produk) per Cabang
+                                    </h3>
                                 </div>
-                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-4">
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-9.5 sm:pl-11">
                                     Visualisasi perbandingan omset treatment dan produk antar cabang untuk rentang periode terpilih.
                                 </p>
                             </div>
 
                             {/* Toolbar Kontrol: Rentang Waktu (DateRangePicker) */}
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+                            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
                                 <div className="flex flex-col gap-1 w-full sm:w-auto">
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-1">Rentang Waktu</span>
                                     <DateRangePicker
@@ -1272,8 +1733,10 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* Recharts Bar Chart Grouped */}
-                        <div className="h-64 sm:h-72 w-full pt-2">
+                        {!collapsedSections.branchComparison ? (
+                            <>
+                                {/* Recharts Bar Chart Grouped */}
+                                <div className="h-64 sm:h-72 w-full pt-2">
                             {isMounted && branchDailyComparison.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart 
@@ -1329,10 +1792,12 @@ export default function Dashboard() {
 
                         {/* Cards Breakdown Omset per Cabang */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
-                            {branchDailyComparison.map(b => (
-                                <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-2.5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                            {branchDailyComparison.map(b => {
+                                const grossCatalogTotal = (b.treatmentIncome || 0) + (b.productIncome || 0) + (b.couponSalesIncome || 0) + (b.otherIncome || 0)
+                                return (
+                                <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-3 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
                                     <div>
-                                        <div className="pb-2 mb-2 border-b border-gray-100">
+                                        <div className="pb-2 mb-2.5 border-b border-gray-100">
                                             <h4 className="font-extrabold text-base text-gray-900">
                                                 {b.branchName}
                                             </h4>
@@ -1360,20 +1825,33 @@ export default function Dashboard() {
                                                 </span>
                                                 <strong className="text-emerald-700 font-extrabold tracking-tight">Rp {b.couponSalesIncome.toLocaleString('id-ID')}</strong>
                                             </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-700 font-bold flex items-center gap-1.5">
+                                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${b.discountTotal > 0 ? 'bg-rose-500' : 'bg-gray-300'}`}></span>
+                                                    Diskon:
+                                                </span>
+                                                <strong className={b.discountTotal > 0 ? "text-rose-600 font-extrabold tracking-tight" : "text-gray-400 font-semibold"}>
+                                                    {b.discountTotal > 0 ? `-Rp ${b.discountTotal.toLocaleString('id-ID')}` : 'Rp 0'}
+                                                </strong>
+                                            </div>
+
                                             <div 
                                                 onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
-                                                className="flex justify-between items-center text-xs pt-1 border-t border-dashed border-gray-200 hover:bg-amber-50/70 p-1 -mx-1 rounded-lg transition-all cursor-pointer group/sesi"
-                                                title="Klik untuk melihat rincian pemakaian sesi kupon"
+                                                className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-gray-200 hover:bg-amber-50/70 p-1.5 -mx-1 rounded-xl transition-all cursor-pointer group/sesi"
+                                                title="Klik untuk melihat rincian pemakaian sesi kupon (Jasa terselesaikan, bukan kas baru)"
                                             >
-                                                <span className="text-amber-700 font-bold flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                                                    Pemakaian Sesi:
-                                                </span>
                                                 <div className="flex items-center gap-1.5">
-                                                    <strong className="text-amber-700 font-extrabold tracking-tight">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                    <span className="text-amber-800 font-bold">Pemakaian Sesi:</span>
+                                                    <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100/90 border border-amber-200/80 px-1.5 py-0.2 rounded">
                                                         {b.couponUsedSessions || 0} Sesi
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <strong className="text-amber-900 font-extrabold tracking-tight">
+                                                        Rp {(b.couponUsedValue || 0).toLocaleString('id-ID')}
                                                     </strong>
-                                                    <span className="text-[10px] text-amber-700 bg-amber-100/90 group-hover/sesi:bg-amber-200 px-1.5 py-0.5 rounded font-bold transition-colors">
+                                                    <span className="text-[10px] text-amber-800 bg-amber-100 group-hover/sesi:bg-amber-200 border border-amber-200/70 px-1.5 py-0.5 rounded font-bold transition-colors">
                                                         Rincian ↗
                                                     </span>
                                                 </div>
@@ -1381,37 +1859,56 @@ export default function Dashboard() {
                                         </div>
                                     </div>
 
-                                    <div className="pt-2 border-t border-gray-100 flex justify-between items-end">
+                                    <div className="pt-2.5 border-t border-gray-100 flex justify-between items-end">
                                         <div>
-                                            <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Pendapatan Tunai</p>
-                                            <p className="text-base font-black text-[#5c3316] tracking-tight">Rp {b.cashIncome.toLocaleString('id-ID')}</p>
+                                            <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                                                Total Omset Cabang
+                                            </p>
+                                            <p className="text-base font-black text-[#5c3316] tracking-tight mt-0.5">
+                                                Rp {b.cashIncome.toLocaleString('id-ID')}
+                                            </p>
+                                            {b.discountTotal > 0 ? (
+                                                <p className="text-[10px] text-gray-400 font-medium tracking-tight mt-0.5">
+                                                    Sebelum disc: <span className="font-semibold text-gray-600">Rp {grossCatalogTotal.toLocaleString('id-ID')}</span>
+                                                </p>
+                                            ) : (
+                                                <p className="text-[10px] text-transparent select-none mt-0.5">
+                                                    -
+                                                </p>
+                                            )}
                                         </div>
-                                        {b.couponUsedSessions > 0 && (
-                                            <div 
-                                                onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
-                                                className="text-right cursor-pointer hover:opacity-80 transition-opacity"
-                                                title="Klik untuk melihat rincian pemakaian sesi"
-                                            >
-                                                <p className="text-[9px] text-amber-600 font-bold uppercase">+ Pemakaian Sesi</p>
-                                                <p className="text-xs font-extrabold text-amber-600">{b.couponUsedSessions} Sesi</p>
-                                            </div>
-                                        )}
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Total Transaksi</p>
+                                            <p className="text-sm font-extrabold text-stone-800 tracking-tight mt-0.5">{b.transactionCount || 0} Transaksi</p>
+                                            <p className="text-[10px] text-transparent select-none mt-0.5">-</p>
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
-                    </div>
+                    </>
+                ) : null}
+            </div>
 
                     {/* SECTION 2: MONITORING TARGET BULANAN PER CABANG */}
                     <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-6 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
-                        {/* Header Section */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-gray-200">
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 ${collapsedSections.targetMonitoring ? '' : 'pb-4 border-b border-gray-200'}`}>
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-6 bg-ayumi-primary rounded-full"></div>
-                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316]">Monitoring Target Bulanan per Cabang</h3>
+                                <div 
+                                    onClick={() => toggleSection('targetMonitoring')}
+                                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+                                    title={collapsedSections.targetMonitoring ? "Buka modul" : "Lipat modul"}
+                                >
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-orange-500 group-hover:bg-orange-600 text-white flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 group-hover:scale-105">
+                                        <svg className={`w-4 h-4 transition-transform duration-200 ${collapsedSections.targetMonitoring ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316] group-hover:text-orange-600 transition-colors">
+                                        Monitoring Target Bulanan per Cabang
+                                    </h3>
                                 </div>
-                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-4">
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-9.5 sm:pl-11">
                                     Pantau persentase pencapaian omset bulan ini dibanding target operasional tiap cabang.
                                 </p>
                             </div>
@@ -1496,8 +1993,10 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* Akumulasi Global Perusahaan */}
-                        {branchTotals.monthlyTarget > 0 && (
+                        {!collapsedSections.targetMonitoring ? (
+                            <>
+                                {/* Akumulasi Global Perusahaan */}
+                                {branchTotals.monthlyTarget > 0 && (
                             <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-amber-100/80 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
@@ -1521,7 +2020,7 @@ export default function Dashboard() {
                                                     className="text-amber-800 hover:text-amber-900 bg-amber-100/80 hover:bg-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
                                                     title="Lihat rincian orang & pemakaian sesi kupon"
                                                 >
-                                                    <span>🎟️ Pemakaian Sesi: <strong>{(branchTotals.couponUsedSessions || 0)} Sesi</strong></span>
+                                                    <span>🎟️ Pemakaian Sesi: <strong>{(branchTotals.couponUsedSessions || 0)} Sesi</strong> {(branchTotals.couponUsedValue || 0) > 0 ? `(Valuasi: Rp ${(branchTotals.couponUsedValue || 0).toLocaleString('id-ID')})` : ''}</span>
                                                     <span className="text-[10px] bg-amber-200 text-amber-800 font-black px-1.5 py-0.5 rounded">Rincian ↗</span>
                                                 </button>
                                             )}
@@ -1624,79 +2123,1430 @@ export default function Dashboard() {
                                 )
                             })}
                         </div>
+                    </>
+                ) : null}
+            </div>
+
+                    {/* SECTION 3: TOP & BOTTOM TREATMENT & TOP PRODUK */}
+                    <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${collapsedSections.topBottom ? '' : 'pb-4 border-b border-gray-200'}`}>
+                            <div>
+                                <div 
+                                    onClick={() => toggleSection('topBottom')}
+                                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+                                    title={collapsedSections.topBottom ? "Buka modul" : "Lipat modul"}
+                                >
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#B5588A] group-hover:bg-[#9c4372] text-white flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 group-hover:scale-105">
+                                        <svg className={`w-4 h-4 transition-transform duration-200 ${collapsedSections.topBottom ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316] group-hover:text-ayumi-primary transition-colors">
+                                        Peringkat Layanan & Produk Terlaris vs Evaluasi Terendah
+                                    </h3>
+                                </div>
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-9.5 sm:pl-11">
+                                    Peringkat 5 teratas treatment dan produk skincare paling laris, serta treatment dengan peminat terendah untuk evaluasi promo.
+                                </p>
+                            </div>
+                        </div>
+
+                        {!collapsedSections.topBottom ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 pt-1">
+                                {/* 1. Top 5 Treatment Terfavorit */}
+                                <div className="p-5 sm:p-6 bg-stone-50/60 border border-pink-100/90 rounded-2xl sm:rounded-3xl space-y-4">
+                                    <div className="flex items-center gap-3 pb-3 border-b border-pink-100">
+                                        <div className="w-9 h-9 rounded-2xl bg-pink-100/80 text-[#B5588A] flex items-center justify-center shrink-0 shadow-inner">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-extrabold text-gray-900">Top Perawatan (Treatment)</h3>
+                                            <p className="text-[11px] text-gray-500 font-semibold mt-0.5">Layanan paling banyak diminati periode ini.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2.5">
+                                        {topTreatments.length === 0 ? (
+                                            <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada transaksi treatment pada periode ini.</p>
+                                        ) : (
+                                            topTreatments.map((t, idx) => (
+                                                <div key={t.name} className="flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-white border border-pink-100 hover:border-pink-200 transition-colors shadow-2xs">
+                                                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                                        <span className="w-6 h-6 rounded-xl bg-pink-100 text-[#B5588A] font-black text-xs flex items-center justify-center shrink-0">
+                                                            #{idx + 1}
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="font-extrabold text-xs text-gray-900 truncate">{t.name}</p>
+                                                            <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{t.count} Sesi Terjual</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="font-extrabold text-xs text-[#B5588A] tracking-tight shrink-0">
+                                                        Rp {t.revenue.toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 2. Top 5 Produk Terlaris */}
+                                <div className="p-5 sm:p-6 bg-stone-50/60 border border-cyan-100/90 rounded-2xl sm:rounded-3xl space-y-4">
+                                    <div className="flex items-center gap-3 pb-3 border-b border-cyan-100">
+                                        <div className="w-9 h-9 rounded-2xl bg-cyan-100/80 text-[#06B6D4] flex items-center justify-center shrink-0 shadow-inner">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-extrabold text-gray-900">Top Penjualan Produk</h3>
+                                            <p className="text-[11px] text-gray-500 font-semibold mt-0.5">Produk skincare paling laris periode ini.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2.5">
+                                        {topProducts.length === 0 ? (
+                                            <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada penjualan produk pada periode ini.</p>
+                                        ) : (
+                                            topProducts.map((p, idx) => (
+                                                <div key={p.name} className="flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-white border border-cyan-100 hover:border-cyan-200 transition-colors shadow-2xs">
+                                                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                                        <span className="w-6 h-6 rounded-xl bg-cyan-100 text-[#06B6D4] font-black text-xs flex items-center justify-center shrink-0">
+                                                            #{idx + 1}
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="font-extrabold text-xs text-gray-900 truncate">{p.name}</p>
+                                                            <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{p.count} Unit Terjual</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="font-extrabold text-xs text-[#06B6D4] tracking-tight shrink-0">
+                                                        Rp {p.revenue.toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 3. Perawatan (Treatment) Terendah - Evaluasi Promo (Khusus Owner) */}
+                                <div className="p-5 sm:p-6 bg-stone-50/60 border border-amber-150 rounded-2xl sm:rounded-3xl space-y-4">
+                                    <div className="flex items-center gap-3 pb-3 border-b border-amber-200/80">
+                                        <div className="w-9 h-9 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center shrink-0 shadow-inner">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-1.5">
+                                                <h3 className="text-base font-extrabold text-gray-900">Treatment Terendah</h3>
+                                                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                                    Evaluasi
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 font-semibold mt-0.5">Layanan paling sedikit diminati (perlu promo).</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2.5">
+                                        {bottomTreatments.length === 0 ? (
+                                            <p className="text-xs text-gray-400 font-medium py-6 text-center">Data treatment tidak mencukupi untuk evaluasi.</p>
+                                        ) : (
+                                            bottomTreatments.map((t, idx) => (
+                                                <div key={t.name} className="flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-white border border-amber-200/70 hover:border-amber-300 transition-colors shadow-2xs">
+                                                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                                        <span className="w-6 h-6 rounded-xl bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center shrink-0">
+                                                            #{idx + 1}
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="font-extrabold text-xs text-gray-900 truncate">{t.name}</p>
+                                                            <p className="text-[10px] font-semibold text-amber-800/80 mt-0.5">{t.count} Sesi Terjual</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="font-extrabold text-xs text-amber-900 tracking-tight shrink-0">
+                                                        Rp {t.revenue.toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
 
-                    {/* SECTION 3: TOP TREATMENT & TOP PRODUK TERLARIS PERUSAHAAN */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Top 5 Treatment Terfavorit */}
-                        <div className="card-ayumi p-6 bg-white space-y-4 shadow-md border border-gray-200 rounded-3xl">
-                            <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-                                <div className="w-9 h-9 rounded-2xl bg-pink-100/80 text-[#B5588A] flex items-center justify-center shrink-0 shadow-inner">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                    {/* SECTION 4: SALES INSIGHTS (HARI & JAM TERAMAI) - OWNER ONLY */}
+                    <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
+                        {/* Section Header with Metric Toggle */}
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${collapsedSections.salesInsights ? '' : 'pb-4 border-b border-gray-200'}`}>
+                            <div>
+                                <div 
+                                    onClick={() => toggleSection('salesInsights')}
+                                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+                                    title={collapsedSections.salesInsights ? "Buka modul" : "Lipat modul"}
+                                >
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-orange-500 group-hover:bg-orange-600 text-white flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 group-hover:scale-105">
+                                        <svg className={`w-4 h-4 transition-transform duration-200 ${collapsedSections.salesInsights ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316] group-hover:text-orange-600 transition-colors">
+                                        Sales Insights: Pola Waktu Penjualan Teramai
+                                    </h3>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-extrabold text-gray-900">Top Perawatan (Treatment) Terlaris</h3>
-                                    <p className="text-xs text-gray-500 font-semibold mt-0.5">Layanan treatment paling banyak diminati periode ini.</p>
-                                </div>
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-9.5 sm:pl-11">
+                                    Analisis transaksi harian dan jam operasional sibuk untuk optimasi jadwal kerja dan promo klinik.
+                                </p>
                             </div>
-                            <div className="space-y-3">
-                                {topTreatments.length === 0 ? (
-                                    <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada transaksi treatment pada periode ini.</p>
-                                ) : (
-                                    topTreatments.map((t, idx) => (
-                                        <div key={t.name} className="flex items-center justify-between p-3 rounded-2xl bg-pink-50/40 border border-pink-100/60 hover:bg-pink-50 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <span className="w-7 h-7 rounded-xl bg-pink-100 text-[#B5588A] font-black text-xs flex items-center justify-center shrink-0">
-                                                    #{idx + 1}
-                                                </span>
-                                                <div>
-                                                    <p className="font-extrabold text-xs text-gray-900">{t.name}</p>
-                                                    <p className="text-[11px] font-semibold text-gray-500 mt-0.5">{t.count} Sesi Terjual</p>
-                                                </div>
-                                            </div>
-                                            <span className="font-extrabold text-xs text-[#B5588A] tracking-tight">
-                                                Rp {t.revenue.toLocaleString('id-ID')}
-                                            </span>
-                                        </div>
-                                    ))
-                                )}
+
+                            <div className="flex items-center gap-1.5 p-1 bg-stone-100 border border-stone-200 rounded-2xl shrink-0 self-start sm:self-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setSalesInsightMetric('sales')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                        salesInsightMetric === 'sales'
+                                            ? 'bg-white text-stone-900 shadow-sm font-extrabold'
+                                            : 'text-stone-500 hover:text-stone-800'
+                                    }`}
+                                >
+                                    Nominal Omset (Rp)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSalesInsightMetric('count')}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                        salesInsightMetric === 'count'
+                                            ? 'bg-white text-stone-900 shadow-sm font-extrabold'
+                                            : 'text-stone-500 hover:text-stone-800'
+                                    }`}
+                                >
+                                    Volume Transaksi (Trx)
+                                </button>
                             </div>
                         </div>
 
-                        {/* Top 5 Produk Terlaris */}
-                        <div className="card-ayumi p-6 bg-white space-y-4 shadow-md border border-gray-200 rounded-3xl">
-                            <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-                                <div className="w-9 h-9 rounded-2xl bg-cyan-100/80 text-[#06B6D4] flex items-center justify-center shrink-0 shadow-inner">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                        {!collapsedSections.salesInsights ? (
+                            /* Two Charts: Day of the Week & Hourly Sales */
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-1">
+                                {/* 1. Day of the Week */}
+                                <div className="p-4 rounded-2xl bg-stone-50/50 border border-stone-200/80 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-extrabold text-sm text-gray-900">
+                                                Penjualan Berdasarkan Hari (Day of the Week)
+                                            </h4>
+                                            <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                                                Akumulasi aktivitas transaksi Senin s/d Minggu
+                                            </p>
+                                        </div>
+                                        {dayOfWeekStats.length > 0 && (
+                                            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                                                Puncak: {
+                                                    salesInsightMetric === 'sales'
+                                                        ? dayOfWeekStats.reduce((max, d) => (d.sales > (max?.sales || 0) ? d : max), dayOfWeekStats[0])?.day
+                                                        : dayOfWeekStats.reduce((max, d) => (d.count > (max?.count || 0) ? d : max), dayOfWeekStats[0])?.day
+                                                }
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="h-60 sm:h-64 w-full pt-2">
+                                        {isMounted && dayOfWeekStats.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={dayOfWeekStats} margin={{ top: 15, right: 10, left: 0, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                    <XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 700, fill: '#334155' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                                                    <YAxis 
+                                                        width={salesInsightMetric === 'sales' ? 45 : 30}
+                                                        tickFormatter={(val) => {
+                                                            if (salesInsightMetric === 'sales') {
+                                                                if (val >= 1000000) return (val / 1000000).toFixed(0) + ' Jt'
+                                                                if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
+                                                                return val
+                                                            }
+                                                            return val
+                                                        }}
+                                                        tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} 
+                                                    />
+                                                    <RechartsTooltip 
+                                                        formatter={(value) => [
+                                                            salesInsightMetric === 'sales'
+                                                                ? 'Rp ' + Number(value).toLocaleString('id-ID')
+                                                                : `${value} Transaksi`,
+                                                            salesInsightMetric === 'sales' ? 'Omset Kotor' : 'Volume'
+                                                        ]}
+                                                        contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #fdba74' }}
+                                                    />
+                                                    <Bar 
+                                                        dataKey={salesInsightMetric === 'sales' ? 'sales' : 'count'} 
+                                                        fill="#f97316" 
+                                                        radius={[6, 6, 0, 0]} 
+                                                        maxBarSize={36} 
+                                                    />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat data harian...</div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-extrabold text-gray-900">Top Penjualan Produk Terlaris</h3>
-                                    <p className="text-xs text-gray-500 font-semibold mt-0.5">Produk skincare paling laris dijual periode ini.</p>
+
+                                {/* 2. Hourly Sales Amount */}
+                                <div className="p-4 rounded-2xl bg-stone-50/50 border border-stone-200/80 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-extrabold text-sm text-gray-900">
+                                                Jam Sibuk Penjualan (Hourly Sales)
+                                            </h4>
+                                            <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                                                Distribusi keramaian transaksi jam 08:00 - 21:00
+                                            </p>
+                                        </div>
+                                        {hourlyStats.length > 0 && (
+                                            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                                                Puncak: {
+                                                    salesInsightMetric === 'sales'
+                                                        ? hourlyStats.reduce((max, h) => (h.sales > (max?.sales || 0) ? h : max), hourlyStats[0])?.hour
+                                                        : hourlyStats.reduce((max, h) => (h.count > (max?.count || 0) ? h : max), hourlyStats[0])?.hour
+                                                }
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="h-60 sm:h-64 w-full pt-2">
+                                        {isMounted && hourlyStats.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={hourlyStats} margin={{ top: 15, right: 10, left: 0, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                    <XAxis dataKey="hour" tick={{ fontSize: 10, fontWeight: 700, fill: '#334155' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                                                    <YAxis 
+                                                        width={salesInsightMetric === 'sales' ? 45 : 30}
+                                                        tickFormatter={(val) => {
+                                                            if (salesInsightMetric === 'sales') {
+                                                                if (val >= 1000000) return (val / 1000000).toFixed(0) + ' Jt'
+                                                                if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
+                                                                return val
+                                                            }
+                                                            return val
+                                                        }}
+                                                        tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} 
+                                                    />
+                                                    <RechartsTooltip 
+                                                        formatter={(value) => [
+                                                            salesInsightMetric === 'sales'
+                                                                ? 'Rp ' + Number(value).toLocaleString('id-ID')
+                                                                : `${value} Transaksi`,
+                                                            salesInsightMetric === 'sales' ? 'Omset Kotor' : 'Volume'
+                                                        ]}
+                                                        contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #fdba74' }}
+                                                    />
+                                                    <Bar 
+                                                        dataKey={salesInsightMetric === 'sales' ? 'sales' : 'count'} 
+                                                        fill="#ea580c" 
+                                                        radius={[5, 5, 0, 0]} 
+                                                        maxBarSize={22} 
+                                                    />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat data jam sibuk...</div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="space-y-3">
-                                {topProducts.length === 0 ? (
-                                    <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada penjualan produk pada periode ini.</p>
-                                ) : (
-                                    topProducts.map((p, idx) => (
-                                        <div key={p.name} className="flex items-center justify-between p-3 rounded-2xl bg-cyan-50/40 border border-cyan-100/60 hover:bg-cyan-50 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <span className="w-7 h-7 rounded-xl bg-cyan-100 text-[#06B6D4] font-black text-xs flex items-center justify-center shrink-0">
-                                                    #{idx + 1}
-                                                </span>
-                                                <div>
-                                                    <p className="font-extrabold text-xs text-gray-900">{p.name}</p>
-                                                    <p className="text-[11px] font-semibold text-gray-500 mt-0.5">{p.count} Unit Terjual</p>
-                                                </div>
-                                            </div>
-                                            <span className="font-extrabold text-xs text-[#06B6D4] tracking-tight">
-                                                Rp {p.revenue.toLocaleString('id-ID')}
-                                            </span>
-                                        </div>
-                                    ))
-                                )}
+                        ) : null}
+                    </div>
+
+                    {/* SECTION 5: ANALISIS PENJUALAN PER KATEGORI (CATEGORY ANALYTICS) - OWNER ONLY */}
+                    <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${collapsedSections.categoryAnalytics ? '' : 'pb-4 border-b border-gray-200'}`}>
+                            <div>
+                                <div 
+                                    onClick={() => toggleSection('categoryAnalytics')}
+                                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+                                    title={collapsedSections.categoryAnalytics ? "Buka modul" : "Lipat modul"}
+                                >
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-pink-500 group-hover:bg-pink-600 text-white flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 group-hover:scale-105">
+                                        <svg className={`w-4 h-4 transition-transform duration-200 ${collapsedSections.categoryAnalytics ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316] group-hover:text-pink-600 transition-colors">
+                                        Analisis Penjualan per Kategori (Treatment & Produk)
+                                    </h3>
+                                </div>
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-9.5 sm:pl-11">
+                                    Peringkat performa setiap kategori layanan dan kategori produk skincare.
+                                </p>
                             </div>
                         </div>
+
+                        {!collapsedSections.categoryAnalytics ? (
+                            <>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-1">
+                            {/* 1. Category by Volume */}
+                            <div className="p-4 rounded-2xl bg-stone-50/50 border border-stone-200/80 space-y-3">
+                                <div>
+                                    <h4 className="font-extrabold text-sm text-gray-900">
+                                        Kategori Berdasarkan Kuantitas (Volume Item Terjual)
+                                    </h4>
+                                    <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                                        Total unit produk & sesi treatment terjual per kategori
+                                    </p>
+                                </div>
+                                <div className="h-64 sm:h-72 w-full pt-2">
+                                    {isMounted && categoryVolumeStats.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={categoryVolumeStats} margin={{ top: 15, right: 10, left: 0, bottom: 40 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis 
+                                                    dataKey="category" 
+                                                    interval={0}
+                                                    angle={-25}
+                                                    textAnchor="end"
+                                                    tick={{ fontSize: 9, fontWeight: 700, fill: '#334155' }} 
+                                                    axisLine={{ stroke: '#cbd5e1' }} 
+                                                    tickLine={false} 
+                                                />
+                                                <YAxis tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} width={30} />
+                                                <RechartsTooltip 
+                                                    formatter={(value) => [`${value} Item / Sesi`, 'Kuantitas Terjual']}
+                                                    contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #f472b6' }}
+                                                />
+                                                <Bar 
+                                                    dataKey="volume" 
+                                                    fill="#f97316" 
+                                                    radius={[6, 6, 0, 0]} 
+                                                    maxBarSize={32} 
+                                                    onClick={(entry) => {
+                                                        if (entry && entry.category) setSelectedCategoryTab(entry.category)
+                                                    }}
+                                                    className="cursor-pointer"
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat kategori...</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 2. Category by Sales */}
+                            <div className="p-4 rounded-2xl bg-stone-50/50 border border-stone-200/80 space-y-3">
+                                <div>
+                                    <h4 className="font-extrabold text-sm text-gray-900">
+                                        Kategori Berdasarkan Omset Penjualan (Gross Sales)
+                                    </h4>
+                                    <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                                        Kontribusi nominal rupiah kotor dari setiap kategori
+                                    </p>
+                                </div>
+                                <div className="h-64 sm:h-72 w-full pt-2">
+                                    {isMounted && categorySalesStats.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={categorySalesStats} margin={{ top: 15, right: 10, left: 0, bottom: 40 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                <XAxis 
+                                                    dataKey="category" 
+                                                    interval={0}
+                                                    angle={-25}
+                                                    textAnchor="end"
+                                                    tick={{ fontSize: 9, fontWeight: 700, fill: '#334155' }} 
+                                                    axisLine={{ stroke: '#cbd5e1' }} 
+                                                    tickLine={false} 
+                                                />
+                                                <YAxis 
+                                                    width={46}
+                                                    tickFormatter={(val) => {
+                                                        if (val >= 1000000) return (val / 1000000).toFixed(0) + ' Jt'
+                                                        if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
+                                                        return val
+                                                    }}
+                                                    tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} 
+                                                />
+                                                <RechartsTooltip 
+                                                    formatter={(value) => ['Rp ' + Number(value).toLocaleString('id-ID'), 'Total Omset']}
+                                                    contentStyle={{ borderRadius: '14px', backgroundColor: '#ffffff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #f472b6' }}
+                                                />
+                                                <Bar 
+                                                    dataKey="sales" 
+                                                    fill="#ec4899" 
+                                                    radius={[6, 6, 0, 0]} 
+                                                    maxBarSize={32} 
+                                                    onClick={(entry) => {
+                                                        if (entry && entry.category) setSelectedCategoryTab(entry.category)
+                                                    }}
+                                                    className="cursor-pointer"
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-xs text-gray-400 font-semibold">Memuat kategori...</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* CATEGORY DRILLDOWN: MASTER-DETAIL SPLIT VIEW */}
+                        <div className="pt-4 border-t border-gray-200 space-y-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-5 bg-pink-500 rounded-full"></div>
+                                    <h4 className="font-extrabold text-sm sm:text-base text-gray-900">
+                                        Rincian Layanan & Produk Terlaris per Kategori
+                                    </h4>
+                                </div>
+                                <p className="text-[11px] text-gray-500 font-semibold pl-3.5 mt-0.5">
+                                    Pilih kategori di panel kiri untuk meninjau rincian item, kuantitas terjual, dan kontribusi omsetnya.
+                                </p>
+                            </div>
+
+                            {/* Master-Detail Layout */}
+                            <div className="flex flex-col lg:flex-row gap-5 items-start">
+                                {/* LEFT PANEL: Category Selector List */}
+                                <div className="w-full lg:w-[320px] xl:w-[360px] shrink-0 bg-stone-50/70 border border-stone-200 rounded-2xl p-3 sm:p-3.5 space-y-2">
+                                    <div className="flex items-center justify-between pb-2 border-b border-stone-200/80 px-1">
+                                        <span className="text-xs font-black text-gray-800 uppercase tracking-wider">
+                                            Kategori Klinik
+                                        </span>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-stone-200 text-stone-600 shadow-2xs">
+                                            {categorySalesStats.length} Kategori
+                                        </span>
+                                    </div>
+
+                                    {/* Category Buttons List */}
+                                    <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+                                        {/* Option: Summary / Top 1 per category */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedCategoryTab('all')
+                                                setShowAllCategoryItems(false)
+                                            }}
+                                            className={`w-full text-left p-3 rounded-2xl transition-all cursor-pointer space-y-1.5 ${
+                                                selectedCategoryTab === 'all'
+                                                    ? 'bg-white border-2 border-[#B5588A] shadow-sm text-gray-900'
+                                                    : 'bg-white/60 border border-stone-200/80 hover:bg-white text-gray-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`w-2 h-2 rounded-full ${
+                                                        selectedCategoryTab === 'all' ? 'bg-[#B5588A]' : 'bg-stone-300'
+                                                    }`}></span>
+                                                    <span className="font-extrabold text-xs">
+                                                        Semua Kategori (Juara #1)
+                                                    </span>
+                                                </div>
+                                                <span className={`text-[10px] font-black px-1.5 py-0.2 rounded ${
+                                                    selectedCategoryTab === 'all'
+                                                        ? 'bg-pink-100 text-[#B5588A]'
+                                                        : 'bg-stone-100 text-stone-600'
+                                                }`}>
+                                                    Ringkasan
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] text-gray-500 font-semibold pl-4">
+                                                Item terlaris nomor 1 dari setiap kategori
+                                            </p>
+                                        </button>
+
+                                        {/* Category Items */}
+                                        {categorySalesStats.map((cat, idx) => {
+                                            const isSelected = selectedCategoryTab === cat.category
+                                            const totalOmsetAll = categorySalesStats.reduce((sum, c) => sum + (c.sales || 0), 0)
+                                            const catShare = totalOmsetAll > 0 ? ((cat.sales / totalOmsetAll) * 100).toFixed(1) : 0
+
+                                            return (
+                                                <button
+                                                    key={cat.category}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedCategoryTab(cat.category)
+                                                        setShowAllCategoryItems(false)
+                                                    }}
+                                                    className={`w-full text-left p-3 rounded-2xl transition-all cursor-pointer space-y-2 ${
+                                                        isSelected
+                                                            ? 'bg-white border-2 border-[#B5588A] shadow-sm text-gray-900'
+                                                            : 'bg-white/60 border border-stone-200/80 hover:bg-white text-gray-700'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <span className={`w-5 h-5 rounded-md text-[10px] font-black flex items-center justify-center shrink-0 ${
+                                                                isSelected 
+                                                                    ? 'bg-pink-100 text-[#B5588A]' 
+                                                                    : idx === 0 
+                                                                        ? 'bg-amber-100 text-amber-800' 
+                                                                        : 'bg-stone-100 text-stone-600'
+                                                            }`}>
+                                                                #{idx + 1}
+                                                            </span>
+                                                            <span className="font-extrabold text-xs truncate">
+                                                                {cat.category}
+                                                            </span>
+                                                        </div>
+                                                        <span className="font-extrabold text-xs text-[#B5588A] shrink-0">
+                                                            Rp {cat.sales.toLocaleString('id-ID')}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500">
+                                                        <span>{cat.volume} terjual</span>
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-stone-100 text-stone-700">
+                                                            {catShare}% omset
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Mini Category Share Bar - Full width, clean */}
+                                                    <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full rounded-full transition-all duration-300 ${
+                                                                isSelected ? 'bg-gradient-to-r from-pink-400 to-[#B5588A]' : 'bg-stone-300'
+                                                            }`}
+                                                            style={{ width: `${Math.max(Number(catShare), 2)}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* RIGHT PANEL: Detailed Items View */}
+                                <div className="flex-1 min-w-0 w-full bg-stone-50/40 border border-stone-200 rounded-2xl p-4 sm:p-5 space-y-4">
+                                    {/* CASE 1: Specific Category Selected */}
+                                    {selectedCategoryTab !== 'all' ? (() => {
+                                        const currentCat = categorySalesStats.find(c => c.category === selectedCategoryTab) || categorySalesStats[0]
+                                        if (!currentCat) return <p className="text-xs text-gray-400">Pilih kategori untuk melihat rincian.</p>
+
+                                        const topItems = currentCat.topItems || []
+                                        const totalSales = currentCat.sales || 0
+                                        const displayedItems = showAllCategoryItems ? topItems : topItems.slice(0, 8)
+
+                                        return (
+                                            <div className="space-y-4">
+                                                {/* Header Detail */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200">
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <h5 className="text-base sm:text-lg font-black text-gray-900">
+                                                                {currentCat.category}
+                                                            </h5>
+                                                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-pink-100 text-[#B5588A] border border-pink-200">
+                                                                {topItems.length} Layanan / Produk
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 font-semibold mt-0.5">
+                                                            Daftar urutan layanan dan produk terlaris berdasarkan kontribusi penjualan.
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <div className="px-3 py-1.5 rounded-xl bg-white border border-stone-200 shadow-2xs">
+                                                            <p className="text-[10px] font-semibold text-gray-500">Total Terjual</p>
+                                                            <p className="text-xs font-black text-gray-900">{currentCat.volume} Item / Sesi</p>
+                                                        </div>
+                                                        <div className="px-3 py-1.5 rounded-xl bg-pink-50 border border-pink-200 shadow-2xs">
+                                                            <p className="text-[10px] font-semibold text-[#B5588A]">Total Omset</p>
+                                                            <p className="text-xs font-black text-[#B5588A]">Rp {totalSales.toLocaleString('id-ID')}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Items Grid (2 Columns, perfectly balanced & tidy typography) */}
+                                                <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${showAllCategoryItems ? 'max-h-[500px] overflow-y-auto pr-1' : ''}`}>
+                                                    {displayedItems.map((item, idx) => {
+                                                        const itemPct = totalSales > 0 ? ((item.revenue / totalSales) * 100).toFixed(1) : 0
+                                                        const isTop1 = idx === 0
+                                                        const isTop2 = idx === 1
+                                                        const isTop3 = idx === 2
+                                                        const cleanName = (item.name || '').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')
+
+                                                        return (
+                                                            <div 
+                                                                key={item.name} 
+                                                                className={`p-3.5 rounded-2xl transition-all space-y-2 ${
+                                                                    isTop1 
+                                                                        ? 'bg-gradient-to-br from-amber-50/70 via-white to-white border border-amber-300/80 shadow-2xs ring-1 ring-amber-200/50' 
+                                                                        : isTop2
+                                                                            ? 'bg-gradient-to-br from-pink-50/40 via-white to-white border border-pink-200 shadow-2xs'
+                                                                            : isTop3
+                                                                                ? 'bg-gradient-to-br from-orange-50/30 via-white to-white border border-orange-200/80'
+                                                                                : 'bg-white border border-stone-200 hover:border-stone-300 shadow-2xs'
+                                                                }`}
+                                                            >
+                                                                {/* Baris 1: Peringkat, Nama, dan Harga */}
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <span className={`w-5 h-5 rounded-md text-[10px] font-black flex items-center justify-center shrink-0 ${
+                                                                            isTop1 
+                                                                                ? 'bg-amber-100 text-amber-800 border border-amber-300/60' 
+                                                                                : isTop2 
+                                                                                    ? 'bg-pink-100 text-[#B5588A] border border-pink-200' 
+                                                                                    : isTop3
+                                                                                        ? 'bg-orange-100 text-orange-800 border border-orange-200'
+                                                                                        : 'bg-stone-100 text-stone-600 border border-stone-200'
+                                                                        }`}>
+                                                                            #{idx + 1}
+                                                                        </span>
+                                                                        <p className="font-extrabold text-xs text-gray-900 truncate leading-snug" title={cleanName}>
+                                                                            {cleanName}
+                                                                        </p>
+                                                                    </div>
+                                                                    <span className="font-black text-xs text-gray-900 tracking-tight shrink-0">
+                                                                        Rp {item.revenue.toLocaleString('id-ID')}
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Baris 2: Terjual & Porsi Kontribusi */}
+                                                                <div className="flex items-center justify-between text-[11px] font-semibold pt-0.5">
+                                                                    <span className="text-gray-500 flex items-center gap-1">
+                                                                        <span className="font-extrabold text-gray-800">{item.count}</span>
+                                                                        <span>terjual</span>
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                                                                        isTop1 
+                                                                            ? 'bg-amber-100/70 text-amber-800 border border-amber-200/80' 
+                                                                            : isTop2 
+                                                                                ? 'bg-pink-100/70 text-[#B5588A] border border-pink-200/80' 
+                                                                                : 'bg-stone-100 text-stone-600 border border-stone-200/70'
+                                                                    }`}>
+                                                                        {itemPct}% porsi
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Baris 3: Progress Bar */}
+                                                                <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full rounded-full transition-all duration-500 ${
+                                                                            isTop1 
+                                                                                ? 'bg-gradient-to-r from-amber-400 to-[#B5588A]' 
+                                                                                : isTop2 
+                                                                                    ? 'bg-gradient-to-r from-pink-400 to-[#B5588A]'
+                                                                                    : 'bg-gradient-to-r from-stone-300 to-[#B5588A]'
+                                                                        }`}
+                                                                        style={{ width: `${Math.max(Number(itemPct), 2)}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+
+                                                {/* Expand / Collapse Button if more than 8 items */}
+                                                {topItems.length > 8 && (
+                                                    <div className="pt-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowAllCategoryItems(!showAllCategoryItems)}
+                                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white hover:bg-stone-50 text-stone-700 border border-stone-300 shadow-2xs hover:border-[#B5588A] hover:text-[#B5588A] transition-all cursor-pointer"
+                                                        >
+                                                            {showAllCategoryItems ? (
+                                                                <>
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7" /></svg>
+                                                                    <span>Ciutkan ke Top 8 Layanan</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                                                                    <span>Lihat Semua ({topItems.length} Layanan / Produk)</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })() : (
+                                        /* CASE 2: Summary View (Top 1 from Every Category) */
+                                        <div className="space-y-4">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200">
+                                                <div>
+                                                    <h5 className="text-base sm:text-lg font-black text-gray-900">
+                                                        Juara #1 Terlaris di Setiap Kategori
+                                                    </h5>
+                                                    <p className="text-xs text-gray-500 font-semibold mt-0.5">
+                                                        Produk dan layanan paling dominan dari masing-masing kategori klinik.
+                                                    </p>
+                                                </div>
+                                                <span className="text-[11px] font-bold text-gray-500 bg-white border border-stone-200 px-3 py-1 rounded-xl shadow-2xs">
+                                                    Pilih kategori di kiri untuk rincian lengkap
+                                                </span>
+                                            </div>
+
+                                            {/* Summary Grid (2 Columns, clean) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                {categorySalesStats.map((cat, idx) => {
+                                                    const top1 = cat.topItems && cat.topItems[0]
+                                                    if (!top1) return null
+                                                    const top1Pct = cat.sales > 0 ? ((top1.revenue / cat.sales) * 100).toFixed(1) : 0
+
+                                                    return (
+                                                        <div 
+                                                            key={cat.category}
+                                                            onClick={() => setSelectedCategoryTab(cat.category)}
+                                                            className="p-3.5 rounded-2xl bg-white border border-stone-200 hover:border-[#B5588A] hover:shadow-sm transition-all cursor-pointer space-y-2 group"
+                                                        >
+                                                            <div className="flex items-center justify-between text-xs">
+                                                                <span className="font-extrabold text-stone-700 group-hover:text-[#B5588A] transition-colors">
+                                                                    {cat.category}
+                                                                </span>
+                                                                <span className="text-[10px] font-bold text-gray-500">
+                                                                    Total: Rp {cat.sales.toLocaleString('id-ID')}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="w-4 h-4 rounded-md bg-amber-100 text-amber-800 text-[9px] font-black flex items-center justify-center shrink-0">
+                                                                            #1
+                                                                        </span>
+                                                                        <p className="font-extrabold text-xs text-gray-900 truncate" title={top1.name}>
+                                                                            {(top1.name || '').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')}
+                                                                        </p>
+                                                                    </div>
+                                                                    <p className="text-[10px] font-semibold text-gray-500 pl-5.5 mt-0.5">
+                                                                        {top1.count} terjual • {top1Pct}% porsi omset
+                                                                    </p>
+                                                                </div>
+                                                                <span className="font-black text-xs text-[#B5588A] shrink-0">
+                                                                    Rp {top1.revenue.toLocaleString('id-ID')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                ) : null}
+            </div>
+
+                    {/* SECTION 6: DEMOGRAFI & RETENSI PELANGGAN (CUSTOMER INTELLIGENCE) - OWNER ONLY */}
+                    <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${collapsedSections.customerIntelligence ? '' : 'pb-4 border-b border-gray-200'}`}>
+                            <div>
+                                <div 
+                                    onClick={() => toggleSection('customerIntelligence')}
+                                    className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+                                    title={collapsedSections.customerIntelligence ? "Buka modul" : "Lipat modul"}
+                                >
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500 group-hover:bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 group-hover:scale-105">
+                                        <svg className={`w-4 h-4 transition-transform duration-200 ${collapsedSections.customerIntelligence ? '-rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-lg sm:text-xl font-extrabold text-[#5c3316] group-hover:text-purple-600 transition-colors">
+                                        Intelijen Pelanggan: Demografi & Retensi Pasien
+                                    </h3>
+                                </div>
+                                <p className="text-xs text-gray-600 font-semibold mt-1 pl-9.5 sm:pl-11">
+                                    Analisis profil gender, rentang usia, serta rasio & kontribusi omset pasien baru vs pasien setia/lama.
+                                </p>
+                            </div>
+                        </div>
+
+                        {!collapsedSections.customerIntelligence ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-1">
+                                {/* Card 1: Demografi Pelanggan (Gender & Usia) */}
+                                <div className="p-5 sm:p-6 bg-stone-50/60 border border-purple-100/90 rounded-2xl sm:rounded-3xl space-y-5 flex flex-col justify-between">
+                                <div>
+                                    <div className="pb-3 border-b border-gray-200">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-6 bg-purple-500 rounded-full"></div>
+                                            <h3 className="text-base sm:text-lg font-extrabold text-gray-900">
+                                                Demografi Pasien (Jenis Kelamin & Usia)
+                                            </h3>
+                                        </div>
+                                        <p className="text-xs text-gray-500 font-semibold mt-1 pl-4">
+                                            Sebaran profil pasien yang bertransaksi pada periode ini.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch pt-4">
+                                        {/* Box A: Donut Chart - Gender */}
+                                        <div className="p-3.5 bg-stone-50/60 border border-stone-200/70 rounded-2xl flex flex-col justify-between space-y-2">
+                                            <div className="border-b border-stone-200/70 pb-2">
+                                                <p className="text-xs font-extrabold text-gray-900">Komposisi Jenis Kelamin</p>
+                                                <p className="text-[10px] text-gray-500 font-semibold">Proporsi pengunjung wanita vs pria</p>
+                                            </div>
+
+                                            <div className="h-44 w-full relative flex items-center justify-center my-auto">
+                                                {isMounted && demographicGender.length > 0 ? (
+                                                    <>
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <PieChart>
+                                                                <Pie
+                                                                    data={demographicGender}
+                                                                    dataKey="value"
+                                                                    nameKey="name"
+                                                                    cx="50%"
+                                                                    cy="50%"
+                                                                    innerRadius={50}
+                                                                    outerRadius={72}
+                                                                    paddingAngle={4}
+                                                                >
+                                                                    <Cell fill="#EC4899" />
+                                                                    <Cell fill="#06B6D4" />
+                                                                </Pie>
+                                                                <RechartsTooltip formatter={(val, name) => [`${val} Pasien`, name]} />
+                                                            </PieChart>
+                                                        </ResponsiveContainer>
+                                                        {/* Center Stat Inside Donut */}
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                            <span className="text-xl font-black text-[#EC4899] leading-none">
+                                                                {demographicGender[0]?.percent || 0}%
+                                                            </span>
+                                                            <span className="text-[10px] font-black uppercase tracking-wider text-pink-700/80 mt-1">
+                                                                {demographicGender[0]?.name || 'Wanita'}
+                                                            </span>
+                                                            <span className="text-[9px] font-semibold text-gray-400 mt-0.5">
+                                                                Dominan
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <p className="text-xs text-gray-400">Memuat gender...</p>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-200/70 text-xs">
+                                                <div className="p-2 sm:p-2.5 rounded-xl bg-pink-50/70 border border-pink-100 flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span className="w-2.5 h-2.5 rounded-full bg-[#EC4899] shrink-0"></span>
+                                                        <span className="font-bold text-gray-700 truncate text-[11px]">Wanita</span>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <span className="font-black text-[#EC4899] block text-xs">{demographicGender[0]?.value || 0}</span>
+                                                        <span className="text-[10px] font-bold text-pink-600">{demographicGender[0]?.percent || 0}%</span>
+                                                    </div>
+                                                </div>
+                                                <div className="p-2 sm:p-2.5 rounded-xl bg-cyan-50/70 border border-cyan-100 flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4] shrink-0"></span>
+                                                        <span className="font-bold text-gray-700 truncate text-[11px]">Pria</span>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <span className="font-black text-[#06B6D4] block text-xs">{demographicGender[1]?.value || 0}</span>
+                                                        <span className="text-[10px] font-bold text-cyan-600">{demographicGender[1]?.percent || 0}%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Box B: Distribusi Rentang Usia */}
+                                        <div className="p-3.5 bg-stone-50/60 border border-stone-200/70 rounded-2xl flex flex-col justify-between space-y-2.5">
+                                            <div>
+                                                <div className="flex items-center justify-between border-b border-stone-200/70 pb-2">
+                                                    <div>
+                                                        <p className="text-xs font-extrabold text-gray-900">Distribusi Rentang Usia</p>
+                                                        <p className="text-[10px] text-gray-500 font-semibold">Berdasarkan data pasien terverifikasi</p>
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-gray-600 bg-white border border-stone-200 px-2 py-0.5 rounded-full shadow-2xs">
+                                                        {demographicAge.filter(d => d.group !== 'Lainnya').reduce((s, a) => s + a.count, 0)} Terdata
+                                                    </span>
+                                                </div>
+
+                                                <div className="space-y-2 pt-2 max-h-48 overflow-y-auto pr-0.5">
+                                                    {demographicAge.length > 0 ? (
+                                                        (() => {
+                                                            const validGroups = demographicAge.filter(d => d.group !== 'Lainnya' && (d.count > 0 || ['19-24 Thn', '25-34 Thn', '35-44 Thn', '45+ Thn'].includes(d.group)))
+                                                            const maxCount = Math.max(...validGroups.map(d => d.count), 1)
+
+                                                            return validGroups.map((item) => {
+                                                                const barWidth = item.count > 0 ? `${Math.max(Math.round((item.count / maxCount) * 100), 4)}%` : '0%'
+                                                                return (
+                                                                    <div key={item.group} className="space-y-1">
+                                                                        <div className="flex justify-between items-center text-[11px]">
+                                                                            <span className="font-bold text-gray-800">
+                                                                                {item.group}
+                                                                            </span>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <span className="font-extrabold text-gray-900 text-xs">
+                                                                                    {item.count} <span className="text-[10px] font-medium text-gray-500">Pasien</span>
+                                                                                </span>
+                                                                                <span className="text-[10px] font-black px-1.5 py-0.2 rounded-md bg-orange-100 text-orange-800 border border-orange-200/60">
+                                                                                    {item.percent}%
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="h-2 w-full bg-stone-200/60 rounded-full overflow-hidden p-0.2">
+                                                                            <div 
+                                                                                className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-amber-400 to-orange-500"
+                                                                                style={{ width: barWidth }}
+                                                                            ></div>
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            })
+                                                        })()
+                                                    ) : (
+                                                        <p className="text-xs text-gray-400 text-center py-6">Memuat usia...</p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Subtle disclaimer for unrecorded birth dates */}
+                                            {(() => {
+                                                const unknownItem = demographicAge.find(d => d.group === 'Lainnya')
+                                                if (!unknownItem || unknownItem.count <= 0) return null
+                                                return (
+                                                    <div className="p-2 rounded-xl bg-stone-100/80 border border-stone-200/80 flex items-center justify-between text-[10px] text-gray-500 font-semibold">
+                                                        <span className="flex items-center gap-1">
+                                                            <svg className="w-3 h-3 text-stone-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            Belum Lengkap Tgl Lahir
+                                                        </span>
+                                                        <span className="font-extrabold text-stone-700">
+                                                            {unknownItem.count} Pasien ({unknownItem.percent}%)
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Executive Demographic Highlights Strip */}
+                                <div className="pt-3.5 border-t border-stone-200/80">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-50/80 to-white border border-purple-100/90 shadow-2xs space-y-1">
+                                            <div className="flex items-center gap-1 text-purple-800">
+                                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Usia Terbanyak</span>
+                                            </div>
+                                            <p className="text-xs font-black text-gray-900">19–34 Tahun</p>
+                                            <p className="text-[10px] font-bold text-purple-700">
+                                                {(() => {
+                                                    const u19_34 = (demographicAge.find(d => d.group === '19-24 Thn')?.count || 0) + (demographicAge.find(d => d.group === '25-34 Thn')?.count || 0)
+                                                    const knownTotal = demographicAge.filter(d => d.group !== 'Lainnya').reduce((s, a) => s + a.count, 0)
+                                                    const pct = knownTotal > 0 ? ((u19_34 / knownTotal) * 100).toFixed(1) : 0
+                                                    return `${pct}% usia terdata`
+                                                })()}
+                                            </p>
+                                        </div>
+
+                                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-pink-50/80 to-white border border-pink-100/90 shadow-2xs space-y-1">
+                                            <div className="flex items-center gap-1 text-[#B5588A]">
+                                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Dominasi Gender</span>
+                                            </div>
+                                            <p className="text-xs font-black text-gray-900">
+                                                Wanita ({demographicGender[0]?.percent || 0}%)
+                                            </p>
+                                            <p className="text-[10px] font-bold text-pink-700">
+                                                {demographicGender[0]?.value || 0} dari {(demographicGender[0]?.value || 0) + (demographicGender[1]?.value || 0)} pasien
+                                            </p>
+                                        </div>
+
+                                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-stone-50 to-white border border-stone-200/90 shadow-2xs space-y-1">
+                                            <div className="flex items-center gap-1 text-stone-700">
+                                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Kelengkapan Profil</span>
+                                            </div>
+                                            <p className="text-xs font-black text-gray-900">
+                                                {(() => {
+                                                    const knownTotal = demographicAge.filter(d => d.group !== 'Lainnya').reduce((s, a) => s + a.count, 0)
+                                                    const totalPats = (demographicGender[0]?.value || 0) + (demographicGender[1]?.value || 0)
+                                                    const pct = totalPats > 0 ? ((knownTotal / totalPats) * 100).toFixed(1) : 0
+                                                    return `${pct}% Tercatat`
+                                                })()}
+                                            </p>
+                                            <p className="text-[10px] font-semibold text-stone-500">
+                                                {demographicAge.filter(d => d.group !== 'Lainnya').reduce((s, a) => s + a.count, 0)} data tanggal lahir
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 2: Perbandingan Kostumer Baru vs Lama (Customer Retention) */}
+                            <div className="p-5 sm:p-6 bg-stone-50/60 border border-emerald-150 rounded-2xl sm:rounded-3xl space-y-5 flex flex-col justify-between">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-6 bg-emerald-500 rounded-full"></div>
+                                            <h3 className="text-base sm:text-lg font-extrabold text-gray-900">
+                                                Perbandingan Kostumer Baru vs Lama
+                                            </h3>
+                                        </div>
+                                        <p className="text-xs text-gray-500 font-semibold mt-1 pl-4">
+                                            Retensi loyalitas pelanggan (repeat) vs akuisisi pelanggan baru.
+                                        </p>
+                                    </div>
+
+                                    {/* Segmented Filter Tab */}
+                                    <div className="flex items-center gap-1 p-1 bg-stone-100 border border-stone-200 rounded-xl shrink-0 self-start sm:self-auto">
+                                        <button
+                                            type="button"
+                                            onClick={() => setRetentionTab('all')}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                retentionTab === 'all'
+                                                    ? 'bg-white text-stone-900 shadow-sm font-extrabold'
+                                                    : 'text-stone-500 hover:text-stone-800'
+                                            }`}
+                                        >
+                                            Semua
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRetentionTab('treatment')}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                retentionTab === 'treatment'
+                                                    ? 'bg-white text-stone-900 shadow-sm font-extrabold'
+                                                    : 'text-stone-500 hover:text-stone-800'
+                                            }`}
+                                        >
+                                            Treatment
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRetentionTab('product')}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                retentionTab === 'product'
+                                                    ? 'bg-white text-stone-900 shadow-sm font-extrabold'
+                                                    : 'text-stone-500 hover:text-stone-800'
+                                            }`}
+                                        >
+                                            Produk
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                        {/* 1. Treatment Retention Section */}
+                                        {(retentionTab === 'all' || retentionTab === 'treatment') && (() => {
+                                            const totalPats = retentionStats.treatment.newCount + retentionStats.treatment.oldCount
+                                            const newPct = totalPats > 0 ? ((retentionStats.treatment.newCount / totalPats) * 100).toFixed(1) : 0
+                                            const oldPct = totalPats > 0 ? ((retentionStats.treatment.oldCount / totalPats) * 100).toFixed(1) : 0
+                                            const totalRev = retentionStats.treatment.newRevenue + retentionStats.treatment.oldRevenue
+                                            const newRevPct = totalRev > 0 ? ((retentionStats.treatment.newRevenue / totalRev) * 100).toFixed(1) : 0
+                                            const oldRevPct = totalRev > 0 ? ((retentionStats.treatment.oldRevenue / totalRev) * 100).toFixed(1) : 0
+
+                                            return (
+                                                <div className="p-4 sm:p-5 rounded-2xl bg-stone-50/60 border border-stone-200/80 space-y-3.5">
+                                                    {/* Header Category */}
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-8 h-8 rounded-xl bg-pink-100/80 text-[#B5588A] flex items-center justify-center shrink-0 shadow-inner">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-tight">
+                                                                    Layanan Treatment
+                                                                </h4>
+                                                                <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                                                                    Tingkat repeat order perawatan klinik
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-white border border-stone-200 text-stone-700 shadow-xs">
+                                                            Total: {totalPats} Pasien
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Circular Donut & Metric Cards Container */}
+                                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5 pt-1">
+                                                        {/* Donut Chart (Lingkaran) */}
+                                                        <div className="flex flex-col items-center shrink-0">
+                                                            <div className="w-36 h-36 relative flex items-center justify-center">
+                                                                {isMounted && totalPats > 0 ? (
+                                                                    <>
+                                                                        <ResponsiveContainer width="100%" height="100%">
+                                                                            <PieChart>
+                                                                                <Pie
+                                                                                    data={[
+                                                                                        { name: 'Pasien Baru', value: retentionStats.treatment.newCount },
+                                                                                        { name: 'Pasien Loyal (Repeat)', value: retentionStats.treatment.oldCount }
+                                                                                    ]}
+                                                                                    dataKey="value"
+                                                                                    nameKey="name"
+                                                                                    cx="50%"
+                                                                                    cy="50%"
+                                                                                    innerRadius={38}
+                                                                                    outerRadius={56}
+                                                                                    paddingAngle={4}
+                                                                                    stroke="#ffffff"
+                                                                                    strokeWidth={2.5}
+                                                                                >
+                                                                                    <Cell fill="#10B981" />
+                                                                                    <Cell fill="#B5588A" />
+                                                                                </Pie>
+                                                                                <RechartsTooltip formatter={(val, name) => [`${val} Pasien`, name]} />
+                                                                            </PieChart>
+                                                                        </ResponsiveContainer>
+                                                                        {/* Center Stat inside Circle */}
+                                                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                                            <span className="text-xl font-black text-[#B5588A] tracking-tight leading-none">
+                                                                                {oldPct}%
+                                                                            </span>
+                                                                            <span className="text-[9px] font-black uppercase tracking-wider text-pink-700 bg-pink-100/70 px-1.5 py-0.5 rounded-md mt-1">
+                                                                                Repeat
+                                                                            </span>
+                                                                            <span className="text-[8px] font-bold text-gray-400 mt-0.5">
+                                                                                {retentionStats.treatment.oldCount} Pasien
+                                                                            </span>
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div className="w-full h-full rounded-full border-4 border-stone-100 flex items-center justify-center text-[10px] text-gray-400 font-semibold">
+                                                                        Nihil
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Micro Legend */}
+                                                            <div className="flex items-center justify-center gap-3 mt-1.5">
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-600">
+                                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></span>
+                                                                    Baru ({newPct}%)
+                                                                </span>
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-600">
+                                                                    <span className="w-2 h-2 rounded-full bg-[#B5588A] ring-2 ring-pink-100"></span>
+                                                                    Repeat ({oldPct}%)
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 2 Split Metric Cards */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1 w-full">
+                                                            {/* Card Baru */}
+                                                            <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-xs space-y-2 hover:shadow-md transition-shadow">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1.5">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                                        Pasien Baru
+                                                                    </span>
+                                                                    <span className="text-xs font-black text-emerald-700">
+                                                                        {newPct}%
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-baseline gap-1.5">
+                                                                        <span className="text-lg font-black text-gray-900">
+                                                                            {retentionStats.treatment.newCount}
+                                                                        </span>
+                                                                        <span className="text-xs font-semibold text-gray-500">Pasien</span>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-emerald-50">
+                                                                        <span className="text-xs font-extrabold text-emerald-700">
+                                                                            Rp {retentionStats.treatment.newRevenue.toLocaleString('id-ID')}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                                                                            {newRevPct}% omset
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Card Repeat */}
+                                                            <div className="p-3.5 rounded-2xl bg-white border border-pink-200/80 shadow-xs space-y-2 hover:shadow-md transition-shadow">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-[#B5588A] bg-pink-50 px-2 py-0.5 rounded-md border border-pink-200/60 flex items-center gap-1.5">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-[#B5588A]"></span>
+                                                                        Loyal (Repeat)
+                                                                    </span>
+                                                                    <span className="text-xs font-black text-[#B5588A]">
+                                                                        {oldPct}%
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-baseline gap-1.5">
+                                                                        <span className="text-lg font-black text-gray-900">
+                                                                            {retentionStats.treatment.oldCount}
+                                                                        </span>
+                                                                        <span className="text-xs font-semibold text-gray-500">Pasien</span>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-pink-50">
+                                                                        <span className="text-xs font-extrabold text-[#B5588A]">
+                                                                            Rp {retentionStats.treatment.oldRevenue.toLocaleString('id-ID')}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-pink-50 text-[#B5588A]">
+                                                                            {oldRevPct}% omset
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Deep-dive note if filtered */}
+                                                    {retentionTab === 'treatment' && (
+                                                        <div className="p-2.5 rounded-xl bg-pink-50/60 border border-pink-100 text-[11px] font-bold text-gray-700 flex items-center justify-between">
+                                                            <span>Kontribusi Omset Loyal:</span>
+                                                            <span className="font-extrabold text-[#B5588A]">
+                                                                {oldRevPct}% dari total omset treatment
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })()}
+
+                                        {/* 2. Product Retention Section */}
+                                        {(retentionTab === 'all' || retentionTab === 'product') && (() => {
+                                            const totalPats = retentionStats.product.newCount + retentionStats.product.oldCount
+                                            const newPct = totalPats > 0 ? ((retentionStats.product.newCount / totalPats) * 100).toFixed(1) : 0
+                                            const oldPct = totalPats > 0 ? ((retentionStats.product.oldCount / totalPats) * 100).toFixed(1) : 0
+                                            const totalRev = retentionStats.product.newRevenue + retentionStats.product.oldRevenue
+                                            const newRevPct = totalRev > 0 ? ((retentionStats.product.newRevenue / totalRev) * 100).toFixed(1) : 0
+                                            const oldRevPct = totalRev > 0 ? ((retentionStats.product.oldRevenue / totalRev) * 100).toFixed(1) : 0
+
+                                            return (
+                                                <div className="p-4 sm:p-5 rounded-2xl bg-stone-50/60 border border-stone-200/80 space-y-3.5">
+                                                    {/* Header Category */}
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-8 h-8 rounded-xl bg-cyan-100/80 text-[#06B6D4] flex items-center justify-center shrink-0 shadow-inner">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-tight">
+                                                                    Penjualan Produk Skincare
+                                                                </h4>
+                                                                <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                                                                    Tingkat repeat order produk kecantikan
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-white border border-stone-200 text-stone-700 shadow-xs">
+                                                            Total: {totalPats} Pasien
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Circular Donut & Metric Cards Container */}
+                                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5 pt-1">
+                                                        {/* Donut Chart (Lingkaran) */}
+                                                        <div className="flex flex-col items-center shrink-0">
+                                                            <div className="w-36 h-36 relative flex items-center justify-center">
+                                                                {isMounted && totalPats > 0 ? (
+                                                                    <>
+                                                                        <ResponsiveContainer width="100%" height="100%">
+                                                                            <PieChart>
+                                                                                <Pie
+                                                                                    data={[
+                                                                                        { name: 'Pembeli Baru', value: retentionStats.product.newCount },
+                                                                                        { name: 'Pembeli Loyal (Repeat)', value: retentionStats.product.oldCount }
+                                                                                    ]}
+                                                                                    dataKey="value"
+                                                                                    nameKey="name"
+                                                                                    cx="50%"
+                                                                                    cy="50%"
+                                                                                    innerRadius={38}
+                                                                                    outerRadius={56}
+                                                                                    paddingAngle={4}
+                                                                                    stroke="#ffffff"
+                                                                                    strokeWidth={2.5}
+                                                                                >
+                                                                                    <Cell fill="#10B981" />
+                                                                                    <Cell fill="#06B6D4" />
+                                                                                </Pie>
+                                                                                <RechartsTooltip formatter={(val, name) => [`${val} Pasien`, name]} />
+                                                                            </PieChart>
+                                                                        </ResponsiveContainer>
+                                                                        {/* Center Stat inside Circle */}
+                                                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                                            <span className="text-xl font-black text-[#06B6D4] tracking-tight leading-none">
+                                                                                {oldPct}%
+                                                                            </span>
+                                                                            <span className="text-[9px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-100/70 px-1.5 py-0.5 rounded-md mt-1">
+                                                                                Repeat
+                                                                            </span>
+                                                                            <span className="text-[8px] font-bold text-gray-400 mt-0.5">
+                                                                                {retentionStats.product.oldCount} Pasien
+                                                                            </span>
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div className="w-full h-full rounded-full border-4 border-stone-100 flex items-center justify-center text-[10px] text-gray-400 font-semibold">
+                                                                        Nihil
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Micro Legend */}
+                                                            <div className="flex items-center justify-center gap-3 mt-1.5">
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-600">
+                                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></span>
+                                                                    Baru ({newPct}%)
+                                                                </span>
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-600">
+                                                                    <span className="w-2 h-2 rounded-full bg-[#06B6D4] ring-2 ring-cyan-100"></span>
+                                                                    Repeat ({oldPct}%)
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 2 Split Metric Cards */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1 w-full">
+                                                            {/* Card Baru */}
+                                                            <div className="p-3.5 rounded-2xl bg-white border border-emerald-200/80 shadow-xs space-y-2 hover:shadow-md transition-shadow">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1.5">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                                        Pembeli Baru
+                                                                    </span>
+                                                                    <span className="text-xs font-black text-emerald-700">
+                                                                        {newPct}%
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-baseline gap-1.5">
+                                                                        <span className="text-lg font-black text-gray-900">
+                                                                            {retentionStats.product.newCount}
+                                                                        </span>
+                                                                        <span className="text-xs font-semibold text-gray-500">Pasien</span>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-emerald-50">
+                                                                        <span className="text-xs font-extrabold text-emerald-700">
+                                                                            Rp {retentionStats.product.newRevenue.toLocaleString('id-ID')}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                                                                            {newRevPct}% omset
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Card Repeat */}
+                                                            <div className="p-3.5 rounded-2xl bg-white border border-cyan-200/80 shadow-xs space-y-2 hover:shadow-md transition-shadow">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-200/60 flex items-center gap-1.5">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-[#06B6D4]"></span>
+                                                                        Loyal (Repeat)
+                                                                    </span>
+                                                                    <span className="text-xs font-black text-[#06B6D4]">
+                                                                        {oldPct}%
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-baseline gap-1.5">
+                                                                        <span className="text-lg font-black text-gray-900">
+                                                                            {retentionStats.product.oldCount}
+                                                                        </span>
+                                                                        <span className="text-xs font-semibold text-gray-500">Pasien</span>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-cyan-50">
+                                                                        <span className="text-xs font-extrabold text-[#06B6D4]">
+                                                                            Rp {retentionStats.product.oldRevenue.toLocaleString('id-ID')}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-cyan-50 text-[#06B6D4]">
+                                                                            {oldRevPct}% omset
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Deep-dive note if filtered */}
+                                                    {retentionTab === 'product' && (
+                                                        <div className="p-2.5 rounded-xl bg-cyan-50/60 border border-cyan-100 text-[11px] font-bold text-gray-700 flex items-center justify-between">
+                                                            <span>Kontribusi Omset Loyal:</span>
+                                                            <span className="font-extrabold text-[#06B6D4]">
+                                                                {oldRevPct}% dari total omset produk skincare
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             ) : (
@@ -1836,9 +3686,12 @@ export default function Dashboard() {
                     </div>
                     <div className="mt-4">
                         <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
-                            {branchTotals.couponUsedSessions} Sesi
+                            Rp {(branchTotals.couponUsedValue || 0).toLocaleString('id-ID')}
                         </h3>
-                        <p className="text-[11px] text-stone-500 font-medium mt-1">
+                        <p className="text-[12px] text-amber-700 font-bold mt-1">
+                            {branchTotals.couponUsedSessions} Sesi Kupon Terpakai
+                        </p>
+                        <p className="text-[10px] text-stone-400 font-medium mt-0.5">
                             Klaim sesi kupon perawatan periode ini
                         </p>
                     </div>
@@ -2398,7 +4251,7 @@ export default function Dashboard() {
             {/* MODAL: RINCIAN PEMAKAIAN SESI KUPON */}
             {isCouponUsageModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-3xl w-full h-[80vh] flex flex-col overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-4xl w-full h-[80vh] flex flex-col overflow-hidden">
                         <div className="p-5 border-b border-stone-100 flex items-center justify-between">
                             <div>
                                 <h3 className="text-base font-extrabold text-stone-900">Rincian Pemakaian Sesi Kupon</h3>
@@ -2406,8 +4259,19 @@ export default function Dashboard() {
                             </div>
                             <button onClick={() => setIsCouponUsageModalOpen(false)} className="text-stone-400 hover:text-stone-700 text-sm font-bold">✕</button>
                         </div>
-                        <div className="p-3.5 bg-stone-50 border-b border-stone-100 flex items-center justify-between gap-3">
-                            <span className="text-xs font-bold text-stone-700">Total: {filteredCouponLogs.length} Sesi</span>
+                        <div className="p-3.5 bg-stone-50 border-b border-stone-100 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                                <span className="text-xs font-bold text-stone-700">Total: {filteredCouponLogs.length} Sesi</span>
+                                <span className="text-xs font-bold text-amber-800 bg-amber-100/80 border border-amber-200 px-2.5 py-0.5 rounded-lg">
+                                    Valuasi Redeem: Rp {filteredCouponLogs.reduce((acc, log) => {
+                                        const item = log.patient_coupon_items
+                                        const tP = Number(item?.treatments?.price || 0)
+                                        const pP = Number(item?.patient_coupons?.coupon_packages?.price || 0)
+                                        const tS = Number(item?.total_sessions || 1)
+                                        return acc + (tP > 0 ? tP : (pP > 0 ? Math.round(pP / tS) : 0))
+                                    }, 0).toLocaleString('id-ID')}
+                                </span>
+                            </div>
                             <input
                                 type="text"
                                 value={couponUsageSearch}
@@ -2427,39 +4291,51 @@ export default function Dashboard() {
                                             <th className="p-2.5">Pasien</th>
                                             <th className="p-2.5">Paket & Layanan</th>
                                             <th className="p-2.5 text-center">Status Sesi</th>
+                                            <th className="p-2.5 text-right">Nilai Sesi</th>
                                             <th className="p-2.5">Petugas</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-stone-100">
-                                        {filteredCouponLogs.map((log, idx) => (
-                                            <tr key={log.id || idx} className="hover:bg-stone-50/50">
-                                                <td className="p-2.5 text-stone-500 whitespace-nowrap">{formatLogDateTime(log.used_at)}</td>
-                                                <td className="p-2.5 whitespace-nowrap">
-                                                    {log.patients?.id ? (
-                                                        <Link 
-                                                            href={`/patients/${log.patients.id}`}
-                                                            className="font-bold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/cp"
-                                                            title="Buka Profil & Riwayat Pasien"
-                                                        >
-                                                            <span>{log.patients?.full_name || 'Pasien'}</span>
-                                                            <span className="text-[11px] text-ayumi-primary font-bold group-hover/cp:translate-x-0.5 group-hover/cp:-translate-y-0.5 transition-transform">↗</span>
-                                                        </Link>
-                                                    ) : (
-                                                        <span className="font-bold text-stone-900">{log.patients?.full_name || 'Pasien'}</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-2.5">
-                                                    <p className="font-bold text-stone-900">{log.patient_coupon_items?.treatments?.name || 'Treatment'}</p>
-                                                    <p className="text-[10px] text-stone-400">{log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || 'Paket'}</p>
-                                                </td>
-                                                <td className="p-2.5 text-center">
-                                                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
-                                                        Sesi {log.patient_coupon_items?.used_sessions || 1}/{log.patient_coupon_items?.total_sessions || 1}
-                                                    </span>
-                                                </td>
-                                                <td className="p-2.5 text-stone-600">{log.users?.full_name || '-'}</td>
-                                            </tr>
-                                        ))}
+                                        {filteredCouponLogs.map((log, idx) => {
+                                            const item = log.patient_coupon_items
+                                            const tP = Number(item?.treatments?.price || 0)
+                                            const pP = Number(item?.patient_coupons?.coupon_packages?.price || 0)
+                                            const tS = Number(item?.total_sessions || 1)
+                                            const val = tP > 0 ? tP : (pP > 0 ? Math.round(pP / tS) : 0)
+
+                                            return (
+                                                <tr key={log.id || idx} className="hover:bg-stone-50/50">
+                                                    <td className="p-2.5 text-stone-500 whitespace-nowrap">{formatLogDateTime(log.used_at)}</td>
+                                                    <td className="p-2.5 whitespace-nowrap">
+                                                        {log.patients?.id ? (
+                                                            <Link 
+                                                                href={`/patients/${log.patients.id}`}
+                                                                className="font-bold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/cp"
+                                                                title="Buka Profil & Riwayat Pasien"
+                                                            >
+                                                                <span>{log.patients?.full_name || 'Pasien'}</span>
+                                                                <span className="text-[11px] text-ayumi-primary font-bold group-hover/cp:translate-x-0.5 group-hover/cp:-translate-y-0.5 transition-transform">↗</span>
+                                                            </Link>
+                                                        ) : (
+                                                            <span className="font-bold text-stone-900">{log.patients?.full_name || 'Pasien'}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-2.5">
+                                                        <p className="font-bold text-stone-900">{log.patient_coupon_items?.treatments?.name || 'Treatment'}</p>
+                                                        <p className="text-[10px] text-stone-400">{log.patient_coupon_items?.patient_coupons?.coupon_packages?.name || 'Paket'}</p>
+                                                    </td>
+                                                    <td className="p-2.5 text-center">
+                                                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">
+                                                            Sesi {log.patient_coupon_items?.used_sessions || 1}/{log.patient_coupon_items?.total_sessions || 1}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-2.5 text-right font-bold text-amber-900 whitespace-nowrap tabular-nums">
+                                                        Rp {val.toLocaleString('id-ID')}
+                                                    </td>
+                                                    <td className="p-2.5 text-stone-600">{log.users?.full_name || '-'}</td>
+                                                </tr>
+                                            )
+                                        })}
                                     </tbody>
                                 </table>
                             )}

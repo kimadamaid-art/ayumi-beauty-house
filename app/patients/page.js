@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import { toast } from 'react-hot-toast'
@@ -53,10 +53,10 @@ export default function PatientsPage() {
         const fetchPatients = async () => {
             setIsLoading(true)
 
-            // Get current user's role and branch using cached user & parallel branches
-            const [{ user, dbUser: userData }, brData] = await Promise.all([
+            // Get current user's role and branch using cached user & parallel cached branches
+            const [{ user, dbUser: userData }, branchList] = await Promise.all([
                 getCachedUser(),
-                branches.length === 0 ? supabase.from('branches').select('id, name').eq('is_active', true) : Promise.resolve({ data: null })
+                branches.length === 0 ? getCachedBranches() : Promise.resolve(null)
             ])
 
             let isOwner = true
@@ -67,8 +67,8 @@ export default function PatientsPage() {
             }
             setIsOwner(isOwner)
 
-            if (brData && brData.data) {
-                setBranches(brData.data)
+            if (branchList) {
+                setBranches(branchList)
             }
 
             // Fetch patients with dynamic ordering
