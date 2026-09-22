@@ -46,3 +46,7 @@ next-env.d.ts
 supabase/.temp/
 *.xlsx
 
+
+# Skrip migrasi berisi password database dan kunci service_role (Tokyo & Singapura).
+# Jangan pernah di-commit.
+/scripts/migration/
