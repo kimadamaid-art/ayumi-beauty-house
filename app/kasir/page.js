@@ -1784,6 +1784,9 @@ function PosPageContent() {
             }
             return x
         }))
+        if (therapistId) {
+            setSelectedTherapistId(therapistId)
+        }
     }
 
     // --- Totals ---
@@ -1930,13 +1933,14 @@ function PosPageContent() {
                 try {
                     const { data: exTr } = await supabase
                         .from('treatment_records')
-                        .select('performed_by')
+                        .select('performed_by, appointment_id')
                         .eq('id', finalTrId)
                         .maybeSingle()
 
-                    const targetPerformer = selectedTherapistId && selectedTherapistId !== 'worker'
-                        ? selectedTherapistId
-                        : (treatmentItems[0]?.therapist_id && treatmentItems[0]?.therapist_id !== 'worker' ? treatmentItems[0].therapist_id : exTr?.performed_by)
+                    // Prioritaskan terapis yang dipilih admin di keranjang terlebih dahulu
+                    const firstItemTherapist = treatmentItems.find(it => it.therapist_id && it.therapist_id !== 'worker')?.therapist_id
+                    const targetPerformer = firstItemTherapist 
+                        || (selectedTherapistId && selectedTherapistId !== 'worker' ? selectedTherapistId : exTr?.performed_by)
 
                     // 1. Bersihkan item lama pada rekam medis yang digantikan/diubah
                     await supabase.from('treatment_record_items').delete().eq('treatment_record_id', finalTrId)
@@ -1959,9 +1963,13 @@ function PosPageContent() {
                     })
                     await supabase.from('treatment_record_items').insert(trItemPayloads)
 
-                    // 3. Pastikan terapis pelaksana tercatat
+                    // 3. Pastikan terapis pelaksana tercatat di rekam medis dan janji temu
                     if (targetPerformer) {
                         await supabase.from('treatment_records').update({ performed_by: targetPerformer }).eq('id', finalTrId)
+                        const targetAptId = linkedAppointmentId || exTr?.appointment_id
+                        if (targetAptId) {
+                            await supabase.from('appointments').update({ therapist_id: targetPerformer }).eq('id', targetAptId)
+                        }
                     }
 
                     // Tandai item di keranjang agar tidak dibuatkan record duplikat oleh logika direct treatment di bawah
