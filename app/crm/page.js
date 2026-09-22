@@ -72,20 +72,47 @@ function getBirthdayInfo(birthDate, today) {
     return { nextBday: thisYearBday, diffDays, age }
 }
 
+// Cabang kunjungan terakhir untuk tiap pasien, dari rekam medis terbarunya.
+// Pasien yang belum pernah treatment tidak muncul di hasil.
+async function fetchLastVisitBranches(patientIds) {
+    const result = new Map()
+    for (let i = 0; i < patientIds.length; i += IN_BATCH) {
+        const chunk = patientIds.slice(i, i + IN_BATCH)
+        const rows = await fetchAllRows(() => supabase
+            .from('treatment_records')
+            .select('patient_id, branch_id')
+            .in('patient_id', chunk)
+            .order('treatment_date', { ascending: false })
+            .order('id', { ascending: false })
+        )
+        if (!rows) return null
+        // Diurutkan dari yang terbaru, jadi baris pertama per pasien adalah kunjungan terakhirnya.
+        rows.forEach(r => {
+            if (r.branch_id && !result.has(r.patient_id)) result.set(r.patient_id, r.branch_id)
+        })
+    }
+    return result
+}
+
 // Ulang tahun: tanggal lahir seluruh pasien diperiksa dengan kolom minimal, lalu nama dan
 // WhatsApp hanya diambil untuk pasien yang berulang tahun dalam waktu dekat. Saringan di
 // sini sedikit lebih longgar (8 hari); batas 7 hari tetap diterapkan saat pemrosesan.
+//
+// Pasien ulang tahun menjadi tanggungan cabang tempat ia terakhir treatment -- cabang
+// yang sekarang benar-benar melayaninya -- sama seperti daftar dormant. Pasien yang belum
+// pernah treatment tetap memakai cabang pendaftarannya. branch_id pada hasil diisi dengan
+// cabang tanggungan itu, sehingga tampilan admin, filter cabang owner, dan cabang yang
+// tercatat pada log WA ulang tahun semuanya mengikuti aturan yang sama.
 async function loadUpcomingBirthdayPatients(branchId) {
-    const rows = await fetchAllRows(() => {
-        let q = supabase
-            .from('patients')
-            .select('id, birth_date')
-            .eq('is_active', true)
-            .not('birth_date', 'is', null)
-            .order('id', { ascending: true })
-        if (branchId) q = q.eq('branch_id', branchId)
-        return q
-    })
+    // Semua cabang diperiksa: pasien yang terdaftar di cabang lain bisa saja kini
+    // menjadi tanggungan cabang ini karena kunjungan terakhirnya di sini.
+    const rows = await fetchAllRows(() => supabase
+        .from('patients')
+        .select('id, birth_date')
+        .eq('is_active', true)
+        .not('birth_date', 'is', null)
+        .order('id', { ascending: true })
+    )
     if (!rows) return null
 
     const today = new Date()
@@ -94,7 +121,15 @@ async function loadUpcomingBirthdayPatients(branchId) {
         .filter(pt => getBirthdayInfo(pt.birth_date, today).diffDays <= 8)
         .map(pt => pt.id)
 
-    return fetchPatientsByIds(ids, 'id, full_name, whatsapp, birth_date, branch_id')
+    const [patients, lastVisitBranch] = await Promise.all([
+        fetchPatientsByIds(ids, 'id, full_name, whatsapp, birth_date, branch_id'),
+        fetchLastVisitBranches(ids)
+    ])
+    if (!patients || !lastVisitBranch) return null
+
+    return patients
+        .map(pt => ({ ...pt, branch_id: lastVisitBranch.get(pt.id) || pt.branch_id }))
+        .filter(pt => !branchId || pt.branch_id === branchId)
 }
 
 // Dormant: rekam medis dalam jendela waktu diambil dengan kolom minimal, dicari kunjungan
@@ -736,10 +771,11 @@ export default function CRMPage() {
         }
     }
 
-    // Pencarian pasien untuk modal follow-up manual. Aturannya mengikuti penyaringan lama
-    // (nama atau WhatsApp mengandung kata kunci, pasien aktif, dibatasi cabang untuk admin,
-    // maksimal 10 hasil), tetapi dijalankan di server sehingga seluruh pasien terjangkau --
-    // daftar lama berhenti di 1000 pasien pertama.
+    // Pencarian pasien untuk modal follow-up manual: nama atau WhatsApp mengandung kata
+    // kunci, pasien aktif, maksimal 10 hasil, dijalankan di server.
+    // Pencarian mencakup semua cabang, sama seperti pencarian pasien di kasir: pasien yang
+    // biasa treatment di cabang lain tetap bisa dijadwalkan follow-up oleh cabang yang sedang
+    // melayaninya. Follow-up yang dibuat tetap tercatat atas cabang admin (manualForm.branchId).
     useEffect(() => {
         // Menaikkan nomor permintaan juga membatalkan jawaban yang masih dalam perjalanan,
         // termasuk saat kolom pencarian dikosongkan.
@@ -748,16 +784,13 @@ export default function CRMPage() {
 
         const timer = setTimeout(async () => {
             const term = escapePostgrestFilter(patientSearch)
-            let q = supabase
+            const q = supabase
                 .from('patients')
-                .select('id, full_name, whatsapp, branch_id')
+                .select('id, full_name, whatsapp, branch_id, branches(name)')
                 .eq('is_active', true)
                 .or(`full_name.ilike.${term},whatsapp.ilike.${term}`)
                 .order('full_name', { ascending: true })
                 .limit(10)
-            if (!isOwner && userBranchId) {
-                q = q.eq('branch_id', userBranchId)
-            }
 
             const { data } = await q
             // Abaikan jawaban dari ketikan sebelumnya yang datang terlambat.
@@ -767,7 +800,7 @@ export default function CRMPage() {
         }, 250)
 
         return () => clearTimeout(timer)
-    }, [patientSearch, isOwner, userBranchId])
+    }, [patientSearch])
 
     const filteredPatientOptions = patientSearch.trim() ? patientSearchResults : []
 
@@ -1765,7 +1798,12 @@ export default function CRMPage() {
                                                 className="w-full text-left px-4 py-2.5 hover:bg-pink-50 text-sm transition-colors cursor-pointer"
                                             >
                                                 <div className="font-extrabold text-gray-900">{p.full_name}</div>
-                                                <div className="text-xs text-gray-500">{p.whatsapp}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {p.whatsapp}
+                                                    {/* Cabang ditampilkan karena hasil kini mencakup semua cabang --
+                                                        membedakan pasien bernama sama dari cabang lain. */}
+                                                    {p.branches?.name ? ` · ${p.branches.name}` : ''}
+                                                </div>
                                             </button>
                                         ))}
                                     </div>
