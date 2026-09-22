@@ -1146,20 +1146,36 @@ export default function Dashboard() {
             let aptQuery = supabase.from('appointments').select('id, start_time, end_time, status, patient_id, patients(id, full_name, whatsapp)', { count: 'exact' })
                 .eq('appointment_date', todayDateStr)
                 .order('start_time', { ascending: true })
-            aptQuery = applyBranch(aptQuery)
+            // Tampilan hanya memakai 5 teratas; jumlahnya tetap dihitung penuh oleh count: exact.
+            aptQuery = applyBranch(aptQuery).limit(5)
 
             // 2. Followups Pending
             let fuQuery = supabase.from('followup_queue').select('id, followup_type, priority, scheduled_date, patient_id, patients(id, full_name, whatsapp)', { count: 'exact' })
                 .eq('status', 'pending')
                 .lte('scheduled_date', todayDateStr)
                 .order('priority', { ascending: false })
-            fuQuery = applyBranch(fuQuery)
+            // Sebelumnya seluruh antrean (ratusan baris, dengan join pasien) diunduh hanya untuk
+            // jumlah dan 5 teratas. Jumlahnya tetap dihitung penuh oleh count: exact.
+            fuQuery = applyBranch(fuQuery).limit(5)
 
             // 3. Birthdays This Month
             const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0')
-            let bdayQuery = supabase.from('patients').select('id, birth_date')
-                .not('birth_date', 'is', null)
-            bdayQuery = applyBranch(bdayQuery)
+            // Diambil per halaman: satu permintaan berhenti di 1000 baris, sehingga cabang dengan
+            // lebih dari 1000 pasien (Ciamis: 1.916) menampilkan jumlah ulang tahun yang kurang.
+            // Hanya birth_date yang diambil -- satu-satunya kolom yang dipakai perhitungannya.
+            const bdayQuery = (async () => {
+                const rows = []
+                for (let from = 0; ; from += 1000) {
+                    const { data, error } = await applyBranch(
+                        supabase.from('patients').select('birth_date').not('birth_date', 'is', null)
+                    ).order('id', { ascending: true }).range(from, from + 999)
+                    if (error) return { data: null }
+                    if (!data || data.length === 0) break
+                    rows.push(...data)
+                    if (data.length < 1000) break
+                }
+                return { data: rows }
+            })()
 
             // 4. Dormant Patients (>60 days no visit)
             const sixtyDaysAgo = new Date()
