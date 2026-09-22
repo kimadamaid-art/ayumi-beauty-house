@@ -19,6 +19,16 @@ let globalCategoriesCache = null
 let globalDashboardCache = null
 let globalDashboardCachedKey = ''
 let globalDashboardCachedAt = 0
+const DASHBOARD_CACHE_TTL_MS = 3 * 60 * 1000
+
+// Kunci cache metrik. Mencakup id, peran, dan cabang pengguna: cache ini hidup di memori
+// tab dan tidak ikut hilang saat berpindah halaman, sehingga tanpa identitas di kuncinya,
+// pengguna berikutnya di tab yang sama bisa menerima metrik milik pengguna sebelumnya
+// (misalnya admin menerima omset seluruh cabang milik owner). Filter cabang tidak
+// termasuk karena fetchDashboardMetrics tidak membacanya.
+function dashboardCacheKey(user, startStr, endStr, monthStr) {
+    return [user?.id || '', user?.role || '', user?.branch_id || '', startStr, endStr, monthStr].join('|')
+}
 
 export default function Dashboard() {
     const router = useRouter()
@@ -107,6 +117,12 @@ export default function Dashboard() {
     // Performance Caching & Lifecycle Refs
     const cachedCategoriesRef = useRef(null)
     const isInitializedRef = useRef(false)
+    // Periode terakhir yang metriknya dimuat, untuk menghindari memuat ulang metrik saat
+    // yang berubah hanya filter cabang (metrik tidak bergantung padanya).
+    const lastMetricsParamsRef = useRef(null)
+    // Melewati sekali efek filter yang terpicu oleh pemilihan cabang awal di
+    // fetchInitialData, karena kombinasi itu sudah dimuat oleh fetchInitialData sendiri.
+    const skipInitialFilterEffectRef = useRef(false)
 
     // Executive Section Collapsible / Accordion States (Owner)
     const [collapsedSections, setCollapsedSections] = useState({})
@@ -219,6 +235,7 @@ export default function Dashboard() {
             const sDate = startStr || startDate
             const eDate = endStr || endDate
             const tMonth = targetMonthVal || targetMonth
+            lastMetricsParamsRef.current = { start: sDate, end: eDate, month: tMonth }
             
             // Helper for category mappings (cached at module level so page navigation never re-fetches)
             const getCategoriesData = async () => {
@@ -944,7 +961,8 @@ export default function Dashboard() {
             // Cache metrics at module level for instantaneous 0ms reopening
             globalDashboardCache = {
                 branchTotals: computedTotals,
-                branchRangeData: formattedRangeComp,
+                // Nama field harus sama dengan state yang dipakai tampilan (branchDailyComparison).
+                branchDailyComparison: formattedRangeComp,
                 branchMonthlyTargetData: formattedMonthlyTargets,
                 topTreatments: sortedTreatments,
                 topProducts: sortedProducts,
@@ -986,18 +1004,20 @@ export default function Dashboard() {
                 couponUsageLogsList: couponLogsData,
                 recentBranchTransactions: rangeTrx ? rangeTrx.slice(0, 10) : []
             }
-            globalDashboardCachedKey = `${sDate}_${eDate}_${tMonth}_${selectedBranch}`
+            globalDashboardCachedKey = dashboardCacheKey(currentUser, sDate, eDate, tMonth)
             globalDashboardCachedAt = Date.now()
 
         } catch (e) {
             console.error('Error fetching dashboard metrics:', e)
         }
-    }, [startDate, endDate, targetMonth, selectedBranch, dbUser])
+    }, [startDate, endDate, targetMonth, dbUser])
 
     const applyCachedDashboard = (cache) => {
         if (!cache) return
         if (cache.branchTotals) setBranchTotals(cache.branchTotals)
-        if (cache.branchRangeData) setBranchRangeData(cache.branchRangeData)
+        // Sebelumnya memanggil setBranchRangeData, yang tidak pernah dideklarasikan: setiap
+        // cache terpakai berakhir ReferenceError dan dashboard tertahan di spinner.
+        if (cache.branchDailyComparison) setBranchDailyComparison(cache.branchDailyComparison)
         if (cache.branchMonthlyTargetData) setBranchMonthlyTargetData(cache.branchMonthlyTargetData)
         if (cache.topTreatments) setTopTreatments(cache.topTreatments)
         if (cache.topProducts) setTopProducts(cache.topProducts)
@@ -1015,25 +1035,13 @@ export default function Dashboard() {
     }
 
     const fetchInitialData = async () => {
-        const cacheKey = `${startDate}_${endDate}_${targetMonth}_${selectedBranch}`
-        const isRecent = globalDashboardCache && globalDashboardCachedKey === cacheKey && (Date.now() - globalDashboardCachedAt < 180000)
-
-        // 1. If we have recent dashboard cache, render instantly in 0ms!
-        if (isRecent) {
-            applyCachedDashboard(globalDashboardCache)
-            setLoading(false)
-            isInitializedRef.current = true
-        } else {
-            setLoading(true)
-        }
-
         try {
-            // Get user and branches instantly from local cache (0ms)
+            // Pengguna dan cabang dari cache bersama -- seketika bila sudah pernah dimuat.
             const [{ user, dbUser: profile }, branchData] = await Promise.all([
                 getCachedUser(),
                 getCachedBranches()
             ])
-            
+
             if (!user) {
                 router.push('/login')
                 return
@@ -1044,26 +1052,45 @@ export default function Dashboard() {
                 router.push('/therapist/dashboard')
                 return
             }
-            
-            const sorted = branchData || []
-            setBranches(sorted)
-            setDbUser(activeUserData)
 
-            if (activeUserData.role === 'owner') {
-                setSelectedBranch('')
-            } else {
-                setSelectedBranch(activeUserData.branch_id || '')
+            const sorted = branchData || []
+            const initialBranch = activeUserData.role === 'owner' ? '' : (activeUserData.branch_id || '')
+
+            // Metrik dari cache bila masih segar untuk pengguna dan periode yang sama.
+            const cacheKey = dashboardCacheKey(activeUserData, startDate, endDate, targetMonth)
+            const hasFreshCache = globalDashboardCache
+                && globalDashboardCachedKey === cacheKey
+                && (Date.now() - globalDashboardCachedAt < DASHBOARD_CACHE_TTL_MS)
+            if (hasFreshCache) {
+                applyCachedDashboard(globalDashboardCache)
             }
 
+            // setSelectedBranch memicu efek filter di bawah. Kombinasi awal ini dimuat oleh
+            // fungsi ini sendiri, jadi efeknya dilewati sekali -- tanpa itu, metrik dan
+            // statistik operasional dimuat dua kali setiap admin membuka dashboard.
+            if (initialBranch !== selectedBranch) {
+                skipInitialFilterEffectRef.current = true
+            }
+
+            setBranches(sorted)
+            setDbUser(activeUserData)
+            setSelectedBranch(initialBranch)
+
+            // Halaman langsung tampil tanpa menunggu metrik. Dengan cache: lengkap seketika,
+            // lalu diperbarui diam-diam di latar. Tanpa cache: metrik menyusul, dengan
+            // penanda "Memperbarui data dashboard..." selama dimuat.
+            isInitializedRef.current = true
+            if (hasFreshCache) {
+                setLoading(false)
+            }
+
+            // Statistik operasional tidak bergantung pada metrik, jadi dimuat bersamaan.
+            fetchOperationalStats(activeUserData)
             if (sorted.length > 0) {
                 await fetchDashboardMetrics(sorted, startDate, endDate, targetMonth, activeUserData)
             }
 
             setLoading(false)
-            isInitializedRef.current = true
-
-            // Fetch operational stats in the background without blocking the UI
-            fetchOperationalStats(activeUserData)
         } catch (err) {
             console.error('Error initializing dashboard:', err)
             setLoading(false)
@@ -1168,8 +1195,19 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (!isInitializedRef.current) return
+        if (skipInitialFilterEffectRef.current) {
+            skipInitialFilterEffectRef.current = false
+            return
+        }
         if (dbUser && branches.length > 0) {
-            fetchDashboardMetrics(branches, startDate, endDate, targetMonth, dbUser)
+            // Metrik hanya bergantung pada periode, bukan filter cabang -- jadi hanya dimuat
+            // ulang bila periodenya berubah. Statistik operasional memakai filter cabang,
+            // jadi selalu dimuat ulang.
+            const last = lastMetricsParamsRef.current
+            const periodChanged = !last || last.start !== startDate || last.end !== endDate || last.month !== targetMonth
+            if (periodChanged) {
+                fetchDashboardMetrics(branches, startDate, endDate, targetMonth, dbUser)
+            }
             fetchOperationalStats(dbUser)
         }
     }, [startDate, endDate, targetMonth, selectedBranch])
@@ -1591,7 +1629,9 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="space-y-6 pb-12 font-sans text-stone-900 relative">
+        <div className={`space-y-6 pb-12 font-sans text-stone-900 relative ${loading && isInitializedRef.current ? '[&>*:not(:first-child)]:opacity-60 [&>*:not(:first-child)]:animate-pulse' : ''}`}>
+            {/* Selama metrik pertama dimuat tanpa cache, konten diredupkan agar angka nol
+                sementara tidak terbaca sebagai data sungguhan; penanda di bawah tetap terang. */}
             {loading && isInitializedRef.current && (
                 <div className="sticky top-4 z-40 flex justify-center pointer-events-none mb-2 animate-in fade-in duration-200">
                     <div className="bg-stone-900/90 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xl flex items-center gap-2.5 border border-white/20">
