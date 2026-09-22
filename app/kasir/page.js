@@ -478,31 +478,37 @@ function PosPageContent() {
     }, [isLoading, searchParams])
 
     async function fetchProducts(targetBranchId = selectedBranch) {
-        // Fetch all active products and attach stock for current branch
-        const { data: prodData, error: prodErr } = await supabase
-            .from('products')
-            .select('id, name, description, price, is_active')
-            .eq('is_active', true)
-            .order('name', { ascending: true })
+        // Fetch all active products and attach stock for current branch.
+        // Produk dan stok diminta bersamaan -- keduanya tidak saling bergantung -- sehingga
+        // membuka kasir, ganti cabang, dan refresh setelah checkout menunggu satu perjalanan
+        // jaringan, bukan dua berturut-turut. Keduanya tetap dibaca langsung, tanpa cache.
+        const branchToQuery = targetBranchId || selectedBranch
+        const [prodRes, stockRes] = await Promise.all([
+            supabase
+                .from('products')
+                .select('id, name, description, price, is_active')
+                .eq('is_active', true)
+                .order('name', { ascending: true }),
+            branchToQuery
+                ? supabase
+                    .from('product_stock')
+                    .select('product_id, quantity')
+                    .eq('branch_id', branchToQuery)
+                : Promise.resolve({ data: null })
+        ])
 
+        const { data: prodData, error: prodErr } = prodRes
         if (prodErr || !prodData) {
             console.error('Error fetching products:', prodErr)
             return
         }
 
-        const branchToQuery = targetBranchId || selectedBranch
         let stockMap = {}
-        if (branchToQuery) {
-            const { data: stockData } = await supabase
-                .from('product_stock')
-                .select('product_id, quantity')
-                .eq('branch_id', branchToQuery)
-            
-            if (stockData) {
-                stockData.forEach(s => {
-                    stockMap[s.product_id] = s.quantity
-                })
-            }
+        const stockData = stockRes.data
+        if (stockData) {
+            stockData.forEach(s => {
+                stockMap[s.product_id] = s.quantity
+            })
         }
 
         const availableProducts = prodData.map(p => ({
