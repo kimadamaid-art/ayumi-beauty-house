@@ -382,6 +382,60 @@ export default function Dashboard() {
                 logsQuery = logsQuery.eq('branch_id', userBranchId)
             }
 
+            // Retensi (khusus owner) memeriksa pasien mana yang sudah pernah bertransaksi sebelum
+            // periode ini. Sebelumnya pemeriksaan itu baru dimulai setelah query transaksi yang berat
+            // selesai, menambah 1,4-1,7 detik ke waktu muat. Kini daftar pasien diambil lewat query
+            // ringan yang berjalan bersamaan dengan query inti, dan riwayat lamanya langsung dimuat.
+            // Hasil akhirnya tetap dihitung hanya untuk pasien di uniquePatientsMap (lihat bagian
+            // retensi di bawah), jadi klasifikasi pasien baru/lama tidak berubah.
+            const retentionBeforeIso = new Date(`${sDate}T00:00:00`).toISOString()
+            // Riwayat diambil per halaman: sebelumnya satu permintaan untuk hingga 250 pasien
+            // bisa melewati batas 1000 baris, dan pasien lama yang terpotong terhitung sebagai baru.
+            const fetchPriorPatients = async (patientIds) => {
+                const found = new Set()
+                const chunks = []
+                for (let i = 0; i < patientIds.length; i += 100) chunks.push(patientIds.slice(i, i + 100))
+                await Promise.all(chunks.map(async chunk => {
+                    for (let from = 0; ; from += 1000) {
+                        const { data, error } = await supabase
+                            .from('transactions')
+                            .select('patient_id')
+                            .in('patient_id', chunk)
+                            .lt('created_at', retentionBeforeIso)
+                            .neq('payment_status', 'void')
+                            .order('id', { ascending: true })
+                            .range(from, from + 999)
+                        if (error) throw error
+                        ;(data || []).forEach(r => found.add(r.patient_id))
+                        if (!data || data.length < 1000) break
+                    }
+                }))
+                return found
+            }
+            const targetBranchIds = new Set(targetBranches.map(b => b.id))
+            const earlyRetentionPromise = isOwner
+                ? (async () => {
+                    const { data, error } = await supabase
+                        .from('transactions')
+                        .select('patient_id, branch_id, payment_status')
+                        .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                        .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                    if (error) throw error
+                    // Syarat yang sama dengan pengisian uniquePatientsMap (tanpa join pasien, jadi
+                    // hasilnya boleh lebih luas -- kelebihannya disaring saat dipakai).
+                    const ids = new Set()
+                    ;(data || []).forEach(tx => {
+                        if (tx.patient_id && tx.branch_id && targetBranchIds.has(tx.branch_id) && tx.payment_status !== 'void') {
+                            ids.add(tx.patient_id)
+                        }
+                    })
+                    return { covered: ids, prior: await fetchPriorPatients([...ids]) }
+                })().catch(err => {
+                    console.warn('Early retention lookup failed, will retry after core queries:', err)
+                    return null
+                })
+                : null
+
             // Execute ALL core queries in parallel!
             const [
                 catData,
@@ -779,37 +833,15 @@ export default function Dashboard() {
                 const priorPatSet = new Set()
                 if (uniquePatIds.length > 0) {
                     try {
-                        if (uniquePatIds.length <= 250) {
-                            const { data: priorTxs } = await supabase
-                                .from('transactions')
-                                .select('patient_id')
-                                .in('patient_id', uniquePatIds)
-                                .lt('created_at', new Date(`${sDate}T00:00:00`).toISOString())
-                                .neq('payment_status', 'void')
-                            if (priorTxs) {
-                                priorTxs.forEach(pt => priorPatSet.add(pt.patient_id))
-                            }
-                        } else {
-                            const chunks = []
-                            for (let i = 0; i < uniquePatIds.length; i += 200) {
-                                chunks.push(uniquePatIds.slice(i, i + 200))
-                            }
-                            const priorResults = await Promise.all(
-                                chunks.map(chunk =>
-                                    supabase
-                                        .from('transactions')
-                                        .select('patient_id')
-                                        .in('patient_id', chunk)
-                                        .lt('created_at', new Date(`${sDate}T00:00:00`).toISOString())
-                                        .neq('payment_status', 'void')
-                                )
-                            )
-                            priorResults.forEach(res => {
-                                if (res?.data) {
-                                    res.data.forEach(pt => priorPatSet.add(pt.patient_id))
-                                }
-                            })
-                        }
+                        const early = await earlyRetentionPromise
+                        // Pasien yang belum terjangkau pemeriksaan awal (misalnya transaksinya masuk
+                        // di sela-sela kedua query) diperiksa sekarang, seperti sebelumnya.
+                        const missing = uniquePatIds.filter(id => !early || !early.covered.has(id))
+                        const extra = missing.length > 0 ? await fetchPriorPatients(missing) : new Set()
+                        // Hanya pasien di uniquePatientsMap yang dimasukkan, persis seperti dulu.
+                        uniquePatIds.forEach(id => {
+                            if ((early && early.prior.has(id)) || extra.has(id)) priorPatSet.add(id)
+                        })
                     } catch (priorErr) {
                         console.warn('Error checking prior transactions for retention:', priorErr)
                     }
