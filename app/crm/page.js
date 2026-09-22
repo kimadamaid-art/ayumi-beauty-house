@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
@@ -11,6 +11,136 @@ import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
+import { escapePostgrestFilter } from '@/lib/searchSanitizer'
+
+// Supabase mengirim maksimal 1000 baris per permintaan. Query ulang tahun dan pasien
+// dormant di halaman ini sebelumnya meminta sekali tanpa paginasi, sehingga data di atas
+// 1000 baris terpotong diam-diam: hampir separuh pasien yang berulang tahun tidak muncul,
+// dan daftar dormant kehilangan justru pasien yang paling lama tidak datang.
+const PAGE_SIZE = 1000
+// Batas jumlah id per filter .in(). 200 UUID membentuk URL sekitar 7,5 KB -- cukup jauh
+// di bawah batas umum 8 KB -- sambil menekan jumlah permintaan (670 pasien = 4 permintaan).
+const IN_BATCH = 200
+const DAY_MS = 1000 * 60 * 60 * 24
+
+// Mengembalikan null bila salah satu halaman gagal: data sebagian terlihat wajar padahal
+// kurang, jadi lebih baik tidak memperbarui tampilan sama sekali.
+async function fetchAllRows(buildQuery) {
+    const rows = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1)
+        if (error) return null
+        if (!data || data.length === 0) break
+        rows.push(...data)
+        if (data.length < PAGE_SIZE) break
+    }
+    return rows
+}
+
+async function fetchPatientsByIds(ids, columns) {
+    if (ids.length === 0) return []
+    const batches = []
+    for (let i = 0; i < ids.length; i += IN_BATCH) batches.push(ids.slice(i, i + IN_BATCH))
+    // Batch dijalankan bersamaan; jumlahnya sedikit karena tiap batch memuat banyak id.
+    const results = await Promise.all(
+        batches.map(chunk => supabase.from('patients').select(columns).in('id', chunk))
+    )
+    if (results.some(r => r.error)) return null
+    return results.flatMap(r => r.data || [])
+}
+
+// Data ulang tahun dan dormant disimpan di memori beberapa menit. Keduanya hanya berubah
+// bila ada pasien baru atau kunjungan baru -- tidak oleh aksi apa pun di halaman CRM --
+// sehingga kembali ke CRM tidak perlu mengunduh ulang data yang sama.
+const LISTS_TTL_MS = 5 * 60 * 1000
+let listsCache = null // { scope, at, pData, trData }
+
+// Satu rumus untuk menyaring kandidat dan untuk menampilkan hasil, supaya keduanya
+// tidak mungkin berbeda.
+function getBirthdayInfo(birthDate, today) {
+    const bDate = new Date(birthDate)
+    const thisYearBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate())
+
+    if (thisYearBday < today) {
+        thisYearBday.setFullYear(today.getFullYear() + 1)
+    }
+
+    const diffTime = Math.abs(thisYearBday - today)
+    const diffDays = Math.ceil(diffTime / DAY_MS)
+    const age = thisYearBday.getFullYear() - bDate.getFullYear()
+
+    return { nextBday: thisYearBday, diffDays, age }
+}
+
+// Ulang tahun: tanggal lahir seluruh pasien diperiksa dengan kolom minimal, lalu nama dan
+// WhatsApp hanya diambil untuk pasien yang berulang tahun dalam waktu dekat. Saringan di
+// sini sedikit lebih longgar (8 hari); batas 7 hari tetap diterapkan saat pemrosesan.
+async function loadUpcomingBirthdayPatients(branchId) {
+    const rows = await fetchAllRows(() => {
+        let q = supabase
+            .from('patients')
+            .select('id, birth_date')
+            .eq('is_active', true)
+            .not('birth_date', 'is', null)
+            .order('id', { ascending: true })
+        if (branchId) q = q.eq('branch_id', branchId)
+        return q
+    })
+    if (!rows) return null
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const ids = rows
+        .filter(pt => getBirthdayInfo(pt.birth_date, today).diffDays <= 8)
+        .map(pt => pt.id)
+
+    return fetchPatientsByIds(ids, 'id, full_name, whatsapp, birth_date, branch_id')
+}
+
+// Dormant: rekam medis dalam jendela waktu diambil dengan kolom minimal, dicari kunjungan
+// terakhir tiap pasien, lalu nama dan WhatsApp hanya diambil untuk pasien yang sudah lama
+// tidak datang. Hasilnya berbentuk sama dengan query lama (rekam medis + patients), jadi
+// pemrosesan di halaman tidak berubah. Pasien yang datanya tidak terbaca ikut dibuang,
+// setara dengan patients!inner pada query lama.
+async function loadDormantCandidateRecords(sinceDateStr) {
+    const rows = await fetchAllRows(() => supabase
+        .from('treatment_records')
+        .select('id, patient_id, treatment_date, branch_id')
+        .gte('treatment_date', sinceDateStr)
+        .order('treatment_date', { ascending: false })
+        .order('id', { ascending: false })
+    )
+    if (!rows) return null
+
+    const latest = {}
+    rows.forEach(r => {
+        if (!r.patient_id) return
+        const d = new Date(r.treatment_date)
+        if (!latest[r.patient_id] || d > latest[r.patient_id].date) {
+            latest[r.patient_id] = { record: r, date: d }
+        }
+    })
+
+    // Lebih longgar satu hari dari batas 90 hari yang diterapkan saat pemrosesan.
+    const now = new Date()
+    const candidates = Object.values(latest)
+        .filter(({ date }) => Math.ceil(Math.abs(now - date) / DAY_MS) > 89)
+        .map(({ record }) => record)
+
+    const patients = await fetchPatientsByIds(candidates.map(r => r.patient_id), 'id, full_name, whatsapp')
+    if (!patients) return null
+
+    const byId = new Map(patients.map(p => [p.id, p]))
+    return candidates
+        .filter(r => byId.has(r.patient_id))
+        .map(r => ({
+            ...r,
+            patients: {
+                full_name: byId.get(r.patient_id).full_name,
+                whatsapp: byId.get(r.patient_id).whatsapp
+            }
+        }))
+}
 
 export default function CRMPage() {
 
@@ -28,7 +158,13 @@ export default function CRMPage() {
     const [birthdays, setBirthdays] = useState([])
     const [dormant, setDormant] = useState([])
     const [logs, setLogs] = useState([])
-    const [allPatients, setAllPatients] = useState([])
+    // Hasil pencarian pasien untuk modal follow-up manual, diambil dari server saat admin
+    // mengetik, beserta pasien yang dipilih (dipakai sebagai fallback cabang saat simpan).
+    const [patientSearchResults, setPatientSearchResults] = useState([])
+    const [selectedManualPatient, setSelectedManualPatient] = useState(null)
+    // Ulang tahun & dormant dimuat di latar belakang setelah halaman tampil.
+    const [listsLoading, setListsLoading] = useState(true)
+    const patientSearchRequestRef = useRef(0)
 
     // Search & Filter states
     const [searchTerm, setSearchTerm] = useState('')
@@ -91,6 +227,7 @@ export default function CRMPage() {
         fetchData()
     }, [timeframeFilter])
 
+
     // Set default date when manual modal is opened
     useEffect(() => {
         if (showManualModal) {
@@ -148,27 +285,6 @@ export default function CRMPage() {
             qQuery = qQuery.order('scheduled_date', { ascending: false })
         }
 
-        // 2. Patients for Birthdays Query
-        let pQuery = supabase.from('patients').select('id, full_name, whatsapp, birth_date, branch_id').eq('is_active', true).not('birth_date', 'is', null)
-        if (!ownerFlag && userBranch) {
-            pQuery = pQuery.eq('branch_id', userBranch)
-        }
-
-        // 3. Treatment Records for Dormant Query (Limit to records within 18 months for high speed)
-        const eighteenMonthsAgo = new Date()
-        eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18)
-        let trQuery = supabase
-            .from('treatment_records')
-            .select('id, patient_id, treatment_date, branch_id, patients!inner(full_name, whatsapp)')
-            .gte('treatment_date', eighteenMonthsAgo.toISOString().split('T')[0])
-            .order('treatment_date', { ascending: false })
-
-        // 4. All Active Patients Query
-        let allPQuery = supabase.from('patients').select('id, full_name, whatsapp, branch_id').eq('is_active', true)
-        if (!ownerFlag && userBranch) {
-            allPQuery = allPQuery.eq('branch_id', userBranch)
-        }
-
         // 5. Logs for Analytics Query
         const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
         let logsQuery = supabase
@@ -179,25 +295,17 @@ export default function CRMPage() {
             logsQuery = logsQuery.eq('branch_id', userBranch)
         }
 
-        // EXECUTE ALL 5 QUERIES SIMULTANEOUSLY IN PARALLEL!
+        // Antrean dan log dimuat bersamaan. Ulang tahun & dormant dimuat terpisah oleh
+        // loadBirthdaysAndDormant, jadi halaman bisa dipakai tanpa menunggu keduanya.
         const [
             qRes,
-            pRes,
-            trRes,
-            allPRes,
             logRes
         ] = await Promise.all([
             qQuery,
-            pQuery,
-            trQuery,
-            allPQuery,
             logsQuery
         ])
 
         const rawQData = qRes?.data
-        const pData = pRes?.data
-        const trData = trRes?.data
-        const allPData = allPRes?.data
         const logData = logRes?.data
 
         // Process Queue
@@ -221,68 +329,6 @@ export default function CRMPage() {
             setQueue(qData)
         }
 
-        // Process Birthdays
-        if (pData) {
-            const today = new Date()
-            today.setHours(0,0,0,0)
-            
-            const upcoming = pData.map(pt => {
-                const bDate = new Date(pt.birth_date)
-                const thisYearBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate())
-                
-                if (thisYearBday < today) {
-                    thisYearBday.setFullYear(today.getFullYear() + 1)
-                }
-                
-                const diffTime = Math.abs(thisYearBday - today)
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                const age = thisYearBday.getFullYear() - bDate.getFullYear()
-                
-                return { ...pt, nextBday: thisYearBday, diffDays, age }
-            }).filter(pt => pt.diffDays <= 7).sort((a, b) => a.diffDays - b.diffDays)
-            
-            setBirthdays(upcoming)
-        }
-
-        // Process Dormant
-        if (trData) {
-            const latestRecords = {}
-            trData.forEach(r => {
-                if (!r.patients) return
-                const d = new Date(r.treatment_date)
-                if (!latestRecords[r.patient_id] || d > latestRecords[r.patient_id].date) {
-                    latestRecords[r.patient_id] = {
-                        treatment_record_id: r.id,
-                        patient_id: r.patient_id,
-                        full_name: r.patients.full_name,
-                        whatsapp: r.patients.whatsapp,
-                        branch_id: r.branch_id,
-                        date: d,
-                        dateStr: r.treatment_date
-                    }
-                }
-            })
-
-            const today = new Date()
-            let dormantList = Object.values(latestRecords).map(r => {
-                const diffTime = Math.abs(today - r.date)
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                return { ...r, diffDays }
-            }).filter(r => r.diffDays > 90)
-            
-            if (!ownerFlag && userBranch) {
-                dormantList = dormantList.filter(r => r.branch_id === userBranch)
-            }
-
-            dormantList.sort((a, b) => b.diffDays - a.diffDays)
-            setDormant(dormantList)
-        }
-
-        // Process Active Patients
-        if (allPData) {
-            setAllPatients(allPData)
-        }
-
         // Process Logs
         if (logData) {
             setLogs(logData)
@@ -290,6 +336,89 @@ export default function CRMPage() {
 
         setLoading(false)
     }
+
+    // Ulang tahun & dormant dimuat terpisah dari fetchData. Datanya besar, dan tidak
+    // berubah oleh aksi apa pun di halaman ini (semua aksi CRM hanya menulis ke
+    // followup_queue dan followup_logs), jadi cukup dimuat saat halaman dibuka -- tidak
+    // setiap kali antrean di-refresh -- dan halaman sudah bisa dipakai sebelum selesai.
+    // listsLoading sudah bernilai true sejak awal dan fungsi ini hanya dipanggil sekali saat
+    // halaman dibuka, jadi tidak perlu diset ulang di sini.
+    const loadBirthdaysAndDormant = async () => {
+        try {
+            const { user: currentUser, dbUser: userData } = await getCachedUser()
+            const ownerFlag = userData?.role === owner || !currentUser
+            const userBranch = userData?.branch_id || null
+            const scope = `${ownerFlag}|${userBranch}`
+
+            let pData, trData
+            if (listsCache && listsCache.scope === scope && (Date.now() - listsCache.at) < LISTS_TTL_MS) {
+                ({ pData, trData } = listsCache)
+            } else {
+                const eighteenMonthsAgo = new Date()
+                eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18)
+                ;[pData, trData] = await Promise.all([
+                    loadUpcomingBirthdayPatients((!ownerFlag && userBranch) ? userBranch : null),
+                    loadDormantCandidateRecords(eighteenMonthsAgo.toISOString().split(T)[0])
+                ])
+                if (pData && trData) {
+                    listsCache = { scope, at: Date.now(), pData, trData }
+                }
+            }
+
+            // Process Birthdays
+            if (pData) {
+                const today = new Date()
+                today.setHours(0,0,0,0)
+                
+                const upcoming = pData
+                    .map(pt => ({ ...pt, ...getBirthdayInfo(pt.birth_date, today) }))
+                    .filter(pt => pt.diffDays <= 7)
+                    .sort((a, b) => a.diffDays - b.diffDays)
+                
+                setBirthdays(upcoming)
+            }
+
+            // Process Dormant
+            if (trData) {
+                const latestRecords = {}
+                trData.forEach(r => {
+                    if (!r.patients) return
+                    const d = new Date(r.treatment_date)
+                    if (!latestRecords[r.patient_id] || d > latestRecords[r.patient_id].date) {
+                        latestRecords[r.patient_id] = {
+                            treatment_record_id: r.id,
+                            patient_id: r.patient_id,
+                            full_name: r.patients.full_name,
+                            whatsapp: r.patients.whatsapp,
+                            branch_id: r.branch_id,
+                            date: d,
+                            dateStr: r.treatment_date
+                        }
+                    }
+                })
+
+                const today = new Date()
+                let dormantList = Object.values(latestRecords).map(r => {
+                    const diffTime = Math.abs(today - r.date)
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                    return { ...r, diffDays }
+                }).filter(r => r.diffDays > 90)
+                
+                if (!ownerFlag && userBranch) {
+                    dormantList = dormantList.filter(r => r.branch_id === userBranch)
+                }
+
+                dormantList.sort((a, b) => b.diffDays - a.diffDays)
+                setDormant(dormantList)
+            }
+        } finally {
+            setListsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        loadBirthdaysAndDormant()
+    }, [])
 
     const handleSelesaiClick = (q) => {
         setSelectedQueueId(q.id)
@@ -575,7 +704,7 @@ export default function CRMPage() {
             return
         }
 
-        const selectedPatient = allPatients.find(p => p.id === manualForm.patientId)
+        const selectedPatient = selectedManualPatient?.id === manualForm.patientId ? selectedManualPatient : null
         const finalBranchId = manualForm.branchId || selectedPatient?.branch_id || userBranchId || null
 
         const { error } = await supabase.from('followup_queue').insert([{
@@ -607,14 +736,40 @@ export default function CRMPage() {
         }
     }
 
-    // Filter patients autocomplete list
-    const filteredPatientOptions = useMemo(() => {
-        if (!patientSearch.trim()) return []
-        return allPatients.filter(p => 
-            p.full_name?.toLowerCase().includes(patientSearch.toLowerCase()) || 
-            p.whatsapp?.includes(patientSearch)
-        ).slice(0, 10)
-    }, [allPatients, patientSearch])
+    // Pencarian pasien untuk modal follow-up manual. Aturannya mengikuti penyaringan lama
+    // (nama atau WhatsApp mengandung kata kunci, pasien aktif, dibatasi cabang untuk admin,
+    // maksimal 10 hasil), tetapi dijalankan di server sehingga seluruh pasien terjangkau --
+    // daftar lama berhenti di 1000 pasien pertama.
+    useEffect(() => {
+        // Menaikkan nomor permintaan juga membatalkan jawaban yang masih dalam perjalanan,
+        // termasuk saat kolom pencarian dikosongkan.
+        const requestId = ++patientSearchRequestRef.current
+        if (!patientSearch.trim()) return
+
+        const timer = setTimeout(async () => {
+            const term = escapePostgrestFilter(patientSearch)
+            let q = supabase
+                .from('patients')
+                .select('id, full_name, whatsapp, branch_id')
+                .eq('is_active', true)
+                .or(`full_name.ilike.${term},whatsapp.ilike.${term}`)
+                .order('full_name', { ascending: true })
+                .limit(10)
+            if (!isOwner && userBranchId) {
+                q = q.eq('branch_id', userBranchId)
+            }
+
+            const { data } = await q
+            // Abaikan jawaban dari ketikan sebelumnya yang datang terlambat.
+            if (requestId === patientSearchRequestRef.current) {
+                setPatientSearchResults(data || [])
+            }
+        }, 250)
+
+        return () => clearTimeout(timer)
+    }, [patientSearch, isOwner, userBranchId])
+
+    const filteredPatientOptions = patientSearch.trim() ? patientSearchResults : []
 
     // Helper to determine effective followup type (supports fallback treatment_reminder)
     const getEffectiveFollowupType = (q) => {
@@ -726,7 +881,7 @@ export default function CRMPage() {
                     <span>Ulang Tahun</span>
                     {filteredBirthdays.length > 0 && (
                         <span className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === 'birthday' ? 'bg-white/20 text-white' : 'bg-pink-100 text-ayumi-primary'}`}>
-                            {filteredBirthdays.length}
+                            {listsLoading ? '…' : filteredBirthdays.length}
                         </span>
                     )}
                 </button>
@@ -740,7 +895,7 @@ export default function CRMPage() {
                     <span>Pasien Dormant</span>
                     {filteredDormant.length > 0 && (
                         <span className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === 'dormant' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'}`}>
-                            {filteredDormant.length}
+                            {listsLoading ? '…' : filteredDormant.length}
                         </span>
                     )}
                 </button>
@@ -1022,7 +1177,10 @@ export default function CRMPage() {
                         )}
 
                         {/* TAB: BIRTHDAY */}
-                        {activeTab === 'birthday' && (
+                        {activeTab === 'birthday' && listsLoading && (
+                            <LoadingSkeleton type="table" rows={5} />
+                        )}
+                        {activeTab === 'birthday' && !listsLoading && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center mb-2">
                                     <div>
@@ -1134,7 +1292,10 @@ export default function CRMPage() {
                         )}
 
                         {/* TAB: DORMANT */}
-                        {activeTab === 'dormant' && (
+                        {activeTab === 'dormant' && listsLoading && (
+                            <LoadingSkeleton type="table" rows={5} />
+                        )}
+                        {activeTab === 'dormant' && !listsLoading && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center mb-2">
                                     <div>
@@ -1597,6 +1758,7 @@ export default function CRMPage() {
                                                 type="button"
                                                 onClick={() => {
                                                     setManualForm({ ...manualForm, patientId: p.id })
+                                                    setSelectedManualPatient(p)
                                                     setPatientSearch(p.full_name)
                                                     setShowPatientDropdown(false)
                                                 }}
