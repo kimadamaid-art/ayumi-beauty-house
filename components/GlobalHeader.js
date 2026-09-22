@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { toast } from 'react-hot-toast'
 
-import { getCachedUser } from '@/lib/cachedUser'
+import { getCachedUser, clearUserCache } from '@/lib/cachedUser'
 
 export default function GlobalHeader({ onMenuToggle }) {
     const pathname = usePathname()
@@ -273,8 +273,12 @@ export default function GlobalHeader({ onMenuToggle }) {
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
-        router.push('/login')
-        router.refresh()
+        // Profil pengguna dan data per-pengguna (metrik dashboard, katalog kasir, daftar CRM)
+        // disimpan di memori tab dan tidak hilang oleh router.push/refresh. Tanpa pembersihan,
+        // pengguna berikutnya di tab yang sama akan dibaca sebagai pengguna sebelumnya --
+        // lengkap dengan peran dan cabangnya. Muat ulang penuh mengosongkan semuanya.
+        clearUserCache()
+        window.location.replace('/login')
     }
 
     // Determine Page Title

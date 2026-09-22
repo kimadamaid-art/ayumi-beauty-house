@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { clearUserCache } from '@/lib/cachedUser'
 
 export default function LoginPage() {
     const [email, setEmail] = useState('')
@@ -10,7 +10,6 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
-    const router = useRouter()
 
     const handleLogin = async (e) => {
         e.preventDefault()
@@ -38,15 +37,15 @@ export default function LoginPage() {
                     return
                 }
 
-                if (userData?.role === 'therapist') {
-                    router.push('/therapist/dashboard')
-                } else {
-                    router.push('/dashboard')
-                }
+                // Muat ulang penuh ke halaman tujuan, bukan navigasi di dalam tab: cache di
+                // memori bisa masih memuat profil pengguna sebelumnya bila sesinya berakhir
+                // tanpa lewat tombol logout (misalnya kedaluwarsa).
+                clearUserCache()
+                window.location.replace(userData?.role === 'therapist' ? '/therapist/dashboard' : '/dashboard')
             } else {
-                router.push('/dashboard')
+                clearUserCache()
+                window.location.replace('/dashboard')
             }
-            router.refresh()
         }
     }
 
