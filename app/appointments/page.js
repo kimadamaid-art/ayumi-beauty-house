@@ -43,6 +43,10 @@ export default function AppointmentsPage() {
     const endDateRef = useRef(endDate)
 
     const isFirstMountRef = useRef(true)
+    // fetchData mengisi filter cabang dengan cabang admin. Perubahan filter itu memicu efek
+    // di bawah, padahal data cabang itu baru saja dimuat oleh fetchData yang sama -- sehingga
+    // admin selalu memuat jadwal dua kali saat membuka halaman. Efeknya dilewati sekali.
+    const skipBranchEffectRef = useRef(false)
 
     useEffect(() => {
         filterBranchRef.current = filterBranch
@@ -56,8 +60,21 @@ export default function AppointmentsPage() {
             isFirstMountRef.current = false
             return
         }
+        if (skipBranchEffectRef.current) {
+            skipBranchEffectRef.current = false
+            return
+        }
         fetchData(false)
     }, [startDate, endDate, filterBranch])
+
+    // Satu aksi (misalnya checkout di kasir) bisa memicu beberapa event realtime beruntun
+    // di tiga tabel; masing-masing sebelumnya memuat ulang seluruh jadwal. Event yang datang
+    // berdekatan kini digabung menjadi satu kali muat ulang.
+    const realtimeRefreshTimerRef = useRef(null)
+    const scheduleRealtimeRefresh = () => {
+        clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = setTimeout(() => fetchData(true), 400)
+    }
 
     useEffect(() => {
         fetchData(false)
@@ -68,23 +85,17 @@ export default function AppointmentsPage() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'appointments' },
-                () => {
-                    fetchData(true)
-                }
+                scheduleRealtimeRefresh
             )
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'appointment_treatments' },
-                () => {
-                    fetchData(true)
-                }
+                scheduleRealtimeRefresh
             )
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'treatment_records' },
-                () => {
-                    fetchData(true)
-                }
+                scheduleRealtimeRefresh
             )
             .subscribe()
 
@@ -109,6 +120,7 @@ export default function AppointmentsPage() {
             window.removeEventListener('focus', handleFocusOrVisibility)
             document.removeEventListener('visibilitychange', handleFocusOrVisibility)
             clearInterval(interval)
+            clearTimeout(realtimeRefreshTimerRef.current)
         }
     }, [])
 
@@ -122,6 +134,9 @@ export default function AppointmentsPage() {
             const ownerFlag = cachedProfile?.role === 'owner' || !user
             setIsOwner(ownerFlag)
             if (!ownerFlag && userBranchId) {
+                if (filterBranchRef.current !== userBranchId) {
+                    skipBranchEffectRef.current = true
+                }
                 setFilterBranch(userBranchId)
             }
 
