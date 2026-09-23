@@ -213,14 +213,18 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
                             </div>
                         </div>
                     ) : (
-                        /* Live Stream Video */
+                        /* Live Stream Video.
+                           Pratinjau memakai object-contain supaya seluruh bidang kamera terlihat,
+                           sama persis dengan gambar yang tersimpan (takePhoto menyalin frame utuh).
+                           Dengan object-cover, tepi gambar terpotong di layar padahal tetap ikut
+                           tersimpan, sehingga hasil foto tidak sama dengan yang dibidik terapis. */
                         <div className="relative w-full h-full flex items-center justify-center">
                             <video
                                 ref={videoRef}
                                 autoPlay
                                 playsInline
                                 muted
-                                className={`w-full h-full max-h-[60vh] object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+                                className={`w-full h-full max-h-[60vh] object-contain ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
                             />
                             
                             {/* Framing Overlay Guide for Face / Treatment */}

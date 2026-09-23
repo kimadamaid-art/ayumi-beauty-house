@@ -22,7 +22,11 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            // camera=(self): kamera hanya boleh dipakai oleh aplikasi ini sendiri, untuk
+            // ambil foto dokumentasi treatment. Dengan camera=() sebelumnya, browser
+            // menolak akses kamera sebelum pengguna sempat ditanya izin, sehingga
+            // terapis selalu melihat "Izin kamera ditolak" di HP.
+            value: 'camera=(self), microphone=(), geolocation=()',
           },
           {
             key: 'Strict-Transport-Security',
