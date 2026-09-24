@@ -17,6 +17,45 @@ export default function GlobalHeader({ onMenuToggle }) {
     const [unreadCount, setUnreadCount] = useState(0)
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
+    const fetchNotifications = async (userId, userRole) => {
+        const role = userRole || dbUser?.role
+        const { data } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('recipient_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(15)
+        
+        if (data) {
+            const filtered = role === 'owner'
+                ? data.filter(n => !['therapist_ready', 'patient_arrived', 'treatment_completed'].includes(n.type))
+                : data
+            setNotifications(filtered.slice(0, 10))
+        }
+    }
+
+    const fetchUnreadCount = async (userId, userRole) => {
+        const role = userRole || dbUser?.role
+        if (role === 'owner') {
+            const { data } = await supabase
+                .from('notifications')
+                .select('id, type')
+                .eq('recipient_id', userId)
+                .eq('is_read', false)
+            if (data) {
+                const count = data.filter(n => !['therapist_ready', 'patient_arrived', 'treatment_completed'].includes(n.type)).length
+                setUnreadCount(count)
+            }
+        } else {
+            const { count } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('recipient_id', userId)
+                .eq('is_read', false)
+            if (count !== null) setUnreadCount(count)
+        }
+    }
+
     useEffect(() => {
         let isMounted = true
         const fetchUser = async () => {
@@ -25,7 +64,20 @@ export default function GlobalHeader({ onMenuToggle }) {
                 if (!isMounted) return
                 if (authUser) {
                     setUser(authUser)
-                    setDbUser(profile || { role: 'owner', full_name: authUser.email })
+                    const role = profile?.role || 'owner'
+                    setDbUser(profile || { role, full_name: authUser.email })
+
+                    // Jika role adalah owner, bersihkan notifikasi operasional lama yang pernah tersimpan
+                    if (role === 'owner') {
+                        await supabase
+                            .from('notifications')
+                            .delete()
+                            .eq('recipient_id', authUser.id)
+                            .in('type', ['therapist_ready', 'patient_arrived', 'treatment_completed'])
+                    }
+
+                    fetchNotifications(authUser.id, role)
+                    fetchUnreadCount(authUser.id, role)
                 }
             } catch (err) {
                 console.error('Error fetching user profile in header:', err)
@@ -34,28 +86,6 @@ export default function GlobalHeader({ onMenuToggle }) {
         fetchUser()
         return () => { isMounted = false }
     }, [])
-
-    const fetchNotifications = async (userId) => {
-        const { data, error } = await supabase
-            .from('notifications')
-            .select('*')
-            .eq('recipient_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(10)
-        
-        if (data) {
-            setNotifications(data)
-        }
-    }
-
-    const fetchUnreadCount = async (userId) => {
-        const { count, error } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('recipient_id', userId)
-            .eq('is_read', false)
-        if (count !== null) setUnreadCount(count)
-    }
 
     const playNotificationSound = () => {
         // Hanya berbunyi untuk role admin dan therapist sesuai permintaan
@@ -101,11 +131,94 @@ export default function GlobalHeader({ onMenuToggle }) {
         }
     }
 
+    const handleMarkAsRead = async (id, appointmentId, type) => {
+        // Optimistic UI Update
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+        setUnreadCount(prev => Math.max(0, prev - 1))
+        setIsDropdownOpen(false)
+
+        await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('id', id)
+
+        if (type === 'low_stock') {
+            router.push('/settings/products')
+            return
+        }
+
+        if (appointmentId) {
+            if (dbUser?.role === 'therapist') {
+                if (type === 'patient_arrived') {
+                    router.push(`/therapist/treatment-input/${appointmentId}`)
+                } else {
+                    router.push('/therapist/dashboard')
+                }
+            } else if (type === 'treatment_completed') {
+                router.push(`/kasir?appointmentId=${appointmentId}`)
+            } else {
+                router.push('/appointments')
+            }
+        }
+    }
+
+    const handleToggleDropdown = () => {
+        const nextState = !isDropdownOpen
+        setIsDropdownOpen(nextState)
+        // Otomatis bersihkan badge merah saat lonceng dibuka
+        if (nextState && unreadCount > 0 && user) {
+            setUnreadCount(0)
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+            supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('recipient_id', user.id)
+                .eq('is_read', false)
+                .then(() => {
+                    fetchNotifications(user.id, dbUser?.role)
+                })
+        }
+    }
+
+    const handleDismissNotification = async (e, id) => {
+        e.stopPropagation()
+        setNotifications(prev => prev.filter(n => n.id !== id))
+        setUnreadCount(prev => Math.max(0, prev - 1))
+        await supabase.from('notifications').delete().eq('id', id)
+    }
+
+    const handleClearAllNotifications = async () => {
+        if (!user) return
+        setNotifications([])
+        setUnreadCount(0)
+        await supabase.from('notifications').delete().eq('recipient_id', user.id)
+        toast.success('Daftar notifikasi berhasil dibersihkan.')
+    }
+
+    const handleMarkAllAsRead = async () => {
+        if (!user) return
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+        setUnreadCount(0)
+        const { error } = await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('recipient_id', user.id)
+            .eq('is_read', false)
+        if (!error) {
+            toast.success('Semua notifikasi ditandai sudah dibaca.')
+            fetchNotifications(user.id, dbUser?.role)
+            fetchUnreadCount(user.id, dbUser?.role)
+        }
+    }
+
     useEffect(() => {
         if (!user) return
 
-        fetchNotifications(user.id)
-        fetchUnreadCount(user.id)
+        const loadData = async () => {
+            await fetchNotifications(user.id, dbUser?.role)
+            await fetchUnreadCount(user.id, dbUser?.role)
+        }
+        loadData()
 
         // Subscribe to notifications changes
         const channel = supabase
@@ -119,11 +232,16 @@ export default function GlobalHeader({ onMenuToggle }) {
                     filter: `recipient_id=eq.${user.id}`
                 },
                 (payload) => {
-                    fetchNotifications(user.id)
-                    fetchUnreadCount(user.id)
+                    const newNotif = payload.new
+                    // Jika user adalah owner dan tipe notifikasi adalah operasional terapis/admin, abaikan
+                    if (dbUser?.role === 'owner' && ['therapist_ready', 'patient_arrived', 'treatment_completed'].includes(newNotif?.type)) {
+                        return
+                    }
+
+                    fetchNotifications(user.id, dbUser?.role)
+                    fetchUnreadCount(user.id, dbUser?.role)
                     if (payload.eventType === 'INSERT') {
                         playNotificationSound()
-                        const newNotif = payload.new
                         if (newNotif) {
                             // Show beautiful visual toast notification
                             toast((t) => (
@@ -177,86 +295,6 @@ export default function GlobalHeader({ onMenuToggle }) {
             supabase.removeChannel(channel)
         }
     }, [user, dbUser])
-
-    const handleToggleDropdown = () => {
-        const nextState = !isDropdownOpen
-        setIsDropdownOpen(nextState)
-        // Otomatis bersihkan badge merah saat lonceng dibuka
-        if (nextState && unreadCount > 0 && user) {
-            setUnreadCount(0)
-            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-            supabase
-                .from('notifications')
-                .update({ is_read: true })
-                .eq('recipient_id', user.id)
-                .eq('is_read', false)
-                .then(() => {
-                    fetchNotifications(user.id)
-                })
-        }
-    }
-
-    const handleMarkAsRead = async (id, appointmentId, type) => {
-        // Optimistic UI Update
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
-        setUnreadCount(prev => Math.max(0, prev - 1))
-        setIsDropdownOpen(false)
-
-        await supabase
-            .from('notifications')
-            .update({ is_read: true })
-            .eq('id', id)
-
-        if (type === 'low_stock') {
-            router.push('/settings/products')
-            return
-        }
-
-        if (appointmentId) {
-            if (dbUser?.role === 'therapist') {
-                if (type === 'patient_arrived') {
-                    router.push(`/therapist/treatment-input/${appointmentId}`)
-                } else {
-                    router.push('/therapist/dashboard')
-                }
-            } else if (type === 'treatment_completed') {
-                router.push(`/kasir?appointmentId=${appointmentId}`)
-            } else {
-                router.push('/appointments')
-            }
-        }
-    }
-
-    const handleDismissNotification = async (e, id) => {
-        e.stopPropagation()
-        setNotifications(prev => prev.filter(n => n.id !== id))
-        setUnreadCount(prev => Math.max(0, prev - 1))
-        await supabase.from('notifications').delete().eq('id', id)
-    }
-
-    const handleClearAllNotifications = async () => {
-        if (!user) return
-        setNotifications([])
-        setUnreadCount(0)
-        await supabase.from('notifications').delete().eq('recipient_id', user.id)
-        toast.success('Daftar notifikasi berhasil dibersihkan.')
-    }
-
-    const handleMarkAllAsRead = async () => {
-        if (!user) return
-        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-        setUnreadCount(0)
-        const { error } = await supabase
-            .from('notifications')
-            .update({ is_read: true })
-            .eq('recipient_id', user.id)
-            .eq('is_read', false)
-        if (!error) {
-            toast.success('Semua notifikasi ditandai sudah dibaca.')
-            fetchNotifications(user.id)
-            fetchUnreadCount(user.id)
-        }
-    }
 
     const formatTimeAgo = (dateStr) => {
         const date = new Date(dateStr)
