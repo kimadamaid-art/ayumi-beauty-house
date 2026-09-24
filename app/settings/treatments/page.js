@@ -33,7 +33,8 @@ export default function TreatmentsPage() {
         followup_days: '30',
         is_active: true,
         discount_percent: 0,
-        commission_percent: 0
+        commission_percent: 0,
+        worker_fee: 0
     })
 
     const checkAccess = async () => {
@@ -90,7 +91,8 @@ export default function TreatmentsPage() {
                 followup_days: treatment.followup_days || '',
                 is_active: treatment.is_active !== undefined ? treatment.is_active : true,
                 discount_percent: treatment.discount_percent || 0,
-                commission_percent: treatment.commission_percent || 0
+                commission_percent: treatment.commission_percent || 0,
+                worker_fee: treatment.worker_fee || 0
             })
         } else {
             setFormData({
@@ -101,7 +103,8 @@ export default function TreatmentsPage() {
                 followup_days: '30',
                 is_active: true,
                 discount_percent: 0,
-                commission_percent: 0
+                commission_percent: 0,
+                worker_fee: 0
             })
         }
         setIsModalOpen(true)
@@ -132,7 +135,8 @@ export default function TreatmentsPage() {
             followup_days: Number(formData.followup_days),
             is_active: formData.is_active,
             discount_percent: Number(formData.discount_percent || 0),
-            commission_percent: Number(formData.commission_percent || 0)
+            commission_percent: Number(formData.commission_percent || 0),
+            worker_fee: Number(formData.worker_fee || 0)
         }
 
         if (modalMode === 'add') {
@@ -471,6 +475,13 @@ export default function TreatmentsPage() {
                                                         <svg className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 absolute -right-4 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </div>
                                                 )}
+                                                {Number(t.worker_fee) > 0 && (
+                                                    <div className="mt-1" title="Upah worker per tindakan">
+                                                        <span className="bg-amber-50 text-amber-700 text-[11px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap">
+                                                            worker Rp {Number(t.worker_fee).toLocaleString('id-ID')}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="p-4 text-center">
                                                 {editingField.id === t.id && editingField.field === 'duration_minutes' ? (
@@ -700,6 +711,24 @@ export default function TreatmentsPage() {
                                         </span>
                                     </div>
                                 )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Upah Worker (Rp)</label>
+                                <input
+                                    type="number"
+                                    name="worker_fee"
+                                    value={formData.worker_fee}
+                                    onChange={handleChange}
+                                    min="0"
+                                    step="1000"
+                                    className="input-ayumi bg-white"
+                                    placeholder="0"
+                                />
+                                <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                                    Nominal tetap untuk worker (tenaga infus dan sejenisnya), bukan persen. Isi <span className="font-semibold">0</span> bila treatment ini tidak melibatkan worker.
+                                    Treatment bisa punya keduanya sekaligus: komisi persen untuk terapis dan nominal ini untuk worker.
+                                </p>
                             </div>
 
                             <div className="flex items-center gap-3 pt-2">

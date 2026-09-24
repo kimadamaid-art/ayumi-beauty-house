@@ -288,6 +288,11 @@ export default function GlobalSidebar({
                                                     Master Treatment
                                                 </div>
                                             </Link>
+                                            <Link href="/settings/workers" onClick={onClose}>
+                                                <div className={`text-xs py-1 transition-colors cursor-pointer ${pathname === '/settings/workers' ? 'text-white font-extrabold' : 'text-white/70 hover:text-white font-medium'}`}>
+                                                    Daftar Worker
+                                                </div>
+                                            </Link>
                                         </>
                                     )}
                                     {dbUser && (dbUser.role === 'owner' || dbUser.role === 'admin') && (
