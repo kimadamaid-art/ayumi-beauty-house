@@ -2047,17 +2047,33 @@ function PosPageContent() {
 
                 // Masukkan tindakan tambahan langsung ke treatment_record yang sudah ada
                 if (itemsForExistingTr.length > 0 && finalTrId) {
-                    const { count: currentCount } = await supabase
+                    // Treatment yang sudah tercatat pada rekam ini dilewati, mengikuti aturan yang
+                    // sudah dipakai process_checkout di database: satu treatment satu baris per
+                    // rekam (di sana dicek EXISTS lalu di-UPDATE, bukan ditambah baru). Tanpa
+                    // penyaringan ini, tindakan yang sudah ditulis oleh sinkronisasi tagihan
+                    // pending bisa tertulis kedua kalinya di sini, sehingga komisi terapis dobel.
+                    const { data: existingTrItems, count: currentCount } = await supabase
                         .from('treatment_record_items')
-                        .select('*', { count: 'exact', head: true })
+                        .select('treatment_id', { count: 'exact' })
                         .eq('treatment_record_id', finalTrId)
 
-                    const trItemPayloads = itemsForExistingTr.map((it, sIdx) => {
+                    const existingTreatmentIds = new Set((existingTrItems || []).map(i => i.treatment_id))
+                    const resolveTreatmentId = (it) => it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id)
+                    const itemsToAppend = itemsForExistingTr.filter(it => {
+                        const tid = resolveTreatmentId(it)
+                        if (existingTreatmentIds.has(tid)) return false
+                        // Dua baris keranjang dengan treatment yang sama pun hanya menghasilkan
+                        // satu baris rekam, persis seperti perlakuan process_checkout.
+                        existingTreatmentIds.add(tid)
+                        return true
+                    })
+
+                    const trItemPayloads = itemsToAppend.map((it, sIdx) => {
                         const isInfus = isInfusionTreatment(it.name, it.notes)
                         const isWorker = isInfus || it.is_worker || it.therapist_id === 'worker'
                         return {
                             treatment_record_id: finalTrId,
-                            treatment_id: it.treatment_id || (it.id && typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id),
+                            treatment_id: resolveTreatmentId(it),
                             price_at_time: it.price,
                             original_price: it.original_price || it.price,
                             discount_percent: it.discount_percent || 0,
@@ -2067,7 +2083,9 @@ function PosPageContent() {
                             ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }
                     })
-                    await supabase.from('treatment_record_items').insert(trItemPayloads)
+                    if (trItemPayloads.length > 0) {
+                        await supabase.from('treatment_record_items').insert(trItemPayloads)
+                    }
                 }
 
                 // Buat treatment_record baru jika ada kelompok terapis/worker lain atau jika belum ada finalTrId
