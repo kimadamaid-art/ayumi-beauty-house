@@ -18,6 +18,7 @@ export default function NewCouponPackagePage() {
         category: '',
         description: '',
         price: '',
+        seller_fee: '',
         is_active: true
     })
 
@@ -94,6 +95,7 @@ export default function NewCouponPackagePage() {
                     category: formData.category,
                     description: formData.description,
                     price: Number(formData.price) || 0,
+                    seller_fee: Number(formData.seller_fee) || 0,
                     is_active: formData.is_active,
                     created_by: dbUser?.id
                 }])
@@ -195,6 +197,24 @@ export default function NewCouponPackagePage() {
                                     className="input-ayumi bg-white w-full  font-bold text-gray-800"
                                     placeholder="0"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">Fee Penjualan Terapis (Rp)</label>
+                                <input
+                                    type="text"
+                                    name="seller_fee"
+                                    value={formData.seller_fee ? Number(formData.seller_fee).toLocaleString('id-ID') : ''}
+                                    onChange={(e) => {
+                                        const rawValue = e.target.value.replace(/\D/g, '')
+                                        setFormData(prev => ({ ...prev, seller_fee: rawValue }))
+                                    }}
+                                    className="input-ayumi bg-white w-full font-bold text-gray-800"
+                                    placeholder="0"
+                                />
+                                <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                                    Bonus sekali untuk terapis yang menjual paket ini, dibayar saat notanya lunas. Isi <span className="font-semibold">0</span> bila paket ini tidak memberi fee, misalnya paket infus.
+                                </p>
                             </div>
 
                             <div className="md:col-span-2">

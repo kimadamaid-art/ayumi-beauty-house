@@ -1560,7 +1560,15 @@ function PosPageContent() {
                     // Tarif upah worker treatment ini. Nominal tetap, tidak ikut harga
                     // maupun diskon, dan tidak menambah tagihan pasien.
                     worker_fee: itemType === 'treatment' ? Number(item.worker_fee || 0) : 0,
-                    worker_id: null
+                    worker_id: null,
+                    // Fee penjualan kupon: bonus sekali untuk terapis yang menjual paket ini.
+                    // Tarifnya diambil dari master paket, penjualnya dipilih admin di keranjang.
+                    seller_fee: itemType === 'coupon' ? Number(item.seller_fee || 0) : 0,
+                    seller_id: itemType === 'coupon'
+                        ? ((selectedTherapistId && selectedTherapistId !== 'worker' ? selectedTherapistId : null)
+                            || prev.find(c => c.item_type === 'treatment' && c.therapist_id && c.therapist_id !== 'worker')?.therapist_id
+                            || null)
+                        : null
                 }
             ]
         })
@@ -1804,6 +1812,15 @@ function PosPageContent() {
         }))
     }
 
+    const handleCartItemSellerChange = (id, sellerId) => {
+        setCart(prev => prev.map(x => {
+            if (x.id === id && x.item_type === 'coupon') {
+                return { ...x, seller_id: sellerId || null }
+            }
+            return x
+        }))
+    }
+
     const handleCartItemWorkerChange = (id, workerId) => {
         setCart(prev => prev.map(x => {
             if (x.id === id && x.item_type === 'treatment') {
@@ -1942,6 +1959,21 @@ function PosPageContent() {
             const lanjut = window.confirm(
                 `Tindakan berikut punya upah worker tetapi workernya belum dipilih:\n\n${daftar}\n\n` +
                 `Bila dilanjutkan, upah worker untuk tindakan itu tidak tercatat atas nama siapa pun.\n\nLanjutkan pembayaran?`
+            )
+            if (!lanjut) return
+        }
+
+        // Pengingat serupa untuk paket kupon berfee yang belum ditentukan penjualnya.
+        const adaTerapisDiNota = cart.some(c => c.item_type === 'treatment' && c.therapist_id && c.therapist_id !== 'worker')
+            || (selectedTherapistId && selectedTherapistId !== 'worker')
+        const tanpaPenjual = adaTerapisDiNota
+            ? []
+            : cart.filter(i => i.item_type === 'coupon' && Number(i.seller_fee) > 0 && !i.seller_id)
+        if (tanpaPenjual.length > 0) {
+            const daftar = tanpaPenjual.map(i => `- ${i.name}`).join('\n')
+            const lanjut = window.confirm(
+                `Paket kupon berikut punya fee penjualan tetapi terapis penjualnya belum dipilih:\n\n${daftar}\n\n` +
+                `Bila dilanjutkan, fee penjualannya tidak tercatat atas nama siapa pun.\n\nLanjutkan pembayaran?`
             )
             if (!lanjut) return
         }
@@ -2252,6 +2284,42 @@ function PosPageContent() {
                 }
             } catch (tiErr) {
                 console.warn('Non-blocking: could not sync transaction_items discount data:', tiErr)
+            }
+
+            // Catat terapis penjual kupon beserta fee-nya. Kupon dibuat oleh
+            // process_checkout di database, jadi penjualnya dicatat di sini setelah
+            // transaksi berhasil -- fungsi kasir di database sengaja tidak diubah.
+            // Bila bagian ini gagal, transaksinya tetap sah; hanya penjualnya yang
+            // belum tercatat dan bisa diisi ulang lewat menu kupon.
+            // Penjual kupon mengikuti terapis yang mengerjakan tindakan di nota yang sama,
+            // sehingga admin tidak perlu memilih apa pun. Pilihan manual tetap menang
+            // bila admin sengaja menggantinya di keranjang.
+            const penjualOtomatis = cart.find(c => c.item_type === 'treatment' && c.therapist_id && c.therapist_id !== 'worker')?.therapist_id
+                || (selectedTherapistId && selectedTherapistId !== 'worker' ? selectedTherapistId : null)
+                || null
+
+            const couponCartItems = cart.filter(c => c.item_type === 'coupon' && Number(c.seller_fee) > 0 && (c.seller_id || penjualOtomatis))
+            if (couponCartItems.length > 0) {
+                try {
+                    const { data: createdCoupons } = await supabase
+                        .from('patient_coupons')
+                        .select('id, package_id')
+                        .eq('transaction_id', trxData.id)
+
+                    for (const pc of (createdCoupons || [])) {
+                        const matched = couponCartItems.find(c => (c.coupon_id || c.id) === pc.package_id)
+                        if (!matched) continue
+                        await supabase
+                            .from('patient_coupons')
+                            .update({
+                                sold_by: matched.seller_id || penjualOtomatis,
+                                seller_fee_at_time: Number(matched.seller_fee || 0)
+                            })
+                            .eq('id', pc.id)
+                    }
+                } catch (sellerErr) {
+                    console.warn('Non-blocking: could not record coupon seller:', sellerErr)
+                }
             }
 
             // Sinkronkan pengurangan stok varian produk jika ada
@@ -3712,6 +3780,26 @@ function PosPageContent() {
                                         >
                                             <option value="">-- Pilih Terapis --</option>
                                             <option value="worker">Worker (Infus)</option>
+                                            {therapists.map(t => (
+                                                <option key={t.id} value={t.id}>{t.full_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Paket kupon: terapis yang menjual mendapat fee sekali, dibayar
+                                    saat nota lunas. Hanya ditanyakan bila paket ini memang berfee. */}
+                                {item.item_type === 'coupon' && Number(item.seller_fee) > 0 && (
+                                    <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                                        <span className="text-[8.5px] font-bold text-indigo-700 uppercase shrink-0" title={`Fee penjualan Rp ${Number(item.seller_fee).toLocaleString('id-ID')}`}>
+                                            🎟️ Penjual:
+                                        </span>
+                                        <select
+                                            value={item.seller_id || ''}
+                                            onChange={(e) => handleCartItemSellerChange(item.id, e.target.value)}
+                                            className="text-[10.5px] font-bold bg-indigo-50/60 border border-indigo-200/70 rounded-md px-1.5 py-0.5 text-gray-800 flex-1 max-w-[170px]"
+                                        >
+                                            <option value="">-- Pilih Terapis Penjual --</option>
                                             {therapists.map(t => (
                                                 <option key={t.id} value={t.id}>{t.full_name}</option>
                                             ))}
