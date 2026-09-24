@@ -43,6 +43,8 @@ export default function TherapistsReportPage() {
 
     // Raw database results
     const [treatmentItems, setTreatmentItems] = useState([])
+    // Fee penjualan kupon per terapis: { [terapisId]: { total, count } }
+    const [couponFees, setCouponFees] = useState({})
 
     useEffect(() => {
         checkAccessAndFetchInitialData()
@@ -175,7 +177,42 @@ export default function TherapistsReportPage() {
             setTreatmentItems(enhancedItems)
         }
 
+        await fetchCouponSellerFees()
+
         setIsLoading(false)
+    }
+
+    // Fee penjualan kupon: bonus sekali untuk terapis yang menjual paket, dicatat
+    // di patient_coupons saat transaksi berhasil. Hanya nota lunas yang dihitung,
+    // sehingga transaksi yang di-void otomatis gugur beserta fee-nya.
+    const fetchCouponSellerFees = async () => {
+        let q = supabase
+            .from('patient_coupons')
+            .select('id, sold_by, seller_fee_at_time, created_at, transactions!inner(id, payment_status, branch_id)')
+            .not('sold_by', 'is', null)
+            .gt('seller_fee_at_time', 0)
+            .eq('transactions.payment_status', 'paid')
+            .gte('created_at', `${startDate}T00:00:00`)
+            .lte('created_at', `${endDate}T23:59:59`)
+
+        if (selectedBranch !== 'all') {
+            q = q.eq('transactions.branch_id', selectedBranch)
+        }
+
+        const { data, error } = await q
+        if (error) {
+            console.error('Error fetching coupon seller fees:', error)
+            setCouponFees({})
+            return
+        }
+
+        const map = {}
+        ;(data || []).forEach(row => {
+            if (!map[row.sold_by]) map[row.sold_by] = { total: 0, count: 0 }
+            map[row.sold_by].total += Number(row.seller_fee_at_time || 0)
+            map[row.sold_by].count += 1
+        })
+        setCouponFees(map)
     }
 
     // Processed Therapist Metrics
@@ -232,13 +269,16 @@ export default function TherapistsReportPage() {
                 commission: stats.commission,
                 treatmentCount: stats.treatmentCount,
                 uniquePatients: stats.patients.size,
-                avgPerTreatment: stats.treatmentCount > 0 ? Math.round(stats.revenue / stats.treatmentCount) : 0
+                avgPerTreatment: stats.treatmentCount > 0 ? Math.round(stats.revenue / stats.treatmentCount) : 0,
+                couponFee: couponFees[t.id]?.total || 0,
+                couponSold: couponFees[t.id]?.count || 0,
+                totalIncome: stats.commission + (couponFees[t.id]?.total || 0)
             }
         })
 
         // Sort by revenue descending
         return result.sort((a, b) => b.revenue - a.revenue)
-    }, [treatmentItems, therapists])
+    }, [treatmentItems, therapists, couponFees])
 
     // Unassigned Treatments (Worker / Infus / Tanpa Terapis / Komisi 0%)
     const unassignedTreatments = useMemo(() => {
@@ -253,6 +293,7 @@ export default function TherapistsReportPage() {
     const summaryStats = useMemo(() => {
         const totalRevenue = therapistMetrics.reduce((acc, curr) => acc + curr.revenue, 0)
         const totalCommission = therapistMetrics.reduce((acc, curr) => acc + curr.commission, 0)
+        const totalCouponFee = therapistMetrics.reduce((acc, curr) => acc + (curr.couponFee || 0), 0)
         const totalTreatments = therapistMetrics.reduce((acc, curr) => acc + curr.treatmentCount, 0)
         
         // Find best therapist (highest revenue > 0)
@@ -267,6 +308,8 @@ export default function TherapistsReportPage() {
         return {
             totalRevenue,
             totalCommission,
+            totalCouponFee,
+            totalTherapistIncome: totalCommission + totalCouponFee,
             bestTherapist,
             avgTreatments,
             unassignedCount: unassignedTreatments.length,
@@ -301,6 +344,9 @@ export default function TherapistsReportPage() {
             "Total Sesi Treatment": t.treatmentCount,
             "Total Pendapatan (Rp)": t.revenue,
             "Total Komisi (Rp)": t.commission,
+            "Kupon Terjual": t.couponSold,
+            "Fee Penjualan Kupon (Rp)": t.couponFee,
+            "Total Pendapatan Terapis (Rp)": t.totalIncome,
             "Rata-rata Pendapatan / Sesi": t.avgPerTreatment
         }))
 
@@ -308,6 +354,8 @@ export default function TherapistsReportPage() {
         const sumRevenue = rows.reduce((a, b) => a + b["Total Pendapatan (Rp)"], 0)
         const sumCommission = rows.reduce((a, b) => a + b["Total Komisi (Rp)"], 0)
         const sumSessions = rows.reduce((a, b) => a + b["Total Sesi Treatment"], 0)
+        const sumCouponFee = rows.reduce((a, b) => a + b["Fee Penjualan Kupon (Rp)"], 0)
+        const sumCouponSold = rows.reduce((a, b) => a + b["Kupon Terjual"], 0)
 
         rows.push({
             "Rank": "TOTAL",
@@ -317,6 +365,9 @@ export default function TherapistsReportPage() {
             "Total Sesi Treatment": sumSessions,
             "Total Pendapatan (Rp)": sumRevenue,
             "Total Komisi (Rp)": sumCommission,
+            "Kupon Terjual": sumCouponSold,
+            "Fee Penjualan Kupon (Rp)": sumCouponFee,
+            "Total Pendapatan Terapis (Rp)": sumCommission + sumCouponFee,
             "Rata-rata Pendapatan / Sesi": ""
         })
 
@@ -475,8 +526,8 @@ export default function TherapistsReportPage() {
             doc.text('RANKING PERFORMA & KOMISI TERAPIS', margin, y)
             y += 4.5
 
-            const rHeaders = ['No', 'Nama Terapis', 'Penempatan', 'Pasien', 'Sesi', 'Revenue', 'Komisi']
-            const rColWidths = [10, 45, 30, 22, 18, 28, 27] // Total 180
+            const rHeaders = ['No', 'Nama Terapis', 'Penempatan', 'Pasien', 'Sesi', 'Revenue', 'Komisi', 'Fee Kupon', 'Total']
+            const rColWidths = [8, 36, 24, 14, 12, 24, 22, 20, 20] // Total 180
 
             doc.setDrawColor(220, 200, 180)
             doc.setLineWidth(0.3)
@@ -492,7 +543,7 @@ export default function TherapistsReportPage() {
             let currX = margin
             rHeaders.forEach((h, idx) => {
                 const w = rColWidths[idx]
-                if (h === 'Revenue' || h === 'Komisi') {
+                if (h === 'Revenue' || h === 'Komisi' || h === 'Fee Kupon' || h === 'Total') {
                     doc.text(h, currX + w - 2, y + 4.5, { align: 'right' })
                 } else if (h === 'No' || h === 'Sesi' || h === 'Pasien') {
                     doc.text(h, currX + w / 2, y + 4.5, { align: 'center' })
@@ -526,7 +577,7 @@ export default function TherapistsReportPage() {
                     let subX = margin
                     rHeaders.forEach((h, i) => {
                         const w = rColWidths[i]
-                        if (h === 'Revenue' || h === 'Komisi') {
+                        if (h === 'Revenue' || h === 'Komisi' || h === 'Fee Kupon' || h === 'Total') {
                             doc.text(h, subX + w - 2, y + 4.5, { align: 'right' })
                         } else if (h === 'No' || h === 'Sesi' || h === 'Pasien') {
                             doc.text(h, subX + w / 2, y + 4.5, { align: 'center' })
@@ -567,6 +618,12 @@ export default function TherapistsReportPage() {
                 rowX += rColWidths[5]
 
                 doc.text(t.commission.toLocaleString('id-ID'), rowX + rColWidths[6] - 2, y + 3.8, { align: 'right' })
+                rowX += rColWidths[6]
+
+                doc.text((t.couponFee || 0).toLocaleString('id-ID'), rowX + rColWidths[7] - 2, y + 3.8, { align: 'right' })
+                rowX += rColWidths[7]
+
+                doc.text((t.totalIncome || t.commission).toLocaleString('id-ID'), rowX + rColWidths[8] - 2, y + 3.8, { align: 'right' })
 
                 doc.setDrawColor(245, 238, 230)
                 doc.setLineWidth(0.2)
@@ -579,6 +636,7 @@ export default function TherapistsReportPage() {
             const totalRev = therapistMetrics.reduce((a, b) => a + b.revenue, 0)
             const totalComm = therapistMetrics.reduce((a, b) => a + b.commission, 0)
             const totalSess = therapistMetrics.reduce((a, b) => a + b.treatmentCount, 0)
+            const totalFee = therapistMetrics.reduce((a, b) => a + (b.couponFee || 0), 0)
 
             if (y + 6 > pageHeight - margin) {
                 doc.addPage()
@@ -607,6 +665,12 @@ export default function TherapistsReportPage() {
             lastX += rColWidths[5]
 
             doc.text(totalComm.toLocaleString('id-ID'), lastX + rColWidths[6] - 2, y + 3.8, { align: 'right' })
+            lastX += rColWidths[6]
+
+            doc.text(totalFee.toLocaleString('id-ID'), lastX + rColWidths[7] - 2, y + 3.8, { align: 'right' })
+            lastX += rColWidths[7]
+
+            doc.text((totalComm + totalFee).toLocaleString('id-ID'), lastX + rColWidths[8] - 2, y + 3.8, { align: 'right' })
 
             // Footer
             addHeaderFooter(doc, true)
@@ -725,6 +789,12 @@ export default function TherapistsReportPage() {
                             <div>
                                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Total Komisi Terapis</p>
                                 <h3 className="text-2xl font-black text-ayumi-secondary mt-1 ">Rp {summaryStats.totalCommission.toLocaleString('id-ID')}</h3>
+                                {summaryStats.totalCouponFee > 0 && (
+                                    <p className="text-[11px] font-semibold text-indigo-600 mt-1">
+                                        + Rp {summaryStats.totalCouponFee.toLocaleString('id-ID')} fee kupon
+                                        <span className="text-gray-500 font-normal"> = Rp {summaryStats.totalTherapistIncome.toLocaleString('id-ID')}</span>
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -804,12 +874,14 @@ export default function TherapistsReportPage() {
                                         <th className="px-6 py-4 text-center">Total Treatment (Sesi)</th>
                                         <th className="px-6 py-4 text-right">Total Pendapatan</th>
                                         <th className="px-6 py-4 text-right">Total Komisi</th>
+                                        <th className="px-6 py-4 text-right">Fee Kupon</th>
+                                        <th className="px-6 py-4 text-right">Total Pendapatan Terapis</th>
                                         <th className="px-6 py-4 text-right">Rata-rata / Treatment</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50 text-gray-700 bg-white">
                                     {therapistMetrics.length === 0 ? (
-                                        <tr><td colSpan="8" className="px-6 py-12 text-center text-gray-400">Belum ada data tindakan terapis pada periode ini.</td></tr>
+                                        <tr><td colSpan="10" className="px-6 py-12 text-center text-gray-400">Belum ada data tindakan terapis pada periode ini.</td></tr>
                                     ) : (
                                         therapistMetrics.map((t, idx) => {
                                             const nameInitials = t.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
@@ -856,6 +928,18 @@ export default function TherapistsReportPage() {
                                                         ) : (
                                                             <span className="text-gray-400">Rp 0</span>
                                                         )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        {t.couponFee > 0 ? (
+                                                            <span className="font-bold text-indigo-600" title={`${t.couponSold} paket kupon terjual`}>
+                                                                Rp {t.couponFee.toLocaleString('id-ID')}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-gray-400">Rp 0</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-black text-gray-800">
+                                                        Rp {(t.totalIncome || 0).toLocaleString('id-ID')}
                                                     </td>
                                                     <td className="px-6 py-4 text-right font-semibold text-gray-600 ">
                                                         Rp {t.avgPerTreatment.toLocaleString('id-ID')}

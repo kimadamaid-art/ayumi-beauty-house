@@ -33,6 +33,8 @@ export default function TherapistDetailPage() {
 
     // Raw action data
     const [treatmentRecords, setTreatmentRecords] = useState([])
+    // Penjualan paket kupon oleh terapis ini pada periode terpilih
+    const [couponSales, setCouponSales] = useState([])
 
     const getLocalYYYYMMDD = (d = new Date()) => {
         const year = d.getFullYear()
@@ -210,6 +212,31 @@ export default function TherapistDetailPage() {
             setTreatmentRecords(sortedData)
         }
 
+        // Fee penjualan kupon oleh terapis ini. Hanya nota lunas yang dihitung,
+        // sehingga transaksi yang di-void otomatis gugur beserta fee-nya.
+        try {
+            let cq = supabase
+                .from('patient_coupons')
+                .select('id, created_at, seller_fee_at_time, coupon_packages(name), patients(full_name), transactions!inner(transaction_number, payment_status, branch_id)')
+                .eq('sold_by', therapistId)
+                .gt('seller_fee_at_time', 0)
+                .eq('transactions.payment_status', 'paid')
+                .gte('created_at', `${startDate}T00:00:00`)
+                .lte('created_at', `${endDate}T23:59:59`)
+                .order('created_at', { ascending: false })
+
+            if (selectedBranch !== 'all') {
+                cq = cq.eq('transactions.branch_id', selectedBranch)
+            }
+
+            const { data: cData, error: cErr } = await cq
+            if (cErr) throw cErr
+            setCouponSales(cData || [])
+        } catch (cErr) {
+            console.error('Error fetching coupon sales for therapist:', cErr)
+            setCouponSales([])
+        }
+
         setIsLoading(false)
     }
 
@@ -233,12 +260,16 @@ export default function TherapistDetailPage() {
             return acc + calculateTherapistCommission(curr)
         }, 0)
         const totalTreatments = treatmentRecords.length
+        const totalCouponFee = couponSales.reduce((acc, c) => acc + Number(c.seller_fee_at_time || 0), 0)
         return {
             totalIncome,
             totalCommission,
-            totalTreatments
+            totalTreatments,
+            totalCouponFee,
+            couponSold: couponSales.length,
+            totalEarning: totalCommission + totalCouponFee
         }
-    }, [treatmentRecords])
+    }, [treatmentRecords, couponSales])
 
     // Charts calculations
     const chartData = useMemo(() => {
@@ -621,6 +652,16 @@ export default function TherapistDetailPage() {
                     <div>
                         <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest font-sans">Total Komisi</p>
                         <h4 className="text-2xl font-black text-emerald-600 mt-1 ">Rp {stats.totalCommission.toLocaleString('id-ID')}</h4>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest font-sans">Fee Kupon</p>
+                        <h4 className="text-2xl font-black text-indigo-600 mt-1 ">Rp {stats.totalCouponFee.toLocaleString('id-ID')}</h4>
+                        <p className="text-[10px] text-gray-400 font-semibold">{stats.couponSold} paket terjual</p>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest font-sans">Total Diterima</p>
+                        <h4 className="text-2xl font-black text-ayumi-secondary mt-1 ">Rp {stats.totalEarning.toLocaleString('id-ID')}</h4>
+                        <p className="text-[10px] text-gray-400 font-semibold">komisi + fee kupon</p>
                     </div>
                 </div>
             </div>
