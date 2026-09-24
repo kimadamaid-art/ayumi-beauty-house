@@ -47,6 +47,9 @@ function PosPageContent() {
     const [categories, setCategories] = useState([])
     const [pendingBills, setPendingBills] = useState([])
     const [therapists, setTherapists] = useState([])
+    // Daftar worker aktif (tenaga infus dsb). Upahnya nominal rupiah per tindakan,
+    // terpisah dari komisi terapis yang berbentuk persen.
+    const [workers, setWorkers] = useState([])
     const [selectedTherapistId, setSelectedTherapistId] = useState('')
     const [treatmentRecordId, setTreatmentRecordId] = useState(null)
     
@@ -375,6 +378,7 @@ function PosPageContent() {
         const cpRes = { data: catalog.couponPackages }
         const thRes = { data: catalog.therapists }
         const catRes = { data: catalog.categories }
+        const wkRes = { data: catalog.workers }
 
         const user = cachedUser.user
         let currentUData = null
@@ -418,6 +422,7 @@ function PosPageContent() {
         if (cpRes.data) setCoupons(cpRes.data)
         if (thRes.data) setTherapists(thRes.data)
         if (catRes.data) setCategories(catRes.data)
+        if (wkRes.data) setWorkers(wkRes.data)
 
         // Initial mapping of products
         if (prodRes.data) {
@@ -452,7 +457,7 @@ function PosPageContent() {
                     id, treatment_time, treatment_date, branch_id, performed_by,
                     branches(name),
                     patients(id, full_name, whatsapp),
-                    treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
+                    treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, worker_id, worker_fee_at_time, treatments(name, price, commission_percent, worker_fee)),
                     coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name))))
                 `)
 
@@ -991,7 +996,7 @@ function PosPageContent() {
                 id, treatment_time, treatment_date, branch_id, performed_by,
                 branches(name),
                 patients(id, full_name, whatsapp),
-                treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, treatments(name, price, commission_percent)),
+                treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, worker_id, worker_fee_at_time, treatments(name, price, commission_percent, worker_fee)),
                 coupon_usage_logs(id, patient_coupon_item_id, patient_coupon_items(id, treatment_id, total_sessions, used_sessions, remaining_sessions, patient_coupons(coupon_packages(name)))),
                 transactions(id, transaction_number, payment_status, total)
             `)
@@ -1243,6 +1248,10 @@ function PosPageContent() {
                     // sebagai "belum diisi" lalu diganti 5%, sehingga terapis dibayar komisi
                     // yang seharusnya tidak ada. ?? hanya melompat bila nilainya null/undefined.
                     commission_percent: item.commission_percent ?? item.treatments?.commission_percent ?? 5,
+                    // Tarif upah worker diambil dari master treatment saat ini; bila tindakan
+                    // ini sebelumnya sudah punya worker, pilihannya ikut terbawa ke keranjang.
+                    worker_fee: Number(item.treatments?.worker_fee || 0),
+                    worker_id: item.worker_id || null,
                     is_using_coupon: true,
                     is_first_session_of_new_coupon: true,
                     new_coupon_package_id: pkgId,
@@ -1309,6 +1318,10 @@ function PosPageContent() {
                     treatment_record_id: bill.id,
                     therapist_id: isWorkerItem ? 'worker' : (bill.performed_by || 'worker'),
                     commission_percent: isWorkerItem ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : (item.treatments?.commission_percent || 0)),
+                    // Tarif upah worker diambil dari master treatment saat ini; bila tindakan
+                    // ini sebelumnya sudah punya worker, pilihannya ikut terbawa ke keranjang.
+                    worker_fee: Number(item.treatments?.worker_fee || 0),
+                    worker_id: item.worker_id || null,
                     is_worker: isWorkerItem,
                     is_using_coupon: true,
                     coupon_already_deducted: false,
@@ -1334,6 +1347,10 @@ function PosPageContent() {
                 treatment_record_id: bill.id,
                 therapist_id: isWorkerItem ? 'worker' : (bill.performed_by || 'worker'),
                 commission_percent: isWorkerItem ? 0 : (item.commission_percent !== undefined && item.commission_percent !== null ? Number(item.commission_percent) : (item.treatments?.commission_percent || 0)),
+                // Tarif upah worker diambil dari master treatment saat ini; bila tindakan
+                // ini sebelumnya sudah punya worker, pilihannya ikut terbawa ke keranjang.
+                worker_fee: Number(item.treatments?.worker_fee || 0),
+                worker_id: item.worker_id || null,
                 is_worker: isWorkerItem,
                 is_using_coupon: false,
                 coupon_already_deducted: false,
@@ -1539,7 +1556,11 @@ function PosPageContent() {
                     coupon_package_name: couponPackageName,
                     remaining_sessions: remainingSessions,
                     therapist_id: (itemType === 'treatment' && isInfusionTreatment(cartItemName || item.name)) ? 'worker' : (selectedTherapistId || (therapists[0]?.id || '')),
-                    is_worker: itemType === 'treatment' && isInfusionTreatment(cartItemName || item.name)
+                    is_worker: itemType === 'treatment' && isInfusionTreatment(cartItemName || item.name),
+                    // Tarif upah worker treatment ini. Nominal tetap, tidak ikut harga
+                    // maupun diskon, dan tidak menambah tagihan pasien.
+                    worker_fee: itemType === 'treatment' ? Number(item.worker_fee || 0) : 0,
+                    worker_id: null
                 }
             ]
         })
@@ -1783,6 +1804,15 @@ function PosPageContent() {
         }))
     }
 
+    const handleCartItemWorkerChange = (id, workerId) => {
+        setCart(prev => prev.map(x => {
+            if (x.id === id && x.item_type === 'treatment') {
+                return { ...x, worker_id: workerId || null }
+            }
+            return x
+        }))
+    }
+
     const handleCartItemTherapistChange = (id, therapistId) => {
         setCart(prev => prev.map(x => {
             if (x.id === id && x.item_type === 'treatment') {
@@ -1904,6 +1934,18 @@ function PosPageContent() {
             finalPaymentMethod = methodEntries[0]?.m || 'cash'
         }
 
+        // Pengingat bila ada tindakan berupah worker tetapi workernya belum dipilih.
+        // Transaksi tetap boleh dilanjutkan; upahnya saja yang tidak tercatat ke siapa pun.
+        const tanpaWorker = cart.filter(i => i.item_type === 'treatment' && Number(i.worker_fee) > 0 && !i.worker_id)
+        if (tanpaWorker.length > 0) {
+            const daftar = tanpaWorker.map(i => `- ${i.name}`).join('\n')
+            const lanjut = window.confirm(
+                `Tindakan berikut punya upah worker tetapi workernya belum dipilih:\n\n${daftar}\n\n` +
+                `Bila dilanjutkan, upah worker untuk tindakan itu tidak tercatat atas nama siapa pun.\n\nLanjutkan pembayaran?`
+            )
+            if (!lanjut) return
+        }
+
         isCheckingOutRef.current = true
         setIsProcessing(true)
         let savedTrxData = null
@@ -1963,6 +2005,11 @@ function PosPageContent() {
                             discount_percent: it.discount_percent || 0,
                             commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
                             notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
+                            // Upah worker dicatat hanya bila workernya memang ditunjuk, dan
+                            // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
+                            // diskon, maupun kupon, dan tidak berubah bila tarif diubah nanti.
+                            worker_id: it.worker_id || null,
+                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) : 0,
                             sort_order: sIdx + 1,
                             ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }
@@ -2079,6 +2126,11 @@ function PosPageContent() {
                             discount_percent: it.discount_percent || 0,
                             commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
                             notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
+                            // Upah worker dicatat hanya bila workernya memang ditunjuk, dan
+                            // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
+                            // diskon, maupun kupon, dan tidak berubah bila tarif diubah nanti.
+                            worker_id: it.worker_id || null,
+                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) : 0,
                             sort_order: (currentCount || 0) + sIdx + 1,
                             ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }
@@ -2121,6 +2173,11 @@ function PosPageContent() {
                                 discount_percent: it.discount_percent || 0,
                                 commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
                                 notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
+                            // Upah worker dicatat hanya bila workernya memang ditunjuk, dan
+                            // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
+                            // diskon, maupun kupon, dan tidak berubah bila tarif diubah nanti.
+                            worker_id: it.worker_id || null,
+                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) : 0,
                                 sort_order: sIdx + 1,
                                 ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                             }
@@ -3657,6 +3714,27 @@ function PosPageContent() {
                                             <option value="worker">Worker (Infus)</option>
                                             {therapists.map(t => (
                                                 <option key={t.id} value={t.id}>{t.full_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Worker hanya ditanyakan untuk tindakan yang memang punya upah worker.
+                                    Satu tindakan bisa punya terapis dan worker sekaligus, keduanya dibayar
+                                    terpisah: terapis persen dari harga, worker nominal tetap. */}
+                                {item.item_type === 'treatment' && Number(item.worker_fee) > 0 && (
+                                    <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                                        <span className="text-[8.5px] font-bold text-amber-700 uppercase shrink-0" title={`Upah worker Rp ${Number(item.worker_fee).toLocaleString('id-ID')}`}>
+                                            💉 Worker:
+                                        </span>
+                                        <select
+                                            value={item.worker_id || ''}
+                                            onChange={(e) => handleCartItemWorkerChange(item.id, e.target.value)}
+                                            className="text-[10.5px] font-bold bg-amber-50/60 border border-amber-200/70 rounded-md px-1.5 py-0.5 text-gray-800 flex-1 max-w-[170px]"
+                                        >
+                                            <option value="">-- Tanpa Worker --</option>
+                                            {workers.map(w => (
+                                                <option key={w.id} value={w.id}>{w.full_name}</option>
                                             ))}
                                         </select>
                                     </div>

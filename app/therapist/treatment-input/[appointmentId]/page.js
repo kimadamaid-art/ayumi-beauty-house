@@ -122,7 +122,7 @@ export default function TreatmentInputPage() {
                 .select(`
                     *,
                     treatment_record_items (
-                        id, treatment_id, price_at_time, original_price, discount_percent, notes, treatments (name, followup_days, commission_percent)
+                        id, treatment_id, price_at_time, original_price, discount_percent, notes, worker_id, worker_fee_at_time, treatments (name, followup_days, commission_percent)
                     ),
                     transactions (id, payment_status)
                 `)
@@ -137,7 +137,7 @@ export default function TreatmentInputPage() {
                     .select(`
                         *,
                         treatment_record_items (
-                            id, treatment_id, price_at_time, original_price, discount_percent, notes, treatments (name, followup_days, commission_percent)
+                            id, treatment_id, price_at_time, original_price, discount_percent, notes, worker_id, worker_fee_at_time, treatments (name, followup_days, commission_percent)
                         ),
                         transactions (id, payment_status)
                     `)
@@ -188,7 +188,11 @@ export default function TreatmentInputPage() {
                             followup_days: item.treatments?.followup_days || 0,
                             notes: item.notes || '',
                             commission_percent: isWorkerItem ? 0 : (item.commission_percent || 0),
-                            performer_type: isWorkerItem ? 'worker' : 'therapist'
+                            performer_type: isWorkerItem ? 'worker' : 'therapist',
+                            // Worker dan upahnya ditentukan admin di kasir. Nilainya dibawa apa
+                            // adanya agar penyimpanan dari halaman terapis tidak menghapusnya.
+                            worker_id: item.worker_id || null,
+                            worker_fee_at_time: Number(item.worker_fee_at_time || 0)
                         }
                     }))
                 }
@@ -750,7 +754,9 @@ export default function TreatmentInputPage() {
                     discount_percent: t.discount_percent,
                     notes: finalNotes,
                     sort_order: index + 1,
-                    commission_percent: isWorkerItem ? 0 : (t.commission_percent || 0)
+                    commission_percent: isWorkerItem ? 0 : (t.commission_percent || 0),
+                    worker_id: t.worker_id || null,
+                    worker_fee_at_time: Number(t.worker_fee_at_time || 0)
                 })
 
                 // Auto-schedule follow-up bertahap hanya untuk tindakan terapis (skip worker infus)

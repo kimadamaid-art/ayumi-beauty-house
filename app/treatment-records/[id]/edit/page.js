@@ -162,7 +162,11 @@ function EditRecordForm() {
                         discount_percent: item.discount_percent,
                         notes: item.notes || '',
                         followup_days: item.treatments?.followup_days || 0,
-                        commission_percent: isInfus ? 0 : (item.commission_percent || 0)
+                        commission_percent: isInfus ? 0 : (item.commission_percent || 0),
+                        // Worker dan upahnya ditentukan di kasir. Nilainya dibawa apa adanya
+                        // supaya penyimpanan ulang dari halaman ini tidak menghapusnya.
+                        worker_id: item.worker_id || null,
+                        worker_fee_at_time: Number(item.worker_fee_at_time || 0)
                     }
                 }))
             }
@@ -248,7 +252,9 @@ function EditRecordForm() {
                 discount_percent: discountVal,
                 notes: isInfus ? '[WORKER]' : '',
                 followup_days: t.followup_days || 0,
-                commission_percent: isInfus ? 0 : (t.commission_percent || 0)
+                commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                worker_id: null,
+                worker_fee_at_time: 0
             }
         ])
     }
@@ -424,7 +430,9 @@ function EditRecordForm() {
                     discount_percent: t.discount_percent,
                     notes: finalNotes,
                     sort_order: index + 1,
-                    commission_percent: isWorker ? 0 : (t.commission_percent || 0)
+                    commission_percent: isWorker ? 0 : (t.commission_percent || 0),
+                    worker_id: t.worker_id || null,
+                    worker_fee_at_time: Number(t.worker_fee_at_time || 0)
                 }
             })
 
