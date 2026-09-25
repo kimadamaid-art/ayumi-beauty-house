@@ -360,7 +360,28 @@ export default function AppointmentsPage() {
                 .eq('treatment_date', todayDate)
                 .order('created_at', { ascending: false })
 
-            const matchedRec = existingRecs?.find(r => r.appointment_id === aptId || (r.result_notes?.includes('Infus') && !r.appointment_id))
+            let matchedRec = existingRecs?.find(r => r.appointment_id === aptId || (r.result_notes?.includes('Infus') && !r.appointment_id))
+
+            // Bila tidak ada yang cocok, pasien mungkin sudah punya tagihan treatment hari ini
+            // dari terapis (jadwal terpisah). Infus bisa digabungkan ke tagihan itu agar
+            // keluar satu nota. Penggabungan selalu ditanyakan dulu, tidak pernah diam-diam,
+            // karena mengubah tagihan yang sudah dibuat orang lain.
+            if (!matchedRec) {
+                const tagihanPending = (existingRecs || []).find(r => {
+                    const txs = r.transactions || []
+                    return !txs.some(t => t.payment_status === 'paid')
+                })
+
+                if (tagihanPending) {
+                    const gabung = window.confirm(
+                        `Pasien ini sudah punya tagihan tindakan hari ini yang belum dibayar.\n\n` +
+                        `Gabungkan sesi infus ini ke tagihan tersebut supaya keluar satu nota?\n\n` +
+                        `OK = gabung jadi satu nota\nBatal = buat tagihan infus terpisah`
+                    )
+                    if (gabung) matchedRec = tagihanPending
+                }
+            }
+
             let recordId = matchedRec?.id
 
             if (recordId) {
@@ -390,33 +411,37 @@ export default function AppointmentsPage() {
 
                 if (trErr) throw trErr
                 recordId = createdRec.id
-
-                if (chosenTreatment) {
-                    const { error: itemErr } = await supabase
-                        .from('treatment_record_items')
-                        .insert([buildInfusItemPayload(recordId, chosenTreatment, chosenPackage, packageFirstItem)])
-
-                    if (itemErr) throw itemErr
-                }
             }
 
-            // Bila rekamnya sudah ada dan pasien memutuskan membeli paket, baris tindakan
-            // yang sudah tercatat diperbarui -- bukan ditambah baris baru -- supaya satu
-            // tindakan tetap satu baris dalam satu rekam.
-            if (matchedRec?.id && chosenPackage && chosenTreatment) {
+            // Baris infus ditulis di satu tempat saja, baik rekamnya baru dibuat maupun
+            // sudah ada sebelumnya. Sebelumnya baris ini hanya ditulis ketika rekam baru
+            // dibuat, sehingga bila terapis sudah menginput treatment lebih dulu, infusnya
+            // tidak pernah masuk ke tagihan dan pasien tidak tertagih.
+            //
+            // Bila tindakan yang sama sudah tercatat, barisnya tidak ditimpa -- kecuali
+            // admin memang memilih paket, yang berarti tindakan itu diubah menjadi
+            // pembelian paket. Ini menjaga satu tindakan tetap satu baris per rekam.
+            if (chosenTreatment) {
                 const { data: existingItems } = await supabase
                     .from('treatment_record_items')
                     .select('id')
                     .eq('treatment_record_id', recordId)
                     .eq('treatment_id', chosenTreatment.id)
 
+                const sudahAda = existingItems && existingItems.length > 0
                 const payload = buildInfusItemPayload(recordId, chosenTreatment, chosenPackage, packageFirstItem)
-                if (existingItems && existingItems.length > 0) {
+
+                if (!sudahAda) {
+                    const { error: itemErr } = await supabase.from('treatment_record_items').insert([payload])
+                    if (itemErr) throw itemErr
+                } else if (chosenPackage) {
                     const perubahan = { ...payload }
                     delete perubahan.treatment_record_id
-                    await supabase.from('treatment_record_items').update(perubahan).eq('id', existingItems[0].id)
-                } else {
-                    await supabase.from('treatment_record_items').insert([payload])
+                    const { error: updErr } = await supabase
+                        .from('treatment_record_items')
+                        .update(perubahan)
+                        .eq('id', existingItems[0].id)
+                    if (updErr) throw updErr
                 }
             }
 
