@@ -37,6 +37,9 @@ export default function AppointmentsPage() {
     // Kupon aktif milik pasien pada modal sesi infus. Hanya untuk ditampilkan:
     // pemotongan sesinya tetap dilakukan kasir saat tagihan diproses.
     const [infusPatientCoupons, setInfusPatientCoupons] = useState([])
+    // Paket kupon berisi tindakan infus, untuk pasien yang ingin membeli paket saat itu juga.
+    const [infusPackages, setInfusPackages] = useState([])
+    const [selectedInfusPackageId, setSelectedInfusPackageId] = useState('')
     const [isSubmittingInfus, setIsSubmittingInfus] = useState(false)
 
     // Ref tracking to avoid stale closures
@@ -179,17 +182,28 @@ export default function AppointmentsPage() {
             }
 
             // Fetch branches, appointments, and infus treatments concurrently in parallel
-            const [brData, aptRes, infRes] = await Promise.all([
+            const [brData, aptRes, infRes, pkgRes] = await Promise.all([
                 branches.length === 0 ? getCachedBranches() : Promise.resolve(branches),
                 aptQuery,
                 infusTreatmentsList.length === 0 
                     ? supabase.from('treatments').select('id, name, price, commission_percent').ilike('name', '%infus%').eq('is_active', true).order('price', { ascending: true })
+                    : Promise.resolve({ data: null }),
+                infusPackages.length === 0
+                    ? supabase.from('coupon_packages')
+                        .select('id, name, price, coupon_package_items(quantity, treatment_id, treatments(id, name, price))')
+                        .eq('is_active', true).order('price', { ascending: true })
                     : Promise.resolve({ data: null })
             ])
 
             if (brData) setBranches(brData)
             if (aptRes.data) setAppointments(aptRes.data)
             if (infRes.data) setInfusTreatmentsList(infRes.data)
+            if (pkgRes.data) {
+                // Hanya paket yang isinya tindakan infus yang relevan di modal ini.
+                const hanyaInfus = pkgRes.data.filter(p => (p.coupon_package_items || [])
+                    .some(i => /infus|infused/i.test(i.treatments?.name || '')))
+                setInfusPackages(hanyaInfus)
+            }
         } catch (err) {
             console.error('Error fetching appointments data:', err)
         } finally {
@@ -239,6 +253,7 @@ export default function AppointmentsPage() {
         }
         setSelectedInfusApt(apt)
         setInfusPatientCoupons([])
+        setSelectedInfusPackageId('')
         const directTreatmentId = apt.appointment_treatments?.[0]?.treatments?.id
         if (directTreatmentId) {
             setSelectedInfusTreatmentId(directTreatmentId)
@@ -278,9 +293,50 @@ export default function AppointmentsPage() {
         }
     }
 
+    // Satu tempat pembentukan baris tindakan infus, dipakai baik saat rekam baru dibuat
+    // maupun saat rekam yang sudah ada diperbarui karena pasien membeli paket.
+    const buildInfusItemPayload = (recordId, treatment, pkg, pkgItem) => {
+        if (pkg) {
+            const sesi = Number(pkgItem?.quantity || 1)
+            return {
+                treatment_record_id: recordId,
+                treatment_id: treatment.id,
+                price_at_time: 0,
+                original_price: Number(treatment.price || 0),
+                discount_percent: 100,
+                commission_percent: 0,
+                notes: `[WORKER] [KUPON_BARU:${pkg.id}:${pkg.name}:${pkg.price}] Sesi 1/${sesi} - Beli Paket ${pkg.name}`
+            }
+        }
+        return {
+            treatment_record_id: recordId,
+            treatment_id: treatment.id,
+            price_at_time: Number(treatment.price || 0),
+            original_price: Number(treatment.price || 0),
+            discount_percent: 0,
+            commission_percent: 0 // Worker -> 0 komisi
+        }
+    }
+
     const handleConfirmInfusComplete = async () => {
         if (!selectedInfusApt) return
-        if (!selectedInfusTreatmentId) {
+
+        // Paket kupon: pasien membeli paket saat itu juga, sesi pertama langsung dipakai.
+        // Penandanya sama dengan yang dipakai halaman input terapis, sehingga kasir
+        // memprosesnya dengan alur yang sudah ada: paket ditagih, sesi 1 dipotong.
+        const chosenPackage = selectedInfusPackageId
+            ? infusPackages.find(p => p.id === selectedInfusPackageId)
+            : null
+        const packageFirstItem = chosenPackage
+            ? (chosenPackage.coupon_package_items || []).find(i => /infus|infused/i.test(i.treatments?.name || ''))
+                || (chosenPackage.coupon_package_items || [])[0]
+            : null
+
+        if (chosenPackage && !packageFirstItem) {
+            toast.error('Paket ini belum punya isi tindakan. Lengkapi dulu di menu Paket Kupon.')
+            return
+        }
+        if (!chosenPackage && !selectedInfusTreatmentId) {
             toast.error('Silakan pilih jenis infus yang dilakukan.')
             return
         }
@@ -291,7 +347,9 @@ export default function AppointmentsPage() {
             const apt = selectedInfusApt
             const aptId = apt.id
 
-            const chosenTreatment = infusTreatmentsList.find(t => t.id === selectedInfusTreatmentId) || infusTreatmentsList[0]
+            const chosenTreatment = chosenPackage
+                ? (packageFirstItem.treatments || infusTreatmentsList.find(t => t.id === packageFirstItem.treatment_id))
+                : (infusTreatmentsList.find(t => t.id === selectedInfusTreatmentId) || infusTreatmentsList[0])
 
             // 1. Check if a treatment_record already exists for this appointment or patient today
             const todayDate = apt.appointment_date || new Date().toISOString().split('T')[0]
@@ -336,16 +394,29 @@ export default function AppointmentsPage() {
                 if (chosenTreatment) {
                     const { error: itemErr } = await supabase
                         .from('treatment_record_items')
-                        .insert([{
-                            treatment_record_id: recordId,
-                            treatment_id: chosenTreatment.id,
-                            price_at_time: Number(chosenTreatment.price || 0),
-                            original_price: Number(chosenTreatment.price || 0),
-                            discount_percent: 0,
-                            commission_percent: 0 // Worker -> 0 komisi
-                        }])
+                        .insert([buildInfusItemPayload(recordId, chosenTreatment, chosenPackage, packageFirstItem)])
 
                     if (itemErr) throw itemErr
+                }
+            }
+
+            // Bila rekamnya sudah ada dan pasien memutuskan membeli paket, baris tindakan
+            // yang sudah tercatat diperbarui -- bukan ditambah baris baru -- supaya satu
+            // tindakan tetap satu baris dalam satu rekam.
+            if (matchedRec?.id && chosenPackage && chosenTreatment) {
+                const { data: existingItems } = await supabase
+                    .from('treatment_record_items')
+                    .select('id')
+                    .eq('treatment_record_id', recordId)
+                    .eq('treatment_id', chosenTreatment.id)
+
+                const payload = buildInfusItemPayload(recordId, chosenTreatment, chosenPackage, packageFirstItem)
+                if (existingItems && existingItems.length > 0) {
+                    const perubahan = { ...payload }
+                    delete perubahan.treatment_record_id
+                    await supabase.from('treatment_record_items').update(perubahan).eq('id', existingItems[0].id)
+                } else {
+                    await supabase.from('treatment_record_items').insert([payload])
                 }
             }
 
@@ -1197,7 +1268,44 @@ export default function AppointmentsPage() {
                                 })}
                             </select>
 
+                            {infusPackages.length > 0 && (
+                                <div className="pt-2 space-y-1.5">
+                                    <label className="block text-xs font-bold text-slate-700">
+                                        Atau pasien membeli paket kupon hari ini
+                                    </label>
+                                    <select
+                                        value={selectedInfusPackageId}
+                                        onChange={(e) => setSelectedInfusPackageId(e.target.value)}
+                                        className="input-ayumi bg-white text-xs font-bold text-slate-800 border-indigo-300 focus:ring-indigo-400"
+                                    >
+                                        <option value="">-- Tidak beli paket (sesi satuan) --</option>
+                                        {infusPackages.map(p => {
+                                            const isi = (p.coupon_package_items || [])[0]
+                                            return (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name} (Rp {Number(p.price || 0).toLocaleString('id-ID')}{isi ? ` — ${isi.quantity} sesi` : ''})
+                                                </option>
+                                            )
+                                        })}
+                                    </select>
+                                </div>
+                            )}
+
                             {(() => {
+                                const paketTerpilih = infusPackages.find(p => p.id === selectedInfusPackageId)
+                                if (paketTerpilih) {
+                                    const isi = (paketTerpilih.coupon_package_items || []).find(i => /infus|infused/i.test(i.treatments?.name || '')) || (paketTerpilih.coupon_package_items || [])[0]
+                                    const sesi = Number(isi?.quantity || 1)
+                                    return (
+                                        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-[11px] leading-relaxed">
+                                            <p className="font-extrabold text-indigo-900">🎟️ Beli paket: {paketTerpilih.name}</p>
+                                            <p className="text-indigo-800 mt-0.5">
+                                                Kasir akan menagih <b>Rp {Number(paketTerpilih.price || 0).toLocaleString('id-ID')}</b> untuk paketnya.
+                                                Sesi hari ini ({isi?.treatments?.name || 'infus'}) langsung terpakai, sisa <b>{Math.max(0, sesi - 1)} sesi</b> untuk kunjungan berikutnya.
+                                            </p>
+                                        </div>
+                                    )
+                                }
                                 const kuponTerpilih = infusPatientCoupons.find(c => c.treatment_id === selectedInfusTreatmentId)
                                 if (kuponTerpilih) {
                                     return (
