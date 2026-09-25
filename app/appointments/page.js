@@ -272,6 +272,10 @@ export default function AppointmentsPage() {
                 .select('id, status, patient_coupon_items(id, treatment_id, remaining_sessions, total_sessions, status), coupon_packages(name)')
                 .eq('patient_id', apt.patient_id)
                 .eq('status', 'active')
+                // Kupon yang sudah lewat masa berlaku tidak ditampilkan, mengikuti
+                // penyaringan yang sama di kasir. Tanpa ini modal bisa menjanjikan
+                // potongan yang nanti ditolak saat penukaran.
+                .gt('expired_at', new Date().toISOString())
 
             const aktif = []
             ;(coupons || []).forEach(pc => {
