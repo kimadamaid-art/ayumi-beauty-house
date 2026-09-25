@@ -2046,7 +2046,10 @@ function PosPageContent() {
                             // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
                             // diskon, maupun kupon, dan tidak berubah bila tarif diubah nanti.
                             worker_id: it.worker_id || null,
-                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) : 0,
+                            // Dikalikan jumlah tindakan: satu baris bisa berisi beberapa kali
+                            // tindakan yang sama (contoh Acne Kill 3x dalam satu kunjungan),
+                            // dan upah worker dihitung per tindakan, bukan per baris.
+                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) * Math.max(1, Number(it.quantity) || 1) : 0,
                             sort_order: sIdx + 1,
                             ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }
@@ -2167,7 +2170,10 @@ function PosPageContent() {
                             // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
                             // diskon, maupun kupon, dan tidak berubah bila tarif diubah nanti.
                             worker_id: it.worker_id || null,
-                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) : 0,
+                            // Dikalikan jumlah tindakan: satu baris bisa berisi beberapa kali
+                            // tindakan yang sama (contoh Acne Kill 3x dalam satu kunjungan),
+                            // dan upah worker dihitung per tindakan, bukan per baris.
+                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) * Math.max(1, Number(it.quantity) || 1) : 0,
                             sort_order: (currentCount || 0) + sIdx + 1,
                             ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                         }
@@ -2214,7 +2220,10 @@ function PosPageContent() {
                             // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
                             // diskon, maupun kupon, dan tidak berubah bila tarif diubah nanti.
                             worker_id: it.worker_id || null,
-                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) : 0,
+                            // Dikalikan jumlah tindakan: satu baris bisa berisi beberapa kali
+                            // tindakan yang sama (contoh Acne Kill 3x dalam satu kunjungan),
+                            // dan upah worker dihitung per tindakan, bukan per baris.
+                            worker_fee_at_time: it.worker_id ? Number(it.worker_fee || 0) * Math.max(1, Number(it.quantity) || 1) : 0,
                                 sort_order: sIdx + 1,
                                 ...(effectiveCustomIso ? { created_at: effectiveCustomIso } : {})
                             }
