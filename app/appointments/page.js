@@ -1276,45 +1276,46 @@ export default function AppointmentsPage() {
                             <label className="block text-xs font-bold text-slate-700">
                                 Paket / Jenis Infus yang Dikerjakan <span className="text-red-500">*</span>
                             </label>
+                            {/* Satu pilihan untuk dua keperluan: sesi satuan atau sekalian beli
+                                paket. Admin cukup memilih sekali, tidak perlu mengisi dua kolom. */}
                             <select
-                                value={selectedInfusTreatmentId}
-                                onChange={(e) => setSelectedInfusTreatmentId(e.target.value)}
+                                value={selectedInfusPackageId ? `p:${selectedInfusPackageId}` : (selectedInfusTreatmentId ? `t:${selectedInfusTreatmentId}` : '')}
+                                onChange={(e) => {
+                                    const val = e.target.value
+                                    if (val.startsWith('p:')) {
+                                        setSelectedInfusPackageId(val.slice(2))
+                                    } else {
+                                        setSelectedInfusPackageId('')
+                                        setSelectedInfusTreatmentId(val.slice(2))
+                                    }
+                                }}
                                 className="input-ayumi bg-white text-xs font-bold text-slate-800 border-cyan-300 focus:ring-cyan-400"
                             >
                                 <option value="" disabled>-- Pilih Jenis Infus --</option>
-                                {infusTreatmentsList.map(t => {
-                                    const kupon = infusPatientCoupons.find(c => c.treatment_id === t.id)
-                                    return (
-                                        <option key={t.id} value={t.id}>
-                                            {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
-                                            {kupon ? ` — PUNYA KUPON, sisa ${kupon.remaining_sessions} sesi` : ''}
-                                        </option>
-                                    )
-                                })}
-                            </select>
-
-                            {infusPackages.length > 0 && (
-                                <div className="pt-2 space-y-1.5">
-                                    <label className="block text-xs font-bold text-slate-700">
-                                        Atau pasien membeli paket kupon hari ini
-                                    </label>
-                                    <select
-                                        value={selectedInfusPackageId}
-                                        onChange={(e) => setSelectedInfusPackageId(e.target.value)}
-                                        className="input-ayumi bg-white text-xs font-bold text-slate-800 border-indigo-300 focus:ring-indigo-400"
-                                    >
-                                        <option value="">-- Tidak beli paket (sesi satuan) --</option>
-                                        {infusPackages.map(p => {
-                                            const isi = (p.coupon_package_items || [])[0]
+                                <optgroup label="Sesi satuan / pakai kupon yang sudah ada">
+                                    {infusTreatmentsList.map(t => {
+                                        const kupon = infusPatientCoupons.find(c => c.treatment_id === t.id)
+                                        return (
+                                            <option key={t.id} value={`t:${t.id}`}>
+                                                {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                                                {kupon ? ` — PUNYA KUPON, sisa ${kupon.remaining_sessions} sesi` : ''}
+                                            </option>
+                                        )
+                                    })}
+                                </optgroup>
+                                {infusPackages.length > 0 && (
+                                    <optgroup label="Beli paket kupon hari ini">
+                                        {infusPackages.map(pk => {
+                                            const isi = (pk.coupon_package_items || []).find(i => /infus|infused/i.test(i.treatments?.name || '')) || (pk.coupon_package_items || [])[0]
                                             return (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.name} (Rp {Number(p.price || 0).toLocaleString('id-ID')}{isi ? ` — ${isi.quantity} sesi` : ''})
+                                                <option key={pk.id} value={`p:${pk.id}`}>
+                                                    🎟️ {pk.name} (Rp {Number(pk.price || 0).toLocaleString('id-ID')}{isi ? ` — ${isi.quantity} sesi` : ''})
                                                 </option>
                                             )
                                         })}
-                                    </select>
-                                </div>
-                            )}
+                                    </optgroup>
+                                )}
+                            </select>
 
                             {(() => {
                                 const paketTerpilih = infusPackages.find(p => p.id === selectedInfusPackageId)
