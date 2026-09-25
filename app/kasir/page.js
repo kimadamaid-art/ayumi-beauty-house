@@ -1169,6 +1169,31 @@ function PosPageContent() {
     }
 
     const loadPendingBillToCart = async (bill) => {
+        // Bila tagihan ini pernah disimpan kasir lewat tombol Simpan, isinya memuat
+        // diskon per item dan diskon nota yang sudah diketik. Membangun ulang dari
+        // database akan mengembalikan harga asli dan diskon itu hilang, jadi kasir
+        // ditawari melanjutkan simpanannya lebih dulu.
+        const draftTersimpan = heldTransactions.find(h =>
+            (h.treatmentRecordId && h.treatmentRecordId === bill.id) ||
+            (h.patient?.id && bill.patients?.id && h.patient.id === bill.patients.id)
+        )
+
+        if (draftTersimpan) {
+            const adaDiskon = (draftTersimpan.cart || []).some(i => Number(i.discount_percent) > 0)
+                || Number(draftTersimpan.discountValue) > 0
+            const lanjutkan = window.confirm(
+                `Tagihan ini punya transaksi tersimpan${adaDiskon ? ' beserta diskon yang sudah diisi' : ''}.\n\n` +
+                `Lanjutkan simpanan tersebut?\n\n` +
+                `OK = lanjutkan simpanan (diskon ikut terbawa)\n` +
+                `Batal = muat ulang dari tagihan (harga kembali normal)`
+            )
+            if (lanjutkan) {
+                handleRestoreHeldTransaction(draftTersimpan)
+                setIsPendingModalOpen(false)
+                return
+            }
+        }
+
         try {
             if (!bill) return
 
