@@ -1229,7 +1229,12 @@ function PosPageContent() {
                             subtotal: parsedPrice,
                             commission_percent: 0,
                             treatment_record_id: bill.id,
-                            is_new_coupon_package: true
+                            is_new_coupon_package: true,
+                            // Paket yang dijual lewat tagihan (input terapis atau modal sesi infus)
+                            // tetap memberi fee penjualan. Tarifnya diambil dari master paket, dan
+                            // penjualnya adalah terapis yang menginput tindakan tersebut.
+                            seller_fee: Number(fallbackPkg?.seller_fee || 0),
+                            seller_id: bill.performed_by || null
                         }
                     }
 
