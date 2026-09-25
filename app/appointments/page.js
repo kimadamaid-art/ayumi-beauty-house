@@ -34,6 +34,9 @@ export default function AppointmentsPage() {
     const [selectedInfusApt, setSelectedInfusApt] = useState(null)
     const [infusTreatmentsList, setInfusTreatmentsList] = useState([])
     const [selectedInfusTreatmentId, setSelectedInfusTreatmentId] = useState('')
+    // Kupon aktif milik pasien pada modal sesi infus. Hanya untuk ditampilkan:
+    // pemotongan sesinya tetap dilakukan kasir saat tagihan diproses.
+    const [infusPatientCoupons, setInfusPatientCoupons] = useState([])
     const [isSubmittingInfus, setIsSubmittingInfus] = useState(false)
 
     // Ref tracking to avoid stale closures
@@ -229,12 +232,13 @@ export default function AppointmentsPage() {
         return fallback
     }
 
-    const handleOpenInfusModal = (apt, e) => {
+    const handleOpenInfusModal = async (apt, e) => {
         if (e) {
             e.stopPropagation()
             e.preventDefault()
         }
         setSelectedInfusApt(apt)
+        setInfusPatientCoupons([])
         const directTreatmentId = apt.appointment_treatments?.[0]?.treatments?.id
         if (directTreatmentId) {
             setSelectedInfusTreatmentId(directTreatmentId)
@@ -242,6 +246,36 @@ export default function AppointmentsPage() {
             setSelectedInfusTreatmentId(infusTreatmentsList[0].id)
         }
         setIsInfusModalOpen(true)
+
+        // Kupon aktif pasien ditampilkan agar admin tahu sesi ini akan terpotong
+        // dari paket, bukan ditagih penuh. Kasir yang memotong sesinya saat
+        // tagihan diproses, jadi tidak ada data yang diubah dari sini.
+        if (!apt.patient_id) return
+        try {
+            const { data: coupons } = await supabase
+                .from('patient_coupons')
+                .select('id, status, patient_coupon_items(id, treatment_id, remaining_sessions, total_sessions, status), coupon_packages(name)')
+                .eq('patient_id', apt.patient_id)
+                .eq('status', 'active')
+
+            const aktif = []
+            ;(coupons || []).forEach(pc => {
+                (pc.patient_coupon_items || []).forEach(pci => {
+                    if (pci.status === 'active' && Number(pci.remaining_sessions) > 0) {
+                        aktif.push({ ...pci, packageName: pc.coupon_packages?.name || 'Paket Kupon' })
+                    }
+                })
+            })
+            setInfusPatientCoupons(aktif)
+
+            // Bila ada kupon untuk salah satu jenis infus, jenis itu yang dipilih lebih dulu
+            const cocok = aktif.find(a => infusTreatmentsList.some(t => t.id === a.treatment_id))
+            if (cocok && !directTreatmentId) {
+                setSelectedInfusTreatmentId(cocok.treatment_id)
+            }
+        } catch (err) {
+            console.warn('Tidak bisa memuat kupon aktif pasien:', err)
+        }
     }
 
     const handleConfirmInfusComplete = async () => {
@@ -1152,15 +1186,39 @@ export default function AppointmentsPage() {
                                 className="input-ayumi bg-white text-xs font-bold text-slate-800 border-cyan-300 focus:ring-cyan-400"
                             >
                                 <option value="" disabled>-- Pilih Jenis Infus --</option>
-                                {infusTreatmentsList.map(t => (
-                                    <option key={t.id} value={t.id}>
-                                        {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
-                                    </option>
-                                ))}
+                                {infusTreatmentsList.map(t => {
+                                    const kupon = infusPatientCoupons.find(c => c.treatment_id === t.id)
+                                    return (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                                            {kupon ? ` — PUNYA KUPON, sisa ${kupon.remaining_sessions} sesi` : ''}
+                                        </option>
+                                    )
+                                })}
                             </select>
-                            <p className="text-[10.5px] text-slate-400 leading-relaxed">
-                                Tagihan dengan harga paket di atas akan langsung otomatis masuk ke antrean Kasir.
-                            </p>
+
+                            {(() => {
+                                const kuponTerpilih = infusPatientCoupons.find(c => c.treatment_id === selectedInfusTreatmentId)
+                                if (kuponTerpilih) {
+                                    return (
+                                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-[11px] leading-relaxed">
+                                            <p className="font-extrabold text-emerald-800">
+                                                🎟️ Pasien punya kupon: {kuponTerpilih.packageName}
+                                            </p>
+                                            <p className="text-emerald-700 mt-0.5">
+                                                Sisa <b>{kuponTerpilih.remaining_sessions} dari {kuponTerpilih.total_sessions} sesi</b>.
+                                                Saat tagihan ini dibuka di Kasir, sesinya otomatis dipotong dari paket dan tagihannya menjadi <b>Rp 0</b>.
+                                            </p>
+                                        </div>
+                                    )
+                                }
+                                return (
+                                    <p className="text-[10.5px] text-slate-400 leading-relaxed">
+                                        Tagihan dengan harga paket di atas akan langsung otomatis masuk ke antrean Kasir.
+                                        {infusPatientCoupons.length > 0 && ' Pasien punya kupon aktif, tetapi untuk jenis infus lain.'}
+                                    </p>
+                                )
+                            })()}
                         </div>
 
                         {/* Modal Action Buttons */}
