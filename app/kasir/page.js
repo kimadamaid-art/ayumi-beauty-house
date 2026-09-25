@@ -2857,6 +2857,24 @@ function PosPageContent() {
                                         return s + (i.price_at_time || 0)
                                     }, 0) || 0
                                     const isLoaded = cart.some(c => c.treatment_record_id === bill.id)
+
+                                    // Diskon yang diketik kasir tersimpan di transaksi yang ditahan,
+                                    // bukan di database, sehingga total dari tagihan masih harga asli.
+                                    // Bila tagihan ini punya simpanan, yang ditampilkan adalah total
+                                    // simpanannya agar angka di daftar sama dengan yang nanti dibayar.
+                                    const draftBill = heldTransactions.find(h =>
+                                        (h.treatmentRecordId && h.treatmentRecordId === bill.id) ||
+                                        (h.patient?.id && bill.patients?.id && h.patient.id === bill.patients.id)
+                                    )
+                                    const totalDraft = draftBill
+                                        ? (() => {
+                                            const sub = (draftBill.cart || []).reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0)
+                                            const nilai = Number(draftBill.discountValue) || 0
+                                            const potongan = draftBill.discountType === 'percent' ? Math.round(sub * (nilai / 100)) : nilai
+                                            return Math.max(0, Math.round(sub - potongan))
+                                        })()
+                                        : null
+                                    const totalTampil = totalDraft !== null ? totalDraft : totalBill
                                     return (
                                         <div
                                             key={bill.id}
@@ -2927,8 +2945,18 @@ function PosPageContent() {
                                             <div className="flex items-center gap-3 flex-shrink-0">
                                                 <div className="text-right">
                                                     <p className="font-black text-sm text-ayumi-secondary">
-                                                        Rp {totalBill.toLocaleString('id-ID')}
+                                                        Rp {totalTampil.toLocaleString('id-ID')}
                                                     </p>
+                                                    {totalDraft !== null && totalDraft !== totalBill && (
+                                                        <p className="text-[10px] text-gray-400 font-semibold line-through">
+                                                            Rp {totalBill.toLocaleString('id-ID')}
+                                                        </p>
+                                                    )}
+                                                    {totalDraft !== null && (
+                                                        <span className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-extrabold">
+                                                            ⏸ Tersimpan
+                                                        </span>
+                                                    )}
                                                     {isLoaded ? (
                                                         <span className="text-[10px] text-emerald-600 font-extrabold flex items-center justify-end gap-0.5 mt-1">
                                                             Di Keranjang ✓
