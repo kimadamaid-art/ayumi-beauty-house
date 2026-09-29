@@ -112,21 +112,33 @@ export async function POST(request) {
                 ? `Stok produk "${itemLabel}" di cabang ${branchName} telah HABIS (0 unit). Segera lakukan restok.`
                 : `Stok produk "${itemLabel}" di cabang ${branchName} tersisa ${stockQty} unit (≤ 5). Segera persiapkan restok sebelum kehabisan.`
 
+            // Kunci pencocokan memuat nama produk DAN cabangnya. Sebelumnya hanya nama
+            // produk, sehingga bila produk yang sama menipis di dua cabang, notifikasi
+            // cabang kedua menimpa yang pertama dan owner kehilangan salah satunya.
+            // Frasa ini ada di kedua bentuk pesan (menipis maupun habis), jadi notifikasi
+            // lama yang belum dibaca tetap tercocok. Tanda % dan _ di-escape agar tidak
+            // dibaca sebagai wildcard bila kebetulan ada di nama produk.
+            const escapeLike = (text) => String(text).replace(/[\\%_]/g, ch => `\\${ch}`)
+            const dedupKey = `%"${escapeLike(itemLabel)}" di cabang ${escapeLike(branchName)}%`
+
             for (const recipient of recipients) {
                 // Deduplikasi cerdas:
-                // Cek apakah ada notifikasi low_stock yang belum dibaca untuk produk ini
+                // Cek apakah ada notifikasi low_stock yang belum dibaca untuk produk ini di cabang ini
                 const { data: existingNotifs } = await supabase
                     .from('notifications')
                     .select('id')
                     .eq('recipient_id', recipient.id)
                     .eq('type', 'low_stock')
                     .eq('is_read', false)
-                    .ilike('message', `%${itemLabel}%`)
+                    .ilike('message', dedupKey)
                     .limit(1)
 
+                // Kegagalan tulis dicatat dan tidak dihitung sebagai terkirim. Sebelumnya
+                // hasil insert tidak diperiksa, sehingga notifikasi yang ditolak database
+                // (jenis 'low_stock' belum diizinkan constraint) gagal tanpa jejak apa pun.
                 if (existingNotifs && existingNotifs.length > 0) {
                     // Update pesan dan waktu notifikasi yang belum dibaca agar selalu akurat
-                    await supabase
+                    const { error: updErr } = await supabase
                         .from('notifications')
                         .update({
                             title: notifTitle,
@@ -134,9 +146,10 @@ export async function POST(request) {
                             created_at: new Date().toISOString()
                         })
                         .eq('id', existingNotifs[0].id)
+                    if (updErr) console.error('Gagal memperbarui notifikasi stok:', updErr.message)
                 } else {
                     // Buat notifikasi baru
-                    await supabase
+                    const { error: insErr } = await supabase
                         .from('notifications')
                         .insert([{
                             recipient_id: recipient.id,
@@ -146,7 +159,11 @@ export async function POST(request) {
                             message: notifMessage,
                             is_read: false
                         }])
-                    totalNotificationsSent++
+                    if (insErr) {
+                        console.error('Gagal membuat notifikasi stok:', insErr.message)
+                    } else {
+                        totalNotificationsSent++
+                    }
                 }
             }
         }
