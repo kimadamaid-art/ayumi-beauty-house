@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
@@ -63,6 +64,8 @@ export default function TransactionsHistoryPage() {
     const fetchTransactions = async (activeBranch = selectedBranch, activeStart = startDate, activeEnd = endDate, activeMethod = paymentMethod) => {
         setIsLoading(true)
         try {
+            // Diambil bertahap agar riwayat periode panjang tidak terpotong 1.000 baris.
+            const buildQuery = () => {
             let query = supabase
                 .from('transactions')
                 .select(`
@@ -111,7 +114,10 @@ export default function TransactionsHistoryPage() {
                 query = query.eq('payment_method', activeMethod)
             }
 
-            const { data, error } = await query
+            return query.order('id', { ascending: false })
+            }
+
+            const { data, error } = await fetchAllPaginated(buildQuery)
             if (error) throw error
             if (data) setTransactions(data)
         } catch (err) {

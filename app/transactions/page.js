@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -251,6 +252,7 @@ export default function TransactionsPage() {
                 effectiveUser
             })
 
+            const buildLogsQuery = () => {
             let logsQuery = supabase
                 .from('coupon_usage_logs')
                 .select(`
@@ -285,10 +287,13 @@ export default function TransactionsPage() {
             } else if (effectiveUser && effectiveUser.role !== 'owner' && effectiveUser.branch_id) {
                 logsQuery = logsQuery.eq('branch_id', effectiveUser.branch_id)
             }
+            // id sebagai pengurut kedua supaya batas halaman tidak melewatkan baris
+            return logsQuery.order('id', { ascending: true })
+            }
 
             const [rows, { data: couponLogs, error: couponErr }] = await Promise.all([
                 rowsPromise,
-                logsQuery
+                fetchAllPaginated(buildLogsQuery)
             ])
 
             if (couponErr) {

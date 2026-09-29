@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser } from '@/lib/cachedUser'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
@@ -228,7 +229,9 @@ export default function TherapistDashboard() {
         if (!userId) return
         setCommLoading(true)
 
-        const { data, error } = await supabase
+        // Diambil bertahap: riwayat komisi seorang terapis untuk rentang panjang
+        // bisa melewati 1.000 baris.
+        const { data, error } = await fetchAllPaginated(() => supabase
             .from('treatment_record_items')
             .select(`
                 id,
@@ -253,6 +256,7 @@ export default function TherapistDashboard() {
             .gte('treatment_records.treatment_date', start)
             .lte('treatment_records.treatment_date', end)
             .order('treatment_records(treatment_date)', { ascending: false })
+            .order('id', { ascending: true }))
 
         if (!error && data) {
             // Ambil kupon usage logs untuk mencocokkan harga riil per sesi kupon.

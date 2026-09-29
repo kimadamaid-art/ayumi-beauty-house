@@ -396,7 +396,10 @@ export default function CouponsDashboardPage() {
     } // --- TAB 4: RIWAYAT PENGGUNAAN LOGIC ---
     const fetchHistoryLogs = async () => {
         setIsLoading(true)
-        
+
+        // Dibentuk ulang tiap halaman: satu builder tidak boleh dipakai dua kali
+        // dengan range berbeda.
+        const buildHistoryQuery = () => {
         let query = supabase
             .from('coupon_usage_logs')
             .select(`
@@ -422,8 +425,11 @@ export default function CouponsDashboardPage() {
         } else if (histBranchFilter) {
             query = query.eq('branch_id', histBranchFilter)
         }
+        // id sebagai pengurut kedua supaya batas halaman tidak melewatkan baris
+        return query.order('id', { ascending: true })
+        }
 
-        const { data, error } = await query
+        const { data, error } = await fetchAllPaginated(buildHistoryQuery)
         if (error) console.error('Error fetching history logs:', error)
         if (data) setHistoryLogs(data)
         setIsLoading(false)

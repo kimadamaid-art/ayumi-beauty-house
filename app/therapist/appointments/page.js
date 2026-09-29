@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
@@ -68,6 +69,8 @@ function TherapistHistoryContent() {
         if (!userId) return
         setLoading(true)
 
+        // Riwayat seorang terapis bisa melewati 1.000 baris bila rentangnya panjang.
+        const buildQuery = () => {
         let query = supabase
             .from('treatment_records')
             .select(`
@@ -85,8 +88,10 @@ function TherapistHistoryContent() {
         if (start && end) {
             query = query.gte('treatment_date', start).lte('treatment_date', end)
         }
+        return query.order('id', { ascending: false })
+        }
 
-        const { data, error } = await query
+        const { data, error } = await fetchAllPaginated(buildQuery)
         if (data) {
             const allPatientIds = Array.from(new Set(data.map(r => r.patient_id).filter(Boolean)))
 
@@ -113,7 +118,7 @@ function TherapistHistoryContent() {
             }
 
             // Ambil kupon usage logs untuk mencocokkan harga riil sesi kupon
-            const { data: cLogs } = await supabase
+            const { data: cLogs } = await fetchAllPaginated(() => supabase
                 .from('coupon_usage_logs')
                 .select(`
                     id,
@@ -134,6 +139,7 @@ function TherapistHistoryContent() {
                         )
                     )
                 `)
+                .order('id', { ascending: true }))
 
             const couponMap = buildCouponPriceMap(cLogs || [])
             data.forEach(r => {
