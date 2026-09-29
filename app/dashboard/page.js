@@ -1811,161 +1811,163 @@ export default function Dashboard() {
 
                         {!collapsedSections.branchComparison ? (
                             <>
+                                {/* Cards Breakdown Omset per Cabang */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
+                                    {branchDailyComparison.map(b => {
+                                        const grossCatalogTotal = (b.treatmentIncome || 0) + (b.productIncome || 0) + (b.couponSalesIncome || 0) + (b.otherIncome || 0)
+                                        return (
+                                        <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-3 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                                            <div>
+                                                <div className="pb-2 mb-2.5 border-b border-gray-100">
+                                                    <h4 className="font-extrabold text-base text-gray-900">
+                                                        {b.branchName}
+                                                    </h4>
+                                                </div>
+
+                                                <div className="space-y-1.5 pt-0.5">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-700 font-bold flex items-center gap-1.5">
+                                                            <span className="w-2.5 h-2.5 rounded-full bg-[#EC4899] shrink-0"></span>
+                                                            Treatment:
+                                                        </span>
+                                                        <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.treatmentIncome.toLocaleString('id-ID')}</strong>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-700 font-bold flex items-center gap-1.5">
+                                                            <span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4] shrink-0"></span>
+                                                            Produk:
+                                                        </span>
+                                                        <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.productIncome.toLocaleString('id-ID')}</strong>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                            Penjualan Kupon:
+                                                        </span>
+                                                        <strong className="text-emerald-700 font-extrabold tracking-tight">Rp {b.couponSalesIncome.toLocaleString('id-ID')}</strong>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-gray-700 font-bold flex items-center gap-1.5">
+                                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${b.discountTotal > 0 ? 'bg-rose-500' : 'bg-gray-300'}`}></span>
+                                                            Diskon:
+                                                        </span>
+                                                        <strong className={b.discountTotal > 0 ? "text-rose-600 font-extrabold tracking-tight" : "text-gray-400 font-semibold"}>
+                                                            {b.discountTotal > 0 ? `-Rp ${b.discountTotal.toLocaleString('id-ID')}` : 'Rp 0'}
+                                                        </strong>
+                                                    </div>
+
+                                                    <div 
+                                                        onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
+                                                        className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-gray-200 hover:bg-amber-50/70 p-1.5 -mx-1 rounded-xl transition-all cursor-pointer group/sesi"
+                                                        title="Klik untuk melihat rincian pemakaian sesi kupon (Jasa terselesaikan, bukan kas baru)"
+                                                    >
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                            <span className="text-amber-800 font-bold">Pemakaian Sesi:</span>
+                                                            <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100/90 border border-amber-200/80 px-1.5 py-0.2 rounded">
+                                                                {b.couponUsedSessions || 0} Sesi
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <strong className="text-amber-900 font-extrabold tracking-tight">
+                                                                Rp {(b.couponUsedValue || 0).toLocaleString('id-ID')}
+                                                            </strong>
+                                                            <span className="text-[10px] text-amber-800 bg-amber-100 group-hover/sesi:bg-amber-200 border border-amber-200/70 px-1.5 py-0.5 rounded font-bold transition-colors">
+                                                                Rincian ↗
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2.5 border-t border-gray-100 flex justify-between items-end">
+                                                <div>
+                                                    <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                                                        Total Omset Cabang
+                                                    </p>
+                                                    <p className="text-base font-black text-[#5c3316] tracking-tight mt-0.5">
+                                                        Rp {b.cashIncome.toLocaleString('id-ID')}
+                                                    </p>
+                                                    {b.discountTotal > 0 ? (
+                                                        <p className="text-[10px] text-gray-400 font-medium tracking-tight mt-0.5">
+                                                            Sebelum disc: <span className="font-semibold text-gray-600">Rp {grossCatalogTotal.toLocaleString('id-ID')}</span>
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[10px] text-transparent select-none mt-0.5">
+                                                            -
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Total Transaksi</p>
+                                                    <p className="text-sm font-extrabold text-stone-800 tracking-tight mt-0.5">{b.transactionCount || 0} Transaksi</p>
+                                                    <p className="text-[10px] text-transparent select-none mt-0.5">-</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )})}
+                                </div>
+
                                 {/* Recharts Bar Chart Grouped */}
-                                <div className="h-64 sm:h-72 w-full pt-2">
-                            {isMounted && branchDailyComparison.length > 0 ? (
-                                <LazyRecharts render={(R) => (
-                                <R.ResponsiveContainer width="100%" height="100%">
-                                    <R.BarChart 
-                                        data={branchDailyComparison} 
-                                        barGap={4} 
-                                        barCategoryGap="18%"
-                                        margin={{ top: 15, right: 10, left: 0, bottom: 20 }}
-                                    >
-                                        <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                        <R.XAxis 
-                                            dataKey="branchName" 
-                                            interval={0}
-                                            tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
-                                            tick={{ fontSize: 10, fontWeight: 700, fill: '#1e293b' }} 
-                                            axisLine={{ stroke: '#cbd5e1' }}
-                                            tickLine={false} 
-                                        />
-                                        <R.YAxis 
-                                            width={42}
-                                            tickFormatter={(val) => {
-                                                if (val === 0) return '0'
-                                                if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.0', '') + ' Jt'
-                                                if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
-                                                return val
-                                            }}
-                                            tick={{ fontSize: 10, fontWeight: 600, fill: '#475569' }}
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <R.Tooltip 
-                                            formatter={(value, name) => ['Rp ' + Number(value).toLocaleString('id-ID'), name]}
-                                            itemSorter={(item) => (item.name.includes('Treatment') ? -1 : 1)}
-                                            labelStyle={{ fontWeight: 'bold', color: '#5c3316', fontSize: '13px' }}
-                                            contentStyle={{ borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', border: '1px solid #f472b6', padding: '10px 14px' }}
-                                        />
-                                        <R.Legend 
-                                            verticalAlign="top" 
-                                            align="center"
-                                            wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '12px', color: '#0f172a' }} 
-                                        />
-                                        <R.Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#EC4899" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <R.Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <R.Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                        <R.Bar dataKey="couponUsedValue" name="Pemakaian Sesi" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
-                                    </R.BarChart>
-                                </R.ResponsiveContainer>
-                                )} />
-                            ) : (
-                                <div className="h-full flex items-center justify-center text-sm font-semibold text-gray-500">
-                                    Mengambil data cabang...
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Cards Breakdown Omset per Cabang */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
-                            {branchDailyComparison.map(b => {
-                                const grossCatalogTotal = (b.treatmentIncome || 0) + (b.productIncome || 0) + (b.couponSalesIncome || 0) + (b.otherIncome || 0)
-                                return (
-                                <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-3 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
-                                    <div>
-                                        <div className="pb-2 mb-2.5 border-b border-gray-100">
-                                            <h4 className="font-extrabold text-base text-gray-900">
-                                                {b.branchName}
-                                            </h4>
-                                        </div>
-
-                                        <div className="space-y-1.5 pt-0.5">
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#EC4899] shrink-0"></span>
-                                                    Treatment:
-                                                </span>
-                                                <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.treatmentIncome.toLocaleString('id-ID')}</strong>
+                                <div className="pt-4 sm:pt-6 border-t border-gray-100">
+                                    <div className="h-64 sm:h-72 w-full">
+                                        {isMounted && branchDailyComparison.length > 0 ? (
+                                            <LazyRecharts render={(R) => (
+                                            <R.ResponsiveContainer width="100%" height="100%">
+                                                <R.BarChart 
+                                                    data={branchDailyComparison} 
+                                                    barGap={4} 
+                                                    barCategoryGap="18%"
+                                                    margin={{ top: 15, right: 10, left: 0, bottom: 20 }}
+                                                >
+                                                    <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                    <R.XAxis 
+                                                        dataKey="branchName" 
+                                                        interval={0}
+                                                        tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
+                                                        tick={{ fontSize: 10, fontWeight: 700, fill: '#1e293b' }} 
+                                                        axisLine={{ stroke: '#cbd5e1' }}
+                                                        tickLine={false} 
+                                                    />
+                                                    <R.YAxis 
+                                                        width={42}
+                                                        tickFormatter={(val) => {
+                                                            if (val === 0) return '0'
+                                                            if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.0', '') + ' Jt'
+                                                            if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
+                                                            return val
+                                                        }}
+                                                        tick={{ fontSize: 10, fontWeight: 600, fill: '#475569' }}
+                                                        axisLine={false}
+                                                        tickLine={false} 
+                                                    />
+                                                    <R.Tooltip 
+                                                        formatter={(value, name) => ['Rp ' + Number(value).toLocaleString('id-ID'), name]}
+                                                        itemSorter={(item) => (item.name.includes('Treatment') ? -1 : 1)}
+                                                        labelStyle={{ fontWeight: 'bold', color: '#5c3316', fontSize: '13px' }}
+                                                        contentStyle={{ borderRadius: '16px', backgroundColor: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)', border: '1px solid #f472b6', padding: '10px 14px' }}
+                                                    />
+                                                    <R.Legend 
+                                                        verticalAlign="top" 
+                                                        align="center"
+                                                        wrapperStyle={{ paddingTop: '0px', paddingBottom: '12px', fontWeight: '800', fontSize: '12px', color: '#0f172a' }} 
+                                                    />
+                                                    <R.Bar dataKey="treatmentIncome" name="Omset Treatment" fill="#EC4899" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                                    <R.Bar dataKey="productIncome" name="Omset Produk" fill="#06B6D4" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                                    <R.Bar dataKey="couponSalesIncome" name="Penjualan Kupon" fill="#10B981" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                                    <R.Bar dataKey="couponUsedValue" name="Pemakaian Sesi" fill="#F59E0B" radius={[5, 5, 0, 0]} maxBarSize={24} />
+                                                </R.BarChart>
+                                            </R.ResponsiveContainer>
+                                            )} />
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-sm font-semibold text-gray-500">
+                                                Mengambil data cabang...
                                             </div>
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4] shrink-0"></span>
-                                                    Produk:
-                                                </span>
-                                                <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.productIncome.toLocaleString('id-ID')}</strong>
-                                            </div>
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-emerald-700 font-bold flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                    Penjualan Kupon:
-                                                </span>
-                                                <strong className="text-emerald-700 font-extrabold tracking-tight">Rp {b.couponSalesIncome.toLocaleString('id-ID')}</strong>
-                                            </div>
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${b.discountTotal > 0 ? 'bg-rose-500' : 'bg-gray-300'}`}></span>
-                                                    Diskon:
-                                                </span>
-                                                <strong className={b.discountTotal > 0 ? "text-rose-600 font-extrabold tracking-tight" : "text-gray-400 font-semibold"}>
-                                                    {b.discountTotal > 0 ? `-Rp ${b.discountTotal.toLocaleString('id-ID')}` : 'Rp 0'}
-                                                </strong>
-                                            </div>
-
-                                            <div 
-                                                onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
-                                                className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-gray-200 hover:bg-amber-50/70 p-1.5 -mx-1 rounded-xl transition-all cursor-pointer group/sesi"
-                                                title="Klik untuk melihat rincian pemakaian sesi kupon (Jasa terselesaikan, bukan kas baru)"
-                                            >
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                                                    <span className="text-amber-800 font-bold">Pemakaian Sesi:</span>
-                                                    <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100/90 border border-amber-200/80 px-1.5 py-0.2 rounded">
-                                                        {b.couponUsedSessions || 0} Sesi
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <strong className="text-amber-900 font-extrabold tracking-tight">
-                                                        Rp {(b.couponUsedValue || 0).toLocaleString('id-ID')}
-                                                    </strong>
-                                                    <span className="text-[10px] text-amber-800 bg-amber-100 group-hover/sesi:bg-amber-200 border border-amber-200/70 px-1.5 py-0.5 rounded font-bold transition-colors">
-                                                        Rincian ↗
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2.5 border-t border-gray-100 flex justify-between items-end">
-                                        <div>
-                                            <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
-                                                Total Omset Cabang
-                                            </p>
-                                            <p className="text-base font-black text-[#5c3316] tracking-tight mt-0.5">
-                                                Rp {b.cashIncome.toLocaleString('id-ID')}
-                                            </p>
-                                            {b.discountTotal > 0 ? (
-                                                <p className="text-[10px] text-gray-400 font-medium tracking-tight mt-0.5">
-                                                    Sebelum disc: <span className="font-semibold text-gray-600">Rp {grossCatalogTotal.toLocaleString('id-ID')}</span>
-                                                </p>
-                                            ) : (
-                                                <p className="text-[10px] text-transparent select-none mt-0.5">
-                                                    -
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Total Transaksi</p>
-                                            <p className="text-sm font-extrabold text-stone-800 tracking-tight mt-0.5">{b.transactionCount || 0} Transaksi</p>
-                                            <p className="text-[10px] text-transparent select-none mt-0.5">-</p>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
-                            )})}
-                        </div>
-                    </>
-                ) : null}
+                            </>
+                        ) : null}
             </div>
 
                     {/* SECTION 2: MONITORING TARGET BULANAN PER CABANG */}
