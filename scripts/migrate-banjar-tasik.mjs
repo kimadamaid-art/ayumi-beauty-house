@@ -107,6 +107,18 @@ async function main() {
 
     const args = process.argv.slice(2);
     const isDryRun = args.includes('--dry-run');
+    const isForce = args.includes('--force-rerun');
+
+    if (!isDryRun && !isForce) {
+        console.log('🔒 [SAFETY LOCK] Skrip migrasi Banjar & Tasikmalaya SUDAH SUKSES DILAKUKAN.');
+        console.log('   Semua data sudah bersih dan aktif di Supabase Singapura.');
+        console.log('   Untuk mencegah duplikasi atau penghapusan data live, script ini DIKUNCI.');
+        console.log('   - Jika ingin menjalankan ulang secara live, sertakan flag:');
+        console.log('     node scripts/migrate-banjar-tasik.mjs --force-rerun');
+        console.log('   - Untuk uji coba simulasi tanpa menulis ke DB:');
+        console.log('     node scripts/migrate-banjar-tasik.mjs --dry-run\n');
+        process.exit(0);
+    }
 
     const homeDir = process.env.HOME || '';
     const banjarPath = path.resolve(homeDir, 'Downloads/Ayumi_Banjar_Migrasi_2026-09-29.xlsx');
@@ -163,9 +175,21 @@ async function main() {
             console.log(`   ✅ Menghapus ${oldTxIds.length} transaksi partial lama di Banjar & Tasik.`);
         }
 
-        // Hapus treatment_records Banjar & Tasik yang BUKAN bagian dari protectedTrIds (yang tidak punya foto)
-        const { data: oldTrList } = await supabase.from('treatment_records').select('id').in('branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID]);
-        const unProtectedTrIds = (oldTrList || []).map(r => r.id).filter(id => !protectedTrIds.has(id));
+        // Hapus treatment_records Banjar & Tasik yang BUKAN bagian dari protectedTrIds (dengan paginasi lengkap)
+        let oldTrIds = [];
+        let trFrom = 0;
+        while (true) {
+            const { data: trBatch } = await supabase
+                .from('treatment_records')
+                .select('id')
+                .in('branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID])
+                .range(trFrom, trFrom + 999);
+            if (!trBatch || trBatch.length === 0) break;
+            oldTrIds.push(...trBatch.map(r => r.id));
+            if (trBatch.length < 1000) break;
+            trFrom += 1000;
+        }
+        const unProtectedTrIds = oldTrIds.filter(id => !protectedTrIds.has(id));
         for (let i = 0; i < unProtectedTrIds.length; i += 500) {
             const chunk = unProtectedTrIds.slice(i, i + 500);
             await supabase.from('treatment_record_items').delete().in('treatment_record_id', chunk);
@@ -173,12 +197,26 @@ async function main() {
         }
         console.log(`   ✅ Mempertahankan ${protectedTrIds.size} rekam medis berfoto & membersihkan ${unProtectedTrIds.length} rekam medis tanpa foto.`);
 
-        // Bersihkan kupon lama di Banjar & Tasik
-        const { data: oldCoupons } = await supabase.from('patient_coupons').select('id, patients!inner(branch_id)').in('patients.branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID]);
-        const oldCouponIds = (oldCoupons || []).map(c => c.id);
+        // Bersihkan kupon lama di Banjar & Tasik (dengan paginasi lengkap)
+        let oldCouponIds = [];
+        let cFrom = 0;
+        while (true) {
+            const { data: cBatch } = await supabase
+                .from('patient_coupons')
+                .select('id, patients!inner(branch_id)')
+                .in('patients.branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID])
+                .range(cFrom, cFrom + 999);
+            if (!cBatch || cBatch.length === 0) break;
+            oldCouponIds.push(...cBatch.map(c => c.id));
+            if (cBatch.length < 1000) break;
+            cFrom += 1000;
+        }
         if (oldCouponIds.length > 0) {
-            await supabase.from('patient_coupon_items').delete().in('patient_coupon_id', oldCouponIds);
-            await supabase.from('patient_coupons').delete().in('id', oldCouponIds);
+            for (let i = 0; i < oldCouponIds.length; i += 500) {
+                const chunk = oldCouponIds.slice(i, i + 500);
+                await supabase.from('patient_coupon_items').delete().in('patient_coupon_id', chunk);
+                await supabase.from('patient_coupons').delete().in('id', chunk);
+            }
             console.log(`   ✅ Menghapus ${oldCouponIds.length} kupon partial lama di Banjar & Tasik.`);
         }
         console.log('✅ Pembersihan parsial selesai.\n');
