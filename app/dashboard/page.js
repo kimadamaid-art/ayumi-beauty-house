@@ -281,43 +281,58 @@ export default function Dashboard() {
                 }
             }
 
-            // 1. Transaction query for selected date range
-            let txQuery = supabase
-                .from('transactions')
-                .select(`
-                    id, 
-                    transaction_number,
-                    branch_id, 
-                    patient_id,
-                    total,
-                    subtotal,
-                    discount,
-                    payment_method,
-                    payment_status,
-                    created_at,
-                    notes,
-                    patients (id, full_name, gender, birth_date),
-                    transaction_items (
-                        id,
-                        item_type,
-                        treatment_id,
-                        product_id,
-                        name,
-                        quantity,
-                        subtotal,
-                        original_price,
-                        discount_percent
-                    )
-                `)
-                .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
-                .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
-                .order('created_at', { ascending: false })
+            // 1. Transaction query for selected date range (paginated so multi-branch / wide range never clips at 1000)
+            const fetchAllRangeTransactions = async () => {
+                const rows = []
+                for (let from = 0; ; from += 1000) {
+                    let q = supabase
+                        .from('transactions')
+                        .select(`
+                            id, 
+                            transaction_number,
+                            branch_id, 
+                            patient_id,
+                            total,
+                            subtotal,
+                            discount,
+                            payment_method,
+                            payment_status,
+                            created_at,
+                            notes,
+                            patients (id, full_name, gender, birth_date),
+                            transaction_items (
+                                id,
+                                item_type,
+                                treatment_id,
+                                product_id,
+                                name,
+                                quantity,
+                                subtotal,
+                                original_price,
+                                discount_percent
+                            )
+                        `)
+                        .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                        .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                        .order('created_at', { ascending: false })
+                        .range(from, from + 999)
 
-            if (!isOwner && userBranchId) {
-                txQuery = txQuery.eq('branch_id', userBranchId)
+                    if (!isOwner && userBranchId) {
+                        q = q.eq('branch_id', userBranchId)
+                    }
+
+                    const { data, error } = await q
+                    if (error) {
+                        return { data: rows.length > 0 ? rows : null, error }
+                    }
+                    if (!data || data.length === 0) break
+                    rows.push(...data)
+                    if (data.length < 1000) break
+                }
+                return { data: rows, error: null }
             }
 
-            // 2. Transactions for monthly target query
+            // 2. Transactions for monthly target query (paginated to guarantee all branches data included)
             const [tYearStr, tMonthStr] = (tMonth || '').split('-')
             const tYear = parseInt(tYearStr, 10) || new Date().getFullYear()
             const tMonthIdx = (parseInt(tMonthStr, 10) || (new Date().getMonth() + 1)) - 1
@@ -325,61 +340,94 @@ export default function Dashboard() {
             const startOfMonth = new Date(tYear, tMonthIdx, 1, 0, 0, 0).toISOString()
             const endOfMonth = new Date(tYear, tMonthIdx + 1, 0, 23, 59, 59, 999).toISOString()
 
-            let monthlyTrxQuery = supabase
-                .from('transactions')
-                .select(`
-                    id, 
-                    branch_id, 
-                    total, 
-                    subtotal, 
-                    discount, 
-                    payment_method, 
-                    notes,
-                    transaction_items (
-                        item_type,
-                        subtotal
-                    )
-                `)
-                .eq('payment_status', 'paid')
-                .gte('created_at', startOfMonth)
-                .lte('created_at', endOfMonth)
+            const fetchAllMonthlyTransactions = async () => {
+                const rows = []
+                for (let from = 0; ; from += 1000) {
+                    let q = supabase
+                        .from('transactions')
+                        .select(`
+                            id, 
+                            branch_id, 
+                            total, 
+                            subtotal, 
+                            discount, 
+                            payment_method, 
+                            notes,
+                            transaction_items (
+                                item_type,
+                                subtotal
+                            )
+                        `)
+                        .eq('payment_status', 'paid')
+                        .gte('created_at', startOfMonth)
+                        .lte('created_at', endOfMonth)
+                        .order('created_at', { ascending: true })
+                        .range(from, from + 999)
 
-            if (!isOwner && userBranchId) {
-                monthlyTrxQuery = monthlyTrxQuery.eq('branch_id', userBranchId)
+                    if (!isOwner && userBranchId) {
+                        q = q.eq('branch_id', userBranchId)
+                    }
+
+                    const { data, error } = await q
+                    if (error) {
+                        console.error('Error fetching monthly transactions batch:', error)
+                        return { data: rows.length > 0 ? rows : [], error }
+                    }
+                    if (!data || data.length === 0) break
+                    rows.push(...data)
+                    if (data.length < 1000) break
+                }
+                return { data: rows, error: null }
             }
 
-            // 3. Coupon usage logs query
-            let logsQuery = supabase
-                .from('coupon_usage_logs')
-                .select(`
-                    id,
-                    used_at,
-                    notes,
-                    branch_id,
-                    transaction_id,
-                    treatment_record_id,
-                    branches (id, name),
-                    patients (id, full_name, whatsapp),
-                    patient_coupon_items (
-                        id,
-                        total_sessions,
-                        used_sessions,
-                        remaining_sessions,
-                        treatments (id, name, price),
-                        patient_coupons (
+            // 3. Coupon usage logs query (paginated)
+            const fetchAllCouponUsageLogs = async () => {
+                const rows = []
+                for (let from = 0; ; from += 1000) {
+                    let q = supabase
+                        .from('coupon_usage_logs')
+                        .select(`
                             id,
-                            coupon_packages (id, name, price)
-                        )
-                    ),
-                    users:users!coupon_usage_logs_used_by_fkey (id, full_name)
-                `)
-                .is('voided_at', null)
-                .gte('used_at', new Date(`${sDate}T00:00:00`).toISOString())
-                .lte('used_at', new Date(`${eDate}T23:59:59.999`).toISOString())
-                .order('used_at', { ascending: false })
+                            used_at,
+                            notes,
+                            branch_id,
+                            transaction_id,
+                            treatment_record_id,
+                            branches (id, name),
+                            patients (id, full_name, whatsapp),
+                            patient_coupon_items (
+                                id,
+                                total_sessions,
+                                used_sessions,
+                                remaining_sessions,
+                                treatments (id, name, price),
+                                patient_coupons (
+                                    id,
+                                    coupon_packages (id, name, price)
+                                )
+                            ),
+                            users:users!coupon_usage_logs_used_by_fkey (id, full_name)
+                        `)
+                        .is('voided_at', null)
+                        .gte('used_at', new Date(`${sDate}T00:00:00`).toISOString())
+                        .lte('used_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                        .order('used_at', { ascending: false })
+                        .range(from, from + 999)
 
-            if (!isOwner && userBranchId) {
-                logsQuery = logsQuery.eq('branch_id', userBranchId)
+                    if (!isOwner && userBranchId) {
+                        q = q.eq('branch_id', userBranchId)
+                    }
+
+                    const { data, error } = await q
+                    if (error) {
+                        console.error('Error fetching coupon logs batch:', error)
+                        return { data: rows.length > 0 ? rows : [], error }
+                    }
+                    if (!data || data.length === 0) break
+                    rows.push(...data)
+                    if (data.length < 1000) break
+                }
+                return { data: rows, error: null }
             }
 
             // Retensi (khusus owner) memeriksa pasien mana yang sudah pernah bertransaksi sebelum
@@ -415,20 +463,23 @@ export default function Dashboard() {
             const targetBranchIds = new Set(targetBranches.map(b => b.id))
             const earlyRetentionPromise = isOwner
                 ? (async () => {
-                    const { data, error } = await supabase
-                        .from('transactions')
-                        .select('patient_id, branch_id, payment_status')
-                        .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
-                        .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
-                    if (error) throw error
-                    // Syarat yang sama dengan pengisian uniquePatientsMap (tanpa join pasien, jadi
-                    // hasilnya boleh lebih luas -- kelebihannya disaring saat dipakai).
                     const ids = new Set()
-                    ;(data || []).forEach(tx => {
-                        if (tx.patient_id && tx.branch_id && targetBranchIds.has(tx.branch_id) && tx.payment_status !== 'void') {
-                            ids.add(tx.patient_id)
-                        }
-                    })
+                    for (let from = 0; ; from += 1000) {
+                        const { data, error } = await supabase
+                            .from('transactions')
+                            .select('patient_id, branch_id, payment_status')
+                            .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                            .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                            .order('created_at', { ascending: true })
+                            .range(from, from + 999)
+                        if (error) throw error
+                        ;(data || []).forEach(tx => {
+                            if (tx.patient_id && tx.branch_id && targetBranchIds.has(tx.branch_id) && tx.payment_status !== 'void') {
+                                ids.add(tx.patient_id)
+                            }
+                        })
+                        if (!data || data.length < 1000) break
+                    }
                     return { covered: ids, prior: await fetchPriorPatients([...ids]) }
                 })().catch(err => {
                     console.warn('Early retention lookup failed, will retry after core queries:', err)
@@ -444,9 +495,9 @@ export default function Dashboard() {
                 logsResult
             ] = await Promise.all([
                 getCategoriesData(),
-                txQuery,
-                monthlyTrxQuery,
-                logsQuery
+                fetchAllRangeTransactions(),
+                fetchAllMonthlyTransactions(),
+                fetchAllCouponUsageLogs()
             ])
 
             const { treatmentCatMap, productCatMap, allActiveTreatments } = catData
@@ -456,40 +507,48 @@ export default function Dashboard() {
             let rangeTrx = txResult?.data || []
             if (txResult?.error) {
                 console.warn('Full transaction query failed, falling back:', txResult.error.message)
-                let fallbackQuery = supabase
-                    .from('transactions')
-                    .select(`
-                        id, 
-                        transaction_number,
-                        branch_id, 
-                        patient_id,
-                        total,
-                        subtotal,
-                        discount,
-                        payment_method,
-                        payment_status,
-                        created_at,
-                        notes,
-                        patients (id, full_name, gender, birth_date),
-                        transaction_items (
-                            id,
-                            item_type,
-                            treatment_id,
-                            product_id,
-                            name,
-                            quantity,
-                            subtotal
-                        )
-                    `)
-                    .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
-                    .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
-                    .order('created_at', { ascending: false })
+                const fallbackRows = []
+                for (let from = 0; ; from += 1000) {
+                    let fallbackQuery = supabase
+                        .from('transactions')
+                        .select(`
+                            id, 
+                            transaction_number,
+                            branch_id, 
+                            patient_id,
+                            total,
+                            subtotal,
+                            discount,
+                            payment_method,
+                            payment_status,
+                            created_at,
+                            notes,
+                            patients (id, full_name, gender, birth_date),
+                            transaction_items (
+                                id,
+                                item_type,
+                                treatment_id,
+                                product_id,
+                                name,
+                                quantity,
+                                subtotal
+                            )
+                        `)
+                        .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
+                        .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
+                        .order('created_at', { ascending: false })
+                        .range(from, from + 999)
 
-                if (!isOwner && userBranchId) {
-                    fallbackQuery = fallbackQuery.eq('branch_id', userBranchId)
+                    if (!isOwner && userBranchId) {
+                        fallbackQuery = fallbackQuery.eq('branch_id', userBranchId)
+                    }
+                    const { data: fbData, error: fbError } = await fallbackQuery
+                    if (fbError) break
+                    if (!fbData || fbData.length === 0) break
+                    fallbackRows.push(...fbData)
+                    if (fbData.length < 1000) break
                 }
-                const fallback = await fallbackQuery
-                rangeTrx = fallback.data || []
+                rangeTrx = fallbackRows
             }
 
             // Save recent transactions for the table (10 latest)
