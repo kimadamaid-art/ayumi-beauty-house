@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
@@ -119,7 +120,9 @@ export default function CouponsDashboardPage() {
     const fetchPatientCoupons = async () => {
         setIsLoading(true)
         
-        let query = supabase
+        // Jumlah kupon terus bertambah seiring waktu; diambil bertahap agar daftarnya
+        // tidak terpotong diam-diam di 1.000 baris.
+        const { data } = await fetchAllPaginated(() => supabase
             .from('patient_coupons')
             .select(`
                 *,
@@ -131,8 +134,7 @@ export default function CouponsDashboardPage() {
                 )
             `)
             .order('purchased_at', { ascending: false })
-
-        const { data } = await query
+            .order('id', { ascending: true }))
         if (data) setPatientCoupons(data)
         setIsLoading(false)
     }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -129,6 +130,9 @@ export default function TreatmentsReportPage() {
 
         try {
             // 1. Fetch POS Transaction Items (Treatments & Products)
+            // Diambil bertahap: rentang beberapa bulan mudah melewati 1.000 baris item,
+            // dan pemotongan diam-diam membuat laporan tindakan terlihat lebih kecil.
+            const buildTrxQuery = () => {
             let trxQuery = supabase
                 .from('transaction_items')
                 .select(`
@@ -165,8 +169,10 @@ export default function TreatmentsReportPage() {
             if (effectiveBranch && effectiveBranch !== 'all') {
                 trxQuery = trxQuery.eq('transactions.branch_id', effectiveBranch)
             }
+            return trxQuery.order('id', { ascending: true })
+            }
 
-            const { data: trxData, error: trxErr } = await trxQuery
+            const { data: trxData, error: trxErr } = await fetchAllPaginated(buildTrxQuery)
             if (trxErr) console.error('Error fetching transaction items:', trxErr)
 
             setRawTransactionItems(trxData || [])

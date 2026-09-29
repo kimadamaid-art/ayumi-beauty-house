@@ -11,6 +11,7 @@ import BranchFilter from '@/components/ui/BranchFilter'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 
 export default function TherapistsReportPage() {
     const router = useRouter()
@@ -92,7 +93,10 @@ export default function TherapistsReportPage() {
         if (!startDate || !endDate) return
         setIsLoading(true)
 
-        let query = supabase
+        // Diambil bertahap: satu periode tiga bulan sudah bisa melewati 1.000 baris,
+        // dan pemotongan diam-diam di situ berarti komisi terapis terhitung kurang.
+        const buildItemsQuery = () => {
+            let q = supabase
             .from('treatment_record_items')
             .select(`
                 id,
@@ -113,18 +117,20 @@ export default function TherapistsReportPage() {
             .gte('treatment_records.treatment_date', startDate)
             .lte('treatment_records.treatment_date', endDate)
 
-        // Apply branch filter
-        if (selectedBranch !== 'all') {
-            query = query.eq('treatment_records.branch_id', selectedBranch)
+            // Apply branch filter
+            if (selectedBranch !== 'all') {
+                q = q.eq('treatment_records.branch_id', selectedBranch)
+            }
+            return q.order('id', { ascending: true })
         }
 
-        const { data, error } = await query
+        const { data, error } = await fetchAllPaginated(buildItemsQuery)
 
         if (error) {
             console.error('Error fetching report data:', error)
         } else {
             // Also fetch coupon usage logs in this date range to accurately match proportional coupon value
-            const { data: cLogs } = await supabase
+            const { data: cLogs } = await fetchAllPaginated(() => supabase
                 .from('coupon_usage_logs')
                 .select(`
                     id,
@@ -153,6 +159,7 @@ export default function TherapistsReportPage() {
                         )
                     )
                 `)
+                .order('id', { ascending: true }))
 
             const couponMap = buildCouponPriceMap(cLogs || [])
 
@@ -186,20 +193,25 @@ export default function TherapistsReportPage() {
     // di patient_coupons saat transaksi berhasil. Hanya nota lunas yang dihitung,
     // sehingga transaksi yang di-void otomatis gugur beserta fee-nya.
     const fetchCouponSellerFees = async () => {
-        let q = supabase
-            .from('patient_coupons')
-            .select('id, sold_by, seller_fee_at_time, created_at, transactions!inner(id, payment_status, branch_id)')
-            .not('sold_by', 'is', null)
-            .gt('seller_fee_at_time', 0)
-            .eq('transactions.payment_status', 'paid')
-            .gte('created_at', `${startDate}T00:00:00`)
-            .lte('created_at', `${endDate}T23:59:59`)
+        // Dibentuk ulang tiap halaman: satu builder tidak boleh dipakai dua kali
+        // dengan range berbeda.
+        const buildQuery = () => {
+            let q = supabase
+                .from('patient_coupons')
+                .select('id, sold_by, seller_fee_at_time, created_at, transactions!inner(id, payment_status, branch_id)')
+                .not('sold_by', 'is', null)
+                .gt('seller_fee_at_time', 0)
+                .eq('transactions.payment_status', 'paid')
+                .gte('created_at', `${startDate}T00:00:00`)
+                .lte('created_at', `${endDate}T23:59:59`)
 
-        if (selectedBranch !== 'all') {
-            q = q.eq('transactions.branch_id', selectedBranch)
+            if (selectedBranch !== 'all') {
+                q = q.eq('transactions.branch_id', selectedBranch)
+            }
+            return q.order('id', { ascending: true })
         }
 
-        const { data, error } = await q
+        const { data, error } = await fetchAllPaginated(buildQuery)
         if (error) {
             console.error('Error fetching coupon seller fees:', error)
             setCouponFees({})

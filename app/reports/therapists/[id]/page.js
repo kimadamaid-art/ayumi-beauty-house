@@ -9,6 +9,7 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
 import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 
 export default function TherapistDetailPage() {
@@ -110,7 +111,9 @@ export default function TherapistDetailPage() {
     const fetchDetailData = async () => {
         setIsLoading(true)
 
-        let query = supabase
+        // Diambil bertahap supaya periode panjang tidak terpotong di 1.000 baris.
+        const buildItemsQuery = () => {
+            let query = supabase
             .from('treatment_record_items')
             .select(`
                 id,
@@ -135,18 +138,20 @@ export default function TherapistDetailPage() {
             .gte('treatment_records.treatment_date', startDate)
             .lte('treatment_records.treatment_date', endDate)
 
-        if (selectedBranch !== 'all') {
-            query = query.eq('treatment_records.branch_id', selectedBranch)
+            if (selectedBranch !== 'all') {
+                query = query.eq('treatment_records.branch_id', selectedBranch)
+            }
+            return query.order('id', { ascending: true })
         }
 
-        const { data, error } = await query
+        const { data, error } = await fetchAllPaginated(buildItemsQuery)
 
         if (error) {
             console.error('Error fetching therapist detail report:', error)
         } else {
             // Also fetch coupon usage logs to match proportional coupon value
             // Also fetch coupon usage logs in this date range to accurately match proportional coupon value
-            const { data: cLogs } = await supabase
+            const { data: cLogs } = await fetchAllPaginated(() => supabase
                 .from('coupon_usage_logs')
                 .select(`
                     id,
@@ -175,6 +180,7 @@ export default function TherapistDetailPage() {
                         )
                     )
                 `)
+                .order('id', { ascending: true }))
 
             const couponMap = buildCouponPriceMap(cLogs || [])
 
@@ -215,21 +221,25 @@ export default function TherapistDetailPage() {
         // Fee penjualan kupon oleh terapis ini. Hanya nota lunas yang dihitung,
         // sehingga transaksi yang di-void otomatis gugur beserta fee-nya.
         try {
-            let cq = supabase
-                .from('patient_coupons')
-                .select('id, created_at, seller_fee_at_time, coupon_packages(name), patients(full_name), transactions!inner(transaction_number, payment_status, branch_id)')
-                .eq('sold_by', therapistId)
-                .gt('seller_fee_at_time', 0)
-                .eq('transactions.payment_status', 'paid')
-                .gte('created_at', `${startDate}T00:00:00`)
-                .lte('created_at', `${endDate}T23:59:59`)
-                .order('created_at', { ascending: false })
+            const buildCouponQuery = () => {
+                let cq = supabase
+                    .from('patient_coupons')
+                    .select('id, created_at, seller_fee_at_time, coupon_packages(name), patients(full_name), transactions!inner(transaction_number, payment_status, branch_id)')
+                    .eq('sold_by', therapistId)
+                    .gt('seller_fee_at_time', 0)
+                    .eq('transactions.payment_status', 'paid')
+                    .gte('created_at', `${startDate}T00:00:00`)
+                    .lte('created_at', `${endDate}T23:59:59`)
 
-            if (selectedBranch !== 'all') {
-                cq = cq.eq('transactions.branch_id', selectedBranch)
+                if (selectedBranch !== 'all') {
+                    cq = cq.eq('transactions.branch_id', selectedBranch)
+                }
+                // Urutan tampilan tetap terbaru dulu; id dipakai sebagai pengurut kedua
+                // agar batas halaman tidak pernah melewatkan atau mengulang baris.
+                return cq.order('created_at', { ascending: false }).order('id', { ascending: true })
             }
 
-            const { data: cData, error: cErr } = await cq
+            const { data: cData, error: cErr } = await fetchAllPaginated(buildCouponQuery)
             if (cErr) throw cErr
             setCouponSales(cData || [])
         } catch (cErr) {
