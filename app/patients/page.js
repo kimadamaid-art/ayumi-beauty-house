@@ -70,11 +70,17 @@ export default function PatientsPage() {
                 setBranches(branchList)
             }
 
-            // Fetch patients with dynamic ordering
-            let query = supabase
-                .from('patients')
-                .select('*, branches(name), treatment_records(treatment_date, branch_id)')
-            
+            const targetBranch = (branchFilter && branchFilter !== 'All' && branchFilter !== 'all') ? branchFilter : null
+            const PATIENT_COLUMNS = '*, branches(name), treatment_records(treatment_date, branch_id)'
+
+            // Filter per cabang: pasien terdaftar di cabang itu ATAU pernah datang ke sana.
+            // Penyaringan dikerjakan database lewat patients_in_branch. Cara lama mengirim
+            // ribuan ID pasien lewat alamat permintaan dan ditolak server begitu datanya
+            // membesar, sehingga filter cabang gagal total. Aturannya sama persis.
+            let query = (targetBranch && targetBranch !== 'pusat')
+                ? supabase.rpc('patients_in_branch', { p_branch_id: targetBranch }).select(PATIENT_COLUMNS)
+                : supabase.from('patients').select(PATIENT_COLUMNS)
+
             if (sortBy === 'LatestVisit') {
                 query = query.order('updated_at', { ascending: false })
             } else if (sortBy === 'Newest') {
@@ -87,34 +93,12 @@ export default function PatientsPage() {
                 query = query.order('updated_at', { ascending: false })
             }
             
-            const targetBranch = (branchFilter && branchFilter !== 'All' && branchFilter !== 'all') ? branchFilter : null
-
-            if (targetBranch) {
-                if (targetBranch === 'pusat') {
-                    query = query.is('branch_id', null)
-                } else {
-                    // Include both patients registered directly at this branch AND patients who have visited/transacted at this branch
-                    try {
-                        const [{ data: trPts }, { data: txPts }] = await Promise.all([
-                            supabase.from('treatment_records').select('patient_id').eq('branch_id', targetBranch),
-                            supabase.from('transactions').select('patient_id').eq('branch_id', targetBranch)
-                        ])
-                        const visitedIds = [...new Set([
-                            ...(trPts || []).map(r => r.patient_id),
-                            ...(txPts || []).map(t => t.patient_id)
-                        ])].filter(Boolean)
-
-                        if (visitedIds.length > 0) {
-                            query = query.or(`branch_id.eq.${targetBranch},id.in.(${visitedIds.join(',')})`)
-                        } else {
-                            query = query.eq('branch_id', targetBranch)
-                        }
-                    } catch (e) {
-                        console.error('Error fetching branch visited patients:', e)
-                        query = query.eq('branch_id', targetBranch)
-                    }
-                }
+            if (targetBranch === 'pusat') {
+                query = query.is('branch_id', null)
             }
+
+            // Urutan kedua memakai id supaya batas antarhalaman stabil
+            query = query.order('id', { ascending: true })
 
             if (searchQuery.trim() !== '') {
                 const escaped = escapePostgrestFilter(searchQuery.trim())
