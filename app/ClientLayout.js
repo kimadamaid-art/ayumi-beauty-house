@@ -1,10 +1,20 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useEffect, Component } from 'react'
 import GlobalSidebar from '@/components/GlobalSidebar'
 import GlobalHeader from '@/components/GlobalHeader'
+import { getCachedUser } from '@/lib/cachedUser'
+
+// Terapis hanya bekerja lewat halaman /therapist/*. Menu admin memang disembunyikan
+// dari sidebar mereka, tetapi alamatnya tidak dijaga: terapis yang mengetik
+// /transactions atau /patients tetap bisa membuka halaman itu dan melihat omset
+// cabangnya atau menelusuri seluruh data pasien. Penjaga ini mengalihkan terapis
+// kembali ke dashboard-nya dari halaman mana pun di luar area terapis.
+//
+// Ini lapisan tampilan. Batas keamanan data tetap aturan RLS di database.
+const isTherapistPath = (pathname) => pathname.startsWith('/therapist')
 
 class ErrorBoundary extends Component {
     constructor(props) {
@@ -137,10 +147,29 @@ const getPageMeta = (pathname) => {
 
 export default function ClientLayout({ children }) {
     const pathname = usePathname()
+    const router = useRouter()
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isSidebarHovered, setIsSidebarHovered] = useState(false)
+    const [userRole, setUserRole] = useState(null)
 
     const isBarePage = pathname === '/login' || pathname === '/' || pathname.startsWith('/presentasi')
+
+    useEffect(() => {
+        if (isBarePage) return
+        let cancelled = false
+        getCachedUser()
+            .then(({ dbUser }) => { if (!cancelled) setUserRole(dbUser?.role || null) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [isBarePage])
+
+    const therapistBlocked = userRole === 'therapist' && !isBarePage && !isTherapistPath(pathname)
+
+    useEffect(() => {
+        if (therapistBlocked) {
+            router.replace('/therapist/dashboard')
+        }
+    }, [therapistBlocked, router])
 
     if (isBarePage) {
         return <>{children}</>
@@ -182,9 +211,13 @@ export default function ClientLayout({ children }) {
                                 </div>
                             </div>
                         )}
-                        <ErrorBoundary key={pathname}>
-                            {children}
-                        </ErrorBoundary>
+                        {therapistBlocked ? (
+                            <div className="p-8 text-center text-sm text-gray-500 animate-pulse">Mengalihkan ke dashboard terapis...</div>
+                        ) : (
+                            <ErrorBoundary key={pathname}>
+                                {children}
+                            </ErrorBoundary>
+                        )}
                     </div>
                 </main>
             </div>
