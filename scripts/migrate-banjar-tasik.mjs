@@ -143,14 +143,23 @@ async function main() {
         // Putuskan treatment_record_id cyclic di transaksi Banjar & Tasik
         await supabase.from('transactions').update({ treatment_record_id: null }).in('branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID]);
 
-        // Hapus transaction_items di Banjar & Tasik
-        const { data: oldTxList } = await supabase.from('transactions').select('id').in('branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID]);
-        const oldTxIds = (oldTxList || []).map(t => t.id);
+        // Hapus transaction_items di Banjar & Tasik (dengan paginasi lengkap)
+        let oldTxIds = [];
+        let tFrom = 0;
+        while (true) {
+            const { data: oldTxList } = await supabase.from('transactions').select('id').in('branch_id', [BANJAR_BRANCH_ID, TASIK_BRANCH_ID]).range(tFrom, tFrom + 999);
+            if (!oldTxList || oldTxList.length === 0) break;
+            oldTxIds.push(...oldTxList.map(t => t.id));
+            if (oldTxList.length < 1000) break;
+            tFrom += 1000;
+        }
         for (let i = 0; i < oldTxIds.length; i += 500) {
             await supabase.from('transaction_items').delete().in('transaction_id', oldTxIds.slice(i, i + 500));
         }
         if (oldTxIds.length > 0) {
-            await supabase.from('transactions').delete().in('id', oldTxIds);
+            for (let i = 0; i < oldTxIds.length; i += 500) {
+                await supabase.from('transactions').delete().in('id', oldTxIds.slice(i, i + 500));
+            }
             console.log(`   ✅ Menghapus ${oldTxIds.length} transaksi partial lama di Banjar & Tasik.`);
         }
 
@@ -594,12 +603,15 @@ async function main() {
                 const rawItemName = String(item.treatment || item.nama || 'Item').trim();
                 const cleanName = rawItemName.toLowerCase().replace(/\s+/g, ' ');
                 const isProd = isProductItem(item);
+                const isCouponSale = String(item.tipe_trx || tx.tipe || '').toUpperCase() === 'COUPON SALES';
 
                 let itemType = 'treatment';
                 let treatmentId = null;
                 let productId = null;
 
-                if (isProd) {
+                if (isCouponSale) {
+                    itemType = 'coupon';
+                } else if (isProd) {
                     itemType = 'product';
                     const matchedProd = productMap.get(cleanName);
                     productId = matchedProd?.id || null;
