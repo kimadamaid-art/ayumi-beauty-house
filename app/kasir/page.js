@@ -26,6 +26,23 @@ const getLocalYYYYMMDD = (d = new Date()) => {
     return `${year}-${month}-${day}`
 }
 
+const isCouponEligibleForTreatment = (c, trId, trName = '') => {
+    if (!c || (c.remaining_sessions || 0) <= 0) return false
+    if (c.treatment_id === trId) return true
+    const cTrName = (c.treatments?.name || '').toLowerCase()
+    const cPkgName = (c.patient_coupons?.coupon_packages?.name || '').toLowerCase()
+    const tName = (trName || '').toLowerCase()
+    // Fleksibilitas varian Bright Booster (Inject maupun 12/Pin Nano bisa menggunakan kupon Bright Booster)
+    if ((cTrName.includes('bright booster') || cPkgName.includes('bright booster')) && tName.includes('bright booster')) {
+        return true
+    }
+    // Fleksibilitas Japanese Platinum
+    if ((cTrName.includes('japanese platinum') || cPkgName.includes('japanese platinum')) && tName.includes('japanese platinum')) {
+        return true
+    }
+    return false
+}
+
 function PosPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -586,7 +603,7 @@ function PosPageContent() {
             setCart(prev => prev.map(cartItem => {
                 if (cartItem.item_type === 'treatment') {
                     const trId = cartItem.treatment_id || (cartItem.id && typeof cartItem.id === 'string' && cartItem.id.includes('_') ? cartItem.id.split('_')[0] : cartItem.id)
-                    const match = activeCouponItems.find(c => c.treatment_id === trId && c.remaining_sessions > 0)
+                    const match = activeCouponItems.find(c => isCouponEligibleForTreatment(c, trId, cartItem.name || ''))
                     if (match) {
                         return {
                             ...cartItem,
@@ -1330,7 +1347,7 @@ function PosPageContent() {
                 const [, couponItemId] = matchOldPkg
                 matchedCouponItem = activeCoupons.find(c => c.id === couponItemId)
             } else if (activeCoupons.length > 0) {
-                matchedCouponItem = activeCoupons.find(c => c.treatment_id === item.treatment_id && c.remaining_sessions > 0)
+                matchedCouponItem = activeCoupons.find(c => isCouponEligibleForTreatment(c, item.treatment_id, item.treatments?.name || item.name || ''))
             }
 
             if (matchedCouponItem) {
@@ -1443,7 +1460,7 @@ function PosPageContent() {
 
                 let price = item.price
                 if (type === 'treatment' && patientActiveCoupons.length > 0) {
-                    const match = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+                    const match = patientActiveCoupons.find(c => isCouponEligibleForTreatment(c, item.id, item.name || ''))
                     if (match) {
                         isUsingCoupon = true
                         usedCouponItemId = match.id
@@ -1527,7 +1544,7 @@ function PosPageContent() {
         let remainingSessions = 0
 
         if (itemType === 'treatment' && patientActiveCoupons.length > 0) {
-            const match = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+            const match = patientActiveCoupons.find(c => isCouponEligibleForTreatment(c, item.id, item.name || ''))
             if (match) {
                 isUsingCoupon = true
                 usedCouponItemId = match.id
@@ -1746,7 +1763,7 @@ function PosPageContent() {
                 } else {
                     // Switch to coupon
                     const trId = cartItem.treatment_id || (cartItem.id && typeof cartItem.id === 'string' && cartItem.id.includes('_') ? cartItem.id.split('_')[0] : cartItem.id)
-                    const match = patientActiveCoupons.find(c => c.treatment_id === trId && c.remaining_sessions > 0)
+                    const match = patientActiveCoupons.find(c => isCouponEligibleForTreatment(c, trId, cartItem.name || ''))
                     if (match) {
                         return {
                             ...cartItem,
@@ -3815,7 +3832,7 @@ function PosPageContent() {
                                             </div>
                                         ) : (
                                             (() => {
-                                                const availableCoupon = patientActiveCoupons.find(c => c.treatment_id === item.id && c.remaining_sessions > 0)
+                                                const availableCoupon = patientActiveCoupons.find(c => isCouponEligibleForTreatment(c, item.id, item.name || ''))
                                                 if (availableCoupon) {
                                                     return (
                                                         <div className="bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-lg text-[9.5px] flex items-center justify-between gap-1">

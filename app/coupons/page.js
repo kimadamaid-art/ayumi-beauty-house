@@ -140,7 +140,13 @@ export default function CouponsDashboardPage() {
     const filteredPatientCoupons = patientCoupons.map(pc => {
         const totalRemaining = (pc.patient_coupon_items || []).reduce((sum, i) => sum + (Number(i.remaining_sessions) || 0), 0)
         const allItemsDone = totalRemaining <= 0 || (pc.patient_coupon_items && pc.patient_coupon_items.length > 0 && pc.patient_coupon_items.every(i => (Number(i.remaining_sessions) || 0) <= 0 || i.status === 'fully_used' || i.status === 'completed'))
-        const isExpired = new Date(pc.expired_at) < new Date()
+        const now = new Date()
+        const thirtyDaysFromNow = new Date()
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+
+        const expDate = new Date(pc.expired_at)
+        const isExpired = expDate < now
+        const isExpiringSoon = !isExpired && expDate <= thirtyDaysFromNow && totalRemaining > 0
         
         let computedStatus = 'active'
         if (allItemsDone) {
@@ -151,7 +157,7 @@ export default function CouponsDashboardPage() {
             computedStatus = 'active'
         }
 
-        return { ...pc, computedStatus, isExpired, totalRemaining }
+        return { ...pc, computedStatus, isExpired, isExpiringSoon, totalRemaining }
     }).filter(pc => {
         const matchSearch = !pcSearchQuery || 
             pc.patients?.full_name?.toLowerCase().includes(pcSearchQuery.toLowerCase()) || 
@@ -161,6 +167,8 @@ export default function CouponsDashboardPage() {
         let matchStatus = true
         if (pcStatusFilter === 'active') {
             matchStatus = pc.computedStatus === 'active'
+        } else if (pcStatusFilter === 'expiring_soon') {
+            matchStatus = pc.isExpiringSoon
         } else if (pcStatusFilter === 'expired_remaining') {
             matchStatus = pc.computedStatus === 'expired_remaining'
         } else if (pcStatusFilter === 'fully_used') {
@@ -601,6 +609,7 @@ export default function CouponsDashboardPage() {
                         >
                             <option value="">Semua Status ({patientCoupons.length})</option>
                             <option value="active">✨ Aktif (Bisa Dipakai)</option>
+                            <option value="expiring_soon">⏰ Segera Kedaluwarsa (≤ 30 Hari)</option>
                             <option value="expired_remaining">⚠️ Expired (Ada Sisa Sesi)</option>
                             <option value="fully_used">✅ Habis Pemakaian (Fully Used)</option>
                             <option value="expired_all">⌛ Semua Expired</option>
