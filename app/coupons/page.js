@@ -725,10 +725,13 @@ export default function CouponsDashboardPage() {
                                                                 {pc.patient_coupon_items?.map((item) => {
                                                                     const remaining = Number(item.remaining_sessions) || 0
                                                                     const total = Number(item.total_sessions) || 0
+                                                                    const used = Number(item.used_sessions) || Math.max(0, total - remaining)
                                                                     return (
                                                                         <div key={item.id} className="flex items-baseline gap-2 text-xs">
-                                                                            <span className={`font-bold tabular-nums ${remaining === 0 ? 'text-gray-400' : isExpired ? 'text-rose-600' : 'text-gray-800'}`}>
-                                                                                {remaining}/{total} sesi
+                                                                            <span className="tabular-nums text-gray-600">
+                                                                                {used}/{total} terpakai
+                                                                                <span className="text-gray-300"> · </span>
+                                                                                <span className={`font-bold ${remaining === 0 ? 'text-gray-400' : isExpired ? 'text-rose-600' : 'text-gray-800'}`}>sisa {remaining}</span>
                                                                             </span>
                                                                             {pc.patient_coupon_items.length > 1 && (
                                                                                 <span className="text-gray-500 truncate max-w-[12rem]">{item.treatments?.name}</span>
@@ -749,6 +752,9 @@ export default function CouponsDashboardPage() {
                                                                         {pc.lastClaim.branches?.name || '-'}
                                                                         <span className="font-normal text-gray-500"> · {formatDate(pc.lastClaim.used_at)}</span>
                                                                     </span>
+                                                                ) : pc.patient_coupon_items?.some(i => Number(i.used_sessions) > 0) ? (
+                                                                    // Klaim dari masa GD Cashier tidak punya log klaim di aplikasi.
+                                                                    <span className="text-gray-500 italic">tercatat di GD Cashier</span>
                                                                 ) : (
                                                                     <span className="text-gray-400 italic">belum pernah</span>
                                                                 )}
