@@ -3680,8 +3680,8 @@ export default function Dashboard() {
                         badge: `${branchTotals.rangeTxCount} Transaksi`,
                         caption: 'Penerimaan kasir periode ini',
                         onClick: () => router.push('/transactions'),
-                        tone: { icon: 'bg-[#5c3316] text-white', badge: 'bg-[#fbeee4] text-[#7a4424] border-[#efd3bf]', ring: 'hover:border-[#d9ad8f]' },
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        tone: { icon: 'relative bg-gradient-to-br text-white shadow-md ring-1 ring-inset ring-white/25 from-[#a0582c] to-[#4a2410] shadow-[#5c3316]/30', badge: 'bg-[#fbeee4] text-[#7a4424] border-[#efd3bf]', ring: 'hover:border-[#d9ad8f]' },
+                        icon: <><path d="M19 7V4.5A1.5 1.5 0 0017.5 3H5a2 2 0 000 4h15a1 1 0 011 1v3.5" /><path d="M3 5v14a2 2 0 002 2h15a1 1 0 001-1v-3.5" /><path d="M21 11.5h-3.5a2.25 2.25 0 000 4.5H21a.5.5 0 00.5-.5v-3.5a.5.5 0 00-.5-.5z" /><circle cx="17.6" cy="13.75" r=".6" fill="currentColor" /></>
                     },
                     {
                         key: 'treatment',
@@ -3690,8 +3690,8 @@ export default function Dashboard() {
                         badge: adminCompositionData.total > 0 ? `${Math.round((branchTotals.treatmentIncome / adminCompositionData.total) * 100)}% omset` : 'Tindakan',
                         caption: 'Nilai bersih layanan perawatan',
                         onClick: () => router.push('/reports/treatments'),
-                        tone: { icon: 'bg-pink-50 text-pink-600 border border-pink-100', badge: 'bg-pink-50 text-pink-700 border-pink-200/80', ring: 'hover:border-pink-300' },
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        tone: { icon: 'relative bg-gradient-to-br text-white shadow-md ring-1 ring-inset ring-white/25 from-pink-400 to-rose-600 shadow-pink-500/30', badge: 'bg-pink-50 text-pink-700 border-pink-200/80', ring: 'hover:border-pink-300' },
+                        icon: <><path d="M9.94 15.5a2 2 0 00-1.44-1.44l-6.13-1.58a.5.5 0 010-.96L8.5 9.94A2 2 0 009.94 8.5l1.58-6.14a.5.5 0 01.96 0l1.58 6.14a2 2 0 001.44 1.44l6.14 1.58a.5.5 0 010 .96l-6.14 1.58a2 2 0 00-1.44 1.44l-1.58 6.14a.5.5 0 01-.96 0z" /><path d="M20 3v4M22 5h-4M4 17v2M5 18H3" /></>
                     },
                     {
                         key: 'product',
@@ -3700,8 +3700,8 @@ export default function Dashboard() {
                         badge: adminCompositionData.total > 0 ? `${Math.round((branchTotals.productIncome / adminCompositionData.total) * 100)}% omset` : 'Produk',
                         caption: 'Penjualan skincare & kosmetik',
                         onClick: () => router.push('/transactions'),
-                        tone: { icon: 'bg-cyan-50 text-cyan-600 border border-cyan-100', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200/80', ring: 'hover:border-cyan-300' },
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 2h4M9 2v3.5a2 2 0 01-.6 1.4L7 8.3A3 3 0 006 10.4V20a2 2 0 002 2h8a2 2 0 002-2v-9.6a3 3 0 00-1-2.1l-1.4-1.4A2 2 0 0115 5.5V2M6 13h12" />
+                        tone: { icon: 'relative bg-gradient-to-br text-white shadow-md ring-1 ring-inset ring-white/25 from-cyan-400 to-sky-600 shadow-cyan-500/30', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200/80', ring: 'hover:border-cyan-300' },
+                        icon: <><path d="M10.5 2.5h3v3.5h-3z" /><path d="M13.5 3.5H17l1 1.5" /><path d="M8.5 6h7A2.5 2.5 0 0118 8.5V19a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 016 19V8.5A2.5 2.5 0 018.5 6z" /><path d="M9 11.5h6v5.5H9z" /><path d="M11 14.25h2" /></>
                     },
                     {
                         key: 'coupon',
@@ -3710,8 +3710,8 @@ export default function Dashboard() {
                         badge: `${branchTotals.couponUsedSessions || 0} Sesi`,
                         caption: 'Nilai sesi kupon yang diklaim · lihat rincian',
                         onClick: () => openCouponUsageModal(isOwner ? selectedBranch : dbUser?.branch_id, userBranchName),
-                        tone: { icon: 'bg-amber-50 text-amber-600 border border-amber-100', badge: 'bg-amber-50 text-amber-800 border-amber-200/80', ring: 'hover:border-amber-300' },
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                        tone: { icon: 'relative bg-gradient-to-br text-white shadow-md ring-1 ring-inset ring-white/25 from-amber-400 to-orange-500 shadow-amber-500/30', badge: 'bg-amber-50 text-amber-800 border-amber-200/80', ring: 'hover:border-amber-300' },
+                        icon: <><path d="M2 9a3 3 0 010 6v2a2 2 0 002 2h16a2 2 0 002-2v-2a3 3 0 010-6V7a2 2 0 00-2-2H4a2 2 0 00-2 2z" /><path d="M13 5v2M13 11v2M13 17v2" /><path d="M6.5 10.5l1 .8 1.5-2" /></>
                     },
                     {
                         key: 'qris',
@@ -3720,8 +3720,8 @@ export default function Dashboard() {
                         badge: '0,3% MDR',
                         caption: 'Biaya layanan QRIS periode ini',
                         onClick: () => router.push('/transactions'),
-                        tone: { icon: 'bg-violet-50 text-violet-600 border border-violet-100', badge: 'bg-violet-50 text-violet-800 border-violet-200/80', ring: 'hover:border-violet-300' },
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h2v2h-2v-2zm4 0h2v2h-2v-2zm-4 4h2v2h-2v-2zm4 0h2v2h-2v-2z" />
+                        tone: { icon: 'relative bg-gradient-to-br text-white shadow-md ring-1 ring-inset ring-white/25 from-violet-400 to-indigo-600 shadow-violet-500/30', badge: 'bg-violet-50 text-violet-800 border-violet-200/80', ring: 'hover:border-violet-300' },
+                        icon: <><rect x="3" y="3" width="6.5" height="6.5" rx="1.5" /><rect x="14.5" y="3" width="6.5" height="6.5" rx="1.5" /><rect x="3" y="14.5" width="6.5" height="6.5" rx="1.5" /><path d="M5.75 5.75h1M17.25 5.75h1M5.75 17.25h1" /><path d="M14.5 14.5h2.5v2.5M21 14.5v.01M14.5 21h2.5M21 18v3h-2" /></>
                     }
                 ].map(card => (
                     <button
@@ -3731,8 +3731,9 @@ export default function Dashboard() {
                         className={`group text-left p-5 rounded-2xl bg-white border border-stone-200/80 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer flex flex-col justify-between gap-4 ${card.tone.ring}`}
                     >
                         <div className="flex items-start justify-between gap-2">
-                            <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.tone.icon}`}>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{card.icon}</svg>
+                            <span className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${card.tone.icon}`}>
+                                <span aria-hidden="true" className="absolute inset-x-1.5 top-1 h-1/2 rounded-t-xl bg-gradient-to-b from-white/30 to-transparent"></span>
+                                <svg className="relative w-[22px] h-[22px] drop-shadow-sm" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">{card.icon}</svg>
                             </span>
                             <span className={`text-[10.5px] font-bold border px-2 py-0.5 rounded-full whitespace-nowrap ${card.tone.badge}`}>
                                 {card.badge}
