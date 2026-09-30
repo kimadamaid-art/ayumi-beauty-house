@@ -6,11 +6,13 @@ import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
 
 export default function CouponsDashboardPage() {
+    const router = useRouter()
     const [activeTab, setActiveTab] = useState('master') // 'master', 'patients', 'usage', 'history'
     const [isLoading, setIsLoading] = useState(false)
     const [dbUser, setDbUser] = useState(null)
@@ -40,6 +42,7 @@ export default function CouponsDashboardPage() {
     const [patientCoupons, setPatientCoupons] = useState([])
     const [pcSearchQuery, setPcSearchQuery] = useState('')
     const [pcStatusFilter, setPcStatusFilter] = useState('')
+    const [pcBranchFilter, setPcBranchFilter] = useState('')
     const [expandedCouponId, setExpandedCouponId] = useState(null)
 
     // --- STATES FOR TAB 3: PENGGUNAAN KUPON ---
@@ -59,8 +62,14 @@ export default function CouponsDashboardPage() {
     const [histBranchFilter, setHistBranchFilter] = useState('')
     const [branches, setBranches] = useState([])
 
+    // Pengelolaan kupon khusus Owner. Admin menjual dan mengklaim kupon lewat Kasir.
+    const isOwner = dbUser?.role === 'owner'
     useEffect(() => {
-        if (!userLoaded) return
+        if (userLoaded && !isOwner) router.replace('/kasir')
+    }, [userLoaded, isOwner, router])
+
+    useEffect(() => {
+        if (!userLoaded || !isOwner) return
         if (activeTab === 'master') fetchPackages()
         else if (activeTab === 'patients') fetchPatientCoupons()
         else if (activeTab === 'history') fetchHistoryLogs()
@@ -127,11 +136,15 @@ export default function CouponsDashboardPage() {
             .from('patient_coupons')
             .select(`
                 *,
-                patients (full_name, whatsapp),
+                patients (id, full_name, whatsapp, branch_id, branches(name)),
                 coupon_packages (name),
+                transactions (branch_id, branches(name)),
                 patient_coupon_items (
                     id, total_sessions, used_sessions, remaining_sessions, status,
-                    treatments (name)
+                    treatments (name),
+                    coupon_usage_logs (
+                        id, used_at, branch_id, voided_at, branches(name)
+                    )
                 )
             `)
             .order('purchased_at', { ascending: false })
@@ -160,8 +173,21 @@ export default function CouponsDashboardPage() {
             computedStatus = 'active'
         }
 
-        return { ...pc, computedStatus, isExpired, isExpiringSoon, totalRemaining }
+        // Cabang pembelian = cabang nota penjualannya. Kupon tanpa nota (hasil migrasi)
+        // memakai cabang terdaftar pasien.
+        const purchaseBranchId = pc.transactions?.branch_id || pc.patients?.branch_id || null
+        const purchaseBranchName = pc.transactions?.branches?.name || pc.patients?.branches?.name || null
+
+        // Klaim terakhir dari semua item paket; log yang sudah di-void diabaikan.
+        const lastClaim = (pc.patient_coupon_items || [])
+            .flatMap(item => item.coupon_usage_logs || [])
+            .filter(log => !log.voided_at && log.used_at)
+            .sort((a, b) => new Date(b.used_at) - new Date(a.used_at))[0] || null
+
+        return { ...pc, computedStatus, isExpired, isExpiringSoon, totalRemaining, purchaseBranchId, purchaseBranchName, lastClaim }
     }).filter(pc => {
+        if (pcBranchFilter && pc.purchaseBranchId !== pcBranchFilter) return false
+
         const matchSearch = !pcSearchQuery || 
             pc.patients?.full_name?.toLowerCase().includes(pcSearchQuery.toLowerCase()) || 
             pc.patients?.whatsapp?.includes(pcSearchQuery) ||
@@ -459,6 +485,15 @@ export default function CouponsDashboardPage() {
         })
     }
 
+    if (userLoaded && !isOwner) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+                <p className="text-rose-600 font-bold">Akses Ditolak: Halaman ini hanya dapat diakses oleh Owner.</p>
+                <p className="text-sm text-gray-500 mt-1">Penjualan dan klaim kupon dilakukan lewat halaman Kasir. Mengalihkan...</p>
+            </div>
+        )
+    }
+
     if (!userLoaded) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -623,6 +658,17 @@ export default function CouponsDashboardPage() {
                             <option value="fully_used">✅ Habis Pemakaian (Fully Used)</option>
                             <option value="expired_all">⌛ Semua Expired</option>
                         </select>
+                        <select
+                            value={pcBranchFilter}
+                            onChange={(e) => setPcBranchFilter(e.target.value)}
+                            className="input-ayumi bg-white w-full sm:w-56 font-medium text-sm"
+                            title="Cabang tempat kupon dibeli"
+                        >
+                            <option value="">Semua Cabang Pembelian</option>
+                            {branches.map(b => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     <div className="card-ayumi overflow-hidden">
@@ -676,6 +722,22 @@ export default function CouponsDashboardPage() {
                                                         <td className="p-4">
                                                             <div className="font-bold text-gray-800">{pc.patients?.full_name}</div>
                                                             <div className="text-xs text-gray-500">{pc.patients?.whatsapp}</div>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {pc.purchaseBranchName && (
+                                                                    <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                                                        📍 Beli: {pc.purchaseBranchName}
+                                                                    </span>
+                                                                )}
+                                                                {pc.lastClaim ? (
+                                                                    <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold bg-pink-50 text-ayumi-primary border border-pink-200">
+                                                                        ✨ Terakhir klaim: {pc.lastClaim.branches?.name || '-'} ({new Date(pc.lastClaim.used_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })})
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold bg-gray-50 text-gray-500 border border-gray-200">
+                                                                        ⚪ Belum pernah klaim
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                         <td className="p-4 font-semibold text-ayumi-primary">{pc.coupon_packages?.name}</td>
                                                         <td className="p-4">
