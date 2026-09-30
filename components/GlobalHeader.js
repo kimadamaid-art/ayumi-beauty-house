@@ -363,6 +363,10 @@ export default function GlobalHeader({ onMenuToggle }) {
 
                 <h2 className="text-lg md:text-xl font-extrabold text-ayumi-primary tracking-tight">Ayumi Beauty House</h2>
             </div>
+
+            {/* Tempat kontrol halaman yang ikut menempel di header, misalnya pemilih cabang
+                analisis di dashboard owner (diisi lewat portal). Kosong di halaman lain. */}
+            <div id="header-center-slot" className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"></div>
             
             <div className="flex items-center gap-3 md:gap-6">
                 {/* Lonceng Notifikasi */}

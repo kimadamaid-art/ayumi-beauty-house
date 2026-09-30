@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
@@ -11,7 +12,9 @@ import BranchFilter from '@/components/ui/BranchFilter'
 import StatCard from '@/components/ui/StatCard'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
-import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
+import { parsePaymentSplits, getQrisFee } from '@/lib/paymentUtils'
+import { getTransactionRevenueBreakdown } from '@/lib/revenueBreakdown'
+import { computeDashboardInsights } from '@/lib/dashboardInsights'
 import LazyRecharts from '@/components/charts/LazyRecharts'
 
 // Module-level persistent caches (preserved across client navigation within session)
@@ -20,6 +23,42 @@ let globalDashboardCache = null
 let globalDashboardCachedKey = ''
 let globalDashboardCachedAt = 0
 const DASHBOARD_CACHE_TTL_MS = 3 * 60 * 1000
+
+// Kapsul pemilih cabang untuk bagian analisis owner. inHeader = versi ringkas yang
+// ditampilkan di tengah header saat kapsul utama sudah ter-scroll lewat.
+function AnalysisBranchPill({ branches, activeBranch, onSelect, inHeader = false }) {
+    return (
+        <div className={inHeader
+            ? 'flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-full p-1 pl-3 animate-in fade-in duration-200'
+            : 'w-full sm:w-auto flex items-center justify-center gap-2 bg-white border border-stone-200 shadow-sm rounded-2xl sm:rounded-full p-1.5 sm:pl-4'}
+        >
+            <span className={`${inHeader ? '' : 'hidden sm:inline '}text-[11px] font-extrabold text-[#5c3316] uppercase tracking-wider whitespace-nowrap`}>
+                {inHeader ? 'Analisis' : 'Analisis cabang'}
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-1" role="group" aria-label="Pilih cabang untuk analisis">
+                {[{ branchId: '', branchName: 'Semua Cabang' }, ...(branches || [])].map(b => {
+                    const active = activeBranch === b.branchId
+                    return (
+                        <button
+                            key={b.branchId || 'all'}
+                            type="button"
+                            onClick={() => onSelect(b.branchId)}
+                            aria-pressed={active}
+                            title="Berlaku untuk peringkat layanan, pola waktu, kategori, dan demografi. Nominal = omzet bersih setelah diskon."
+                            className={`${inHeader ? 'px-3 py-1' : 'px-3 sm:px-3.5 py-1.5'} rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${active
+                                ? 'bg-[#5c3316] text-white shadow-sm'
+                                : 'text-stone-600 hover:bg-stone-100 hover:text-[#5c3316]'}`}
+                        >
+                            {b.branchId ? b.branchName.replace(/^Ayumi\s+/i, '') : (
+                                <><span className="sm:hidden">Semua</span><span className="hidden sm:inline">Semua Cabang</span></>
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
 
 // Kunci cache metrik. Mencakup id, peran, dan cabang pengguna: cache ini hidup di memori
 // tab dan tidak ikut hilang saat berpindah halaman, sehingga tanpa identitas di kuncinya,
@@ -123,6 +162,31 @@ export default function Dashboard() {
     // Melewati sekali efek filter yang terpicu oleh pemilihan cabang awal di
     // fetchInitialData, karena kombinasi itu sudah dimuat oleh fetchInitialData sendiri.
     const skipInitialFilterEffectRef = useRef(false)
+    // Cabang untuk bagian analisis owner ('' = semua cabang). Analisis dihitung ulang dari
+    // transaksi yang sudah dimuat, jadi berganti cabang tidak memicu query baru.
+    const [analysisBranch, setAnalysisBranch] = useState('')
+    const analysisBranchRef = useRef('')
+    const insightSourceRef = useRef(null)
+    // Saat kapsul pemilih cabang ter-scroll lewat, salinannya ditampilkan di tengah header
+    // (#header-center-slot di GlobalHeader) supaya tetap terjangkau tanpa menutupi grafik.
+    const [analysisPillDocked, setAnalysisPillDocked] = useState(false)
+    const analysisPillObserverRef = useRef(null)
+    const analysisPillRef = useCallback(node => {
+        if (analysisPillObserverRef.current) {
+            analysisPillObserverRef.current.disconnect()
+            analysisPillObserverRef.current = null
+        }
+        if (!node || typeof IntersectionObserver === 'undefined') {
+            setAnalysisPillDocked(false)
+            return
+        }
+        const observer = new IntersectionObserver(([entry]) => {
+            // Hanya ditempel bila kapsul keluar lewat atas, bukan saat belum terlihat di bawah.
+            setAnalysisPillDocked(!entry.isIntersecting && entry.boundingClientRect.top < 120)
+        })
+        observer.observe(node)
+        analysisPillObserverRef.current = observer
+    }, [])
 
     // Executive Section Collapsible / Accordion States (Owner)
     const [collapsedSections, setCollapsedSections] = useState({})
@@ -307,6 +371,7 @@ export default function Dashboard() {
                                 product_id,
                                 name,
                                 quantity,
+                                price,
                                 subtotal,
                                 original_price,
                                 discount_percent
@@ -315,6 +380,7 @@ export default function Dashboard() {
                         .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
                         .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
                         .order('created_at', { ascending: false })
+                        .order('id', { ascending: true })
                         .range(from, from + 999)
 
                     if (!isOwner && userBranchId) {
@@ -347,21 +413,28 @@ export default function Dashboard() {
                         .from('transactions')
                         .select(`
                             id, 
+                            transaction_number,
                             branch_id, 
                             total, 
                             subtotal, 
                             discount, 
                             payment_method, 
+                            payment_status,
                             notes,
                             transaction_items (
                                 item_type,
-                                subtotal
+                                quantity,
+                                price,
+                                subtotal,
+                                original_price,
+                                discount_percent
                             )
                         `)
                         .eq('payment_status', 'paid')
                         .gte('created_at', startOfMonth)
                         .lte('created_at', endOfMonth)
                         .order('created_at', { ascending: true })
+                        .order('id', { ascending: true })
                         .range(from, from + 999)
 
                     if (!isOwner && userBranchId) {
@@ -559,13 +632,10 @@ export default function Dashboard() {
             let grandTreatmentRange = 0
             let grandProductRange = 0
             let grandCouponSalesRange = 0
-            let grandCouponUsedRange = 0
             let grandDiscountRange = 0
             let grandQrisFeeRange = 0
             let totalTxCountRange = 0
             const methodMap = {}
-            const treatmentMap = {}
-            const productMap = {}
 
             targetBranches.forEach(b => {
                 rangeMap[b.id] = {
@@ -577,6 +647,10 @@ export default function Dashboard() {
                     couponUsedValue: 0,
                     couponUsedSessions: 0,
                     otherIncome: 0,
+                    treatmentGross: 0,
+                    productGross: 0,
+                    couponSalesGross: 0,
+                    otherGross: 0,
                     discountTotal: 0,
                     cashIncome: 0,
                     totalIncome: 0,
@@ -584,18 +658,6 @@ export default function Dashboard() {
                     transactionCount: 0
                 }
             })
-
-            // Owner Insights Data Collectors
-            const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-            const dayStatsList = dayNames.map(name => ({ day: name, sales: 0, count: 0 }))
-            const hourlyStatsList = Array.from({ length: 14 }, (_, i) => ({
-                hour: `${String(i + 8).padStart(2, '0')}:00`,
-                label: `${String(i + 8).padStart(2, '0')}:00`,
-                sales: 0,
-                count: 0
-            }))
-            const categoryMap = {}
-            const uniquePatientsMap = new Map()
 
             if (rangeTrx) {
                 rangeTrx.forEach(tx => {
@@ -605,97 +667,15 @@ export default function Dashboard() {
                         branchObj.transactionCount += 1
                         totalTxCountRange += 1
 
-                        if (isOwner) {
-                            const txDate = new Date(tx.created_at)
-                            const dayIdx = txDate.getDay() // 0 = Sun, 1 = Mon ...
-                            const dayOrder = dayIdx === 0 ? 6 : dayIdx - 1
-                            const txTot = Number(tx.total || 0)
-
-                            if (dayStatsList[dayOrder]) {
-                                dayStatsList[dayOrder].sales += txTot
-                                dayStatsList[dayOrder].count += 1
-                            }
-
-                            const txHr = txDate.getHours()
-                            if (txHr >= 8 && txHr <= 21 && hourlyStatsList[txHr - 8]) {
-                                hourlyStatsList[txHr - 8].sales += txTot
-                                hourlyStatsList[txHr - 8].count += 1
-                            }
-
-                            if (tx.patients && tx.patients.id) {
-                                uniquePatientsMap.set(tx.patients.id, tx.patients)
-                            }
-                        }
-                        
-                        let txTreatment = 0
-                        let txProduct = 0
-                        let txCouponSales = 0
-                        let txCouponUsed = 0
-                        let txCouponSessions = 0
-                        let txOther = 0
-
-                        if (tx.transaction_items && tx.transaction_items.length > 0) {
-                            tx.transaction_items.forEach(item => {
-                                const itemSub = Number(item.subtotal || 0)
-                                const itemQty = Number(item.quantity || 1)
-                                const itemName = item.name || 'Item Perawatan/Produk'
-                                const discPct = Number(item.discount_percent || 0)
-                                const origPrice = Number(item.original_price || 0)
-                                const isCouponUsed = discPct >= 100 && origPrice > 0
-                                const couponValue = isCouponUsed ? origPrice * itemQty : 0
-
-                                if (isOwner) {
-                                    let itemCat = 'LAINNYA'
-                                    if (item.item_type === 'treatment') {
-                                        itemCat = treatmentCatMap[item.treatment_id] || treatmentCatMap[itemName] || 'FACE TREATMENT'
-                                    } else if (item.item_type === 'product') {
-                                        itemCat = productCatMap[item.product_id] || productCatMap[itemName] || 'Ayumi Produk'
-                                    } else if (item.item_type === 'coupon') {
-                                        itemCat = 'PAKET KUPON'
-                                    }
-                                    itemCat = itemCat.trim()
-                                    if (!categoryMap[itemCat]) {
-                                        categoryMap[itemCat] = { category: itemCat, volume: 0, sales: 0, items: {} }
-                                    }
-                                    categoryMap[itemCat].volume += itemQty
-                                    categoryMap[itemCat].sales += itemSub
-
-                                    if (!categoryMap[itemCat].items[itemName]) {
-                                        categoryMap[itemCat].items[itemName] = { name: itemName, count: 0, revenue: 0 }
-                                    }
-                                    categoryMap[itemCat].items[itemName].count += itemQty
-                                    categoryMap[itemCat].items[itemName].revenue += itemSub
-                                }
-
-                                if (item.item_type === 'treatment') {
-                                    if (isCouponUsed) {
-                                        txCouponUsed += couponValue
-                                        txCouponSessions += itemQty
-                                    } else {
-                                        txTreatment += itemSub
-                                    }
-                                    const effectiveRevenue = itemSub + couponValue
-                                    if (!treatmentMap[itemName]) {
-                                        treatmentMap[itemName] = { name: itemName, count: 0, revenue: 0 }
-                                    }
-                                    treatmentMap[itemName].count += itemQty
-                                    treatmentMap[itemName].revenue += effectiveRevenue
-                                } else if (item.item_type === 'product') {
-                                    txProduct += itemSub
-                                    if (!productMap[itemName]) {
-                                        productMap[itemName] = { name: itemName, count: 0, revenue: 0 }
-                                    }
-                                    productMap[itemName].count += itemQty
-                                    productMap[itemName].revenue += itemSub
-                                } else if (item.item_type === 'coupon') {
-                                    txCouponSales += itemSub
-                                } else {
-                                    txOther += itemSub
-                                }
-                            })
-                        } else {
-                            txTreatment += getNetTransactionRevenue(tx)
-                        }
+                        // Omzet per kategori dihitung bersih (setelah diskon) agar jumlahnya sama
+                        // dengan total omzet cabang. Lihat lib/revenueBreakdown.js.
+                        const breakdown = getTransactionRevenueBreakdown(tx)
+                        const txTreatment = breakdown.net.treatment
+                        const txProduct = breakdown.net.product
+                        const txCouponSales = breakdown.net.coupon
+                        const txOther = breakdown.net.other
+                        const txCouponUsed = breakdown.couponRedeemedValue
+                        const txCouponSessions = breakdown.couponRedeemedSessions
 
                         branchObj.treatmentIncome += txTreatment
                         branchObj.productIncome += txProduct
@@ -703,10 +683,16 @@ export default function Dashboard() {
                         branchObj.couponUsedValue += txCouponUsed
                         branchObj.couponUsedSessions += txCouponSessions
                         branchObj.otherIncome += txOther
+                        branchObj.treatmentGross += breakdown.gross.treatment
+                        branchObj.productGross += breakdown.gross.product
+                        branchObj.couponSalesGross += breakdown.gross.coupon
+                        branchObj.otherGross += breakdown.gross.other
                         
-                        const realCash = getNetTransactionRevenue(tx)
+                        const realCash = breakdown.netTotal
                         const txQrisFee = getQrisFee(tx)
-                        const txDisc = Number(tx.discount || 0)
+                        // Diskon riil = kotor - bersih. tx.discount tidak dipakai karena pada nota
+                        // migrasi GD diskon kupon tercatat dua kali di kolom itu.
+                        const txDisc = breakdown.gross.treatment + breakdown.gross.product + breakdown.gross.coupon + breakdown.gross.other - realCash
 
                         branchObj.discountTotal += txDisc
                         branchObj.cashIncome += realCash
@@ -717,7 +703,6 @@ export default function Dashboard() {
                         grandTreatmentRange += txTreatment
                         grandProductRange += txProduct
                         grandCouponSalesRange += txCouponSales
-                        grandCouponUsedRange += txCouponUsed
                         grandDiscountRange += txDisc
                         grandQrisFeeRange += txQrisFee
 
@@ -756,13 +741,18 @@ export default function Dashboard() {
                     bLogVal += (tP > 0 ? tP : (pP > 0 ? Math.round(pP / tS) : 0))
                 })
 
-                const fallbackCount = rangeMap[b.id]?.couponUsedSessions || 0
-                const fallbackVal = rangeMap[b.id]?.couponUsedValue || 0
-                const finalSessionCount = logSessionCount > 0 ? logSessionCount : fallbackCount
-                const finalSessionVal = logSessionCount > 0 ? bLogVal : fallbackVal
+                // Sesi dari kasir aplikasi tercatat di coupon_usage_logs. Sesi dari nota migrasi
+                // GD Cashier tidak punya log, jadi dihitung dari notanya (lihat revenueBreakdown).
+                // Keduanya tidak tumpang tindih, sehingga dijumlahkan.
+                const gdCount = rangeMap[b.id]?.couponUsedSessions || 0
+                const gdVal = rangeMap[b.id]?.couponUsedValue || 0
+                const finalSessionCount = logSessionCount + gdCount
+                const finalSessionVal = bLogVal + gdVal
 
                 rangeMap[b.id].couponUsedSessions = finalSessionCount
                 rangeMap[b.id].couponUsedValue = finalSessionVal
+                rangeMap[b.id].gdCouponUsedSessions = gdCount
+                rangeMap[b.id].gdCouponUsedValue = gdVal
 
                 grandCouponUsedSessions += finalSessionCount
                 grandCouponUsedVal += finalSessionVal
@@ -782,114 +772,15 @@ export default function Dashboard() {
 
             setBranchDailyComparison(formattedRangeComp)
 
-            // Top 5 treatments & products
-            const sortedTreatments = Object.values(treatmentMap)
-                .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 5)
-            const sortedProducts = Object.values(productMap)
-                .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 5)
-
-            setTopTreatments(sortedTreatments)
-            setTopProducts(sortedProducts)
-
+            // Analisis (peringkat, pola waktu, kategori, demografi, retensi) dihitung lewat
+            // lib/dashboardInsights.js agar bisa diulang per cabang tanpa query baru.
+            const insightRows = (rangeTrx || []).filter(tx => tx && rangeMap[tx.branch_id])
+            const priorPatientIds = new Set()
             if (isOwner) {
-                // 1. Day & Hour Stats
-                setDayOfWeekStats(dayStatsList)
-                setHourlyStats(hourlyStatsList)
-
-                // 2. Category Stats
-                const categoryListWithItems = Object.values(categoryMap).map(cat => ({
-                    ...cat,
-                    topItems: Object.values(cat.items || {}).sort((a, b) => {
-                        if (b.revenue !== a.revenue) return b.revenue - a.revenue
-                        return b.count - a.count
-                    })
-                }))
-                const sortedByVol = [...categoryListWithItems].sort((a, b) => b.volume - a.volume)
-                const sortedBySales = [...categoryListWithItems].sort((a, b) => b.sales - a.sales)
-                setCategoryVolumeStats(sortedByVol)
-                setCategorySalesStats(sortedBySales)
-
-                // 3. Treatment Terendah (Lowest performing treatments)
-                const treatmentSalesLookup = {}
-                Object.values(treatmentMap).forEach(t => {
-                    treatmentSalesLookup[t.name] = t
-                })
-
-                const completeTreatmentList = allActiveTreatments.map(t => {
-                    if (treatmentSalesLookup[t.name]) {
-                        return treatmentSalesLookup[t.name]
-                    }
-                    return { name: t.name, count: 0, revenue: 0 }
-                })
-
-                const listToSort = completeTreatmentList.length > 0 ? completeTreatmentList : Object.values(treatmentMap)
-                const sortedLowestTreatments = [...listToSort]
-                    .sort((a, b) => {
-                        if (a.count !== b.count) return a.count - b.count
-                        return a.revenue - b.revenue
-                    })
-                    .slice(0, 5)
-
-                setBottomTreatments(sortedLowestTreatments)
-
-                // 4. Demographics: Gender & Age
-                let femaleCount = 0
-                let maleCount = 0
-                const ageGroupMap = {
-                    '6-12': 0,
-                    '13-18': 0,
-                    '19-24': 0,
-                    '25-34': 0,
-                    '35-44': 0,
-                    '45+': 0,
-                    'Lainnya': 0
-                }
-
-                const now = new Date()
-                uniquePatientsMap.forEach(p => {
-                    const g = (p.gender || '').toLowerCase()
-                    if (g === 'male' || g === 'pria' || g === 'laki-laki') maleCount++
-                    else femaleCount++
-
-                    if (p.birth_date) {
-                        const bDate = new Date(p.birth_date)
-                        const age = Math.floor((now - bDate) / (365.25 * 24 * 60 * 60 * 1000))
-                        if (age >= 6 && age <= 12) ageGroupMap['6-12']++
-                        else if (age >= 13 && age <= 18) ageGroupMap['13-18']++
-                        else if (age >= 19 && age <= 24) ageGroupMap['19-24']++
-                        else if (age >= 25 && age <= 34) ageGroupMap['25-34']++
-                        else if (age >= 35 && age <= 44) ageGroupMap['35-44']++
-                        else if (age >= 45) ageGroupMap['45+']++
-                        else ageGroupMap['Lainnya']++
-                    } else {
-                        ageGroupMap['Lainnya']++
-                    }
-                })
-
-                const totalPatients = femaleCount + maleCount
-                const knownAgeTotal = totalPatients - ageGroupMap['Lainnya']
-                const calcAgePct = (cnt) => (knownAgeTotal > 0 ? ((cnt / knownAgeTotal) * 100).toFixed(1) : '0')
-
-                setDemographicGender([
-                    { name: 'Wanita', value: femaleCount, percent: totalPatients > 0 ? ((femaleCount / totalPatients) * 100).toFixed(1) : '0' },
-                    { name: 'Pria', value: maleCount, percent: totalPatients > 0 ? ((maleCount / totalPatients) * 100).toFixed(1) : '0' }
-                ])
-
-                setDemographicAge([
-                    { group: '19-24 Thn', count: ageGroupMap['19-24'], percent: calcAgePct(ageGroupMap['19-24']) },
-                    { group: '25-34 Thn', count: ageGroupMap['25-34'], percent: calcAgePct(ageGroupMap['25-34']) },
-                    { group: '35-44 Thn', count: ageGroupMap['35-44'], percent: calcAgePct(ageGroupMap['35-44']) },
-                    { group: '45+ Thn', count: ageGroupMap['45+'], percent: calcAgePct(ageGroupMap['45+']) },
-                    { group: '13-18 Thn', count: ageGroupMap['13-18'], percent: calcAgePct(ageGroupMap['13-18']) },
-                    { group: '6-12 Thn', count: ageGroupMap['6-12'], percent: calcAgePct(ageGroupMap['6-12']) },
-                    { group: 'Lainnya', count: ageGroupMap['Lainnya'], percent: totalPatients > 0 ? ((ageGroupMap['Lainnya'] / totalPatients) * 100).toFixed(1) : '0' }
-                ])
-
-                // 5. Customer Retention: New vs Returning (High-Speed Single or Concurrent Batches)
-                const uniquePatIds = Array.from(uniquePatientsMap.keys())
-                const priorPatSet = new Set()
+                // Retensi: pasien yang sudah pernah bertransaksi sebelum periode ini.
+                const uniquePatIds = [...new Set(insightRows
+                    .filter(tx => tx.payment_status !== 'void' && tx.patients?.id)
+                    .map(tx => tx.patients.id))]
                 if (uniquePatIds.length > 0) {
                     try {
                         const early = await earlyRetentionPromise
@@ -897,71 +788,34 @@ export default function Dashboard() {
                         // di sela-sela kedua query) diperiksa sekarang, seperti sebelumnya.
                         const missing = uniquePatIds.filter(id => !early || !early.covered.has(id))
                         const extra = missing.length > 0 ? await fetchPriorPatients(missing) : new Set()
-                        // Hanya pasien di uniquePatientsMap yang dimasukkan, persis seperti dulu.
                         uniquePatIds.forEach(id => {
-                            if ((early && early.prior.has(id)) || extra.has(id)) priorPatSet.add(id)
+                            if ((early && early.prior.has(id)) || extra.has(id)) priorPatientIds.add(id)
                         })
                     } catch (priorErr) {
                         console.warn('Error checking prior transactions for retention:', priorErr)
                     }
                 }
+            }
 
-                let tNewPats = new Set()
-                let tOldPats = new Set()
-                let tRevNew = 0
-                let tRevOld = 0
+            const insightContext = { treatmentCatMap, productCatMap, allActiveTreatments, priorPatientIds }
+            insightSourceRef.current = { rows: insightRows, context: insightContext, isOwner }
+            const allBranchInsights = computeDashboardInsights(insightRows, insightContext, '')
+            const activeAnalysisBranch = isOwner ? analysisBranchRef.current : ''
+            const visibleInsights = activeAnalysisBranch
+                ? computeDashboardInsights(insightRows, insightContext, activeAnalysisBranch)
+                : allBranchInsights
 
-                let pNewPats = new Set()
-                let pOldPats = new Set()
-                let pRevNew = 0
-                let pRevOld = 0
-
-                if (rangeTrx) {
-                    rangeTrx.forEach(tx => {
-                        if (tx.payment_status === 'void') return
-                        const pId = tx.patient_id
-                        if (!pId) return
-                        const isReturning = priorPatSet.has(pId)
-
-                        tx.transaction_items?.forEach(item => {
-                            const sub = Number(item.subtotal || 0)
-                            if (item.item_type === 'treatment') {
-                                if (isReturning) {
-                                    tOldPats.add(pId)
-                                    tRevOld += sub
-                                } else {
-                                    tNewPats.add(pId)
-                                    tRevNew += sub
-                                }
-                            } else if (item.item_type === 'product') {
-                                if (isReturning) {
-                                    pOldPats.add(pId)
-                                    pRevOld += sub
-                                } else {
-                                    pNewPats.add(pId)
-                                    pRevNew += sub
-                                }
-                            }
-                        })
-                    })
-                }
-
-                setRetentionStats({
-                    treatment: {
-                        newCount: tNewPats.size,
-                        oldCount: tOldPats.size,
-                        newRevenue: tRevNew,
-                        oldRevenue: tRevOld,
-                        totalRevenue: tRevNew + tRevOld
-                    },
-                    product: {
-                        newCount: pNewPats.size,
-                        oldCount: pOldPats.size,
-                        newRevenue: pRevNew,
-                        oldRevenue: pRevOld,
-                        totalRevenue: pRevNew + pRevOld
-                    }
-                })
+            setTopTreatments(visibleInsights.topTreatments)
+            setTopProducts(visibleInsights.topProducts)
+            if (isOwner) {
+                setDayOfWeekStats(visibleInsights.dayOfWeekStats)
+                setHourlyStats(visibleInsights.hourlyStats)
+                setCategoryVolumeStats(visibleInsights.categoryVolumeStats)
+                setCategorySalesStats(visibleInsights.categorySalesStats)
+                setBottomTreatments(visibleInsights.bottomTreatments)
+                setDemographicGender(visibleInsights.demographicGender)
+                setDemographicAge(visibleInsights.demographicAge)
+                setRetentionStats(visibleInsights.retentionStats)
             }
 
             // 2. Monthly target calculation (Khusus Treatment & Kupon) - pre-fetched in parallel
@@ -986,27 +840,13 @@ export default function Dashboard() {
             if (monthlyTrx) {
                 monthlyTrx.forEach(tx => {
                     if (tx && tx.branch_id && monthlyMap[tx.branch_id]) {
-                        let txTargetIncome = 0
-                        let txTreatmentIncome = 0
-                        let txCouponSalesIncome = 0
-
-                        if (tx.transaction_items && tx.transaction_items.length > 0) {
-                            tx.transaction_items.forEach(item => {
-                                const itemSub = Number(item.subtotal || 0)
-                                // Target HANYA untuk Treatment dan Kupon
-                                if (item.item_type === 'treatment') {
-                                    txTreatmentIncome += itemSub
-                                    txTargetIncome += itemSub
-                                } else if (item.item_type === 'coupon') {
-                                    txCouponSalesIncome += itemSub
-                                    txTargetIncome += itemSub
-                                }
-                            })
-                        } else {
-                            // Fallback jika tidak ada breakdown items
-                            txTargetIncome = getNetTransactionRevenue(tx)
-                            txTreatmentIncome = txTargetIncome
-                        }
+                        // Target HANYA untuk Treatment dan Kupon, dihitung dari pendapatan bersih
+                        // (setelah diskon). Sesi kupon yang dipakai tidak ikut, karena nilainya sudah
+                        // terhitung saat paket kupon dijual.
+                        const breakdown = getTransactionRevenueBreakdown(tx)
+                        const txTreatmentIncome = breakdown.net.treatment
+                        const txCouponSalesIncome = breakdown.net.coupon
+                        const txTargetIncome = txTreatmentIncome + txCouponSalesIncome
 
                         const qFee = getQrisFee(tx)
                         monthlyMap[tx.branch_id].monthlyIncome += txTargetIncome
@@ -1040,7 +880,7 @@ export default function Dashboard() {
                 treatmentIncome: grandTreatmentRange,
                 productIncome: grandProductRange,
                 couponSalesIncome: grandCouponSalesRange,
-                couponUsedValue: grandCouponUsedVal > 0 ? grandCouponUsedVal : grandCouponUsedRange,
+                couponUsedValue: grandCouponUsedVal,
                 couponUsedSessions: grandCouponUsedSessions,
                 discountTotal: grandDiscountRange,
                 qrisFee: grandQrisFeeRange,
@@ -1055,42 +895,18 @@ export default function Dashboard() {
                 // Nama field harus sama dengan state yang dipakai tampilan (branchDailyComparison).
                 branchDailyComparison: formattedRangeComp,
                 branchMonthlyTargetData: formattedMonthlyTargets,
-                topTreatments: sortedTreatments,
-                topProducts: sortedProducts,
-                bottomTreatments: sortedLowestTreatments,
-                categorySalesStats: sortedBySales,
-                categoryVolumeStats: sortedByVol,
-                demographicGender: [
-                    { name: 'Wanita', value: femaleCount, percent: totalPatients > 0 ? ((femaleCount / totalPatients) * 100).toFixed(1) : '0' },
-                    { name: 'Pria', value: maleCount, percent: totalPatients > 0 ? ((maleCount / totalPatients) * 100).toFixed(1) : '0' }
-                ],
-                demographicAge: [
-                    { group: '19-24 Thn', count: ageGroupMap['19-24'], percent: calcAgePct(ageGroupMap['19-24']) },
-                    { group: '25-34 Thn', count: ageGroupMap['25-34'], percent: calcAgePct(ageGroupMap['25-34']) },
-                    { group: '35-44 Thn', count: ageGroupMap['35-44'], percent: calcAgePct(ageGroupMap['35-44']) },
-                    { group: '45+ Thn', count: ageGroupMap['45+'], percent: calcAgePct(ageGroupMap['45+']) },
-                    { group: '13-18 Thn', count: ageGroupMap['13-18'], percent: calcAgePct(ageGroupMap['13-18']) },
-                    { group: '6-12 Thn', count: ageGroupMap['6-12'], percent: calcAgePct(ageGroupMap['6-12']) },
-                    { group: 'Lainnya', count: ageGroupMap['Lainnya'], percent: totalPatients > 0 ? ((ageGroupMap['Lainnya'] / totalPatients) * 100).toFixed(1) : '0' }
-                ],
-                retentionStats: {
-                    treatment: {
-                        newCount: tNewPats.size,
-                        oldCount: tOldPats.size,
-                        newRevenue: tRevNew,
-                        oldRevenue: tRevOld,
-                        totalRevenue: tRevNew + tRevOld
-                    },
-                    product: {
-                        newCount: pNewPats.size,
-                        oldCount: pOldPats.size,
-                        newRevenue: pRevNew,
-                        oldRevenue: pRevOld,
-                        totalRevenue: pRevNew + pRevOld
-                    }
-                },
-                dayOfWeekStats: dayStatsList,
-                hourlyStats: hourlyStatsList,
+                // Cache selalu berisi analisis semua cabang; pilihan cabang analisis kembali ke
+                // "Semua Cabang" setiap kali halaman dibuka ulang.
+                topTreatments: allBranchInsights.topTreatments,
+                topProducts: allBranchInsights.topProducts,
+                bottomTreatments: allBranchInsights.bottomTreatments,
+                categorySalesStats: allBranchInsights.categorySalesStats,
+                categoryVolumeStats: allBranchInsights.categoryVolumeStats,
+                demographicGender: allBranchInsights.demographicGender,
+                demographicAge: allBranchInsights.demographicAge,
+                retentionStats: allBranchInsights.retentionStats,
+                dayOfWeekStats: allBranchInsights.dayOfWeekStats,
+                hourlyStats: allBranchInsights.hourlyStats,
                 paymentBreakdown: formattedMethods,
                 couponUsageLogsList: couponLogsData,
                 recentBranchTransactions: rangeTrx ? rangeTrx.slice(0, 10) : []
@@ -1237,11 +1053,11 @@ export default function Dashboard() {
             })()
 
             // 4. Dormant Patients (>60 days no visit)
-            const sixtyDaysAgo = new Date()
-            sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
-            let dormantQuery = supabase.from('patients').select('id', { count: 'exact', head: true })
-                .or(`last_visit.lt.${sixtyDaysAgo.toISOString()},last_visit.is.null`)
-                .eq('is_active', true)
+            // Tabel patients tidak punya kolom last_visit, sehingga query lama selalu ditolak
+            // (400) dan angkanya tampil 0. patient_status_view menghitung kunjungan terakhir
+            // dari rekam treatment dan hanya berisi pasien aktif.
+            let dormantQuery = supabase.from('patient_status_view').select('patient_id', { count: 'exact', head: true })
+                .or('days_since_last_visit.gt.60,last_visit_date.is.null')
             dormantQuery = applyBranch(dormantQuery)
 
             // 5. New Patients This Month
@@ -1318,6 +1134,24 @@ export default function Dashboard() {
             fetchOperationalStats(dbUser)
         }
     }, [startDate, endDate, targetMonth, selectedBranch])
+
+    const selectAnalysisBranch = (branchId) => {
+        setAnalysisBranch(branchId)
+        analysisBranchRef.current = branchId
+        const source = insightSourceRef.current
+        if (!source || !source.isOwner) return
+        const ins = computeDashboardInsights(source.rows, source.context, branchId)
+        setTopTreatments(ins.topTreatments)
+        setTopProducts(ins.topProducts)
+        setDayOfWeekStats(ins.dayOfWeekStats)
+        setHourlyStats(ins.hourlyStats)
+        setCategoryVolumeStats(ins.categoryVolumeStats)
+        setCategorySalesStats(ins.categorySalesStats)
+        setBottomTreatments(ins.bottomTreatments)
+        setDemographicGender(ins.demographicGender)
+        setDemographicAge(ins.demographicAge)
+        setRetentionStats(ins.retentionStats)
+    }
 
     const handleOpenTargetModal = () => {
         const initialForm = {}
@@ -1871,97 +1705,108 @@ export default function Dashboard() {
                         {!collapsedSections.branchComparison ? (
                             <>
                                 {/* Cards Breakdown Omset per Cabang */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3 sm:gap-4 pt-1">
                                     {branchDailyComparison.map(b => {
-                                        const grossCatalogTotal = (b.treatmentIncome || 0) + (b.productIncome || 0) + (b.couponSalesIncome || 0) + (b.otherIncome || 0)
+                                        const rows = [
+                                            { key: 'treatment', label: 'Treatment', dot: 'bg-[#EC4899]', gross: b.treatmentGross || 0, net: b.treatmentIncome || 0 },
+                                            { key: 'product', label: 'Produk', dot: 'bg-[#06B6D4]', gross: b.productGross || 0, net: b.productIncome || 0 },
+                                            { key: 'coupon', label: 'Penjualan Kupon', shortLabel: 'Kupon', dot: 'bg-emerald-500', gross: b.couponSalesGross || 0, net: b.couponSalesIncome || 0 },
+                                            { key: 'other', label: 'Lainnya', dot: 'bg-gray-400', gross: b.otherGross || 0, net: b.otherIncome || 0, optional: true }
+                                        ].filter(row => !row.optional || row.gross !== 0 || row.net !== 0)
+                                        const grossTotal = rows.reduce((acc, row) => acc + row.gross, 0)
+                                        const netTotal = rows.reduce((acc, row) => acc + row.net, 0)
+                                        const rp = (n) => Math.round(n).toLocaleString('id-ID')
+                                        const discCell = (n) => n > 0
+                                            ? <span className="text-rose-600">-{rp(n)}</span>
+                                            : <span className="text-gray-300">0</span>
+                                        const hasActivity = (b.transactionCount || 0) > 0 || (b.couponUsedSessions || 0) > 0
                                         return (
-                                        <div key={b.branchId} className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 space-y-3 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
-                                            <div>
-                                                <div className="pb-2 mb-2.5 border-b border-gray-100">
-                                                    <h4 className="font-extrabold text-base text-gray-900">
-                                                        {b.branchName}
-                                                    </h4>
-                                                </div>
-
-                                                <div className="space-y-1.5 pt-0.5">
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                            <span className="w-2.5 h-2.5 rounded-full bg-[#EC4899] shrink-0"></span>
-                                                            Treatment:
-                                                        </span>
-                                                        <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.treatmentIncome.toLocaleString('id-ID')}</strong>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                            <span className="w-2.5 h-2.5 rounded-full bg-[#06B6D4] shrink-0"></span>
-                                                            Produk:
-                                                        </span>
-                                                        <strong className="text-gray-900 font-extrabold tracking-tight">Rp {b.productIncome.toLocaleString('id-ID')}</strong>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-emerald-700 font-bold flex items-center gap-1.5">
-                                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                            Penjualan Kupon:
-                                                        </span>
-                                                        <strong className="text-emerald-700 font-extrabold tracking-tight">Rp {b.couponSalesIncome.toLocaleString('id-ID')}</strong>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <span className="text-gray-700 font-bold flex items-center gap-1.5">
-                                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${b.discountTotal > 0 ? 'bg-rose-500' : 'bg-gray-300'}`}></span>
-                                                            Diskon:
-                                                        </span>
-                                                        <strong className={b.discountTotal > 0 ? "text-rose-600 font-extrabold tracking-tight" : "text-gray-400 font-semibold"}>
-                                                            {b.discountTotal > 0 ? `-Rp ${b.discountTotal.toLocaleString('id-ID')}` : 'Rp 0'}
-                                                        </strong>
-                                                    </div>
-
-                                                    <div 
-                                                        onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
-                                                        className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-gray-200 hover:bg-amber-50/70 p-1.5 -mx-1 rounded-xl transition-all cursor-pointer group/sesi"
-                                                        title="Klik untuk melihat rincian pemakaian sesi kupon (Jasa terselesaikan, bukan kas baru)"
-                                                    >
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                                                            <span className="text-amber-800 font-bold">Pemakaian Sesi:</span>
-                                                            <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100/90 border border-amber-200/80 px-1.5 py-0.2 rounded">
-                                                                {b.couponUsedSessions || 0} Sesi
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <strong className="text-amber-900 font-extrabold tracking-tight">
-                                                                Rp {(b.couponUsedValue || 0).toLocaleString('id-ID')}
-                                                            </strong>
-                                                            <span className="text-[10px] text-amber-800 bg-amber-100 group-hover/sesi:bg-amber-200 border border-amber-200/70 px-1.5 py-0.5 rounded font-bold transition-colors">
-                                                                Rincian ↗
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        <div key={b.branchId} className="p-4 sm:p-5 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
+                                            <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-gray-100">
+                                                <h4 className="font-extrabold text-base text-gray-900 truncate">{b.branchName}</h4>
+                                                <span className="text-xs font-bold text-stone-500 whitespace-nowrap">{b.transactionCount || 0} transaksi</span>
                                             </div>
 
-                                            <div className="pt-2.5 border-t border-gray-100 flex justify-between items-end">
+                                            {hasActivity ? (
+                                                <>
+                                                    <div className="overflow-x-auto -mx-1 px-1">
+                                                    <table className="w-full text-[10.5px] sm:text-xs tabular-nums">
+                                                        <thead>
+                                                            <tr className="text-[10px] uppercase tracking-wider text-gray-400">
+                                                                <th className="text-left font-bold pb-1.5">Kategori</th>
+                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Kotor</th>
+                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Diskon</th>
+                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Bersih</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {rows.map(row => (
+                                                                <tr key={row.key} className="border-t border-gray-50">
+                                                                    <td className="py-1.5 pr-1 font-bold text-gray-700">
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <span className={`w-2 h-2 rounded-full shrink-0 ${row.dot}`}></span>
+                                                                            {row.shortLabel ? (
+                                                                                <span className="truncate"><span className="sm:hidden">{row.shortLabel}</span><span className="hidden sm:inline">{row.label}</span></span>
+                                                                            ) : (
+                                                                                <span className="truncate">{row.label}</span>
+                                                                            )}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right text-gray-500 whitespace-nowrap">{rp(row.gross)}</td>
+                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-semibold whitespace-nowrap">{discCell(row.gross - row.net)}</td>
+                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-extrabold text-gray-900 whitespace-nowrap">{rp(row.net)}</td>
+                                                                </tr>
+                                                            ))}
+                                                            <tr className="border-t border-gray-200">
+                                                                <td className="pt-2 font-extrabold text-gray-900">Total</td>
+                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold text-gray-600 whitespace-nowrap">{rp(grossTotal)}</td>
+                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal)}</td>
+                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-black text-[#5c3316] whitespace-nowrap">{rp(netTotal)}</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-400 font-medium -mt-1">
+                                                        Treatment termasuk infus. Diskon termasuk bonus gratis.
+                                                    </p>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
+                                                        className="w-full flex items-center justify-between gap-3 text-left bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/70 rounded-xl px-3 py-2 transition-colors cursor-pointer"
+                                                        title="Klik untuk melihat rincian pemakaian sesi kupon (jasa terselesaikan, bukan kas baru)"
+                                                    >
+                                                        <span className="min-w-0">
+                                                            <span className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                                                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                                                                Pemakaian Sesi Kupon
+                                                            </span>
+                                                            <span className="block text-[10px] text-amber-800/70 font-medium pl-3.5">Sudah dibayar saat beli paket</span>
+                                                        </span>
+                                                        <span className="text-right shrink-0">
+                                                            <span className="block text-xs font-extrabold text-amber-900 tabular-nums whitespace-nowrap">
+                                                                {b.couponUsedSessions || 0} sesi · Rp {rp(b.couponUsedValue || 0)}
+                                                            </span>
+                                                            <span className="block text-[10px] font-bold text-amber-700">Rincian ↗</span>
+                                                        </span>
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada transaksi pada periode ini.</p>
+                                            )}
+
+                                            <div className="mt-auto pt-2.5 border-t border-gray-100 flex justify-between items-end gap-3">
                                                 <div>
-                                                    <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
-                                                        Total Omset Cabang
+                                                    <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Omset Cabang</p>
+                                                    <p className="text-lg font-black text-[#5c3316] tracking-tight tabular-nums mt-0.5">
+                                                        Rp {rp(b.cashIncome || 0)}
                                                     </p>
-                                                    <p className="text-base font-black text-[#5c3316] tracking-tight mt-0.5">
-                                                        Rp {b.cashIncome.toLocaleString('id-ID')}
+                                                </div>
+                                                {(b.qrisFee || 0) > 0 && (
+                                                    <p className="text-[10px] text-gray-400 font-medium text-right whitespace-nowrap">
+                                                        Sudah dipotong biaya QRIS<br />Rp {rp(b.qrisFee)}
                                                     </p>
-                                                    {b.discountTotal > 0 ? (
-                                                        <p className="text-[10px] text-gray-400 font-medium tracking-tight mt-0.5">
-                                                            Sebelum disc: <span className="font-semibold text-gray-600">Rp {grossCatalogTotal.toLocaleString('id-ID')}</span>
-                                                        </p>
-                                                    ) : (
-                                                        <p className="text-[10px] text-transparent select-none mt-0.5">
-                                                            -
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Total Transaksi</p>
-                                                    <p className="text-sm font-extrabold text-stone-800 tracking-tight mt-0.5">{b.transactionCount || 0} Transaksi</p>
-                                                    <p className="text-[10px] text-transparent select-none mt-0.5">-</p>
-                                                </div>
+                                                )}
                                             </div>
                                         </div>
                                     )})}
@@ -2265,6 +2110,17 @@ export default function Dashboard() {
                     </>
                 ) : null}
             </div>
+
+                    {/* Pilihan cabang untuk seluruh bagian analisis di bawah */}
+                    <div ref={analysisPillRef} className="flex justify-center">
+                        <AnalysisBranchPill branches={branchDailyComparison} activeBranch={analysisBranch} onSelect={selectAnalysisBranch} />
+                    </div>
+                    {analysisPillDocked && typeof document !== 'undefined' && document.getElementById('header-center-slot')
+                        ? createPortal(
+                            <AnalysisBranchPill branches={branchDailyComparison} activeBranch={analysisBranch} onSelect={selectAnalysisBranch} inHeader />,
+                            document.getElementById('header-center-slot')
+                        )
+                        : null}
 
                     {/* SECTION 3: TOP & BOTTOM TREATMENT & TOP PRODUK */}
                     <div className="card-ayumi p-4 sm:p-6 md:p-7 bg-white space-y-4 sm:space-y-5 shadow-md border border-gray-200 rounded-2xl sm:rounded-3xl">
@@ -2669,10 +2525,10 @@ export default function Dashboard() {
                             <div className="p-4 rounded-2xl bg-stone-50/50 border border-stone-200/80 space-y-3">
                                 <div>
                                     <h4 className="font-extrabold text-sm text-gray-900">
-                                        Kategori Berdasarkan Omset Penjualan (Gross Sales)
+                                        Kategori Berdasarkan Omset Penjualan (Bersih)
                                     </h4>
                                     <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
-                                        Kontribusi nominal rupiah kotor dari setiap kategori
+                                        Kontribusi omzet bersih (setelah diskon) dari setiap kategori
                                     </p>
                                 </div>
                                 <div className="h-64 sm:h-72 w-full pt-2">
@@ -4436,6 +4292,19 @@ export default function Dashboard() {
                             />
                         </div>
                         <div className="p-4 overflow-y-auto flex-1">
+                            {(() => {
+                                // Sesi dari nota migrasi GD Cashier tidak punya log per pasien, jadi hanya
+                                // ringkasannya yang ditampilkan di sini.
+                                const gdRows = (branchDailyComparison || []).filter(b => !couponUsageModalBranch.id || b.branchId === couponUsageModalBranch.id)
+                                const gdSessions = gdRows.reduce((acc, b) => acc + (b.gdCouponUsedSessions || 0), 0)
+                                const gdValue = gdRows.reduce((acc, b) => acc + (b.gdCouponUsedValue || 0), 0)
+                                if (gdSessions === 0 || couponUsageSearch.trim()) return null
+                                return (
+                                    <p className="mb-3 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
+                                        Ditambah <strong>{gdSessions} sesi (Rp {gdValue.toLocaleString('id-ID')})</strong> dari nota migrasi GD Cashier. Rincian per pasien untuk nota GD dapat dilihat di Riwayat Transaksi.
+                                    </p>
+                                )
+                            })()}
                             {filteredCouponLogs.length === 0 ? (
                                 <p className="text-xs text-stone-400 py-10 text-center">Tidak ditemukan riwayat pemakaian sesi kupon.</p>
                             ) : (
