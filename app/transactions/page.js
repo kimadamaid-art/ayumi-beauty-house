@@ -3907,7 +3907,9 @@ export default function TransactionsPage() {
                                                 const pOrig = getProductOriginalPrice(item, prod)
                                                 if (pOrig > charged) orig = pOrig
                                             }
-                                        } else if (item.item_type === 'treatment') {
+                                        } else if (item.item_type === 'treatment' && orig <= charged) {
+                                            // Rekam treatment hanya dipakai bila nota tidak menyimpan harga asli:
+                                            // untuk sesi pertama paket kupon, rekam menyimpan harga paket, bukan harga sesi.
                                             const triList = selectedTx.treatment_records?.treatment_record_items || []
                                             const tri = triList.find(t => (t.treatments?.name || t.notes || '').trim().toLowerCase() === (item.name || '').trim().toLowerCase())
                                             if (tri) {
