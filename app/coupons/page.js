@@ -6,13 +6,11 @@ import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from '@/components/ui/BranchFilter'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
 
 export default function CouponsDashboardPage() {
-    const router = useRouter()
     const [activeTab, setActiveTab] = useState('master') // 'master', 'patients', 'usage', 'history'
     const [isLoading, setIsLoading] = useState(false)
     const [dbUser, setDbUser] = useState(null)
@@ -62,14 +60,16 @@ export default function CouponsDashboardPage() {
     const [histBranchFilter, setHistBranchFilter] = useState('')
     const [branches, setBranches] = useState([])
 
-    // Pengelolaan kupon khusus Owner. Admin menjual dan mengklaim kupon lewat Kasir.
+    // Master paket kupon (harga, isi, aktivasi) khusus Owner. Selain Owner langsung
+    // dibuka di tab Kupon Pasien dan tidak bisa kembali ke tab Master.
     const isOwner = dbUser?.role === 'owner'
     useEffect(() => {
-        if (userLoaded && !isOwner) router.replace('/kasir')
-    }, [userLoaded, isOwner, router])
+        if (userLoaded && !isOwner && activeTab === 'master') setActiveTab('patients')
+    }, [userLoaded, isOwner, activeTab])
 
     useEffect(() => {
-        if (!userLoaded || !isOwner) return
+        if (!userLoaded) return
+        if (activeTab === 'master' && !isOwner) return
         if (activeTab === 'master') fetchPackages()
         else if (activeTab === 'patients') fetchPatientCoupons()
         else if (activeTab === 'history') fetchHistoryLogs()
@@ -485,15 +485,6 @@ export default function CouponsDashboardPage() {
         })
     }
 
-    if (userLoaded && !isOwner) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <p className="text-rose-600 font-bold">Akses Ditolak: Halaman ini hanya dapat diakses oleh Owner.</p>
-                <p className="text-sm text-gray-500 mt-1">Penjualan dan klaim kupon dilakukan lewat halaman Kasir. Mengalihkan...</p>
-            </div>
-        )
-    }
-
     if (!userLoaded) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -519,11 +510,11 @@ export default function CouponsDashboardPage() {
             {/* Tabs Header */}
             <div className="flex overflow-x-auto border-b border-gray-200 hide-scrollbar">
                 {[
-                    { id: 'master', label: 'Paket Kupon (Master)' },
+                    { id: 'master', label: 'Paket Kupon (Master)', ownerOnly: true },
                     { id: 'patients', label: 'Kupon Pasien' },
                     { id: 'usage', label: 'Penggunaan Kupon' },
                     { id: 'history', label: 'Riwayat Penggunaan' }
-                ].map(tab => (
+                ].filter(tab => !tab.ownerOnly || isOwner).map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
@@ -535,7 +526,7 @@ export default function CouponsDashboardPage() {
             </div>
 
             {/* TAB 1: MASTER PAKET */}
-            {activeTab === 'master' && (
+            {activeTab === 'master' && isOwner && (
                 <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                         {/* Sub-tabs: Aktif vs Arsip */}

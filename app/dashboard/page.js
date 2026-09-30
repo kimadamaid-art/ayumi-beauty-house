@@ -4133,7 +4133,7 @@ export default function Dashboard() {
                         <p className="text-[11px] font-bold text-stone-500">Dormant (&gt;60h)</p>
                         <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statDormant}</h4>
                     </div>
-                    <div onClick={() => { if (isOwner) router.push('/coupons') }} className={`p-4 rounded-xl bg-white border border-stone-200/90 transition-all ${isOwner ? 'hover:border-stone-400 cursor-pointer' : ''}`}>
+                    <div onClick={() => router.push('/coupons')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
                         <p className="text-[11px] font-bold text-stone-500">Kupon Expired (30h)</p>
                         <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statExpiringCoupons}</h4>
                     </div>
