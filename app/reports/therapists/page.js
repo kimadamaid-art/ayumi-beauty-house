@@ -14,6 +14,11 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 
+// Bonus penjualan kupon baru berlaku mulai Oktober 2026 (keputusan manajemen). Paket
+// yang terjual sebelum tanggal ini tidak memberi fee, sehingga pendapatan terapis
+// untuk September 2026 hanya berasal dari komisi treatment.
+const COUPON_FEE_START_DATE = '2026-10-01'
+
 export default function TherapistsReportPage() {
     const router = useRouter()
 
@@ -194,6 +199,12 @@ export default function TherapistsReportPage() {
     // di patient_coupons saat transaksi berhasil. Hanya nota lunas yang dihitung,
     // sehingga transaksi yang di-void otomatis gugur beserta fee-nya.
     const fetchCouponSellerFees = async () => {
+        if (endDate < COUPON_FEE_START_DATE) {
+            setCouponFees({})
+            return
+        }
+        const feeStartDate = startDate > COUPON_FEE_START_DATE ? startDate : COUPON_FEE_START_DATE
+
         // Dibentuk ulang tiap halaman: satu builder tidak boleh dipakai dua kali
         // dengan range berbeda.
         const buildQuery = () => {
@@ -203,7 +214,7 @@ export default function TherapistsReportPage() {
                 .not('sold_by', 'is', null)
                 .gt('seller_fee_at_time', 0)
                 .eq('transactions.payment_status', 'paid')
-                .gte('created_at', new Date(`${startDate}T00:00:00`).toISOString())
+                .gte('created_at', new Date(`${feeStartDate}T00:00:00`).toISOString())
                 .lte('created_at', new Date(`${endDate}T23:59:59.999`).toISOString())
 
             if (selectedBranch !== 'all') {
