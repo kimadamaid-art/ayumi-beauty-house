@@ -1800,7 +1800,7 @@ export default function Dashboard() {
                         {!collapsedSections.branchComparison ? (
                             <>
                                 {/* Cards Breakdown Omset per Cabang */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3 sm:gap-4 pt-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 sm:gap-4 pt-1">
                                     {branchDailyComparison.map(b => {
                                         const rows = [
                                             { key: 'treatment', label: 'Treatment', dot: 'bg-[#EC4899]', gross: b.treatmentGross || 0, redeem: b.treatmentRedeem || 0, net: b.treatmentIncome || 0 },
@@ -1821,29 +1821,36 @@ export default function Dashboard() {
                                         const hasActivity = (b.transactionCount || 0) > 0 || (b.couponUsedSessions || 0) > 0
                                         return (
                                         <div key={b.branchId} className="p-4 sm:p-5 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
-                                            <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-gray-100">
+                                            <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-gray-100">
                                                 <h4 className="font-extrabold text-base text-gray-900 truncate">{b.branchName}</h4>
-                                                <span className="text-xs font-bold text-stone-500 whitespace-nowrap">{b.transactionCount || 0} transaksi</span>
+                                                <span className="text-[11px] font-bold text-stone-600 bg-stone-100 rounded-full px-2.5 py-0.5 whitespace-nowrap">{b.transactionCount || 0} transaksi</span>
                                             </div>
 
                                             {hasActivity ? (
                                                 <>
                                                     <div className="overflow-x-auto -mx-1 px-1">
-                                                    <table className="w-full text-[10.5px] sm:text-xs tabular-nums">
+                                                    <table className="w-full table-fixed min-w-[26rem] text-[10.5px] sm:text-xs tabular-nums">
+                                                        <colgroup>
+                                                            <col className="w-[30%]" />
+                                                            <col className="w-[17.5%]" />
+                                                            <col className="w-[17.5%]" />
+                                                            <col className="w-[17.5%]" />
+                                                            <col className="w-[17.5%]" />
+                                                        </colgroup>
                                                         <thead>
-                                                            <tr className="text-[10px] uppercase tracking-wider text-gray-400">
-                                                                <th className="text-left font-bold pb-1.5">Kategori</th>
-                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Kotor</th>
-                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Diskon</th>
-                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2" title="Nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual">Redeem Kupon</th>
-                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Bersih</th>
+                                                            <tr className="text-[10px] uppercase tracking-wider text-gray-400 align-bottom">
+                                                                <th className="text-left font-bold pb-2">Kategori</th>
+                                                                <th className="text-right font-bold pb-2">Kotor</th>
+                                                                <th className="text-right font-bold pb-2">Diskon</th>
+                                                                <th className="text-right font-bold pb-2 leading-tight" title="Nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual">Redeem<br />Kupon</th>
+                                                                <th className="text-right font-bold pb-2">Bersih</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
                                                             {rows.map(row => (
-                                                                <tr key={row.key} className="border-t border-gray-50">
-                                                                    <td className="py-1.5 pr-1 font-bold text-gray-700">
-                                                                        <span className="flex items-center gap-1.5">
+                                                                <tr key={row.key} className="border-t border-gray-100">
+                                                                    <td className="py-2 pr-2 font-bold text-gray-700">
+                                                                        <span className="flex items-center gap-1.5 min-w-0">
                                                                             <span className={`w-2 h-2 rounded-full shrink-0 ${row.dot}`}></span>
                                                                             {row.shortLabel ? (
                                                                                 <span className="truncate"><span className="sm:hidden">{row.shortLabel}</span><span className="hidden sm:inline">{row.label}</span></span>
@@ -1852,62 +1859,58 @@ export default function Dashboard() {
                                                                             )}
                                                                         </span>
                                                                     </td>
-                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right text-gray-500 whitespace-nowrap">{rp(row.gross)}</td>
-                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-semibold whitespace-nowrap">{discCell(row.gross - row.net - row.redeem)}</td>
-                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-semibold whitespace-nowrap">{redeemCell(row.redeem)}</td>
-                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-extrabold text-gray-900 whitespace-nowrap">{rp(row.net)}</td>
+                                                                    <td className="py-2 text-right text-gray-500 whitespace-nowrap">{rp(row.gross)}</td>
+                                                                    <td className="py-2 text-right font-semibold whitespace-nowrap">{discCell(row.gross - row.net - row.redeem)}</td>
+                                                                    <td className="py-2 text-right font-semibold whitespace-nowrap">{redeemCell(row.redeem)}</td>
+                                                                    <td className="py-2 text-right font-extrabold text-gray-900 whitespace-nowrap">{rp(row.net)}</td>
                                                                 </tr>
                                                             ))}
-                                                            <tr className="border-t border-gray-200">
-                                                                <td className="pt-2 font-extrabold text-gray-900">Total</td>
-                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold text-gray-600 whitespace-nowrap">{rp(grossTotal)}</td>
-                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal - redeemTotal)}</td>
-                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold whitespace-nowrap">{redeemCell(redeemTotal)}</td>
-                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-black text-[#5c3316] whitespace-nowrap">{rp(netTotal)}</td>
+                                                            <tr className="border-t-2 border-gray-200">
+                                                                <td className="pt-2.5 font-extrabold text-gray-900">Total</td>
+                                                                <td className="pt-2.5 text-right font-bold text-gray-700 whitespace-nowrap">{rp(grossTotal)}</td>
+                                                                <td className="pt-2.5 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal - redeemTotal)}</td>
+                                                                <td className="pt-2.5 text-right font-bold whitespace-nowrap">{redeemCell(redeemTotal)}</td>
+                                                                <td className="pt-2.5 text-right font-black text-[#5c3316] whitespace-nowrap">{rp(netTotal)}</td>
                                                             </tr>
                                                         </tbody>
                                                     </table>
                                                     </div>
-                                                    <p className="text-[10px] text-gray-400 font-medium -mt-1">
-                                                        Kotor − Diskon − Redeem Kupon = Bersih. Treatment termasuk infus; diskon termasuk bonus gratis; redeem kupon = sesi kupon yang dipakai (dibayar saat beli paket).
-                                                    </p>
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
-                                                        className="w-full flex items-center justify-between gap-3 text-left bg-amber-50/70 hover:bg-amber-100/80 border border-amber-200/70 rounded-xl px-3 py-2 transition-colors cursor-pointer"
-                                                        title="Klik untuk melihat rincian pemakaian sesi kupon (jasa terselesaikan, bukan kas baru)"
-                                                    >
-                                                        <span className="min-w-0">
-                                                            <span className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
-                                                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                                                                Pemakaian Sesi Kupon
-                                                            </span>
-                                                            <span className="block text-[10px] text-amber-800/70 font-medium pl-3.5">Sudah dibayar saat beli paket</span>
+                                                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                                                        <span
+                                                            className="text-[10px] text-gray-400 font-medium"
+                                                            title="Treatment termasuk infus. Diskon termasuk bonus gratis. Redeem kupon = sesi kupon yang dipakai; uangnya diterima saat paket dijual."
+                                                        >
+                                                            Kotor − Diskon − Redeem Kupon = Bersih
                                                         </span>
-                                                        <span className="text-right shrink-0">
-                                                            <span className="block text-xs font-extrabold text-amber-900 tabular-nums whitespace-nowrap">
-                                                                {b.couponUsedSessions || 0} sesi · Rp {rp(b.couponUsedValue || 0)}
-                                                            </span>
-                                                            <span className="block text-[10px] font-bold text-amber-700">Rincian ↗</span>
-                                                        </span>
-                                                    </button>
+                                                        {(b.couponUsedSessions || 0) > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
+                                                                className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-full px-2.5 py-0.5 transition-colors cursor-pointer"
+                                                                title="Rincian sesi kupon yang dipakai pada periode ini"
+                                                            >
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                                {b.couponUsedSessions} sesi kupon dipakai · Rincian ↗
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </>
                                             ) : (
                                                 <p className="text-xs text-gray-400 font-medium py-6 text-center">Belum ada transaksi pada periode ini.</p>
                                             )}
 
-                                            <div className="mt-auto pt-2.5 border-t border-gray-100 flex justify-between items-end gap-3">
+                                            <div className="mt-auto pt-3 border-t border-gray-100 flex justify-between items-center gap-3">
                                                 <div>
                                                     <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Total Omset Cabang</p>
-                                                    <p className="text-lg font-black text-[#5c3316] tracking-tight tabular-nums mt-0.5">
+                                                    <p className="text-lg font-black text-[#5c3316] tracking-tight tabular-nums leading-tight">
                                                         Rp {rp(b.cashIncome || 0)}
                                                     </p>
                                                 </div>
                                                 {(b.qrisFee || 0) > 0 && (
-                                                    <p className="text-[10px] text-gray-400 font-medium text-right whitespace-nowrap">
-                                                        Sudah dipotong biaya QRIS<br />Rp {rp(b.qrisFee)}
-                                                    </p>
+                                                    <span className="text-[10px] font-semibold text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1 whitespace-nowrap" title="Omset sudah dikurangi biaya layanan QRIS">
+                                                        Biaya QRIS −Rp {rp(b.qrisFee)}
+                                                    </span>
                                                 )}
                                             </div>
                                         </div>
