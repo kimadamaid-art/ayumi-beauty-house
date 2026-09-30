@@ -218,6 +218,9 @@ function PosPageContent() {
         setCart([])
         setSelectedPatient(null)
         setSelectedPatientDetails(null)
+        setQuickAddForm({ full_name: '', whatsapp: '' })
+        setQuickAddConflict(null)
+        setIsQuickAddInlineOpen(false)
         setDiscountValue(0)
         setNotes('')
         setCashReceived('')
@@ -355,6 +358,9 @@ function PosPageContent() {
             setCart([])
             setSelectedPatient(null)
             setSelectedPatientDetails(null)
+            setQuickAddForm({ full_name: '', whatsapp: '' })
+            setQuickAddConflict(null)
+            setIsQuickAddInlineOpen(false)
             setDiscountValue(0)
             setNotes('')
             setCashReceived('')
@@ -902,9 +908,29 @@ function PosPageContent() {
             setIsQuickAddInlineOpen(false)
         } catch (err) {
             console.error(err)
-            let msg = err.message
-            if (msg.includes('unique constraint') || msg.includes('23505')) {
-                msg = 'Nomor WhatsApp ini sudah terdaftar sebagai pasien'
+            const msg = err.message || ''
+            if (err.code === '23505' || msg.includes('unique constraint') || msg.includes('23505')) {
+                // Nomor ternyata sudah ada. Pemeriksaan di atas bisa tidak menemukannya bila
+                // pasien baru saja didaftarkan kasir lain, atau terdaftar di cabang yang
+                // datanya tidak boleh dilihat akun ini. Coba ambil lagi untuk ditawarkan.
+                const cleanWa = validatePatientData({
+                    full_name: quickAddForm.full_name,
+                    whatsapp: quickAddForm.whatsapp,
+                    branch_id: selectedBranch
+                }).cleanPayload?.whatsapp
+                const { data: existing } = cleanWa
+                    ? await supabase
+                        .from('patients')
+                        .select('id, full_name, whatsapp, branch_id, branches(name)')
+                        .eq('whatsapp', cleanWa)
+                        .maybeSingle()
+                    : { data: null }
+                if (existing) {
+                    setQuickAddConflict({ ...existing, lastVisit: null })
+                } else {
+                    setQuickAddError('Nomor WhatsApp ini sudah terdaftar, tetapi data pasiennya tidak bisa ditampilkan di akun ini (kemungkinan terdaftar di cabang lain). Cari pasien lewat kolom pencarian dengan nomor tersebut; jika tidak muncul, hubungi owner.')
+                }
+                return
             }
             setQuickAddError('Gagal menambahkan pasien: ' + msg)
         } finally {
@@ -1935,6 +1961,21 @@ function PosPageContent() {
             return
         }
 
+        // Data pasien baru sudah diketik tapi belum tersimpan: tanpa pengaman ini nota
+        // tercatat sebagai Walk-in Customer (kasus TRX-BJR-20260930-0008).
+        const pendingPatientLabel = quickAddForm.full_name.trim() || quickAddForm.whatsapp.trim()
+        if (!selectedPatient && pendingPatientLabel) {
+            const proceedAsWalkIn = window.confirm(
+                `PERHATIAN: Anda sedang mengisi data pasien baru (${pendingPatientLabel}) tetapi belum tersimpan!\n\n` +
+                `• Klik BATAL/CANCEL untuk kembali dan tekan tombol 'Simpan & Pilih Pasien'.\n` +
+                `• Klik OK jika transaksi ini memang untuk Walk-in Customer (tanpa nama).`
+            )
+            if (!proceedAsWalkIn) {
+                setIsQuickAddInlineOpen(true)
+                return
+            }
+        }
+
         // Validasi wajib terapis per item treatment
         const treatmentItems = cart.filter(item => item.item_type === 'treatment')
         for (const tItem of treatmentItems) {
@@ -2666,6 +2707,9 @@ function PosPageContent() {
             setCart([])
             setSelectedPatient(null)
             setSelectedPatientDetails(null)
+            setQuickAddForm({ full_name: '', whatsapp: '' })
+            setQuickAddConflict(null)
+            setIsQuickAddInlineOpen(false)
             setDiscountValue(0)
             setNotes('')
             setCashReceived('')
@@ -2718,6 +2762,9 @@ function PosPageContent() {
                 setCart([])
                 setSelectedPatient(null)
                 setSelectedPatientDetails(null)
+                setQuickAddForm({ full_name: '', whatsapp: '' })
+                setQuickAddConflict(null)
+                setIsQuickAddInlineOpen(false)
                 setDiscountValue(0)
                 setNotes('')
                 setCashReceived('')
@@ -3631,15 +3678,55 @@ function PosPageContent() {
                                     onClick={() => {
                                         setIsQuickAddInlineOpen(false)
                                         setQuickAddError('')
-                                    }} 
+                                        setQuickAddConflict(null)
+                                        setQuickAddForm({ full_name: '', whatsapp: '' })
+                                    }}
                                     className="text-[10px] text-gray-400 hover:text-gray-600 font-bold"
                                 >
                                     Batal
                                 </button>
                             </div>
-                            
+
                             {quickAddError && (
-                                <p className="text-[9.5px] text-rose-600 bg-rose-50 p-1 rounded-md border border-rose-100">{quickAddError}</p>
+                                <div role="alert" className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-2 rounded-lg border-2 border-rose-300">
+                                    ⚠️ {quickAddError}
+                                </div>
+                            )}
+
+                            {/* Nomor WA sudah terdaftar: sebelumnya state ini tidak ditampilkan, sehingga
+                                tombol Simpan terlihat tidak bereaksi dan kasir lanjut bayar sebagai Walk-in. */}
+                            {quickAddConflict && (
+                                <div role="alert" className="text-xs text-amber-900 bg-amber-50 px-2.5 py-2 rounded-lg border-2 border-amber-300 space-y-2">
+                                    <p className="font-bold">
+                                        ⚠️ Nomor WhatsApp ini sudah terdaftar atas nama: {quickAddConflict.full_name} ({quickAddConflict.whatsapp})
+                                        {quickAddConflict.branches?.name && <> • {quickAddConflict.branches.name}</>}
+                                    </p>
+                                    {quickAddConflict.lastVisit && (
+                                        <p className="text-[10.5px] font-semibold text-amber-800">Kunjungan terakhir: {quickAddConflict.lastVisit}</p>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                handleSelectPatient(quickAddConflict)
+                                                setQuickAddForm({ full_name: '', whatsapp: '' })
+                                                setQuickAddConflict(null)
+                                                setQuickAddError('')
+                                                setIsQuickAddInlineOpen(false)
+                                            }}
+                                            className="py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black cursor-pointer"
+                                        >
+                                            Gunakan Pasien Ini
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickAddConflict(null)}
+                                            className="py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold cursor-pointer"
+                                        >
+                                            Ganti Nomor / Batal
+                                        </button>
+                                    </div>
+                                </div>
                             )}
 
                             <div className="grid grid-cols-2 gap-2">
@@ -3660,7 +3747,11 @@ function PosPageContent() {
                                         type="tel" 
                                         placeholder="08123456789" 
                                         value={quickAddForm.whatsapp} 
-                                        onChange={(e) => setQuickAddForm({ ...quickAddForm, whatsapp: e.target.value })}
+                                        onChange={(e) => {
+                                            // Spasi dan tanda minus dibuang agar kasir bebas menempel nomor apa adanya.
+                                            setQuickAddForm({ ...quickAddForm, whatsapp: e.target.value.replace(/[^\d+]/g, '') })
+                                            setQuickAddConflict(null)
+                                        }}
                                         className="w-full text-xs font-semibold p-1.5 bg-white border border-pink-200 rounded-lg outline-none focus:border-ayumi-primary"
                                     />
                                 </div>
