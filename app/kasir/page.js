@@ -151,6 +151,10 @@ function PosPageContent() {
                     setDiscountValue(parsed.discountValue || 0)
                     setNotes(parsed.notes || '')
                     setSelectedTherapistId(parsed.selectedTherapistId || '')
+                    if (!parsed.selectedPatient && parsed.pendingPatientForm) {
+                        setQuickAddForm(parsed.pendingPatientForm)
+                        setIsQuickAddInlineOpen(true)
+                    }
                     if (parsed.selectedPatient?.id) {
                         fetchPatientHistory(parsed.selectedPatient.id)
                     }
@@ -173,6 +177,10 @@ function PosPageContent() {
                     discountValue,
                     notes,
                     selectedTherapistId,
+                    // Pasien baru yang diketik tapi belum disimpan tidak hilang saat halaman dimuat ulang.
+                    pendingPatientForm: !selectedPatient && (quickAddForm.full_name.trim() || quickAddForm.whatsapp.trim())
+                        ? quickAddForm
+                        : null,
                     timestamp: new Date().toISOString()
                 }))
             } else {
@@ -181,7 +189,7 @@ function PosPageContent() {
         } catch (err) {
             console.error('Error auto-saving active cart:', err)
         }
-    }, [cart, selectedPatient, selectedPatientDetails, discountType, discountValue, notes, selectedTherapistId])
+    }, [cart, selectedPatient, selectedPatientDetails, discountType, discountValue, notes, selectedTherapistId, quickAddForm])
 
     // Handler to Hold current active transaction
     const handleHoldTransaction = () => {
@@ -190,12 +198,30 @@ function PosPageContent() {
             return
         }
 
+        // Pasien baru yang sudah diketik tapi belum disimpan ikut ditahan, lalu dikembalikan
+        // ke form saat tagihan dibuka lagi. Tanpa ini datanya hilang dan nota tercatat Walk-in.
+        const pendingPatientForm = !selectedPatient && (quickAddForm.full_name.trim() || quickAddForm.whatsapp.trim())
+            ? { full_name: quickAddForm.full_name, whatsapp: quickAddForm.whatsapp }
+            : null
+        if (pendingPatientForm) {
+            const holdAnyway = window.confirm(
+                `PERHATIAN: Data pasien baru (${pendingPatientForm.full_name || pendingPatientForm.whatsapp}) belum tersimpan!\n\n` +
+                `• Klik BATAL/CANCEL untuk kembali dan tekan tombol 'Simpan & Pilih Pasien' dulu.\n` +
+                `• Klik OK untuk tetap menahan tagihan; data pasien yang diketik ikut disimpan dan muncul lagi saat tagihan dibuka.`
+            )
+            if (!holdAnyway) {
+                setIsQuickAddInlineOpen(true)
+                return
+            }
+        }
+
         const newHeld = {
             id: 'held_' + Date.now(),
             branch_id: selectedBranch,
             treatmentRecordId: treatmentRecordId || null,
             patient: selectedPatient,
             patientDetails: selectedPatientDetails,
+            pendingPatientForm,
             cart: [...cart],
             discountType,
             discountValue,
@@ -244,6 +270,15 @@ function PosPageContent() {
 
         setSelectedPatient(heldItem.patient || null)
         setSelectedPatientDetails(heldItem.patientDetails || null)
+        setQuickAddConflict(null)
+        setQuickAddError('')
+        if (!heldItem.patient && heldItem.pendingPatientForm) {
+            setQuickAddForm(heldItem.pendingPatientForm)
+            setIsQuickAddInlineOpen(true)
+        } else {
+            setQuickAddForm({ full_name: '', whatsapp: '' })
+            setIsQuickAddInlineOpen(false)
+        }
 
         // Pastikan setiap tindakan memiliki pelaksana/terapis valid agar checkout tidak terhambat
         const sanitizedCart = (heldItem.cart || []).map(item => {
@@ -4687,7 +4722,7 @@ function PosPageContent() {
                                             <div className="space-y-1.5 min-w-0 flex-1">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-extrabold text-sm text-gray-900 truncate">
-                                                        {heldItem.patient?.full_name || 'Pelanggan Walk-in'}
+                                                        {heldItem.patient?.full_name || (heldItem.pendingPatientForm ? `${heldItem.pendingPatientForm.full_name || heldItem.pendingPatientForm.whatsapp} (pasien belum disimpan)` : 'Pelanggan Walk-in')}
                                                     </span>
                                                     <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
                                                         ⏰ {timeStr} ({dateStr})
