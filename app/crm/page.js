@@ -13,6 +13,7 @@ import { openWhatsApp } from '@/lib/whatsapp'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
+import TreatmentTargetTab from '@/components/crm/TreatmentTargetTab'
 
 // Supabase mengirim maksimal 1000 baris per permintaan. Query ulang tahun dan pasien
 // dormant di halaman ini sebelumnya meminta sekali tanpa paginasi, sehingga data di atas
@@ -1094,9 +1095,19 @@ export default function CRMPage() {
                         </span>
                     )}
                 </button>
+                <button 
+                    onClick={() => setActiveTab('treatment')}
+                    className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'treatment' ? 'bg-gradient-to-r from-ayumi-secondary to-ayumi-primary text-white shadow-md font-extrabold' : 'text-gray-600 hover:bg-pink-50/50 hover:text-ayumi-primary'}`}
+                >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Target Treatment</span>
+                </button>
             </div>
 
-            {/* SEARCH & FILTER CONTROLS */}
+            {/* SEARCH & FILTER CONTROLS (tab Target Treatment punya filter sendiri) */}
+            {activeTab !== 'treatment' && (
             <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-200/80 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="relative w-full md:w-80">
                     <input
@@ -1189,6 +1200,7 @@ export default function CRMPage() {
                     )}
                 </div>
             </div>
+            )}
 
             {/* CONTENT */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200/80 p-5 md:p-8 min-h-[500px]">
@@ -1495,6 +1507,16 @@ export default function CRMPage() {
                                     </div>
                                 )}
                             </div>
+                        )}
+
+                        {/* TAB: TARGET TREATMENT */}
+                        {activeTab === 'treatment' && (
+                            <TreatmentTargetTab
+                                isOwner={isOwner}
+                                userBranchId={userBranchId}
+                                branches={branches}
+                                user={user}
+                            />
                         )}
 
                         {/* TAB: DORMANT */}
