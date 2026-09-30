@@ -8,7 +8,6 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import DateRangePicker from '../../components/DateRangePicker'
-import BranchFilter from '@/components/ui/BranchFilter'
 import StatCard from '@/components/ui/StatCard'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
@@ -1554,6 +1553,52 @@ export default function Dashboard() {
     }, [dbUser, branches])
 
     const isOwner = dbUser?.role === 'owner'
+
+    // --- Tampilan dashboard admin cabang (hanya format & turunan tampilan, bukan logika data) ---
+    const formatCompactRupiah = (val) => {
+        const n = Number(val || 0)
+        const abs = Math.abs(n)
+        if (abs >= 1e9) return `Rp ${(n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 })} M`
+        if (abs >= 1e6) return `Rp ${(n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} Jt`
+        if (abs >= 1e3) return `Rp ${Math.round(n / 1e3).toLocaleString('id-ID')} Rb`
+        return `Rp ${Math.round(n).toLocaleString('id-ID')}`
+    }
+
+    // Sisa hari (termasuk hari ini) pada bulan target, untuk kebutuhan rata-rata harian.
+    const getTargetDaysLeft = () => {
+        if (!targetMonth) return 0
+        const [y, m] = targetMonth.split('-').map(Number)
+        const daysInMonth = new Date(y, m, 0).getDate()
+        const now = new Date()
+        const curY = now.getFullYear()
+        const curM = now.getMonth() + 1
+        if (y < curY || (y === curY && m < curM)) return 0
+        if (y === curY && m === curM) return daysInMonth - now.getDate() + 1
+        return daysInMonth
+    }
+
+    // Warna per kategori sama dengan grafik owner, agar kategori selalu berwarna sama.
+    const adminCompositionData = (() => {
+        const treatment = Number(branchTotals.treatmentIncome || 0)
+        const product = Number(branchTotals.productIncome || 0)
+        const coupon = Number(branchTotals.couponSalesIncome || 0)
+        const other = Math.max(0, Math.round(Number(branchTotals.rangeIncome || 0) - treatment - product - coupon))
+        const rows = [
+            { key: 'treatment', name: 'Treatment', value: treatment, color: '#EC4899' },
+            { key: 'product', name: 'Produk Skincare', value: product, color: '#06B6D4' },
+            { key: 'coupon', name: 'Penjualan Kupon', value: coupon, color: '#8B5CF6' }
+        ]
+        if (other > 0) rows.push({ key: 'other', name: 'Lainnya', value: other, color: '#A8A29E' })
+        const total = rows.reduce((s, r) => s + r.value, 0)
+        return { rows, total }
+    })()
+
+    const medalStyle = (idx) => {
+        if (idx === 0) return 'bg-gradient-to-br from-amber-300 to-amber-500 text-white shadow-sm shadow-amber-500/30'
+        if (idx === 1) return 'bg-gradient-to-br from-slate-200 to-slate-400 text-white shadow-sm shadow-slate-400/30'
+        if (idx === 2) return 'bg-gradient-to-br from-orange-300 to-orange-600 text-white shadow-sm shadow-orange-600/30'
+        return 'bg-stone-100 text-stone-500'
+    }
 
     if (loading && (!dbUser || !isInitializedRef.current)) {
         return (
@@ -3560,289 +3605,324 @@ export default function Dashboard() {
                 </div>
             ) : (
                 /* ========================================================================= */
-                /* DASHBOARD ADMIN CABANG (CURRENT EXACT LAYOUT PRESERVED UNCHANGED)        */
+                /* DASHBOARD ADMIN CABANG                                                    */
                 /* ========================================================================= */
                 <div className="space-y-6">
-                    {/* 1. TOP HEADER & TOOLBAR (Systematic & Clean) */}
-            <div className="bg-white border border-stone-200/90 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200">
-                            {dbUser?.role ? dbUser.role.toUpperCase() : 'PORTAL'}
-                        </span>
-                        <span className="text-xs font-bold text-stone-600">
-                            • {isOwner ? 'Semua Cabang' : userBranchName}
-                        </span>
+                    {/* 1. HEADER & AKSI CEPAT */}
+            <div className="relative overflow-hidden rounded-3xl border border-[#f0d9c8] bg-gradient-to-br from-[#fff8f3] via-[#fbe9dc] to-[#f4d3bd] p-5 sm:p-7 shadow-sm">
+                <div aria-hidden="true" className="pointer-events-none absolute -top-16 -right-10 w-64 h-64 rounded-full bg-white/40 blur-3xl"></div>
+                <div aria-hidden="true" className="pointer-events-none absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-[#e8b598]/25 blur-3xl"></div>
+
+                <div className="relative flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+                    <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#5c3316] text-white text-[10.5px] font-black uppercase tracking-[0.12em]">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                {userBranchName}
+                            </span>
+                            <span className="px-2.5 py-1 rounded-full bg-white/70 border border-[#e9c9b3] text-[#7a4424] text-[10.5px] font-bold uppercase tracking-[0.12em]">
+                                {dbUser?.role === 'admin' ? 'Admin Cabang' : (dbUser?.role || 'Portal')}
+                            </span>
+                        </div>
+                        <h1 className="text-2xl sm:text-[1.7rem] font-extrabold text-[#3d1f0b] tracking-tight leading-tight">
+                            {dbUser?.full_name ? `Halo, ${dbUser.full_name.split(' ')[0]}` : 'Ringkasan Operasional & Omset'}
+                        </h1>
+                        <p className="text-sm text-[#7a5a45] font-medium max-w-xl">
+                            Ringkasan omset, target, dan layanan terlaris cabang {userBranchName.replace(/^Ayumi\s+/i, '')} untuk periode yang dipilih.
+                        </p>
                     </div>
-                    <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 tracking-tight">
-                        Ringkasan Operasional & Omset
-                    </h1>
-                    <p className="text-xs text-stone-500 font-medium">
-                        {isOwner 
-                            ? 'Pantau metrik pendapatan dan performa seluruh cabang Ayumi Beauty House.' 
-                            : `Analitik performa layanan dan transaksi kasir cabang ${userBranchName}.`
-                        }
-                    </p>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                    {/* Branch selector for Owner */}
-                    {isOwner && (
-                        <BranchFilter 
-                            branches={branches} 
-                            selectedBranch={selectedBranch} 
-                            onBranchChange={setSelectedBranch} 
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 shrink-0">
+                        <DateRangePicker
+                            startDate={startDate}
+                            endDate={endDate}
+                            onChange={({ startDate: s, endDate: e }) => {
+                                setStartDate(s)
+                                setEndDate(e)
+                            }}
+                            align="right"
+                            inputClassName="bg-white/80 hover:bg-white text-[#3d1f0b] border border-[#e9c9b3] font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-none transition-colors cursor-pointer justify-between"
                         />
-                    )}
-
-                    {/* DateRangePicker */}
-                    <DateRangePicker
-                        startDate={startDate}
-                        endDate={endDate}
-                        onChange={({ startDate: s, endDate: e }) => {
-                            setStartDate(s)
-                            setEndDate(e)
-                        }}
-                        align="right"
-                        inputClassName="bg-stone-50 hover:bg-stone-100 text-stone-800 border border-stone-200 font-bold text-xs px-3.5 py-2 rounded-xl shadow-none transition-colors cursor-pointer justify-between"
-                    />
-
-                    <button
-                        onClick={() => router.push('/kasir')}
-                        className="px-4 py-2 bg-[#5c3316] hover:bg-[#43230c] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                        <span>Buka Kasir</span>
-                    </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => router.push('/appointments')}
+                                className="flex-1 sm:flex-none px-3.5 py-2.5 bg-white/80 hover:bg-white text-[#5c3316] border border-[#e9c9b3] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                Janji Temu
+                            </button>
+                            <button
+                                onClick={() => router.push('/treatment-records')}
+                                className="flex-1 sm:flex-none px-3.5 py-2.5 bg-white/80 hover:bg-white text-[#5c3316] border border-[#e9c9b3] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                Rekam Medis
+                            </button>
+                            <button
+                                onClick={() => router.push('/kasir')}
+                                className="flex-1 sm:flex-none px-4 py-2.5 bg-[#5c3316] hover:bg-[#43230c] text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-[#5c3316]/25 hover:-translate-y-0.5 flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                                Buka Kasir
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* 2. RINGKASAN PENDAPATAN & OMSET FINANSIAL (5 KPI Cards) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-                {/* 1. Pendapatan */}
-                <div 
-                    onClick={() => router.push('/transactions')}
-                    className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-stone-400 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Pendapatan</span>
-                        <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md">
-                            {branchTotals.rangeTxCount} Transaksi
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
-                            Rp {branchTotals.rangeIncome.toLocaleString('id-ID')}
-                        </h3>
-                        <p className="text-[11px] text-stone-500 font-medium mt-1">
-                            Penerimaan kasir periode {startDate} s/d {endDate}
-                        </p>
-                    </div>
-                </div>
-
-                {/* 2. Omset Treatment */}
-                <div 
-                    onClick={() => router.push('/reports/treatments')}
-                    className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-pink-300 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Layanan Treatment</span>
-                        <span className="text-[11px] font-bold text-pink-800 bg-pink-50 border border-pink-200/80 px-2 py-0.5 rounded-md">
-                            Tindakan
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
-                            Rp {branchTotals.treatmentIncome.toLocaleString('id-ID')}
-                        </h3>
-                        <p className="text-[11px] text-stone-500 font-medium mt-1">
-                            Total nilai layanan perawatan
-                        </p>
-                    </div>
-                </div>
-
-                {/* 3. Omset Produk */}
-                <div 
-                    onClick={() => router.push('/transactions')}
-                    className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-cyan-300 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Produk Skincare</span>
-                        <span className="text-[11px] font-bold text-cyan-800 bg-cyan-50 border border-cyan-200/80 px-2 py-0.5 rounded-md">
-                            Produk
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
-                            Rp {branchTotals.productIncome.toLocaleString('id-ID')}
-                        </h3>
-                        <p className="text-[11px] text-stone-500 font-medium mt-1">
-                            Penjualan produk skincare & kosmetik
-                        </p>
-                    </div>
-                </div>
-
-                {/* 4. Sesi Kupon Terpakai */}
-                <div 
-                    onClick={() => openCouponUsageModal(isOwner ? selectedBranch : dbUser?.branch_id, userBranchName)}
-                    className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-amber-300 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Sesi Terpakai</span>
-                        <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-md">
-                            Rincian ↗
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
-                            Rp {(branchTotals.couponUsedValue || 0).toLocaleString('id-ID')}
-                        </h3>
-                        <p className="text-[12px] text-amber-700 font-bold mt-1">
-                            {branchTotals.couponUsedSessions} Sesi Kupon Terpakai
-                        </p>
-                        <p className="text-[10px] text-stone-400 font-medium mt-0.5">
-                            Klaim sesi kupon perawatan periode ini
-                        </p>
-                    </div>
-                </div>
-
-                {/* 5. Biaya Tambahan QRIS */}
-                <div 
-                    onClick={() => router.push('/transactions')}
-                    className="p-5 rounded-2xl bg-white border border-stone-200/90 shadow-sm hover:border-violet-300 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Biaya Tambahan QRIS</span>
-                        <span className="text-[11px] font-bold text-violet-800 bg-violet-50 border border-violet-200/80 px-2 py-0.5 rounded-md">
-                            0.3% MDR
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums">
-                            Rp {branchTotals.qrisFee.toLocaleString('id-ID')}
-                        </h3>
-                        <p className="text-[11px] text-stone-500 font-medium mt-1">
-                            Biaya layanan QRIS periode ini
-                        </p>
-                    </div>
-                </div>
+            {/* 2. RINGKASAN PENDAPATAN (5 KPI) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                {[
+                    {
+                        key: 'income',
+                        label: 'Pendapatan',
+                        value: branchTotals.rangeIncome,
+                        badge: `${branchTotals.rangeTxCount} Transaksi`,
+                        caption: 'Penerimaan kasir periode ini',
+                        onClick: () => router.push('/transactions'),
+                        tone: { icon: 'bg-[#5c3316] text-white', badge: 'bg-[#fbeee4] text-[#7a4424] border-[#efd3bf]', ring: 'hover:border-[#d9ad8f]' },
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    },
+                    {
+                        key: 'treatment',
+                        label: 'Layanan Treatment',
+                        value: branchTotals.treatmentIncome,
+                        badge: adminCompositionData.total > 0 ? `${Math.round((branchTotals.treatmentIncome / adminCompositionData.total) * 100)}% omset` : 'Tindakan',
+                        caption: 'Nilai bersih layanan perawatan',
+                        onClick: () => router.push('/reports/treatments'),
+                        tone: { icon: 'bg-pink-50 text-pink-600 border border-pink-100', badge: 'bg-pink-50 text-pink-700 border-pink-200/80', ring: 'hover:border-pink-300' },
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    },
+                    {
+                        key: 'product',
+                        label: 'Produk Skincare',
+                        value: branchTotals.productIncome,
+                        badge: adminCompositionData.total > 0 ? `${Math.round((branchTotals.productIncome / adminCompositionData.total) * 100)}% omset` : 'Produk',
+                        caption: 'Penjualan skincare & kosmetik',
+                        onClick: () => router.push('/transactions'),
+                        tone: { icon: 'bg-cyan-50 text-cyan-600 border border-cyan-100', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200/80', ring: 'hover:border-cyan-300' },
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 2h4M9 2v3.5a2 2 0 01-.6 1.4L7 8.3A3 3 0 006 10.4V20a2 2 0 002 2h8a2 2 0 002-2v-9.6a3 3 0 00-1-2.1l-1.4-1.4A2 2 0 0115 5.5V2M6 13h12" />
+                    },
+                    {
+                        key: 'coupon',
+                        label: 'Sesi Kupon Terpakai',
+                        value: branchTotals.couponUsedValue,
+                        badge: `${branchTotals.couponUsedSessions || 0} Sesi`,
+                        caption: 'Nilai sesi kupon yang diklaim · lihat rincian',
+                        onClick: () => openCouponUsageModal(isOwner ? selectedBranch : dbUser?.branch_id, userBranchName),
+                        tone: { icon: 'bg-amber-50 text-amber-600 border border-amber-100', badge: 'bg-amber-50 text-amber-800 border-amber-200/80', ring: 'hover:border-amber-300' },
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                    },
+                    {
+                        key: 'qris',
+                        label: 'Biaya QRIS',
+                        value: branchTotals.qrisFee,
+                        badge: '0,3% MDR',
+                        caption: 'Biaya layanan QRIS periode ini',
+                        onClick: () => router.push('/transactions'),
+                        tone: { icon: 'bg-violet-50 text-violet-600 border border-violet-100', badge: 'bg-violet-50 text-violet-800 border-violet-200/80', ring: 'hover:border-violet-300' },
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h2v2h-2v-2zm4 0h2v2h-2v-2zm-4 4h2v2h-2v-2zm4 0h2v2h-2v-2z" />
+                    }
+                ].map(card => (
+                    <button
+                        key={card.key}
+                        type="button"
+                        onClick={card.onClick}
+                        className={`group text-left p-5 rounded-2xl bg-white border border-stone-200/80 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer flex flex-col justify-between gap-4 ${card.tone.ring}`}
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.tone.icon}`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{card.icon}</svg>
+                            </span>
+                            <span className={`text-[10.5px] font-bold border px-2 py-0.5 rounded-full whitespace-nowrap ${card.tone.badge}`}>
+                                {card.badge}
+                            </span>
+                        </div>
+                        <div>
+                            <p className="text-[10.5px] font-bold text-stone-500 uppercase tracking-[0.12em]">{card.label}</p>
+                            <p className="text-xl 2xl:text-2xl font-extrabold text-stone-900 tracking-tight tabular-nums mt-1 break-words">
+                                Rp {Number(card.value || 0).toLocaleString('id-ID')}
+                            </p>
+                            <p className="text-[11px] text-stone-500 font-medium mt-1">{card.caption}</p>
+                        </div>
+                    </button>
+                ))}
             </div>
 
             {/* 3. TARGET BULANAN & KOMPOSISI OMSET */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Target Bulanan Cabang */}
-                <div className="card-ayumi p-6 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                        <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-                            <div>
-                                <h3 className="text-sm font-extrabold text-stone-900">Target Bulanan ({currentMonthLabel})</h3>
-                                <p className="text-xs text-stone-500 font-medium mt-0.5">Pencapaian omset bulan ini</p>
-                            </div>
-
-                            <div className="relative">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                                    className="px-2.5 py-1 rounded-lg bg-stone-50 border border-stone-200 text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors"
-                                >
-                                    {currentMonthLabel} ▾
-                                </button>
-
-                                {isMonthPickerOpen && (
-                                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl border border-stone-200 shadow-xl p-3 z-50 space-y-2">
-                                        <div className="flex items-center justify-between pb-1.5 border-b border-stone-100">
-                                            <button
-                                                type="button"
-                                                onClick={() => setPickerYear(prev => prev - 1)}
-                                                className="p-1 hover:bg-stone-100 text-stone-700 rounded-md font-bold text-xs"
-                                            >
-                                                ◀
-                                            </button>
-                                            <span className="font-extrabold text-stone-800 text-xs">{pickerYear}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => setPickerYear(prev => prev + 1)}
-                                                className="p-1 hover:bg-stone-100 text-stone-700 rounded-md font-bold text-xs"
-                                            >
-                                                ▶
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-1.5">
-                                            {shortMonthNames.map((mName, idx) => {
-                                                const monthVal = `${pickerYear}-${String(idx + 1).padStart(2, '0')}`
-                                                const isSelected = targetMonth === monthVal
-                                                return (
-                                                    <button
-                                                        key={idx}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setTargetMonth(monthVal)
-                                                            setIsMonthPickerOpen(false)
-                                                        }}
-                                                        className={`py-1.5 rounded-lg text-xs font-bold transition-all text-center ${isSelected ? 'bg-stone-900 text-white' : 'bg-stone-50 hover:bg-stone-100 text-stone-700'}`}
-                                                    >
-                                                        {mName}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                <div className="lg:col-span-2 p-6 bg-white border border-stone-200/80 rounded-3xl shadow-sm flex flex-col gap-5">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-[10.5px] font-bold text-stone-500 uppercase tracking-[0.12em]">Target Bulanan</p>
+                            <h3 className="text-base font-extrabold text-stone-900 mt-0.5">Pencapaian {currentMonthLabel}</h3>
+                            <p className="text-[11px] text-stone-500 font-medium mt-0.5">Dari omset treatment + penjualan kupon</p>
                         </div>
 
-                        <div className="space-y-4 pt-4">
-                            {branchMonthlyTargetData.map(item => {
-                                const rawPct = Number(item.rawPercent || 0)
-                                const isTargetSet = item.monthlyTarget > 0
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                                className="px-3 py-1.5 rounded-xl bg-stone-50 border border-stone-200 text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors whitespace-nowrap"
+                            >
+                                {currentMonthLabel} ▾
+                            </button>
 
-                                let barColor = 'bg-stone-400'
-                                if (rawPct >= 100) barColor = 'bg-emerald-600'
-                                else if (rawPct >= 50) barColor = 'bg-amber-500'
-                                else barColor = 'bg-[#5c3316]'
-
-                                return (
-                                    <div key={item.branchId} className="space-y-2">
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="font-extrabold text-stone-900">{item.branchName}</span>
-                                            <span className="font-black text-stone-700">
-                                                {isTargetSet ? `${rawPct.toFixed(1)}%` : 'Belum diatur'}
-                                            </span>
-                                        </div>
-
-                                        <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full ${barColor} rounded-full transition-all duration-500`}
-                                                style={{ width: `${Math.min(100, Math.max(0, rawPct))}%` }}
-                                            ></div>
-                                        </div>
-
-                                        <div className="flex justify-between items-center text-[11px] text-stone-500 font-medium">
-                                            <span>Terkumpul: <strong className="text-stone-900 font-bold">Rp {item.monthlyIncome.toLocaleString('id-ID')}</strong></span>
-                                            <span>Target: <strong className="text-stone-900 font-bold">Rp {item.monthlyTarget.toLocaleString('id-ID')}</strong></span>
-                                        </div>
-
-                                        {item.monthlyQrisFee > 0 && (
-                                            <div className="flex justify-between items-center text-[10px] text-stone-400 font-medium pt-0.5">
-                                                <span>Biaya Tambahan QRIS (0.3%):</span>
-                                                <span className="font-bold text-violet-700">Rp {item.monthlyQrisFee.toLocaleString('id-ID')}</span>
-                                            </div>
-                                        )}
-
-                                        {isTargetSet && (
-                                            <p className="text-[11px] font-semibold text-stone-600 pt-1">
-                                                {rawPct >= 100 ? (
-                                                    <span className="text-emerald-700 font-bold">✓ Target tercapai (Surplus Rp {item.surplusTarget.toLocaleString('id-ID')})</span>
-                                                ) : (
-                                                    <span>Sisa target: <strong className="text-[#5c3316]">Rp {item.remainingTarget.toLocaleString('id-ID')}</strong></span>
-                                                )}
-                                            </p>
-                                        )}
+                            {isMonthPickerOpen && (
+                                <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl border border-stone-200 shadow-xl p-3 z-50 space-y-2">
+                                    <div className="flex items-center justify-between pb-1.5 border-b border-stone-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPickerYear(prev => prev - 1)}
+                                            className="p-1 hover:bg-stone-100 text-stone-700 rounded-md font-bold text-xs"
+                                        >
+                                            ◀
+                                        </button>
+                                        <span className="font-extrabold text-stone-800 text-xs">{pickerYear}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPickerYear(prev => prev + 1)}
+                                            className="p-1 hover:bg-stone-100 text-stone-700 rounded-md font-bold text-xs"
+                                        >
+                                            ▶
+                                        </button>
                                     </div>
-                                )
-                            })}
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        {shortMonthNames.map((mName, idx) => {
+                                            const monthVal = `${pickerYear}-${String(idx + 1).padStart(2, '0')}`
+                                            const isSelected = targetMonth === monthVal
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setTargetMonth(monthVal)
+                                                        setIsMonthPickerOpen(false)
+                                                    }}
+                                                    className={`py-1.5 rounded-lg text-xs font-bold transition-all text-center ${isSelected ? 'bg-stone-900 text-white' : 'bg-stone-50 hover:bg-stone-100 text-stone-700'}`}
+                                                >
+                                                    {mName}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
+
+                    {branchMonthlyTargetData.length === 0 && (
+                        <p className="text-xs text-stone-400 font-medium py-8 text-center">Data target belum tersedia.</p>
+                    )}
+
+                    {branchMonthlyTargetData.map(item => {
+                        const rawPct = Number(item.rawPercent || 0)
+                        const isTargetSet = item.monthlyTarget > 0
+                        const achieved = isTargetSet && rawPct >= 100
+                        const daysLeft = getTargetDaysLeft()
+                        const dailyNeeded = !achieved && daysLeft > 0 ? Math.ceil(item.remainingTarget / daysLeft) : 0
+                        const ringPct = Math.min(100, Math.max(0, rawPct))
+                        const R_SIZE = 116
+                        const R_STROKE = 11
+                        const radius = (R_SIZE - R_STROKE) / 2
+                        const circumference = 2 * Math.PI * radius
+
+                        return (
+                            <div key={item.branchId} className="space-y-4">
+                                <div className="flex items-center gap-5">
+                                    <div className="relative shrink-0" style={{ width: R_SIZE, height: R_SIZE }}>
+                                        {achieved && (
+                                            <div aria-hidden="true" className="absolute inset-2 rounded-full bg-emerald-300/40 blur-xl animate-pulse"></div>
+                                        )}
+                                        <svg width={R_SIZE} height={R_SIZE} className="relative -rotate-90">
+                                            <defs>
+                                                <linearGradient id={`targetGrad-${item.branchId}`} x1="0" y1="0" x2="1" y2="1">
+                                                    <stop offset="0%" stopColor={achieved ? '#34d399' : '#e0a17c'} />
+                                                    <stop offset="100%" stopColor={achieved ? '#059669' : '#8a4a24'} />
+                                                </linearGradient>
+                                            </defs>
+                                            <circle cx={R_SIZE / 2} cy={R_SIZE / 2} r={radius} fill="none" stroke="#f5f0eb" strokeWidth={R_STROKE} />
+                                            <circle
+                                                cx={R_SIZE / 2}
+                                                cy={R_SIZE / 2}
+                                                r={radius}
+                                                fill="none"
+                                                stroke={`url(#targetGrad-${item.branchId})`}
+                                                strokeWidth={R_STROKE}
+                                                strokeLinecap="round"
+                                                strokeDasharray={circumference}
+                                                strokeDashoffset={circumference * (1 - ringPct / 100)}
+                                                style={{ transition: 'stroke-dashoffset 700ms ease' }}
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className={`text-2xl font-black tabular-nums tracking-tight ${achieved ? 'text-emerald-700' : 'text-stone-900'}`}>
+                                                {isTargetSet ? `${rawPct.toFixed(1)}%` : '—'}
+                                            </span>
+                                            <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider">tercapai</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="min-w-0 space-y-1.5">
+                                        {branchMonthlyTargetData.length > 1 && (
+                                            <p className="text-xs font-extrabold text-stone-900">{item.branchName}</p>
+                                        )}
+                                        <div>
+                                            <p className="text-[10.5px] font-bold text-stone-400 uppercase tracking-wider">Terkumpul</p>
+                                            <p className="text-lg font-extrabold text-stone-900 tabular-nums leading-tight">Rp {item.monthlyIncome.toLocaleString('id-ID')}</p>
+                                        </div>
+                                        <p className="text-[11px] text-stone-500 font-medium">
+                                            Target {isTargetSet ? <strong className="text-stone-800 tabular-nums">Rp {item.monthlyTarget.toLocaleString('id-ID')}</strong> : <span className="italic">belum diatur</span>}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {isTargetSet && (
+                                    <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all duration-700 ${achieved ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[#e0a17c] to-[#8a4a24]'}`}
+                                            style={{ width: `${ringPct}%` }}
+                                        ></div>
+                                    </div>
+                                )}
+
+                                {isTargetSet && (achieved ? (
+                                    <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 shadow-[0_0_24px_-8px_rgba(16,185,129,0.55)]">
+                                        <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                        </span>
+                                        <div>
+                                            <p className="text-xs font-extrabold text-emerald-800">Target Tercapai</p>
+                                            <p className="text-[11px] font-semibold text-emerald-700">Surplus {formatCompactRupiah(item.surplusTarget)} di atas target. Hebat, tim {item.branchName.replace(/^Ayumi\s+/i, '')}!</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                        <div className="p-3 rounded-2xl bg-[#fbf4ee] border border-[#f0dccd]">
+                                            <p className="text-[10px] font-bold text-[#9a6a4c] uppercase tracking-wider">Sisa Target</p>
+                                            <p className="text-sm font-extrabold text-[#5c3316] tabular-nums mt-0.5">{formatCompactRupiah(item.remainingTarget)}</p>
+                                        </div>
+                                        <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200/80">
+                                            <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                                                {daysLeft > 0 ? `Per hari · ${daysLeft} hari lagi` : 'Bulan berakhir'}
+                                            </p>
+                                            <p className="text-sm font-extrabold text-stone-900 tabular-nums mt-0.5">
+                                                {daysLeft > 0 ? formatCompactRupiah(dailyNeeded) : '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {item.monthlyQrisFee > 0 && (
+                                    <p className="text-[10.5px] text-stone-400 font-medium flex justify-between">
+                                        <span>Biaya QRIS bulan ini (0,3%)</span>
+                                        <span className="font-bold text-violet-700 tabular-nums">Rp {item.monthlyQrisFee.toLocaleString('id-ID')}</span>
+                                    </p>
+                                )}
+                            </div>
+                        )
+                    })}
 
                     {isOwner && (
                         <div className="pt-3 border-t border-stone-100 flex justify-end">
@@ -3856,139 +3936,129 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                {/* Grafik Komposisi Omset */}
-                <div className="lg:col-span-2 card-ayumi p-6 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-3">
-                    <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-                        <div>
-                            <h3 className="text-sm font-extrabold text-stone-900">
-                                Komposisi Pendapatan ({startDate} s/d {endDate})
-                            </h3>
-                            <p className="text-xs text-stone-500 font-medium mt-0.5">
-                                Perbandingan omset treatment, produk skincare, dan penjualan paket kupon
-                            </p>
-                        </div>
+                {/* Komposisi Pendapatan (donut) */}
+                <div className="lg:col-span-3 p-6 bg-white border border-stone-200/80 rounded-3xl shadow-sm flex flex-col gap-4">
+                    <div>
+                        <p className="text-[10.5px] font-bold text-stone-500 uppercase tracking-[0.12em]">Komposisi Pendapatan</p>
+                        <h3 className="text-base font-extrabold text-stone-900 mt-0.5">Sumber omset {startDate} s/d {endDate}</h3>
                     </div>
 
-                    <div className="h-60 w-full pt-2">
-                        {isMounted && branchDailyComparison.length > 0 ? (
-                            <LazyRecharts render={(R) => (
-                            <R.ResponsiveContainer width="100%" height="100%">
-                                <R.BarChart 
-                                    data={branchDailyComparison} 
-                                    barGap={4} 
-                                    barCategoryGap="25%"
-                                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                                >
-                                    <R.CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <R.XAxis 
-                                        dataKey="branchName" 
-                                        interval={0}
-                                        tickFormatter={(val) => (val ? val.replace(/^Ayumi\s+/i, '') : val)}
-                                        tick={{ fontSize: 11, fontWeight: 700, fill: '#334155' }} 
-                                        axisLine={{ stroke: '#e2e8f0' }}
-                                        tickLine={false} 
-                                    />
-                                    <R.YAxis 
-                                        width={45}
-                                        tickFormatter={(val) => {
-                                            if (val === 0) return '0'
-                                            if (val >= 1000000) return (val / 1000000).toFixed(0) + ' Jt'
-                                            if (val >= 1000) return (val / 1000).toFixed(0) + ' Rb'
-                                            return val
-                                        }}
-                                        tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }}
-                                        axisLine={false}
-                                        tickLine={false} 
-                                    />
-                                    <R.Tooltip 
-                                        formatter={(value, name) => ['Rp ' + Number(value).toLocaleString('id-ID'), name]}
-                                        contentStyle={{ borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                                    />
-                                    <R.Legend 
-                                        verticalAlign="top" 
-                                        align="right"
-                                        wrapperStyle={{ paddingBottom: '8px', fontSize: '11px', fontWeight: '700' }} 
-                                    />
-                                    <R.Bar dataKey="treatmentIncome" name="Treatment" fill="#EC4899" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                                    <R.Bar dataKey="productIncome" name="Produk" fill="#06B6D4" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                                    <R.Bar dataKey="couponSalesIncome" name="Kupon" fill="#8B5CF6" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                                </R.BarChart>
-                            </R.ResponsiveContainer>
-                            )} />
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-xs font-semibold text-stone-400">
-                                Memuat data grafik...
+                    {adminCompositionData.total <= 0 ? (
+                        <div className="flex-1 min-h-[220px] flex items-center justify-center text-xs font-semibold text-stone-400">
+                            Belum ada pendapatan pada periode ini.
+                        </div>
+                    ) : (
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-[minmax(0,15rem)_1fr] items-center gap-6">
+                            <div className="relative h-56 w-full max-w-[15rem] mx-auto">
+                                {isMounted && (
+                                    <LazyRecharts render={(R) => (
+                                        <R.ResponsiveContainer width="100%" height="100%">
+                                            <R.PieChart>
+                                                <R.Pie
+                                                    data={adminCompositionData.rows.filter(r => r.value > 0)}
+                                                    dataKey="value"
+                                                    nameKey="name"
+                                                    innerRadius="66%"
+                                                    outerRadius="96%"
+                                                    paddingAngle={2}
+                                                    cornerRadius={4}
+                                                    stroke="#ffffff"
+                                                    strokeWidth={2}
+                                                    startAngle={90}
+                                                    endAngle={-270}
+                                                    isAnimationActive
+                                                >
+                                                    {adminCompositionData.rows.filter(r => r.value > 0).map(r => (
+                                                        <R.Cell key={r.key} fill={r.color} />
+                                                    ))}
+                                                </R.Pie>
+                                                <R.Tooltip
+                                                    formatter={(value, name) => [`Rp ${Number(value).toLocaleString('id-ID')} (${((value / adminCompositionData.total) * 100).toFixed(1)}%)`, name]}
+                                                    contentStyle={{ borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', fontSize: '12px' }}
+                                                />
+                                            </R.PieChart>
+                                        </R.ResponsiveContainer>
+                                    )} />
+                                )}
+                                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Total</span>
+                                    <span className="text-lg font-black text-stone-900 tabular-nums leading-tight">{formatCompactRupiah(adminCompositionData.total)}</span>
+                                    <span className="text-[10.5px] font-semibold text-stone-500">{branchTotals.rangeTxCount} transaksi</span>
+                                </div>
                             </div>
-                        )}
-                    </div>
+
+                            <ul className="space-y-2.5">
+                                {adminCompositionData.rows.map(r => {
+                                    const pct = adminCompositionData.total > 0 ? (r.value / adminCompositionData.total) * 100 : 0
+                                    return (
+                                        <li key={r.key} className="p-3 rounded-2xl border border-stone-100 bg-stone-50/60">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="flex items-center gap-2 min-w-0">
+                                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }}></span>
+                                                    <span className="text-xs font-bold text-stone-700 truncate">{r.name}</span>
+                                                </span>
+                                                <span className="text-xs font-black text-stone-900 tabular-nums">{pct.toFixed(1)}%</span>
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-3">
+                                                <div className="flex-1 h-1.5 bg-white rounded-full overflow-hidden border border-stone-100">
+                                                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: r.color }}></div>
+                                                </div>
+                                                <span className="text-[11px] font-semibold text-stone-500 tabular-nums whitespace-nowrap">Rp {r.value.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* 4. TOP 5 LAYANAN & PRODUK TERLARIS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top Treatments */}
-                <div className="card-ayumi p-6 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-                        <div>
-                            <h3 className="text-sm font-extrabold text-stone-900">5 Treatment Terlaris</h3>
-                            <p className="text-xs text-stone-500 font-medium mt-0.5">Layanan paling banyak diambil periode ini</p>
+                {[
+                    { key: 'treatments', title: '5 Treatment Terlaris', subtitle: 'Layanan dengan pendapatan tertinggi periode ini', items: topTreatments, unit: 'sesi', bar: 'bg-pink-100/70', empty: 'Belum ada data tindakan treatment pada periode ini.' },
+                    { key: 'products', title: '5 Produk Skincare Terlaris', subtitle: 'Produk dengan penjualan tertinggi periode ini', items: topProducts, unit: 'unit', bar: 'bg-cyan-100/70', empty: 'Belum ada data penjualan produk pada periode ini.' }
+                ].map(list => {
+                    const maxRevenue = Math.max(1, ...list.items.map(i => Number(i.revenue || 0)))
+                    return (
+                        <div key={list.key} className="p-6 bg-white border border-stone-200/80 rounded-3xl shadow-sm space-y-4">
+                            <div>
+                                <h3 className="text-base font-extrabold text-stone-900">{list.title}</h3>
+                                <p className="text-[11px] text-stone-500 font-medium mt-0.5">{list.subtitle}</p>
+                            </div>
+                            {list.items.length === 0 ? (
+                                <p className="text-xs text-stone-400 font-medium py-8 text-center">{list.empty}</p>
+                            ) : (
+                                <ol className="space-y-2">
+                                    {list.items.map((it, idx) => (
+                                        <li key={it.name} className="relative overflow-hidden rounded-2xl border border-stone-100 bg-white">
+                                            <div
+                                                aria-hidden="true"
+                                                className={`absolute inset-y-0 left-0 ${list.bar} transition-all duration-700`}
+                                                style={{ width: `${(Number(it.revenue || 0) / maxRevenue) * 100}%` }}
+                                            ></div>
+                                            <div className="relative flex items-center justify-between gap-3 px-3 py-2.5">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <span className={`w-7 h-7 rounded-full font-black text-xs flex items-center justify-center shrink-0 ${medalStyle(idx)}`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <p className="font-extrabold text-xs text-stone-900 truncate">{it.name}</p>
+                                                        <p className="text-[11px] text-stone-500 font-medium">{it.count} {list.unit}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="font-extrabold text-xs text-stone-900 tabular-nums whitespace-nowrap">
+                                                    Rp {Number(it.revenue || 0).toLocaleString('id-ID')}
+                                                </span>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ol>
+                            )}
                         </div>
-                    </div>
-                    <div className="space-y-2.5">
-                        {topTreatments.length === 0 ? (
-                            <p className="text-xs text-stone-400 font-medium py-8 text-center">Belum ada data tindakan treatment pada periode ini.</p>
-                        ) : (
-                            topTreatments.map((t, idx) => (
-                                <div key={t.name} className="flex items-center justify-between p-3 rounded-xl bg-stone-50/80 border border-stone-100">
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-6 h-6 rounded-lg bg-stone-200/80 text-stone-800 font-black text-xs flex items-center justify-center shrink-0">
-                                            {idx + 1}
-                                        </span>
-                                        <div>
-                                            <p className="font-extrabold text-xs text-stone-900">{t.name}</p>
-                                            <p className="text-[11px] text-stone-500 font-medium">{t.count} Sesi</p>
-                                        </div>
-                                    </div>
-                                    <span className="font-extrabold text-xs text-stone-900 tabular-nums">
-                                        Rp {t.revenue.toLocaleString('id-ID')}
-                                    </span>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Top Produk */}
-                <div className="card-ayumi p-6 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-                        <div>
-                            <h3 className="text-sm font-extrabold text-stone-900">5 Produk Skincare Terlaris</h3>
-                            <p className="text-xs text-stone-500 font-medium mt-0.5">Produk paling banyak terjual periode ini</p>
-                        </div>
-                    </div>
-                    <div className="space-y-2.5">
-                        {topProducts.length === 0 ? (
-                            <p className="text-xs text-stone-400 font-medium py-8 text-center">Belum ada data penjualan produk pada periode ini.</p>
-                        ) : (
-                            topProducts.map((p, idx) => (
-                                <div key={p.name} className="flex items-center justify-between p-3 rounded-xl bg-stone-50/80 border border-stone-100">
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-6 h-6 rounded-lg bg-stone-200/80 text-stone-800 font-black text-xs flex items-center justify-center shrink-0">
-                                            {idx + 1}
-                                        </span>
-                                        <div>
-                                            <p className="font-extrabold text-xs text-stone-900">{p.name}</p>
-                                            <p className="text-[11px] text-stone-500 font-medium">{p.count} Unit</p>
-                                        </div>
-                                    </div>
-                                    <span className="font-extrabold text-xs text-stone-900 tabular-nums">
-                                        Rp {p.revenue.toLocaleString('id-ID')}
-                                    </span>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
+                    )
+                })}
             </div>
 
             {/* 5. TABEL RIWAYAT TRANSAKSI TERKINI */}
