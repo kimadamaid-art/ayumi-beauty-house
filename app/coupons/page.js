@@ -39,7 +39,7 @@ export default function CouponsDashboardPage() {
     // --- STATES FOR TAB 2: KUPON PASIEN ---
     const [patientCoupons, setPatientCoupons] = useState([])
     const [pcSearchQuery, setPcSearchQuery] = useState('')
-    const [pcStatusFilter, setPcStatusFilter] = useState('')
+    const [pcStatusFilter, setPcStatusFilter] = useState('active') // default: kupon yang masih bisa dipakai
     const [pcBranchFilter, setPcBranchFilter] = useState('')
     const [expandedCouponId, setExpandedCouponId] = useState(null)
 
@@ -629,191 +629,182 @@ export default function CouponsDashboardPage() {
             {/* TAB 2: KUPON PASIEN */}
             {activeTab === 'patients' && (
                 <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                        <input 
-                            type="text" 
-                            placeholder="Cari nama pasien..." 
-                            value={pcSearchQuery}
-                            onChange={(e) => setPcSearchQuery(e.target.value)}
-                            className="input-ayumi bg-white flex-1"
-                        />
-                        <select 
-                            value={pcStatusFilter}
-                            onChange={(e) => setPcStatusFilter(e.target.value)}
-                            className="input-ayumi bg-white w-full sm:w-64 font-medium text-sm"
-                        >
-                            <option value="">Semua Status ({patientCoupons.length})</option>
-                            <option value="active">✨ Aktif (Bisa Dipakai)</option>
-                            <option value="expiring_soon">⏰ Segera Kedaluwarsa (≤ 30 Hari)</option>
-                            <option value="expired_remaining">⚠️ Expired (Ada Sisa Sesi)</option>
-                            <option value="fully_used">✅ Habis Pemakaian (Fully Used)</option>
-                            <option value="expired_all">⌛ Semua Expired</option>
-                        </select>
-                        <select
-                            value={pcBranchFilter}
-                            onChange={(e) => setPcBranchFilter(e.target.value)}
-                            className="input-ayumi bg-white w-full sm:w-56 font-medium text-sm"
-                            title="Cabang tempat kupon dibeli"
-                        >
-                            <option value="">Semua Cabang Pembelian</option>
-                            {branches.map(b => (
-                                <option key={b.id} value={b.id}>{b.name}</option>
-                            ))}
-                        </select>
+                    <div className="card-ayumi p-3 sm:p-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_14rem_14rem] gap-3">
+                            <input
+                                type="text"
+                                placeholder="Cari nama pasien, No WA, atau paket..."
+                                value={pcSearchQuery}
+                                onChange={(e) => setPcSearchQuery(e.target.value)}
+                                className="input-ayumi bg-white text-sm"
+                            />
+                            <select
+                                value={pcStatusFilter}
+                                onChange={(e) => setPcStatusFilter(e.target.value)}
+                                className="input-ayumi bg-white text-sm font-medium"
+                            >
+                                <option value="active">Aktif (bisa dipakai)</option>
+                                <option value="expiring_soon">Segera kedaluwarsa (≤ 30 hari)</option>
+                                <option value="expired_remaining">Expired, masih ada sisa sesi</option>
+                                <option value="fully_used">Sesi sudah habis</option>
+                                <option value="expired_all">Semua yang expired</option>
+                                <option value="">Semua status</option>
+                            </select>
+                            <select
+                                value={pcBranchFilter}
+                                onChange={(e) => setPcBranchFilter(e.target.value)}
+                                className="input-ayumi bg-white text-sm font-medium"
+                                title="Cabang tempat kupon dibeli"
+                            >
+                                <option value="">Semua cabang pembelian</option>
+                                {branches.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {!isLoading && (
+                            <p className="text-xs text-gray-500 mt-2.5">
+                                Menampilkan <span className="font-bold text-gray-700">{filteredPatientCoupons.length}</span> dari {patientCoupons.length} kupon. Klik baris untuk melihat rincian sesi.
+                            </p>
+                        )}
                     </div>
 
                     <div className="card-ayumi overflow-hidden">
                         {isLoading ? (
                             <div className="p-5 md:p-8 text-center text-gray-500 animate-pulse">Memuat kupon pasien...</div>
                         ) : filteredPatientCoupons.length === 0 ? (
-                            <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada kupon yang ditemukan.</div>
+                            <div className="p-5 md:p-8 text-center text-gray-500">Tidak ada kupon yang cocok dengan filter.</div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="whitespace-nowrap w-full text-left border-collapse">
+                                <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-sm">
-                                            <th className="p-4 font-semibold">Pasien</th>
-                                            <th className="p-4 font-semibold">Paket Kupon</th>
-                                            <th className="p-4 font-semibold">Sisa Sesi</th>
-                                            <th className="p-4 font-semibold">Tgl Beli</th>
-                                            <th className="p-4 font-semibold">Expired</th>
-                                            <th className="p-4 font-semibold text-center">Status</th>
+                                        <tr className="bg-ayumi-table-header border-b border-gray-100 text-ayumi-secondary text-xs uppercase tracking-wider">
+                                            <th className="px-4 py-3 font-semibold">Pasien</th>
+                                            <th className="px-4 py-3 font-semibold">Paket &amp; Sisa Sesi</th>
+                                            <th className="px-4 py-3 font-semibold">Cabang</th>
+                                            <th className="px-4 py-3 font-semibold whitespace-nowrap">Tgl Beli</th>
+                                            <th className="px-4 py-3 font-semibold whitespace-nowrap">Berlaku Sampai</th>
+                                            <th className="px-4 py-3 font-semibold text-center">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-50 text-sm">
+                                    <tbody className="divide-y divide-gray-100 text-sm">
                                         {filteredPatientCoupons.map((pc) => {
                                             const isExpanded = expandedCouponId === pc.id
                                             const isExpired = pc.isExpired ?? (new Date(pc.expired_at) < new Date())
                                             const totalRemaining = pc.totalRemaining ?? (pc.patient_coupon_items || []).reduce((sum, i) => sum + (Number(i.remaining_sessions) || 0), 0)
                                             const currentStatus = pc.computedStatus || pc.status
-                                            
-                                            let badgeClass = "bg-gray-100 text-gray-700 border border-gray-200"
-                                            let badgeLabel = "Fully Used"
 
+                                            let badgeClass = 'bg-gray-100 text-gray-500 border-gray-200'
+                                            let badgeLabel = 'Habis'
                                             if (currentStatus === 'active') {
-                                                badgeClass = "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs"
-                                                badgeLabel = "Active"
+                                                badgeClass = pc.isExpiringSoon
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                badgeLabel = pc.isExpiringSoon ? 'Segera Expired' : 'Aktif'
                                             } else if (currentStatus === 'expired_remaining') {
-                                                badgeClass = "bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs"
-                                                badgeLabel = `Expired (Sisa ${totalRemaining})`
-                                            } else if (currentStatus === 'fully_used' || currentStatus === 'completed') {
-                                                badgeClass = "bg-gray-100 text-gray-500 border border-gray-200"
-                                                badgeLabel = "Fully Used"
+                                                badgeClass = 'bg-rose-50 text-rose-700 border-rose-200'
+                                                badgeLabel = `Expired · sisa ${totalRemaining}`
                                             } else if (currentStatus === 'expired') {
-                                                badgeClass = "bg-red-50 text-red-700 border border-red-200"
-                                                badgeLabel = "Expired"
+                                                badgeClass = 'bg-rose-50 text-rose-700 border-rose-200'
+                                                badgeLabel = 'Expired'
                                             }
 
                                             return (
                                                 <React.Fragment key={pc.id}>
-                                                    <tr 
+                                                    <tr
                                                         onClick={() => setExpandedCouponId(isExpanded ? null : pc.id)}
-                                                        className={`hover:bg-ayumi-table-hover transition-colors cursor-pointer ${isExpanded ? 'bg-pink-50/30' : ''}`}
+                                                        className={`align-top hover:bg-ayumi-table-hover transition-colors cursor-pointer ${isExpanded ? 'bg-pink-50/40' : ''}`}
                                                     >
-                                                        <td className="p-4">
-                                                            <div className="font-bold text-gray-800">{pc.patients?.full_name}</div>
-                                                            <div className="text-xs text-gray-500">{pc.patients?.whatsapp}</div>
-                                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                                {pc.purchaseBranchName && (
-                                                                    <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                                                                        📍 Beli: {pc.purchaseBranchName}
-                                                                    </span>
-                                                                )}
-                                                                {pc.lastClaim ? (
-                                                                    <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold bg-pink-50 text-ayumi-primary border border-pink-200">
-                                                                        ✨ Terakhir klaim: {pc.lastClaim.branches?.name || '-'} ({new Date(pc.lastClaim.used_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })})
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold bg-gray-50 text-gray-500 border border-gray-200">
-                                                                        ⚪ Belum pernah klaim
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-bold text-gray-800">{pc.patients?.full_name || '-'}</div>
+                                                            <div className="text-xs text-gray-500">{pc.patients?.whatsapp || '-'}</div>
                                                         </td>
-                                                        <td className="p-4 font-semibold text-ayumi-primary">{pc.coupon_packages?.name}</td>
-                                                        <td className="p-4">
-                                                            <div className="flex flex-col gap-1">
+                                                        <td className="px-4 py-3 min-w-[14rem]">
+                                                            <div className="font-semibold text-ayumi-primary">{pc.coupon_packages?.name || '-'}</div>
+                                                            <div className="mt-1 space-y-0.5">
                                                                 {pc.patient_coupon_items?.map((item) => {
                                                                     const remaining = Number(item.remaining_sessions) || 0
                                                                     const total = Number(item.total_sessions) || 0
-                                                                    const isExhausted = remaining === 0
                                                                     return (
-                                                                        <div key={item.id} className="flex items-center gap-1.5">
-                                                                            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black inline-flex items-center gap-1 ${
-                                                                                isExhausted 
-                                                                                    ? 'bg-gray-100 text-gray-400 line-through' 
-                                                                                    : isExpired
-                                                                                    ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs'
-                                                                                    : 'bg-pink-50 text-ayumi-primary border border-pink-200/80 shadow-xs'
-                                                                            }`}>
-                                                                                {!isExhausted && !isExpired && '✨'}
-                                                                                {!isExhausted && isExpired && '⚠️'}
-                                                                                {remaining} / {total} Sesi
-                                                                                {isExpired && !isExhausted && ' (Exp)'}
+                                                                        <div key={item.id} className="flex items-baseline gap-2 text-xs">
+                                                                            <span className={`font-bold tabular-nums ${remaining === 0 ? 'text-gray-400' : isExpired ? 'text-rose-600' : 'text-gray-800'}`}>
+                                                                                {remaining}/{total} sesi
                                                                             </span>
                                                                             {pc.patient_coupon_items.length > 1 && (
-                                                                                <span className="text-[11px] text-gray-500 font-medium truncate max-w-[130px]">
-                                                                                    {item.treatments?.name}
-                                                                                </span>
+                                                                                <span className="text-gray-500 truncate max-w-[12rem]">{item.treatments?.name}</span>
                                                                             )}
                                                                         </div>
                                                                     )
                                                                 })}
                                                             </div>
                                                         </td>
-                                                        <td className="p-4 text-gray-600">{formatDate(pc.purchased_at)}</td>
-                                                        <td className="p-4 text-gray-600">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className={isExpired ? "text-amber-800 font-semibold" : ""}>{formatDate(pc.expired_at)}</span>
-                                                                <button 
-                                                                    onClick={(e) => { 
-                                                                        e.stopPropagation(); 
-                                                                        setEditExpiryModal({ 
-                                                                            isOpen: true, 
-                                                                            coupon: pc, 
-                                                                            newDate: pc.expired_at ? new Date(pc.expired_at).toISOString().split('T')[0] : '' 
-                                                                        }) 
-                                                                    }} 
-                                                                    className="text-ayumi-primary hover:text-ayumi-secondary p-1 hover:bg-pink-50 rounded-md transition-colors" 
-                                                                    title="Perpanjang / Edit Tanggal Expired"
+                                                        <td className="px-4 py-3 text-xs min-w-[12rem]">
+                                                            <div className="text-gray-700">
+                                                                <span className="text-gray-400">Beli:</span> <span className="font-semibold">{pc.purchaseBranchName || '-'}</span>
+                                                            </div>
+                                                            <div className="text-gray-700 mt-0.5">
+                                                                <span className="text-gray-400">Klaim terakhir:</span>{' '}
+                                                                {pc.lastClaim ? (
+                                                                    <span className="font-semibold">
+                                                                        {pc.lastClaim.branches?.name || '-'}
+                                                                        <span className="font-normal text-gray-500"> · {formatDate(pc.lastClaim.used_at)}</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-gray-400 italic">belum pernah</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(pc.purchased_at)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={isExpired ? 'text-rose-600 font-semibold' : 'text-gray-600'}>{formatDate(pc.expired_at)}</span>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        setEditExpiryModal({
+                                                                            isOpen: true,
+                                                                            coupon: pc,
+                                                                            newDate: pc.expired_at ? new Date(pc.expired_at).toISOString().split('T')[0] : ''
+                                                                        })
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-ayumi-primary p-1 hover:bg-pink-50 rounded-md transition-colors"
+                                                                    title="Perpanjang / ubah tanggal berlaku"
                                                                 >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                                 </button>
                                                             </div>
-                                                            {isExpired && currentStatus === 'expired_remaining' && (
-                                                                <div className="text-[11px] text-amber-600 font-bold mt-0.5 flex items-center gap-1">
-                                                                    <span>⚠️ Bisa diperpanjang</span>
-                                                                </div>
+                                                            {currentStatus === 'expired_remaining' && (
+                                                                <div className="text-[11px] text-rose-500 mt-0.5">Bisa diperpanjang</div>
                                                             )}
                                                         </td>
-                                                        <td className="p-4 text-center">
-                                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={`inline-block whitespace-nowrap px-2.5 py-1 rounded-full border text-[11px] font-semibold ${badgeClass}`}>
                                                                 {badgeLabel}
                                                             </span>
                                                         </td>
                                                     </tr>
                                                     {isExpanded && (
-                                                        <tr className="bg-gray-50">
-                                                            <td colSpan="6" className="p-4">
-                                                                <div className="pl-4 border-l-2 border-pink-300 py-1">
-                                                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Detail Sesi Kupon</p>
-                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                        {pc.patient_coupon_items?.map(item => {
-                                                                            const percent = (item.used_sessions / item.total_sessions) * 100
-                                                                            return (
-                                                                                <div key={item.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                                                    <div className="flex justify-between text-sm mb-1">
-                                                                                        <span className="font-semibold text-gray-700">{item.treatments?.name}</span>
-                                                                                        <span className=" text-xs font-bold text-ayumi-primary">{item.remaining_sessions} / {item.total_sessions} tersisa</span>
-                                                                                    </div>
-                                                                                    <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
-                                                                                        <div className="bg-gradient-to-r from-ayumi-primary to-ayumi-secondary h-2 rounded-full" style={{ width: `${percent}%` }}></div>
-                                                                                    </div>
-                                                                                    <div className="text-[10px] text-gray-400 text-right">Terpakai: {item.used_sessions} sesi</div>
+                                                        <tr className="bg-gray-50/70">
+                                                            <td colSpan="6" className="px-4 py-4">
+                                                                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Rincian Sesi</p>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                    {pc.patient_coupon_items?.map(item => {
+                                                                        const total = Number(item.total_sessions) || 0
+                                                                        const used = Number(item.used_sessions) || 0
+                                                                        const percent = total > 0 ? Math.min(100, (used / total) * 100) : 0
+                                                                        return (
+                                                                            <div key={item.id} className="bg-white p-3 rounded-xl border border-gray-100">
+                                                                                <div className="flex justify-between gap-3 text-sm mb-2">
+                                                                                    <span className="font-semibold text-gray-700">{item.treatments?.name}</span>
+                                                                                    <span className="text-xs font-bold text-ayumi-primary whitespace-nowrap">Sisa {item.remaining_sessions} dari {total}</span>
                                                                                 </div>
-                                                                            )
-                                                                        })}
-                                                                    </div>
+                                                                                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                                                                    <div className="bg-ayumi-primary h-1.5 rounded-full" style={{ width: `${percent}%` }}></div>
+                                                                                </div>
+                                                                                <div className="text-[11px] text-gray-400 mt-1">Terpakai {used} sesi</div>
+                                                                            </div>
+                                                                        )
+                                                                    })}
                                                                 </div>
                                                             </td>
                                                         </tr>
