@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import { useRouter } from 'next/navigation'
@@ -198,8 +199,8 @@ export default function TransactionsPage() {
     const [yearlyReportYear, setYearlyReportYear] = useState(new Date().getFullYear())
 
     // Custom Tab filters
-    const [customTabStart, setCustomTabStart] = useState(new Date().toISOString().split('T')[0])
-    const [customTabEnd, setCustomTabEnd] = useState(new Date().toISOString().split('T')[0])
+    const [customTabStart, setCustomTabStart] = useState(() => toLocalYYYYMMDD())
+    const [customTabEnd, setCustomTabEnd] = useState(() => toLocalYYYYMMDD())
     const [customTabBranch, setCustomTabBranch] = useState('')
     const [customTabTxType, setCustomTabTxType] = useState('')
 
@@ -975,7 +976,7 @@ export default function TransactionsPage() {
             return
         }
 
-        const todayStr = new Date().toISOString().split('T')[0]
+        const todayStr = toLocalYYYYMMDD()
         const branchName = branches.find(b => b.id === filterBranch)?.name || 'Semua_Cabang'
 
         // Sheet 1: Summary (dihitung khusus transaksi lunas)

@@ -228,8 +228,8 @@ export default function TherapistDetailPage() {
                     .eq('sold_by', therapistId)
                     .gt('seller_fee_at_time', 0)
                     .eq('transactions.payment_status', 'paid')
-                    .gte('created_at', `${startDate}T00:00:00`)
-                    .lte('created_at', `${endDate}T23:59:59`)
+                    .gte('created_at', new Date(`${startDate}T00:00:00`).toISOString())
+                    .lte('created_at', new Date(`${endDate}T23:59:59.999`).toISOString())
 
                 if (selectedBranch !== 'all') {
                     cq = cq.eq('transactions.branch_id', selectedBranch)

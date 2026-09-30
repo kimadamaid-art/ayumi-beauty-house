@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
@@ -104,15 +105,17 @@ async function fetchLastVisitBranches(patientIds) {
 // cabang tanggungan itu, sehingga tampilan admin, filter cabang owner, dan cabang yang
 // tercatat pada log WA ulang tahun semuanya mengikuti aturan yang sama.
 async function loadUpcomingBirthdayPatients(branchId) {
-    // Semua cabang diperiksa: pasien yang terdaftar di cabang lain bisa saja kini
-    // menjadi tanggungan cabang ini karena kunjungan terakhirnya di sini.
-    const rows = await fetchAllRows(() => supabase
-        .from('patients')
-        .select('id, birth_date')
-        .eq('is_active', true)
-        .not('birth_date', 'is', null)
-        .order('id', { ascending: true })
-    )
+    // Jika admin cabang, langsung filter berdasarkan branchId agar cepat dan sesuai hak akses RLS
+    const rows = await fetchAllRows(() => {
+        let q = supabase
+            .from('patients')
+            .select('id, birth_date, branch_id')
+            .eq('is_active', true)
+            .not('birth_date', 'is', null)
+            .order('id', { ascending: true })
+        if (branchId) q = q.eq('branch_id', branchId)
+        return q
+    })
     if (!rows) return null
 
     const today = new Date()
@@ -137,14 +140,17 @@ async function loadUpcomingBirthdayPatients(branchId) {
 // tidak datang. Hasilnya berbentuk sama dengan query lama (rekam medis + patients), jadi
 // pemrosesan di halaman tidak berubah. Pasien yang datanya tidak terbaca ikut dibuang,
 // setara dengan patients!inner pada query lama.
-async function loadDormantCandidateRecords(sinceDateStr) {
-    const rows = await fetchAllRows(() => supabase
-        .from('treatment_records')
-        .select('id, patient_id, treatment_date, branch_id')
-        .gte('treatment_date', sinceDateStr)
-        .order('treatment_date', { ascending: false })
-        .order('id', { ascending: false })
-    )
+async function loadDormantCandidateRecords(sinceDateStr, branchId) {
+    const rows = await fetchAllRows(() => {
+        let q = supabase
+            .from('treatment_records')
+            .select('id, patient_id, treatment_date, branch_id')
+            .gte('treatment_date', sinceDateStr)
+            .order('treatment_date', { ascending: false })
+            .order('id', { ascending: false })
+        if (branchId) q = q.eq('branch_id', branchId)
+        return q
+    })
     if (!rows) return null
 
     const latest = {}
@@ -290,17 +296,21 @@ export default function CRMPage() {
         setUserBranchId(userBranch)
         if (brData) setBranches(brData)
 
-        const todayDateStr = new Date().toISOString().split('T')[0]
+        const todayDateStr = toLocalYYYYMMDD()
 
         // 1. Follow Up Queue Query
         let qQuery = supabase
             .from('followup_queue')
             .select(`
                 *,
-                patients!inner(full_name, whatsapp),
+                patients!inner(full_name, whatsapp, branch_id),
                 treatment_records (treatment_date, branch_id)
             `)
             .in('status', ['pending', 'rescheduled'])
+
+        if (!ownerFlag && userBranch) {
+            qQuery = qQuery.eq('branch_id', userBranch)
+        }
 
         if (timeframeFilter === 'due') {
             qQuery = qQuery.lte('scheduled_date', todayDateStr).order('scheduled_date', { ascending: false })
@@ -350,7 +360,7 @@ export default function CRMPage() {
                 qData = rawQData.filter(q => {
                     if (q.branch_id === userBranch) return true
                     if (q.treatment_records && q.treatment_records.branch_id === userBranch) return true
-                    if (!q.branch_id && !q.treatment_records && q.patients.branch_id === userBranch) return true
+                    if (!q.branch_id && !q.treatment_records && q.patients?.branch_id === userBranch) return true
                     return false
                 })
             } else {
@@ -381,7 +391,7 @@ export default function CRMPage() {
     const loadBirthdaysAndDormant = async () => {
         try {
             const { user: currentUser, dbUser: userData } = await getCachedUser()
-            const ownerFlag = userData?.role === owner || !currentUser
+            const ownerFlag = userData?.role === 'owner' || !currentUser
             const userBranch = userData?.branch_id || null
             const scope = `${ownerFlag}|${userBranch}`
 
@@ -393,7 +403,7 @@ export default function CRMPage() {
                 eighteenMonthsAgo.setMonth(eighteenMonthsAgo.getMonth() - 18)
                 ;[pData, trData] = await Promise.all([
                     loadUpcomingBirthdayPatients((!ownerFlag && userBranch) ? userBranch : null),
-                    loadDormantCandidateRecords(eighteenMonthsAgo.toISOString().split(T)[0])
+                    loadDormantCandidateRecords(eighteenMonthsAgo.toISOString().split('T')[0], (!ownerFlag && userBranch) ? userBranch : null)
                 ])
                 if (pData && trData) {
                     listsCache = { scope, at: Date.now(), pData, trData }
@@ -482,10 +492,12 @@ export default function CRMPage() {
     const submitOutcome = async () => {
         if (!outcomeForm.outcome) return
         
-        await supabase.from('followup_logs').insert([{
+        const finalBranchId = selectedBranchId || userBranchId || branches[0]?.id || null
+
+        const { error: logErr } = await supabase.from('followup_logs').insert([{
             followup_queue_id: selectedQueueId,
             patient_id: selectedPatientId,
-            branch_id: selectedBranchId || userBranchId || null,
+            branch_id: finalBranchId,
             performed_by: user?.id,
             followup_type: 'treatment_reminder',
             channel: 'whatsapp',
@@ -494,11 +506,21 @@ export default function CRMPage() {
             performed_at: new Date().toISOString()
         }])
 
-        await supabase.from('followup_queue').update({
+        if (logErr) {
+            toast.error('Gagal mencatat log follow-up: ' + getFriendlyErrorMessage(logErr))
+            return
+        }
+
+        const { error: qErr } = await supabase.from('followup_queue').update({
             status: 'done',
             completed_by: user?.id,
             completed_at: new Date().toISOString()
         }).eq('id', selectedQueueId)
+
+        if (qErr) {
+            toast.error('Gagal memperbarui antrean: ' + getFriendlyErrorMessage(qErr))
+            return
+        }
 
         setShowOutcomeModal(false)
         setOutcomeForm({ outcome: 'responded', notes: '' })
@@ -507,53 +529,68 @@ export default function CRMPage() {
     }
 
     const submitReschedule = async () => {
-        if (!rescheduleDate) return
+        if (!rescheduleDate) {
+            toast.error('Pilih tanggal penjadwalan baru terlebih dahulu.')
+            return
+        }
         
-        await supabase.from('followup_queue').update({
+        const { error } = await supabase.from('followup_queue').update({
             status: 'rescheduled',
             rescheduled_to: rescheduleDate,
             scheduled_date: rescheduleDate
         }).eq('id', selectedQueueId)
 
+        if (error) {
+            toast.error('Gagal menunda antrean: ' + getFriendlyErrorMessage(error))
+            return
+        }
+
         setShowRescheduleModal(false)
         setRescheduleDate('')
-        toast.success('Follow up berhasil ditunda.')
+        toast.success('Jadwal follow-up berhasil ditunda.')
         fetchData()
     }
 
     const handleManualFollowup = async (dormantPatient) => {
-        await supabase.from('followup_queue').insert([{
+        const finalBranch = dormantPatient.branch_id || userBranchId
+        const { error } = await supabase.from('followup_queue').insert([{
             patient_id: dormantPatient.patient_id,
-            branch_id: dormantPatient.branch_id,
-            followup_type: 'dormant_reminder',
+            branch_id: finalBranch,
+            followup_type: 'treatment_reminder',
             scheduled_date: new Date().toISOString().split('T')[0],
             priority: 'high',
             status: 'pending',
+            notes: 'Sapaan pasien dormant',
             created_by: user?.id
         }])
+        if (error) {
+            toast.error('Gagal menambahkan follow up: ' + getFriendlyErrorMessage(error))
+            return
+        }
         toast.success('Follow up manual berhasil ditambahkan ke antrean hari ini.')
         fetchData()
     }
 
     // --- WHATSAPP TEMPLATES & UTILITIES ---
-    const generateWaMessage = (type, patientName) => {
+    const generateWaMessage = (type, patientName, branchName = '') => {
+        const clinicName = branchName ? branchName : 'Ayumi Beauty House'
         switch (type) {
             case 'followup_2minggu':
-                return `Hallo kak *${patientName}*, apa kabar🤗\nUdah dua minggu nih dari treatment sebelumnya ya. Aku mau tanya, gimana kondisi kulitnya setelah 2 minggu, apakah sudah terasa makin sehat dan halus?😍`
+                return `Hallo kak *${patientName}*, apa kabar🤗\nUdah dua minggu nih dari treatment sebelumnya di *${clinicName}* ya. Aku mau tanya, gimana kondisi kulitnya setelah 2 minggu, apakah sudah terasa makin sehat dan halus?😍`
             case 'followup_3minggu':
-                return `Hallo kak *${patientName}*, apa kabar🤗\nUdah genap tiga minggu dari treatment sebelumnya ya. Aku mau tanya, gimana progres hasilnya setelah treatment 3 minggu yang lalu, apakah sudah terlihat hasilnya?😍`
+                return `Hallo kak *${patientName}*, apa kabar🤗\nUdah genap tiga minggu dari treatment sebelumnya di *${clinicName}* ya. Aku mau tanya, gimana progres hasilnya setelah treatment 3 minggu yang lalu, apakah sudah terlihat hasilnya?😍`
             case 'followup_1bulan':
-                return `Halo kak *${patientName}* 🥰 gimana kabarnya? Btw udah sebulan nih dari treatment kemarin, kulitnya gimana sekarang? Semoga makin oke ya ✨\nMau aku cekin slot kosong buat kakak?🥰\n\n\nAyumi Beauty House siap melayani dan merawat kulitmu.. 💕`
+                return `Halo kak *${patientName}* 🥰 gimana kabarnya? Btw udah sebulan nih dari treatment kemarin, kulitnya gimana sekarang? Semoga makin oke ya ✨\nMau aku cekin slot kosong buat kakak?🥰\n\n\n*${clinicName}* siap melayani dan merawat kulitmu.. 💕`
             case 'reminder_besok':
-                return `Halo kak *${patientName}* 😊\n\nIni dari *Ayumi Beauty House* ya kak. Mau mengingatkan bahwa kakak ada jadwal treatment *besok*. Jangan lupa datang tepat waktu ya biar treatmentnya maksimal hasilnya! ✨\n\nKalau ada perubahan jadwal, kabari kami segera ya kak. Ditunggu kedatangannya! 🥰\n\nAyumi Beauty House siap melayani dan merawat kulitmu.. 💕`
+                return `Halo kak *${patientName}* 😊\n\nIni dari *${clinicName}* ya kak. Mau mengingatkan bahwa kakak ada jadwal treatment *besok*. Jangan lupa datang tepat waktu ya biar treatmentnya maksimal hasilnya! ✨\n\nKalau ada perubahan jadwal, kabari kami segera ya kak. Ditunggu kedatangannya! 🥰\n\n*${clinicName}* siap melayani dan merawat kulitmu.. 💕`
             case 'treatment_reminder':
-                return `Halo Kak *${patientName}*,\n\nKami dari *Ayumi Beauty House* ingin menanyakan kabar Anda setelah perawatan terakhir. 😊\n\nSudah saatnya untuk melakukan perawatan rutin berikutnya agar kulit tetap sehat terawat dan hasilnya maksimal. ✨\n\nYuk, booking jadwal treatment Kakak kembali! Terapis kami siap melayani. Hubungi kami untuk reservasi slot ya. Terima kasih! 💖`
+                return `Halo Kak *${patientName}*,\n\nKami dari *${clinicName}* ingin menanyakan kabar Anda setelah perawatan terakhir. 😊\n\nSudah saatnya untuk melakukan perawatan rutin berikutnya agar kulit tetap sehat terawat dan hasilnya maksimal. ✨\n\nYuk, booking jadwal treatment Kakak kembali! Terapis kami siap melayani. Hubungi kami untuk reservasi slot ya. Terima kasih! 💖`
             case 'birthday':
-                return `Halo Kak *${patientName}*,\n\n*Selamat Ulang Tahun!* 🎉🎂\n\nSebagai kado spesial di hari ulang tahun Kakak, *Ayumi Beauty House* memberikan promo potongan diskon khusus untuk treatment hari ini! 💕\n\nYuk manjakan diri di hari spesial Kakak. Hubungi kami untuk info promo selengkapnya dan reservasi slot treatment ya. Semoga sehat dan bahagia selalu! 🥰`
+                return `Halo Kak *${patientName}*,\n\n*Selamat Ulang Tahun!* 🎉🎂\n\nSebagai kado spesial di hari ulang tahun Kakak, *${clinicName}* memberikan promo potongan diskon khusus untuk treatment hari ini! 💕\n\nYuk manjakan diri di hari spesial Kakak. Hubungi kami untuk info promo selengkapnya dan reservasi slot treatment ya. Semoga sehat dan bahagia selalu! 🥰`
             case 'dormant_reminder':
-                return `Halo Kak *${patientName}*,\n\nSudah cukup lama Kakak tidak berkunjung ke *Ayumi Beauty House*. Kami merindukan kehadiran Kakak! 🥰\n\nSaat ini kami sedang ada penawaran promo treatment spesial khusus untuk Kakak bulan ini. Yuk luangkan waktu untuk memanjakan diri kembali. ✨\n\nHubungi kami jika ingin berkonsultasi atau langsung booking slot ya. Ditunggu kedatangannya! 🌸`
+                return `Halo Kak *${patientName}*,\n\nSudah cukup lama Kakak tidak berkunjung ke *${clinicName}*. Kami merindukan kehadiran Kakak! 🥰\n\nSaat ini kami sedang ada penawaran promo treatment spesial khusus untuk Kakak bulan ini. Yuk luangkan waktu untuk memanjakan diri kembali. ✨\n\nHubungi kami jika ingin berkonsultasi atau langsung booking slot ya. Ditunggu kedatangannya! 🌸`
             default:
-                return `Halo Kak *${patientName}*,\n\nKami dari *Ayumi Beauty House* ingin menyapa Kakak...`
+                return `Halo Kak *${patientName}*,\n\nKami dari *${clinicName}* ingin menyapa Kakak...`
         }
     }
 
@@ -563,7 +600,9 @@ export default function CRMPage() {
         const whatsapp = item.patients?.whatsapp || item.whatsapp || ''
         const patientId = item.patient_id || item.id || ''
         const queueId = isQueueItem ? item.id : null
-        const branchId = item.branch_id || (item.treatment_records && item.treatment_records.branch_id) || null
+        const branchId = item.branch_id || (item.treatment_records && item.treatment_records.branch_id) || item.patients?.branch_id || userBranchId || branches[0]?.id || null
+        const branchObj = branches.find(b => b.id === branchId) || branches.find(b => b.id === userBranchId)
+        const branchName = branchObj ? branchObj.name : ''
 
         // Format whatsapp format 62xxx
         let formattedWa = whatsapp.trim().replace(/[^0-9]/g, '')
@@ -571,7 +610,7 @@ export default function CRMPage() {
             formattedWa = '62' + formattedWa.slice(1)
         }
 
-        const message = generateWaMessage(defaultTemplate, patientName)
+        const message = generateWaMessage(defaultTemplate, patientName, branchName)
 
         setWaForm({
             queueId,
@@ -581,6 +620,7 @@ export default function CRMPage() {
             message,
             templateType: defaultTemplate,
             branchId,
+            branchName,
             outcome: 'responded',
             notes: ''
         })
@@ -588,7 +628,7 @@ export default function CRMPage() {
     }
 
     const handleWaTemplateChange = (type) => {
-        const message = generateWaMessage(type, waForm.patientName)
+        const message = generateWaMessage(type, waForm.patientName, waForm.branchName)
         setWaForm(prev => ({ ...prev, templateType: type, message }))
     }
 
@@ -597,16 +637,22 @@ export default function CRMPage() {
     }
 
     const saveWaLogOnly = async () => {
+        const finalBranchId = waForm.branchId || userBranchId || branches[0]?.id || null
+        const validLogType = ['treatment_reminder', 'birthday', 'manual'].includes(waForm.templateType) 
+            ? waForm.templateType 
+            : (waForm.templateType === 'birthday' ? 'birthday' : 'treatment_reminder')
+        const logNotes = waForm.notes ? `[${waForm.templateType}] ${waForm.notes}` : `[${waForm.templateType}]`
+
         // Insert log
         const { error: logErr } = await supabase.from('followup_logs').insert([{
             followup_queue_id: waForm.queueId,
             patient_id: waForm.patientId,
-            branch_id: waForm.branchId || userBranchId || null,
+            branch_id: finalBranchId,
             performed_by: user?.id,
-            followup_type: waForm.templateType,
+            followup_type: validLogType,
             channel: 'whatsapp',
             outcome: waForm.outcome,
-            notes: waForm.notes,
+            notes: logNotes,
             performed_at: new Date().toISOString()
         }])
 
@@ -653,7 +699,11 @@ export default function CRMPage() {
         setBulkTemplate(defaultTemplate)
         
         const firstPatient = patients[0]
-        const msg = generateWaMessage(defaultTemplate, firstPatient.full_name || '')
+        const firstBranchId = firstPatient.branch_id || (firstPatient.treatment_records && firstPatient.treatment_records.branch_id) || firstPatient.patients?.branch_id || userBranchId
+        const firstBranchObj = branches.find(b => b.id === firstBranchId) || branches.find(b => b.id === userBranchId)
+        const firstBranchName = firstBranchObj ? firstBranchObj.name : ''
+
+        const msg = generateWaMessage(defaultTemplate, firstPatient.full_name || '', firstBranchName)
         setBulkForm({
             message: msg,
             outcome: 'responded',
@@ -666,9 +716,12 @@ export default function CRMPage() {
         setBulkTemplate(template)
         const currentPatient = bulkQueue[bulkIndex]
         if (currentPatient) {
+            const currentBranchId = currentPatient.branch_id || (currentPatient.treatment_records && currentPatient.treatment_records.branch_id) || currentPatient.patients?.branch_id || userBranchId
+            const currentBranchObj = branches.find(b => b.id === currentBranchId) || branches.find(b => b.id === userBranchId)
+            const currentBranchName = currentBranchObj ? currentBranchObj.name : ''
             setBulkForm(prev => ({
                 ...prev,
-                message: generateWaMessage(template, currentPatient.full_name || '')
+                message: generateWaMessage(template, currentPatient.full_name || '', currentBranchName)
             }))
         }
     }
@@ -679,7 +732,7 @@ export default function CRMPage() {
 
         const patientId = currentPatient.patient_id || currentPatient.id
         const whatsapp = currentPatient.whatsapp || ''
-        const branchId = currentPatient.branch_id || (currentPatient.treatment_records && currentPatient.treatment_records.branch_id) || null
+        const branchId = currentPatient.branch_id || (currentPatient.treatment_records && currentPatient.treatment_records.branch_id) || currentPatient.patients?.branch_id || userBranchId || branches[0]?.id || null
 
         let formattedWa = whatsapp.trim().replace(/[^0-9]/g, '')
         if (formattedWa.startsWith('0')) {
@@ -691,15 +744,20 @@ export default function CRMPage() {
             openWhatsApp(formattedWa, bulkForm.message)
         }
 
+        const validBulkType = ['treatment_reminder', 'birthday', 'manual'].includes(bulkTemplate) 
+            ? bulkTemplate 
+            : (bulkTemplate === 'birthday' ? 'birthday' : 'treatment_reminder')
+        const logNotes = bulkForm.notes ? `[${bulkTemplate}] ${bulkForm.notes}` : `[${bulkTemplate}]`
+
         // 2. Save log
         const { error: logErr } = await supabase.from('followup_logs').insert([{
             patient_id: patientId,
-            branch_id: branchId || userBranchId || null,
+            branch_id: branchId,
             performed_by: user?.id,
-            followup_type: bulkTemplate,
+            followup_type: validBulkType,
             channel: 'whatsapp',
             outcome: bulkForm.outcome,
-            notes: bulkForm.notes,
+            notes: logNotes,
             performed_at: new Date().toISOString()
         }])
 
@@ -713,8 +771,12 @@ export default function CRMPage() {
             const nextIndex = bulkIndex + 1
             setBulkIndex(nextIndex)
             const nextPatient = bulkQueue[nextIndex]
+            const nextBranchId = nextPatient.branch_id || (nextPatient.treatment_records && nextPatient.treatment_records.branch_id) || nextPatient.patients?.branch_id || userBranchId
+            const nextBranchObj = branches.find(b => b.id === nextBranchId) || branches.find(b => b.id === userBranchId)
+            const nextBranchName = nextBranchObj ? nextBranchObj.name : ''
+
             setBulkForm({
-                message: generateWaMessage(bulkTemplate, nextPatient.full_name || ''),
+                message: generateWaMessage(bulkTemplate, nextPatient.full_name || '', nextBranchName),
                 outcome: 'responded',
                 notes: ''
             })
@@ -740,7 +802,7 @@ export default function CRMPage() {
         }
 
         const selectedPatient = selectedManualPatient?.id === manualForm.patientId ? selectedManualPatient : null
-        const finalBranchId = manualForm.branchId || selectedPatient?.branch_id || userBranchId || null
+        const finalBranchId = manualForm.branchId || selectedPatient?.branch_id || userBranchId || branches[0]?.id || null
 
         const { error } = await supabase.from('followup_queue').insert([{
             patient_id: manualForm.patientId,
@@ -821,6 +883,8 @@ export default function CRMPage() {
     }
 
     // --- FILTERED DATA LISTS ---
+    const effectiveBranchFilter = isOwner ? branchFilter : (userBranchId || 'All')
+
     const filteredQueue = useMemo(() => {
         return queue.filter(q => {
             const matchSearch = !searchTerm || 
@@ -829,40 +893,71 @@ export default function CRMPage() {
             const matchPriority = priorityFilter === 'All' || q.priority === priorityFilter;
             const effectiveType = getEffectiveFollowupType(q);
             const matchType = typeFilter === 'All' || effectiveType === typeFilter || q.followup_type === typeFilter;
-            const matchBranch = branchFilter === 'All' || 
-                q.branch_id === branchFilter || 
-                (q.treatment_records && q.treatment_records.branch_id === branchFilter);
+            const matchBranch = effectiveBranchFilter === 'All' || 
+                q.branch_id === effectiveBranchFilter || 
+                (q.treatment_records && q.treatment_records.branch_id === effectiveBranchFilter) ||
+                (q.patients && q.patients.branch_id === effectiveBranchFilter);
             return matchSearch && matchPriority && matchType && matchBranch;
         })
-    }, [queue, searchTerm, priorityFilter, typeFilter, branchFilter])
+    }, [queue, searchTerm, priorityFilter, typeFilter, effectiveBranchFilter])
 
     const filteredBirthdays = useMemo(() => {
         return birthdays.filter(pt => {
             const matchSearch = !searchTerm || 
                 pt.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 pt.whatsapp?.includes(searchTerm);
-            const matchBranch = branchFilter === 'All' || pt.branch_id === branchFilter;
+            const matchBranch = effectiveBranchFilter === 'All' || pt.branch_id === effectiveBranchFilter;
             return matchSearch && matchBranch;
         })
-    }, [birthdays, searchTerm, branchFilter])
+    }, [birthdays, searchTerm, effectiveBranchFilter])
 
     const filteredDormant = useMemo(() => {
         return dormant.filter(d => {
             const matchSearch = !searchTerm || 
                 d.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 d.whatsapp?.includes(searchTerm);
-            const matchBranch = branchFilter === 'All' || d.branch_id === branchFilter;
+            const matchBranch = effectiveBranchFilter === 'All' || d.branch_id === effectiveBranchFilter;
             return matchSearch && matchBranch;
         })
-    }, [dormant, searchTerm, branchFilter])
+    }, [dormant, searchTerm, effectiveBranchFilter])
+
+    // Filter logs by effective branch
+    const filteredLogs = useMemo(() => {
+        return logs.filter(l => effectiveBranchFilter === 'All' || l.branch_id === effectiveBranchFilter)
+    }, [logs, effectiveBranchFilter])
 
     // Analytics Calculations
-    const totalLogs = logs.length
-    const respondedCount = logs.filter(l => l.outcome === 'responded' || l.outcome === 'booked').length
-    const bookedCount = logs.filter(l => l.outcome === 'booked').length
+    const totalLogs = filteredLogs.length
+    const respondedCount = filteredLogs.filter(l => l.outcome === 'responded' || l.outcome === 'booked').length
+    const bookedCount = filteredLogs.filter(l => l.outcome === 'booked').length
     
     const responseRate = totalLogs > 0 ? Math.round((respondedCount / totalLogs) * 100) : 0
     const conversionRate = totalLogs > 0 ? Math.round((bookedCount / totalLogs) * 100) : 0
+
+    const todayDateStr = toLocalYYYYMMDD()
+    const d7Date = new Date()
+    d7Date.setDate(d7Date.getDate() + 7)
+    const next7DaysStr = toLocalYYYYMMDD(d7Date)
+
+    const dueTodayCount = useMemo(() => {
+        return queue.filter(q => {
+            const matchBranch = effectiveBranchFilter === 'All' || 
+                q.branch_id === effectiveBranchFilter || 
+                (q.treatment_records && q.treatment_records.branch_id === effectiveBranchFilter) ||
+                (q.patients && q.patients.branch_id === effectiveBranchFilter);
+            return matchBranch && q.scheduled_date && q.scheduled_date <= todayDateStr;
+        }).length
+    }, [queue, effectiveBranchFilter, todayDateStr])
+
+    const upcoming7Count = useMemo(() => {
+        return queue.filter(q => {
+            const matchBranch = effectiveBranchFilter === 'All' || 
+                q.branch_id === effectiveBranchFilter || 
+                (q.treatment_records && q.treatment_records.branch_id === effectiveBranchFilter) ||
+                (q.patients && q.patients.branch_id === effectiveBranchFilter);
+            return matchBranch && q.scheduled_date && q.scheduled_date > todayDateStr && q.scheduled_date <= next7DaysStr;
+        }).length
+    }, [queue, effectiveBranchFilter, todayDateStr, next7DaysStr])
 
     return (
         <div className="space-y-6">
@@ -886,6 +981,73 @@ export default function CRMPage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
                     <span>Tambah Follow Up Manual</span>
                 </button>
+            </div>
+
+            {/* QUICK STATS & METRICS ROW */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* 1. Jatuh Tempo / Hari Ini */}
+                <div 
+                    onClick={() => { setActiveTab('queue'); setTimeframeFilter('due') }}
+                    className={`p-4 rounded-3xl border transition-all cursor-pointer shadow-xs hover:shadow-md ${timeframeFilter === 'due' && activeTab === 'queue' ? 'bg-gradient-to-br from-rose-50 to-pink-50 border-rose-200 ring-2 ring-rose-300' : 'bg-white border-gray-200/80 hover:border-rose-200'}`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Perlu Dihubungi</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-rose-600">{dueTodayCount}</span>
+                        <span className="text-xs text-gray-500 font-medium">pasien hari ini</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Jatuh tempo atau jadwal hari ini</p>
+                </div>
+
+                {/* 2. Jadwal 7 Hari Mendatang */}
+                <div 
+                    onClick={() => { setActiveTab('queue'); setTimeframeFilter('upcoming_7') }}
+                    className={`p-4 rounded-3xl border transition-all cursor-pointer shadow-xs hover:shadow-md ${timeframeFilter === 'upcoming_7' && activeTab === 'queue' ? 'bg-gradient-to-br from-indigo-50 to-sky-50 border-indigo-200 ring-2 ring-indigo-300' : 'bg-white border-gray-200/80 hover:border-indigo-200'}`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">7 Hari Mendatang</span>
+                        <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">📅</div>
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-indigo-600">{upcoming7Count}</span>
+                        <span className="text-xs text-gray-500 font-medium">antrean pekan ini</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Siap difollow-up bertahap</p>
+                </div>
+
+                {/* 3. Ulang Tahun */}
+                <div 
+                    onClick={() => setActiveTab('birthday')}
+                    className={`p-4 rounded-3xl border transition-all cursor-pointer shadow-xs hover:shadow-md ${activeTab === 'birthday' ? 'bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200 ring-2 ring-pink-300' : 'bg-white border-gray-200/80 hover:border-pink-200'}`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ulang Tahun</span>
+                        <div className="w-6 h-6 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center text-xs font-bold">🎂</div>
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-ayumi-primary">{listsLoading ? '…' : filteredBirthdays.length}</span>
+                        <span className="text-xs text-gray-500 font-medium">pasien pekan ini</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Peluang promo spesial ultah</p>
+                </div>
+
+                {/* 4. Pasien Dormant */}
+                <div 
+                    onClick={() => setActiveTab('dormant')}
+                    className={`p-4 rounded-3xl border transition-all cursor-pointer shadow-xs hover:shadow-md ${activeTab === 'dormant' ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 ring-2 ring-amber-300' : 'bg-white border-gray-200/80 hover:border-amber-200'}`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pasien Dormant</span>
+                        <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs font-bold">💤</div>
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-amber-600">{listsLoading ? '…' : filteredDormant.length}</span>
+                        <span className="text-xs text-gray-500 font-medium">&gt;90 hari vakum</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Target re-engagement cabang</p>
+                </div>
             </div>
 
             {/* SEGMENT TABS */}
@@ -998,6 +1160,17 @@ export default function CRMPage() {
                         </>
                     )}
 
+                    {/* Branch Indicator for Branch Admin */}
+                    {!isOwner && userBranchId && (
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Cabang:</span>
+                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-pink-50 border border-pink-200/80 text-ayumi-primary text-xs font-extrabold shadow-2xs">
+                                <span className="w-2 h-2 rounded-full bg-ayumi-primary animate-pulse"></span>
+                                <span>{branches.find(br => br.id === userBranchId)?.name || 'Cabang Anda'}</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Branch Filter (Only visible if Owner) */}
                     {isOwner && (
                         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1089,7 +1262,7 @@ export default function CRMPage() {
                                             </thead>
                                             <tbody className="divide-y divide-gray-100 text-sm bg-white">
                                                 {filteredQueue.map(q => {
-                                                    const todayStr = new Date().toISOString().split('T')[0];
+                                                    const todayStr = toLocalYYYYMMDD();
                                                     const isDue = q.scheduled_date && q.scheduled_date <= todayStr;
                                                     return (
                                                         <tr key={q.id} className="hover:bg-pink-50/20 transition-colors">
@@ -1871,9 +2044,9 @@ export default function CRMPage() {
                                     ) : (
                                         <input 
                                             type="text" 
-                                            value="Cabang Saat Ini" 
+                                            value={branches.find(b => b.id === userBranchId)?.name || 'Cabang Saat Ini'} 
                                             disabled 
-                                            className="input-ayumi bg-gray-50 text-gray-500 cursor-not-allowed rounded-xl text-sm"
+                                            className="input-ayumi bg-gray-50 text-gray-700 font-bold cursor-not-allowed rounded-xl text-sm"
                                         />
                                     )}
                                 </div>

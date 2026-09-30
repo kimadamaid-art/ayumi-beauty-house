@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
@@ -53,8 +54,8 @@ export default function CouponsDashboardPage() {
 
     // --- STATES FOR TAB 4: RIWAYAT PENGGUNAAN ---
     const [historyLogs, setHistoryLogs] = useState([])
-    const [histStartDate, setHistStartDate] = useState(new Date().toISOString().split('T')[0])
-    const [histEndDate, setHistEndDate] = useState(new Date().toISOString().split('T')[0])
+    const [histStartDate, setHistStartDate] = useState(() => toLocalYYYYMMDD())
+    const [histEndDate, setHistEndDate] = useState(() => toLocalYYYYMMDD())
     const [histBranchFilter, setHistBranchFilter] = useState('')
     const [branches, setBranches] = useState([])
 
@@ -417,8 +418,8 @@ export default function CouponsDashboardPage() {
             .is('voided_at', null)
             .order('used_at', { ascending: false })
 
-        if (histStartDate) query = query.gte('used_at', `${histStartDate}T00:00:00Z`)
-        if (histEndDate) query = query.lte('used_at', `${histEndDate}T23:59:59Z`)
+        if (histStartDate) query = query.gte('used_at', new Date(`${histStartDate}T00:00:00`).toISOString())
+        if (histEndDate) query = query.lte('used_at', new Date(`${histEndDate}T23:59:59.999`).toISOString())
         
         if (dbUser && dbUser.role !== 'owner' && dbUser.branch_id) {
             query = query.eq('branch_id', dbUser.branch_id)
