@@ -13,6 +13,7 @@ import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
 import { parsePaymentSplits, getQrisFee } from '@/lib/paymentUtils'
 import { getTransactionRevenueBreakdown } from '@/lib/revenueBreakdown'
+import { COUPON_REDEEM_SELECT } from '@/lib/couponRedeem'
 import { computeDashboardInsights } from '@/lib/dashboardInsights'
 import LazyRecharts from '@/components/charts/LazyRecharts'
 
@@ -374,7 +375,8 @@ export default function Dashboard() {
                                 subtotal,
                                 original_price,
                                 discount_percent
-                            )
+                            ),
+                            ${COUPON_REDEEM_SELECT}
                         `)
                         .gte('created_at', new Date(`${sDate}T00:00:00`).toISOString())
                         .lte('created_at', new Date(`${eDate}T23:59:59.999`).toISOString())
@@ -650,6 +652,10 @@ export default function Dashboard() {
                     productGross: 0,
                     couponSalesGross: 0,
                     otherGross: 0,
+                    treatmentRedeem: 0,
+                    productRedeem: 0,
+                    couponSalesRedeem: 0,
+                    otherRedeem: 0,
                     discountTotal: 0,
                     cashIncome: 0,
                     totalIncome: 0,
@@ -686,12 +692,17 @@ export default function Dashboard() {
                         branchObj.productGross += breakdown.gross.product
                         branchObj.couponSalesGross += breakdown.gross.coupon
                         branchObj.otherGross += breakdown.gross.other
+                        // Nilai sesi kupon yang dipakai: masuk kotor, bukan diskon.
+                        branchObj.treatmentRedeem += breakdown.redeem.treatment
+                        branchObj.productRedeem += breakdown.redeem.product
+                        branchObj.couponSalesRedeem += breakdown.redeem.coupon
+                        branchObj.otherRedeem += breakdown.redeem.other
                         
                         const realCash = breakdown.netTotal
                         const txQrisFee = getQrisFee(tx)
                         // Diskon riil = kotor - bersih. tx.discount tidak dipakai karena pada nota
                         // migrasi GD diskon kupon tercatat dua kali di kolom itu.
-                        const txDisc = breakdown.gross.treatment + breakdown.gross.product + breakdown.gross.coupon + breakdown.gross.other - realCash
+                        const txDisc = breakdown.gross.treatment + breakdown.gross.product + breakdown.gross.coupon + breakdown.gross.other - realCash - breakdown.redeemTotal
 
                         branchObj.discountTotal += txDisc
                         branchObj.cashIncome += realCash
@@ -1792,16 +1803,20 @@ export default function Dashboard() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3 sm:gap-4 pt-1">
                                     {branchDailyComparison.map(b => {
                                         const rows = [
-                                            { key: 'treatment', label: 'Treatment', dot: 'bg-[#EC4899]', gross: b.treatmentGross || 0, net: b.treatmentIncome || 0 },
-                                            { key: 'product', label: 'Produk', dot: 'bg-[#06B6D4]', gross: b.productGross || 0, net: b.productIncome || 0 },
-                                            { key: 'coupon', label: 'Penjualan Kupon', shortLabel: 'Kupon', dot: 'bg-emerald-500', gross: b.couponSalesGross || 0, net: b.couponSalesIncome || 0 },
-                                            { key: 'other', label: 'Lainnya', dot: 'bg-gray-400', gross: b.otherGross || 0, net: b.otherIncome || 0, optional: true }
+                                            { key: 'treatment', label: 'Treatment', dot: 'bg-[#EC4899]', gross: b.treatmentGross || 0, redeem: b.treatmentRedeem || 0, net: b.treatmentIncome || 0 },
+                                            { key: 'product', label: 'Produk', dot: 'bg-[#06B6D4]', gross: b.productGross || 0, redeem: b.productRedeem || 0, net: b.productIncome || 0 },
+                                            { key: 'coupon', label: 'Penjualan Kupon', shortLabel: 'Kupon', dot: 'bg-emerald-500', gross: b.couponSalesGross || 0, redeem: b.couponSalesRedeem || 0, net: b.couponSalesIncome || 0 },
+                                            { key: 'other', label: 'Lainnya', dot: 'bg-gray-400', gross: b.otherGross || 0, redeem: b.otherRedeem || 0, net: b.otherIncome || 0, optional: true }
                                         ].filter(row => !row.optional || row.gross !== 0 || row.net !== 0)
                                         const grossTotal = rows.reduce((acc, row) => acc + row.gross, 0)
+                                        const redeemTotal = rows.reduce((acc, row) => acc + row.redeem, 0)
                                         const netTotal = rows.reduce((acc, row) => acc + row.net, 0)
                                         const rp = (n) => Math.round(n).toLocaleString('id-ID')
                                         const discCell = (n) => n > 0
                                             ? <span className="text-rose-600">-{rp(n)}</span>
+                                            : <span className="text-gray-300">0</span>
+                                        const redeemCell = (n) => n > 0
+                                            ? <span className="text-amber-600">-{rp(n)}</span>
                                             : <span className="text-gray-300">0</span>
                                         const hasActivity = (b.transactionCount || 0) > 0 || (b.couponUsedSessions || 0) > 0
                                         return (
@@ -1820,6 +1835,7 @@ export default function Dashboard() {
                                                                 <th className="text-left font-bold pb-1.5">Kategori</th>
                                                                 <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Kotor</th>
                                                                 <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Diskon</th>
+                                                                <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2" title="Nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual">Redeem Kupon</th>
                                                                 <th className="text-right font-bold pb-1.5 pl-1.5 sm:pl-2">Bersih</th>
                                                             </tr>
                                                         </thead>
@@ -1837,21 +1853,23 @@ export default function Dashboard() {
                                                                         </span>
                                                                     </td>
                                                                     <td className="py-1.5 pl-1.5 sm:pl-2 text-right text-gray-500 whitespace-nowrap">{rp(row.gross)}</td>
-                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-semibold whitespace-nowrap">{discCell(row.gross - row.net)}</td>
+                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-semibold whitespace-nowrap">{discCell(row.gross - row.net - row.redeem)}</td>
+                                                                    <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-semibold whitespace-nowrap">{redeemCell(row.redeem)}</td>
                                                                     <td className="py-1.5 pl-1.5 sm:pl-2 text-right font-extrabold text-gray-900 whitespace-nowrap">{rp(row.net)}</td>
                                                                 </tr>
                                                             ))}
                                                             <tr className="border-t border-gray-200">
                                                                 <td className="pt-2 font-extrabold text-gray-900">Total</td>
                                                                 <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold text-gray-600 whitespace-nowrap">{rp(grossTotal)}</td>
-                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal)}</td>
+                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal - redeemTotal)}</td>
+                                                                <td className="pt-2 pl-1.5 sm:pl-2 text-right font-bold whitespace-nowrap">{redeemCell(redeemTotal)}</td>
                                                                 <td className="pt-2 pl-1.5 sm:pl-2 text-right font-black text-[#5c3316] whitespace-nowrap">{rp(netTotal)}</td>
                                                             </tr>
                                                         </tbody>
                                                     </table>
                                                     </div>
                                                     <p className="text-[10px] text-gray-400 font-medium -mt-1">
-                                                        Treatment termasuk infus. Diskon termasuk bonus gratis.
+                                                        Kotor − Diskon − Redeem Kupon = Bersih. Treatment termasuk infus; diskon termasuk bonus gratis; redeem kupon = sesi kupon yang dipakai (dibayar saat beli paket).
                                                     </p>
 
                                                     <button

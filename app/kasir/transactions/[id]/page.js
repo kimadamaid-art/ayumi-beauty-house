@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { toast } from 'react-hot-toast'
 import { getQrisFee } from '@/lib/paymentUtils'
+import { COUPON_REDEEM_SELECT, getCouponRedeemItemIds } from '@/lib/couponRedeem'
+import { getTransactionRevenueBreakdown, isGdCashierTransaction } from '@/lib/revenueBreakdown'
 
 export default function ReceiptPage() {
     const { id } = useParams()
@@ -50,7 +52,8 @@ export default function ReceiptPage() {
                         *,
                         treatments (price),
                         products (price)
-                    )
+                    ),
+                    ${COUPON_REDEEM_SELECT}
                 `)
                 .eq('id', id)
                 .single(),
@@ -240,6 +243,7 @@ export default function ReceiptPage() {
                 divider
             ]
 
+            const summary = getReceiptSummary(transaction)
             transaction.transaction_items?.forEach(item => {
                 const name = item.name.length > 32 ? item.name.slice(0, 32) : item.name
                 chunks.push(line(name))
@@ -255,7 +259,9 @@ export default function ReceiptPage() {
                 const discPct = item.discount_percent || (hasDisc ? Math.round(((origPrice - item.price) / origPrice) * 100) : 0)
                 
                 let priceStr = `${item.quantity}x @${Number(item.price).toLocaleString('id-ID')}`
-                if (hasDisc && discPct > 0) {
+                if (summary.redeemIds.has(item.id)) {
+                    priceStr += ' (Kupon)'
+                } else if (hasDisc && discPct > 0) {
                     priceStr += ` (-${discPct}%)`
                 }
                 const subStr = `Rp ${Number(item.subtotal).toLocaleString('id-ID')}`
@@ -264,24 +270,14 @@ export default function ReceiptPage() {
             })
 
             chunks.push(divider)
-            const subtotalVal = Number(transaction.subtotal || 0)
-            const discountRupiah = Number(transaction.discount || 0)
-            let percentLabel = ''
-            if (discountRupiah > 0 && subtotalVal > 0) {
-                const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
-                if (calcPct > 0 && calcPct <= 100) {
-                    percentLabel = ` (${calcPct}%)`
-                }
+            chunks.push(line(`Sblm Diskon: Rp ${summary.gross.toLocaleString('id-ID')}`))
+            if (summary.discount > 0) {
+                chunks.push(line(`Diskon     : -Rp ${summary.discount.toLocaleString('id-ID')}`))
             }
-
-            chunks.push(line(`Subtotal: Rp ${subtotalVal.toLocaleString('id-ID')}`))
-
-            if (discountRupiah > 0) {
-                chunks.push(line(`Diskon${percentLabel} : -Rp ${discountRupiah.toLocaleString('id-ID')}`))
+            if (summary.redeem > 0) {
+                chunks.push(line(`Redeem Kupon: -Rp ${summary.redeem.toLocaleString('id-ID')}`))
             }
-
-            const netTotal = Math.max(0, subtotalVal - discountRupiah)
-            const qrisFee = getQrisFee(transaction)
+            const qrisFee = summary.qrisFee
             if (qrisFee > 0) {
                 chunks.push(line(`QRIS(0.3%): +Rp ${qrisFee.toLocaleString('id-ID')}`))
             }
@@ -355,6 +351,33 @@ export default function ReceiptPage() {
             return Number(matched?.price || 0)
         }
         return 0
+    }
+
+    const getItemOrigPrice = (item) => {
+        const price = Number(item.price) || 0
+        const orig = Number(item.original_price) || getCatalogPrice(item) || (item.discount_percent && item.discount_percent < 100 ? Math.round(price / (1 - item.discount_percent / 100)) : price)
+        return Math.max(orig, price)
+    }
+
+    // Ringkasan struk: Sebelum Diskon - Diskon - Redeem Kupon (+ biaya QRIS) = Total Bayar.
+    // Redeem kupon = nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual, jadi
+    // tidak dicatat sebagai diskon.
+    const getReceiptSummary = (trx) => {
+        const redeemIds = getCouponRedeemItemIds(trx)
+        let gross = 0
+        let redeem = 0
+        ;(trx?.transaction_items || []).forEach(i => {
+            const qty = Math.max(1, Number(i.quantity) || 1)
+            const orig = getItemOrigPrice(i)
+            gross += orig * qty
+            if (redeemIds.has(i.id)) redeem += (orig - (Number(i.price) || 0)) * qty
+        })
+        if (isGdCashierTransaction(trx)) redeem += getTransactionRevenueBreakdown(trx).couponRedeemedValue
+        const qrisFee = getQrisFee(trx)
+        const payable = Math.max(0, Number(trx?.total || 0) - qrisFee)
+        gross = Math.max(gross, payable + redeem)
+        const discount = Math.max(0, gross - redeem - payable)
+        return { gross, discount, redeem, qrisFee, redeemIds }
     }
 
     const handleDownloadPdf = async () => {
@@ -494,6 +517,7 @@ export default function ReceiptPage() {
                 } catch (e) {}
 
                 const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
+                const receiptSummary = getReceiptSummary(transaction)
                 const itemsText = transaction.transaction_items
                     ?.map(i => {
                         const catalogPrice = getCatalogPrice(i)
@@ -502,23 +526,14 @@ export default function ReceiptPage() {
                         const discPct = i.discount_percent || (hasDisc ? Math.round(((origPrice - i.price) / origPrice) * 100) : 0)
 
                         const strikeStr = hasDisc ? ` ~Rp ${Number(origPrice).toLocaleString('id-ID')}~` : ''
-                        const discTag = discPct > 0 ? ` (-${discPct}%)` : ''
+                        const discTag = receiptSummary.redeemIds.has(i.id) ? ' (Redeem Kupon)' : (discPct > 0 ? ` (-${discPct}%)` : '')
                         return `- ${i.name} (${i.quantity}x)${strikeStr}${discTag} : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`
                     })
                     .join('\n') || ''
 
-                const subtotalVal = Number(transaction.subtotal || 0)
-                const discountRupiah = Number(transaction.discount || 0)
-                let percentLabel = ''
-                if (discountRupiah > 0 && subtotalVal > 0) {
-                    const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
-                    if (calcPct > 0 && calcPct <= 100) {
-                        percentLabel = ` (${calcPct}%)`
-                    }
-                }
-                const qrisFee = getQrisFee(transaction)
-
-                const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
+                const qrisFee = receiptSummary.qrisFee
+                const discountText = (receiptSummary.discount > 0 ? `\n*Diskon:* -Rp ${receiptSummary.discount.toLocaleString('id-ID')}` : '')
+                    + (receiptSummary.redeem > 0 ? `\n*Redeem Kupon:* -Rp ${receiptSummary.redeem.toLocaleString('id-ID')}` : '')
                 const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0,3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
 
                 let paymentMethodText = transaction.payment_method?.toUpperCase() || '-'
@@ -531,7 +546,7 @@ export default function ReceiptPage() {
                     ? `\n*Tunai Diterima:* Rp ${cashReceivedVal.toLocaleString('id-ID')}\n*Kembalian:* Rp ${cashChangeVal.toLocaleString('id-ID')}` 
                     : ''
 
-                const captionText = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House ✨\nBerikut rincian transaksi *${transaction.transaction_number}*:\n\n*Cabang:* ${transaction.branches?.name || 'Ayumi Beauty House'}\n*Tanggal:* ${formatDate(transaction.created_at)}\n\n*Rincian Item:*\n${itemsText}\n\n*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}\n*TOTAL BAYAR:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${paymentMethodText}${cashText}\nStatus: *LUNAS* ✅\n\n📸 _(Foto struk resmi telah disalin ke clipboard / terunduh. Silakan tekan Paste / lampirkan gambar di chat ini)_\n\n_Sampai jumpa di kunjungan berikutnya!_`
+                const captionText = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House ✨\nBerikut rincian transaksi *${transaction.transaction_number}*:\n\n*Cabang:* ${transaction.branches?.name || 'Ayumi Beauty House'}\n*Tanggal:* ${formatDate(transaction.created_at)}\n\n*Rincian Item:*\n${itemsText}\n\n*Sebelum Diskon:* Rp ${receiptSummary.gross.toLocaleString('id-ID')}${discountText}${qrisText}\n*TOTAL BAYAR:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${paymentMethodText}${cashText}\nStatus: *LUNAS* ✅\n\n📸 _(Foto struk resmi telah disalin ke clipboard / terunduh. Silakan tekan Paste / lampirkan gambar di chat ini)_\n\n_Sampai jumpa di kunjungan berikutnya!_`
 
                 if (copied) {
                     toast.success('📸 Foto struk disalin ke Clipboard! Tekan Paste (Ctrl+V / Cmd+V) di chat WhatsApp.', { 
@@ -566,6 +581,7 @@ export default function ReceiptPage() {
             phone = inputPhone.trim()
         }
 
+        const receiptSummary = getReceiptSummary(transaction)
         const itemsText = transaction.transaction_items
             ?.map(i => {
                 const catalogPrice = getCatalogPrice(i)
@@ -574,24 +590,14 @@ export default function ReceiptPage() {
                 const discPct = i.discount_percent || (hasDisc ? Math.round(((origPrice - i.price) / origPrice) * 100) : 0)
 
                 const strikeStr = hasDisc ? ` ~Rp ${Number(origPrice).toLocaleString('id-ID')}~` : ''
-                const discTag = discPct > 0 ? ` (-${discPct}%)` : ''
+                const discTag = receiptSummary.redeemIds.has(i.id) ? ' (Redeem Kupon)' : (discPct > 0 ? ` (-${discPct}%)` : '')
                 return `- ${i.name} (${i.quantity}x)${strikeStr}${discTag} : Rp ${Number(i.subtotal).toLocaleString('id-ID')}`
             })
             .join('\n') || ''
 
-        const subtotalVal = Number(transaction.subtotal || 0)
-        const discountRupiah = Number(transaction.discount || 0)
-        let percentLabel = ''
-        if (discountRupiah > 0 && subtotalVal > 0) {
-            const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
-            if (calcPct > 0 && calcPct <= 100) {
-                percentLabel = ` (${calcPct}%)`
-            }
-        }
-        const netTotal = Math.max(0, subtotalVal - discountRupiah)
-        const qrisFee = getQrisFee(transaction)
-
-        const discountText = discountRupiah > 0 ? `\n*Diskon${percentLabel}:* -Rp ${discountRupiah.toLocaleString('id-ID')}` : ''
+        const qrisFee = receiptSummary.qrisFee
+        const discountText = (receiptSummary.discount > 0 ? `\n*Diskon:* -Rp ${receiptSummary.discount.toLocaleString('id-ID')}` : '')
+            + (receiptSummary.redeem > 0 ? `\n*Redeem Kupon:* -Rp ${receiptSummary.redeem.toLocaleString('id-ID')}` : '')
         const qrisText = qrisFee > 0 ? `\n*Biaya Layanan QRIS (0.3%):* +Rp ${qrisFee.toLocaleString('id-ID')}` : ''
 
         let paymentMethodText = transaction.payment_method?.toUpperCase() || '-'
@@ -605,7 +611,7 @@ export default function ReceiptPage() {
             : ''
         const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
 
-        const text = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.\nBerikut adalah rincian transaksi Anda:\n\nNo. Transaksi: *${transaction.transaction_number}*\nTanggal: ${formatDate(transaction.created_at)}\nCabang: ${transaction.branches?.name || 'Ayumi Clinic'}\n\n*Item:*\n${itemsText}\n\n*Subtotal:* Rp ${Number(transaction.subtotal).toLocaleString('id-ID')}${discountText}${qrisText}\n*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${paymentMethodText}${cashText}\nStatus: LUNAS\n\nHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
+        const text = `Halo *${customerName}*,\n\nTerima kasih telah mempercayakan kecantikan Anda kepada Ayumi Beauty House.\nBerikut adalah rincian transaksi Anda:\n\nNo. Transaksi: *${transaction.transaction_number}*\nTanggal: ${formatDate(transaction.created_at)}\nCabang: ${transaction.branches?.name || 'Ayumi Clinic'}\n\n*Item:*\n${itemsText}\n\n*Sebelum Diskon:* Rp ${receiptSummary.gross.toLocaleString('id-ID')}${discountText}${qrisText}\n*Total Bayar:* *Rp ${Number(transaction.total).toLocaleString('id-ID')}*\n*Metode Pembayaran:* ${paymentMethodText}${cashText}\nStatus: LUNAS\n\nHubungi kami jika ada pertanyaan. Sampai jumpa kembali!`
 
         openWhatsApp(phone, text)
     }
@@ -635,21 +641,8 @@ export default function ReceiptPage() {
         })
     }
 
-    const subtotalVal = Number(transaction.subtotal || 0)
-    const totalVal = Number(transaction.total || 0)
-    const discountRupiah = Number(transaction.discount || 0)
-    
-    // Hitung label persentase diskon secara otomatis dari nilai rupiah terhadap subtotal
-    let percentLabel = ''
-    if (discountRupiah > 0 && subtotalVal > 0) {
-        const calcPct = Math.round((discountRupiah / subtotalVal) * 100)
-        if (calcPct > 0 && calcPct <= 100) {
-            percentLabel = ` (${calcPct}%)`
-        }
-    }
-
-    const netTotal = Math.max(0, subtotalVal - discountRupiah)
-    const qrisFee = getQrisFee(transaction)
+    const receiptSummary = getReceiptSummary(transaction)
+    const qrisFee = receiptSummary.qrisFee
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8">
@@ -877,7 +870,11 @@ export default function ReceiptPage() {
                                                 <span className="text-ayumi-primary font-extrabold">
                                                     Rp {Number(item.price).toLocaleString('id-ID')}
                                                 </span>
-                                                {discPct > 0 && (
+                                                {receiptSummary.redeemIds.has(item.id) ? (
+                                                    <span className="bg-amber-50 text-amber-700 font-extrabold px-1 rounded text-[9px] border border-amber-200">
+                                                        Redeem Kupon
+                                                    </span>
+                                                ) : discPct > 0 && (
                                                     <span className="bg-rose-50 text-rose-600 font-extrabold px-1 rounded text-[9px] border border-rose-100">
                                                         -{discPct}%
                                                     </span>
@@ -899,13 +896,19 @@ export default function ReceiptPage() {
 
                 <div className="space-y-1 mb-6">
                     <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Subtotal</span>
-                        <span className=" text-gray-800">Rp {Number(transaction.subtotal).toLocaleString('id-ID')}</span>
+                        <span className="text-gray-500">Sebelum Diskon</span>
+                        <span className=" text-gray-800">Rp {receiptSummary.gross.toLocaleString('id-ID')}</span>
                     </div>
-                    {discountRupiah > 0 && (
+                    {receiptSummary.discount > 0 && (
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500 font-medium">Diskon{percentLabel}</span>
-                            <span className="text-rose-600 font-bold">- Rp {discountRupiah.toLocaleString('id-ID')}</span>
+                            <span className="text-gray-500 font-medium">Diskon</span>
+                            <span className="text-rose-600 font-bold">- Rp {receiptSummary.discount.toLocaleString('id-ID')}</span>
+                        </div>
+                    )}
+                    {receiptSummary.redeem > 0 && (
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-500 font-medium">Redeem Kupon</span>
+                            <span className="text-amber-700 font-bold">- Rp {receiptSummary.redeem.toLocaleString('id-ID')}</span>
                         </div>
                     )}
                     {qrisFee > 0 && (

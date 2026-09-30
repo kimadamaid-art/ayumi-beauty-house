@@ -13,7 +13,8 @@ import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
-import { getTransactionRevenueBreakdown } from '@/lib/revenueBreakdown'
+import { getTransactionRevenueBreakdown, isGdCashierTransaction } from '@/lib/revenueBreakdown'
+import { getCouponRedeemItemIds } from '@/lib/couponRedeem'
 import { getProductVariants, getProductOriginalPrice } from '@/lib/productVariants'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
@@ -58,12 +59,15 @@ const TRANSACTION_SELECT_FIELDS = `
             discount_percent,
             notes,
             treatments (name, price)
-        )
+        ),
+        coupon_usage_logs (id, voided_at, patient_coupon_items (treatment_id))
     ),
+    coupon_usage_logs (id, voided_at, patient_coupon_items (treatment_id)),
     transaction_items (
         id,
         name,
         item_type,
+        treatment_id,
         product_id,
         quantity,
         price,
@@ -645,8 +649,11 @@ export default function TransactionsPage() {
     }
 
     // Helper kalkulasi akurat harga sebelum diskon, total diskon, dan total bayar
+    // Sebelum Diskon - Diskon - Redeem Kupon = Total Bayar. Redeem kupon adalah nilai sesi
+    // kupon yang dipakai di nota ini (sudah dibayar saat paket dijual), bukan diskon.
     const getCleanTxPricing = (tx) => {
-        if (!tx) return { sebelumDiskon: 0, total: 0, discount: 0 }
+        if (!tx) return { sebelumDiskon: 0, total: 0, discount: 0, couponRedeem: 0 }
+        const redeemItemIds = getCouponRedeemItemIds(tx)
 
         const subtotal = Number(tx.subtotal) || 0
         const total = Number(tx.total) || 0
@@ -665,6 +672,7 @@ export default function TransactionsPage() {
         // 2. Gross items sum from transaction_items
         let sumGrossItems = 0
         let sumChargedItems = 0
+        let sumRedeem = 0
         if (tx.transaction_items && tx.transaction_items.length > 0) {
             for (const item of tx.transaction_items) {
                 const qty = Number(item.quantity) || 1
@@ -693,10 +701,13 @@ export default function TransactionsPage() {
                 const unitGross = orig > charged ? orig : charged
                 sumGrossItems += unitGross * qty
                 sumChargedItems += charged * qty
+                if (redeemItemIds.has(item.id)) sumRedeem += (unitGross - charged) * qty
             }
         }
+        // Nota migrasi GD Cashier tidak punya log kupon; nilai sesinya diturunkan dari nota.
+        if (isGdCashierTransaction(tx)) sumRedeem += getTransactionRevenueBreakdown(tx).couponRedeemedValue
 
-        const itemDiscount = Math.max(0, sumGrossItems - sumChargedItems)
+        const itemDiscount = Math.max(0, sumGrossItems - sumChargedItems - sumRedeem)
 
         let sebelumDiskon = 0
         let finalDiscount = 0
@@ -709,7 +720,7 @@ export default function TransactionsPage() {
                 sebelumDiskon = Math.max(sumGrossItems, total + cartDiscount)
                 finalDiscount = cartDiscount + itemDiscount
             }
-        } else if (itemDiscount > 0) {
+        } else if (itemDiscount > 0 || sumRedeem > 0) {
             sebelumDiskon = sumGrossItems
             finalDiscount = itemDiscount
         } else {
@@ -724,13 +735,15 @@ export default function TransactionsPage() {
         // Diskon tidak boleh melebihi selisih harga sebelum diskon dan pendapatan nota.
         // Pada nota migrasi GD yang sebagian dibayar kupon, kolom diskon mencatat diskon
         // kupon dua kali sehingga diskonnya tampil lebih besar dari harga sebelum diskon.
-        const maxDiscount = Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx))
+        const couponRedeem = Math.min(sumRedeem, Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx)))
+        const maxDiscount = Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx) - couponRedeem)
         if (finalDiscount > maxDiscount) finalDiscount = maxDiscount
 
         return {
             sebelumDiskon,
             total,
-            discount: finalDiscount
+            discount: finalDiscount,
+            couponRedeem
         }
     }
 
@@ -1124,6 +1137,7 @@ export default function TransactionsPage() {
                 "Metode Bayar": tx.payment_method?.toUpperCase(),
                 "Sebelum Diskon": pricing.sebelumDiskon,
                 "Diskon": pricing.discount,
+                "Redeem Kupon": pricing.couponRedeem,
                 "Total Bayar": pricing.total,
                 "Status": (tx.payment_status || 'paid').toUpperCase(),
                 "Kasir": tx.users?.full_name || "-"
@@ -1133,6 +1147,7 @@ export default function TransactionsPage() {
         // Hitung total untuk Detail Transaksi
         const sumSubtotal = detailRows.reduce((a, b) => a + b["Sebelum Diskon"], 0)
         const sumDiscount = detailRows.reduce((a, b) => a + b["Diskon"], 0)
+        const sumRedeem = detailRows.reduce((a, b) => a + b["Redeem Kupon"], 0)
         const sumTotal = detailRows.reduce((a, b) => a + b["Total Bayar"], 0)
 
         // Append Total Row to Detail Transaksi
@@ -1149,6 +1164,7 @@ export default function TransactionsPage() {
             "Metode Bayar": "",
             "Sebelum Diskon": sumSubtotal,
             "Diskon": sumDiscount,
+            "Redeem Kupon": sumRedeem,
             "Total Bayar": sumTotal,
             "Status": "",
             "Kasir": ""
@@ -2803,7 +2819,7 @@ export default function TransactionsPage() {
                                                             </div>
                                                         </td>
                                                         <td className="py-3 px-4 text-right text-xs align-middle">
-                                                            <span className={`font-bold ${pricing.discount > 0 ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                                                            <span className={`font-bold ${(pricing.discount > 0 || pricing.couponRedeem > 0) ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                                                                 {formatCurrency(pricing.sebelumDiskon)}
                                                             </span>
                                                         </td>
@@ -2819,6 +2835,13 @@ export default function TransactionsPage() {
                                                                                 <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                                                                             </svg>
                                                                             <span>Disc -{formatCurrency(pricing.discount)}</span>
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {pricing.couponRedeem > 0 && (
+                                                                    <div className="mt-1 flex items-center justify-end">
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/90 shadow-2xs">
+                                                                            <span>Redeem Kupon -{formatCurrency(pricing.couponRedeem)}</span>
                                                                         </span>
                                                                     </div>
                                                                 )}
@@ -3893,6 +3916,7 @@ export default function TransactionsPage() {
                                             }
                                         }
                                         const hasItemDisc = orig > charged
+                                        const isCouponRedeem = getCouponRedeemItemIds(selectedTx).has(item.id)
 
                                         return (
                                             <div key={item.id} className="flex justify-between items-start py-1.5 border-b border-gray-50 last:border-0">
@@ -3912,11 +3936,15 @@ export default function TransactionsPage() {
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="font-bold text-gray-800 text-[11px]">{formatCurrency(item.subtotal)}</span>
-                                                    {hasItemDisc && (
+                                                    {hasItemDisc && (isCouponRedeem ? (
+                                                        <div className="text-[9px] font-extrabold text-amber-700">
+                                                            Redeem Kupon Rp {((orig - charged) * qty).toLocaleString('id-ID')}
+                                                        </div>
+                                                    ) : (
                                                         <div className="text-[9px] font-extrabold text-rose-600">
                                                             Hemat Rp {((orig - charged) * qty).toLocaleString('id-ID')}
                                                         </div>
-                                                    )}
+                                                    ))}
                                                 </div>
                                             </div>
                                         )
@@ -3937,6 +3965,12 @@ export default function TransactionsPage() {
                                             <div className="flex justify-between text-red-500">
                                                 <span>Potongan Diskon</span>
                                                 <span className="">- {formatCurrency(modalPricing.discount)}</span>
+                                            </div>
+                                        )}
+                                        {modalPricing.couponRedeem > 0 && (
+                                            <div className="flex justify-between text-amber-700">
+                                                <span>Redeem Kupon</span>
+                                                <span className="">- {formatCurrency(modalPricing.couponRedeem)}</span>
                                             </div>
                                         )}
                                         <div className="flex justify-between text-sm border-t border-gray-100 pt-2 text-gray-900 font-black">
