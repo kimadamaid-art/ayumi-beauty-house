@@ -345,6 +345,12 @@ export default function TransactionsHistoryPage() {
             sebelumDiskon = subtotal > 0 ? subtotal : total
         }
 
+        // Diskon tidak boleh melebihi selisih harga sebelum diskon dan pendapatan nota.
+        // Pada nota migrasi GD yang sebagian dibayar kupon, kolom diskon mencatat diskon
+        // kupon dua kali sehingga diskonnya tampil lebih besar dari harga sebelum diskon.
+        const maxDiscount = Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx))
+        if (finalDiscount > maxDiscount) finalDiscount = maxDiscount
+
         return {
             sebelumDiskon,
             total,

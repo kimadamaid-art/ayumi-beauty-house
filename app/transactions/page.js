@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
+import { getTransactionRevenueBreakdown } from '@/lib/revenueBreakdown'
 import { getProductVariants, getProductOriginalPrice } from '@/lib/productVariants'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
@@ -73,46 +74,77 @@ const TRANSACTION_SELECT_FIELDS = `
     )
 `
 
+const PAGE_SIZE = 1000
+const PARALLEL_PAGES = 4
+
 async function queryTransactionsWithRange(supabaseClient, {
     startDate,
     endDate,
     branchId = '',
     effectiveUser = null
 }) {
-    let query = supabaseClient
-        .from('transactions')
-        .select(TRANSACTION_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-
-    if (effectiveUser && effectiveUser.role !== 'owner') {
-        query = query.eq('branch_id', effectiveUser.branch_id || '00000000-0000-0000-0000-000000000000')
-    } else if (branchId) {
-        query = query.eq('branch_id', branchId)
+    // Query dibuat ulang untuk setiap permintaan: builder Supabase tidak aman dipakai
+    // ulang untuk halaman berikutnya.
+    const buildQuery = (columns, options) => {
+        let query = supabaseClient.from('transactions').select(columns, options)
+        if (effectiveUser && effectiveUser.role !== 'owner') {
+            query = query.eq('branch_id', effectiveUser.branch_id || '00000000-0000-0000-0000-000000000000')
+        } else if (branchId) {
+            query = query.eq('branch_id', branchId)
+        }
+        if (startDate) {
+            query = query.gte('created_at', new Date(`${startDate}T00:00:00`).toISOString())
+        }
+        if (endDate) {
+            query = query.lte('created_at', new Date(`${endDate}T23:59:59.999`).toISOString())
+        }
+        return query
     }
-
-    if (startDate) {
-        const startIso = new Date(`${startDate}T00:00:00`).toISOString()
-        query = query.gte('created_at', startIso)
-    }
-    if (endDate) {
-        const endIso = new Date(`${endDate}T23:59:59.999`).toISOString()
-        query = query.lte('created_at', endIso)
-    }
-
-    const PAGE_SIZE = 1000
-    const allRows = []
-    for (let from = 0; ; from += PAGE_SIZE) {
-        const { data, error } = await query.range(from, from + PAGE_SIZE - 1)
+    const fetchPage = async (pageIdx) => {
+        const from = pageIdx * PAGE_SIZE
+        const { data, error } = await buildQuery(TRANSACTION_SELECT_FIELDS)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, from + PAGE_SIZE - 1)
         if (error) {
             console.error('Error fetching transactions batch:', error)
             throw error
         }
-        if (!data || data.length === 0) break
-        allRows.push(...data)
-        if (data.length < PAGE_SIZE) break
+        return data || []
     }
-    return allRows
+
+    // Jumlah baris dihitung dulu agar halaman-halamannya bisa diambil bersamaan
+    // (maks. 4 sekaligus). Laporan tahunan (±18.500 nota) turun dari ±17 menjadi ±8 detik.
+    const { count, error: countError } = await buildQuery('id', { count: 'exact', head: true })
+    if (countError || typeof count !== 'number') {
+        // Cadangan: ambil berurutan seperti sebelumnya.
+        const allRows = []
+        for (let pageIdx = 0; ; pageIdx++) {
+            const rows = await fetchPage(pageIdx)
+            allRows.push(...rows)
+            if (rows.length < PAGE_SIZE) break
+        }
+        return allRows
+    }
+
+    const pageCount = Math.ceil(count / PAGE_SIZE)
+    const pages = new Array(pageCount)
+    let nextPage = 0
+    const worker = async () => {
+        while (nextPage < pageCount) {
+            const pageIdx = nextPage++
+            pages[pageIdx] = await fetchPage(pageIdx)
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(PARALLEL_PAGES, pageCount) }, worker))
+
+    // Transaksi yang masuk selama pengambilan bisa menggeser batas halaman; duplikat dibuang.
+    const seen = new Set()
+    return pages.flat().filter(row => {
+        if (seen.has(row.id)) return false
+        seen.add(row.id)
+        return true
+    })
 }
 
 export default function TransactionsPage() {
@@ -189,7 +221,9 @@ export default function TransactionsPage() {
         const diff = date.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is sunday
         return new Date(date.setDate(diff))
     }
-    const [weeklyReportStart, setWeeklyReportStart] = useState(getStartOfWeek(new Date()).toISOString().split('T')[0])
+    // Tanggal lokal (WIB): toISOString() memberi tanggal UTC, yang sebelum pukul 07.00 WIB
+    // masih hari sebelumnya.
+    const [weeklyReportStart, setWeeklyReportStart] = useState(() => toLocalYYYYMMDD(getStartOfWeek(new Date())))
 
     // Monthly Report selector (Month & Year)
     const [monthlyReportMonth, setMonthlyReportMonth] = useState(new Date().getMonth()) // 0-11
@@ -402,8 +436,11 @@ export default function TransactionsPage() {
             const end = new Date(start)
             end.setDate(start.getDate() + 7)
 
-            const prevStartStr = prevStart.toISOString().split('T')[0]
-            const endStr = end.toISOString().split('T')[0]
+            // Tanggal lokal (WIB). Sebelumnya toISOString() menggeser tanggal mulai satu hari
+            // ke belakang karena tengah malam WIB masih hari sebelumnya dalam UTC.
+            const prevStartStr = toLocalYYYYMMDD(prevStart)
+            end.setDate(end.getDate() - 1)
+            const endStr = toLocalYYYYMMDD(end)
 
             const rows = await queryTransactionsWithRange(supabase, {
                 startDate: prevStartStr,
@@ -488,7 +525,37 @@ export default function TransactionsPage() {
         [transactions]
     )
 
-    // Resolusi transaksi pertama per pasien untuk deteksi akurat New Customer vs Repeat
+    // Sesi kupon dari nota migrasi GD Cashier. Nota GD tidak punya coupon_usage_logs, jadi
+    // nilainya diturunkan dari angka nota (lihat lib/revenueBreakdown.js), sama seperti
+    // dashboard. Cakupannya sama dengan log kupon: cabang dan rentang tanggal saja.
+    const gdCouponRedeemed = useMemo(() => {
+        const start = new Date(customStartDate + 'T00:00:00')
+        const end = new Date(customEndDate + 'T23:59:59.999')
+        let sessions = 0
+        let value = 0
+        validTransactions.forEach(tx => {
+            if (filterBranch && tx.branch_id !== filterBranch) return
+            const txDate = new Date(tx.created_at)
+            if (txDate < start || txDate > end) return
+            const breakdown = getTransactionRevenueBreakdown(tx)
+            sessions += breakdown.couponRedeemedSessions
+            value += breakdown.couponRedeemedValue
+        })
+        return { sessions, value }
+    }, [validTransactions, filterBranch, customStartDate, customEndDate])
+    const couponRedeemedTotals = {
+        sessions: couponRedeemedData.totalSessions + gdCouponRedeemed.sessions,
+        value: couponRedeemedData.totalValue + gdCouponRedeemed.value
+    }
+
+    // Resolusi transaksi pertama per pasien untuk deteksi akurat New Customer vs Repeat.
+    //
+    // Sebelumnya seluruh riwayat transaksi setiap pasien diambil (100 pasien per permintaan)
+    // tanpa paginasi, sehingga rentang bulanan/tahunan terpotong di 1.000 baris dan sebagian
+    // pasien lama terbaca sebagai pasien baru. Kini hanya dua hal yang diperiksa, lengkap
+    // per halaman: (1) apakah pasien punya transaksi sebelum rentang yang dimuat, dan
+    // (2) transaksi paling awal pasien di dalam rentang itu (di cabang mana pun yang boleh
+    // dilihat pengguna). Hasilnya sama dengan aturan lama: transaksi pertama pasien = Baru.
     useEffect(() => {
         let isCurrent = true
         async function resolveFirstTransactions() {
@@ -497,31 +564,50 @@ export default function TransactionsPage() {
                 if (isCurrent) setPatientFirstTxMap({})
                 return
             }
+            const times = transactions.map(t => t.created_at).filter(Boolean).sort()
+            const rangeStart = times[0]
+            const rangeEnd = times[times.length - 1]
             try {
-                const batchSize = 100
                 const batches = []
-                for (let i = 0; i < patientIds.length; i += batchSize) {
-                    batches.push(patientIds.slice(i, i + batchSize))
+                for (let i = 0; i < patientIds.length; i += 100) {
+                    batches.push(patientIds.slice(i, i + 100))
                 }
-                const results = await Promise.all(
-                    batches.map(chunk =>
-                        supabase
+                const results = await Promise.all(batches.map(async chunk => {
+                    const [prior, inRange] = await Promise.all([
+                        fetchAllPaginated(() => supabase
+                            .from('transactions')
+                            .select('id, patient_id')
+                            .in('patient_id', chunk)
+                            .lt('created_at', rangeStart)
+                            .order('id', { ascending: true })),
+                        fetchAllPaginated(() => supabase
                             .from('transactions')
                             .select('id, patient_id, created_at')
                             .in('patient_id', chunk)
+                            .gte('created_at', rangeStart)
+                            .lte('created_at', rangeEnd)
                             .order('created_at', { ascending: true })
-                    )
-                )
+                            .order('id', { ascending: true }))
+                    ])
+                    if (prior.error) throw prior.error
+                    if (inRange.error) throw inRange.error
+                    return { prior: prior.data || [], inRange: inRange.data || [] }
+                }))
                 if (!isCurrent) return
                 const map = {}
-                results.forEach(({ data, error }) => {
-                    if (!error && data) {
-                        data.forEach(t => {
-                            if (t.patient_id && !map[t.patient_id]) {
-                                map[t.patient_id] = { id: t.id, created_at: t.created_at }
-                            }
-                        })
-                    }
+                results.forEach(({ prior }) => {
+                    // Sudah pernah bertransaksi sebelumnya: tidak ada transaksi di rentang ini
+                    // yang merupakan transaksi pertamanya.
+                    prior.forEach(t => {
+                        if (t.patient_id) map[t.patient_id] = { id: null, created_at: null }
+                    })
+                })
+                results.forEach(({ inRange }) => {
+                    inRange.forEach(t => {
+                        if (t.patient_id && !map[t.patient_id]) {
+                            map[t.patient_id] = { id: t.id, created_at: t.created_at }
+                        }
+                    })
                 })
                 setPatientFirstTxMap(map)
             } catch (e) {
@@ -634,6 +720,12 @@ export default function TransactionsPage() {
         if (sebelumDiskon < total && finalDiscount === 0) {
             sebelumDiskon = subtotal > 0 ? subtotal : total
         }
+
+        // Diskon tidak boleh melebihi selisih harga sebelum diskon dan pendapatan nota.
+        // Pada nota migrasi GD yang sebagian dibayar kupon, kolom diskon mencatat diskon
+        // kupon dua kali sehingga diskonnya tampil lebih besar dari harga sebelum diskon.
+        const maxDiscount = Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx))
+        if (finalDiscount > maxDiscount) finalDiscount = maxDiscount
 
         return {
             sebelumDiskon,
@@ -773,20 +865,18 @@ export default function TransactionsPage() {
 
         filteredValidTransactions.forEach(tx => {
             totalTx += 1
-            totalRevenue += getNetTransactionRevenue(tx)
             totalQrisFee += getQrisFee(tx)
+            // Pendapatan per jenis = bagian bersih (setelah diskon dan biaya QRIS), sama dengan
+            // dashboard, sehingga treatment + produk + kupon = total pendapatan.
+            const breakdown = getTransactionRevenueBreakdown(tx)
+            totalRevenue += breakdown.netTotal
+            treatmentRevenue += breakdown.net.treatment
+            productRevenue += breakdown.net.product
+            couponRevenue += breakdown.net.coupon
             tx.transaction_items?.forEach(item => {
-                const subtotal = Number(item.subtotal || 0)
-                if (item.item_type === 'treatment') {
-                    treatmentQty += item.quantity || 0
-                    treatmentRevenue += subtotal
-                } else if (item.item_type === 'product') {
-                    productQty += item.quantity || 0
-                    productRevenue += subtotal
-                } else if (item.item_type === 'coupon') {
-                    couponQty += item.quantity || 0
-                    couponRevenue += subtotal
-                }
+                if (item.item_type === 'treatment') treatmentQty += item.quantity || 0
+                else if (item.item_type === 'product') productQty += item.quantity || 0
+                else if (item.item_type === 'coupon') couponQty += item.quantity || 0
             })
         })
 
@@ -808,7 +898,9 @@ export default function TransactionsPage() {
 
     // Formatter helpers
     const formatCurrency = (val) => {
-        return 'Rp ' + Number(val || 0).toLocaleString('id-ID')
+        // Dibulatkan ke rupiah: rata-rata dan bagian bersih bisa berupa pecahan
+        // (sebelumnya tampil seperti "Rp 289.329,149").
+        return 'Rp ' + Math.round(Number(val || 0)).toLocaleString('id-ID')
     }
 
     const formatDate = (isoString) => {
@@ -1852,11 +1944,14 @@ export default function TransactionsPage() {
             hourlyBins[h].transaksi++
             hourlyBins[h].pendapatan += txNet
 
+            const breakdown = getTransactionRevenueBreakdown(tx)
+            Object.keys(typeBreakdown).forEach(type => {
+                typeBreakdown[type].total += breakdown.net[type] || 0
+            })
             tx.transaction_items?.forEach(item => {
                 const type = item.item_type
                 if (typeBreakdown[type]) {
                     typeBreakdown[type].qty += item.quantity || 0
-                    typeBreakdown[type].total += Number(item.subtotal || 0)
                 }
             })
         })
@@ -2227,19 +2322,19 @@ export default function TransactionsPage() {
             let couponRevenue = 0
 
             txList.forEach(tx => {
-                revenue += getNetTransactionRevenue(tx)
                 totalQrisFee += getQrisFee(tx)
+                const breakdown = getTransactionRevenueBreakdown(tx)
+                revenue += breakdown.netTotal
+                treatmentRevenue += breakdown.net.treatment
+                productRevenue += breakdown.net.product
+                couponRevenue += breakdown.net.coupon
                 tx.transaction_items?.forEach(item => {
-                    const subtotal = Number(item.subtotal || 0)
                     if (item.item_type === 'treatment') {
                         treatmentQty += item.quantity || 0
-                        treatmentRevenue += subtotal
                     } else if (item.item_type === 'product') {
                         productQty += item.quantity || 0
-                        productRevenue += subtotal
                     } else if (item.item_type === 'coupon') {
                         couponQty += item.quantity || 0
-                        couponRevenue += subtotal
                     }
                 })
             })
@@ -2362,10 +2457,10 @@ export default function TransactionsPage() {
                                 </span>
                             </div>
                             <p className="text-xl font-black text-amber-950 mt-0.5">
-                                {formatCurrency(couponRedeemedData.totalValue)}
+                                {formatCurrency(couponRedeemedTotals.value)}
                             </p>
                             <p className="text-[11px] font-bold text-amber-700 mt-0.5">
-                                {couponRedeemedData.totalSessions} Sesi Terpakai
+                                {couponRedeemedTotals.sessions} Sesi Terpakai
                             </p>
                         </div>
                     </div>
@@ -3004,13 +3099,13 @@ export default function TransactionsPage() {
                                 <DateRangePicker 
                                     startDate={weeklyReportStart}
                                     endDate={(() => {
-                                        const d = new Date(weeklyReportStart);
+                                        const d = new Date(`${weeklyReportStart}T00:00:00`);
                                         d.setDate(d.getDate() + 6);
-                                        return d.toISOString().split('T')[0];
+                                        return toLocalYYYYMMDD(d);
                                     })()}
                                     onChange={(range) => {
                                         if (range.startDate) {
-                                            setWeeklyReportStart(getStartOfWeek(range.startDate).toISOString().split('T')[0]);
+                                            setWeeklyReportStart(toLocalYYYYMMDD(getStartOfWeek(`${range.startDate}T00:00:00`)));
                                         }
                                     }}
                                     inputClassName="text-xs font-semibold py-1.5 bg-white shadow-sm"
@@ -3981,10 +4076,10 @@ export default function TransactionsPage() {
                         <div className="p-4 bg-stone-50/80 border-b border-stone-100 flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 flex-wrap">
                                 <span className="text-xs font-extrabold text-stone-700 bg-white border border-stone-200 px-3 py-1 rounded-xl shadow-xs">
-                                    Total Sesi: <strong className="text-amber-700">{couponRedeemedData.totalSessions}</strong> Sesi
+                                    Total Sesi: <strong className="text-amber-700">{couponRedeemedTotals.sessions}</strong> Sesi
                                 </span>
                                 <span className="text-xs font-extrabold text-amber-900 bg-amber-100/90 border border-amber-200 px-3 py-1 rounded-xl shadow-xs">
-                                    Total Valuasi: <strong className="text-amber-800">{formatCurrency(couponRedeemedData.totalValue)}</strong>
+                                    Total Valuasi: <strong className="text-amber-800">{formatCurrency(couponRedeemedTotals.value)}</strong>
                                 </span>
                             </div>
                             <div className="relative">
@@ -4001,6 +4096,11 @@ export default function TransactionsPage() {
 
                         {/* Table Content */}
                         <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                            {gdCouponRedeemed.sessions > 0 && !couponRedeemSearch && (
+                                <p className="mb-3 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
+                                    Termasuk <strong>{gdCouponRedeemed.sessions} sesi ({formatCurrency(gdCouponRedeemed.value)})</strong> dari nota migrasi GD Cashier. Nota GD tidak punya rincian per pasien di sini; lihat daftar transaksi.
+                                </p>
+                            )}
                             {(() => {
                                 const filteredLogs = (couponRedeemedData.logs || []).filter(log => {
                                     if (!couponRedeemSearch) return true
