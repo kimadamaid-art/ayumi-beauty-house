@@ -1600,6 +1600,45 @@ export default function Dashboard() {
         return 'bg-stone-100 text-stone-500'
     }
 
+    const getInitials = (name) => {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
+        if (parts.length === 0) return '?'
+        return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+    }
+
+    const PAYMENT_METHOD_STYLE = {
+        qris: 'bg-violet-50 text-violet-700 border-violet-200',
+        cash: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        debit: 'bg-sky-50 text-sky-700 border-sky-200',
+        credit: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        transfer: 'bg-blue-50 text-blue-700 border-blue-200'
+    }
+
+    const APPOINTMENT_STATUS = {
+        scheduled: { label: 'Terjadwal', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+        confirmed: { label: 'Dikonfirmasi', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+        arrived: { label: 'Sudah Datang', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+        in_treatment: { label: 'Sedang Treatment', cls: 'bg-pink-50 text-pink-700 border-pink-200' },
+        therapist_ready: { label: 'Terapis Siap', cls: 'bg-pink-50 text-pink-700 border-pink-200' },
+        completed: { label: 'Selesai', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+        cancelled: { label: 'Dibatalkan', cls: 'bg-stone-100 text-stone-500 border-stone-200' },
+        no_show: { label: 'Tidak Datang', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+        not_arrived: { label: 'Tidak Datang', cls: 'bg-rose-50 text-rose-700 border-rose-200' }
+    }
+
+    const FOLLOWUP_TYPE_LABEL = {
+        treatment_reminder: 'Pengingat perawatan',
+        birthday: 'Ucapan ulang tahun',
+        dormant_reactivation: 'Sapaan pasien dormant',
+        manual: 'Follow-up manual'
+    }
+
+    const PRIORITY_STYLE = {
+        high: { label: 'Tinggi', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+        normal: { label: 'Normal', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+        low: { label: 'Rendah', cls: 'bg-stone-100 text-stone-600 border-stone-200' }
+    }
+
     if (loading && (!dbUser || !isInitializedRef.current)) {
         return (
             <div className="min-h-[75vh] flex flex-col items-center justify-center gap-4 text-stone-500 font-sans">
@@ -4062,106 +4101,112 @@ export default function Dashboard() {
                 })}
             </div>
 
-            {/* 5. TABEL RIWAYAT TRANSAKSI TERKINI */}
-            <div className="card-ayumi p-6 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-stone-100">
+            {/* 5. TRANSAKSI TERKINI */}
+            <div className="p-6 bg-white border border-stone-200/80 rounded-3xl shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                     <div>
-                        <h3 className="text-sm font-extrabold text-stone-900">
-                            Transaksi Terkini ({userBranchName})
-                        </h3>
-                        <p className="text-xs text-stone-500 font-medium mt-0.5">
-                            Histori pembayaran kasir pada rentang waktu terpilih
-                        </p>
+                        <p className="text-[10.5px] font-bold text-stone-500 uppercase tracking-[0.12em]">Transaksi Terkini</p>
+                        <h3 className="text-base font-extrabold text-stone-900 mt-0.5">Pembayaran kasir {userBranchName.replace(/^Ayumi\s+/i, '')}</h3>
+                        <p className="text-[11px] text-stone-500 font-medium mt-0.5">10 transaksi terakhir pada periode yang dipilih</p>
                     </div>
                     <Link
                         href="/transactions"
-                        className="text-xs font-bold text-[#5c3316] hover:underline"
+                        className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#fbf4ee] border border-[#f0dccd] text-xs font-bold text-[#5c3316] hover:bg-[#f6e6d9] transition-colors"
                     >
-                        Buka Semua Transaksi ➔
+                        Semua Transaksi
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                     </Link>
                 </div>
 
-                <div className="overflow-x-auto rounded-xl border border-stone-200/80">
-                    {recentBranchTransactions.length === 0 ? (
-                        <div className="py-10 text-center text-stone-400 text-xs font-semibold">
-                            Tidak ada data transaksi pada rentang tanggal ini.
-                        </div>
-                    ) : (
-                        <table className="w-full text-left border-collapse text-xs">
+                {recentBranchTransactions.length === 0 ? (
+                    <div className="py-12 text-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 text-stone-400 text-xs font-semibold">
+                        Tidak ada transaksi pada rentang tanggal ini.
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto -mx-2 px-2">
+                        <table className="w-full text-left border-separate border-spacing-y-1.5 text-xs min-w-[760px]">
                             <thead>
-                                <tr className="bg-stone-50 text-stone-700 font-bold border-b border-stone-200 uppercase tracking-wider text-[11px]">
-                                    <th className="p-3">Waktu</th>
-                                    <th className="p-3">No. Transaksi</th>
-                                    <th className="p-3">Pasien</th>
-                                    <th className="p-3">Item Layanan/Produk</th>
-                                    <th className="p-3 text-right">Total</th>
-                                    <th className="p-3 text-center">Metode</th>
-                                    <th className="p-3 text-center">Status</th>
+                                <tr className="text-[10.5px] font-bold text-stone-400 uppercase tracking-wider">
+                                    <th className="px-3 pb-1">Waktu</th>
+                                    <th className="px-3 pb-1">Pasien</th>
+                                    <th className="px-3 pb-1">Item</th>
+                                    <th className="px-3 pb-1 text-right">Total</th>
+                                    <th className="px-3 pb-1 text-center">Metode</th>
+                                    <th className="px-3 pb-1 text-center">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-stone-100">
+                            <tbody>
                                 {recentBranchTransactions.map(tx => {
                                     const isVoid = tx.payment_status === 'void'
                                     const patientId = tx.patient_id || tx.patients?.id
                                     const patientName = tx.patients?.full_name || 'Pasien Umum'
+                                    const created = tx.created_at ? new Date(tx.created_at) : null
+                                    const method = String(tx.payment_method || 'cash').toLowerCase()
+                                    const items = tx.transaction_items || []
                                     return (
-                                        <tr key={tx.id} className="hover:bg-stone-50/60 transition-colors">
-                                            <td className="p-3 font-medium text-stone-500 whitespace-nowrap">
-                                                {formatLogDateTime(tx.created_at)}
+                                        <tr key={tx.id} className="group">
+                                            <td className="px-3 py-3 bg-stone-50/70 group-hover:bg-[#fbf4ee] rounded-l-2xl transition-colors whitespace-nowrap align-top">
+                                                <p className="font-bold text-stone-800">
+                                                    {created ? created.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}
+                                                </p>
+                                                <p className="text-[11px] text-stone-400 font-medium tabular-nums">
+                                                    {created ? created.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} WIB
+                                                </p>
                                             </td>
-                                            <td className="p-3 font-bold text-stone-900 whitespace-nowrap">
-                                                <Link href="/transactions" className="hover:text-pink-600 hover:underline">
-                                                    {tx.transaction_number || tx.id.slice(0, 8)}
-                                                </Link>
+                                            <td className="px-3 py-3 bg-stone-50/70 group-hover:bg-[#fbf4ee] transition-colors align-top">
+                                                <div className="flex items-center gap-2.5">
+                                                    <span className="w-8 h-8 rounded-full bg-gradient-to-br from-[#e0a17c] to-[#8a4a24] text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                                                        {getInitials(patientName)}
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        {patientId ? (
+                                                            <Link href={`/patients/${patientId}`} className="font-bold text-stone-900 hover:text-ayumi-primary transition-colors block truncate max-w-[11rem]" title="Buka profil pasien">
+                                                                {patientName}
+                                                            </Link>
+                                                        ) : (
+                                                            <p className="font-bold text-stone-900 truncate max-w-[11rem]">{patientName}</p>
+                                                        )}
+                                                        <Link href="/transactions" className="text-[10.5px] text-stone-400 font-mono hover:text-stone-600">
+                                                            {tx.transaction_number || tx.id.slice(0, 8)}
+                                                        </Link>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td className="p-3 whitespace-nowrap">
-                                                {patientId ? (
-                                                    <Link 
-                                                        href={`/patients/${patientId}`}
-                                                        className="font-bold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/pat"
-                                                        title="Buka Profil & Riwayat Pasien"
-                                                    >
-                                                        <span>{patientName}</span>
-                                                        <span className="text-[11px] text-ayumi-primary font-bold group-hover/pat:translate-x-0.5 group-hover/pat:-translate-y-0.5 transition-transform">↗</span>
-                                                    </Link>
+                                            <td className="px-3 py-3 bg-stone-50/70 group-hover:bg-[#fbf4ee] transition-colors align-top">
+                                                {items.length === 0 ? (
+                                                    <span className="text-stone-400">-</span>
                                                 ) : (
-                                                    <span className="font-bold text-stone-900">{patientName}</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-stone-600">
-                                                {tx.transaction_items && tx.transaction_items.length > 0 ? (
-                                                    <div className="space-y-0.5">
-                                                        {tx.transaction_items.slice(0, 2).map((item, i) => (
-                                                            <p key={i} className="text-[11px]">
-                                                                • {item.name} <span className="text-stone-400">({item.quantity}x)</span>
-                                                            </p>
+                                                    <div className="flex flex-wrap gap-1 max-w-[22rem]">
+                                                        {items.slice(0, 2).map((item, i) => (
+                                                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-stone-200/80 text-[11px] text-stone-700 font-medium">
+                                                                <span className="truncate max-w-[12rem]">{item.name}</span>
+                                                                {Number(item.quantity) > 1 && <span className="text-stone-400">×{item.quantity}</span>}
+                                                            </span>
                                                         ))}
-                                                        {tx.transaction_items.length > 2 && (
-                                                            <p className="text-[10px] text-pink-600 font-bold">
-                                                                +{tx.transaction_items.length - 2} item lainnya
-                                                            </p>
+                                                        {items.length > 2 && (
+                                                            <span className="px-2 py-0.5 rounded-lg bg-[#fbeee4] text-[#7a4424] text-[11px] font-bold">
+                                                                +{items.length - 2} lainnya
+                                                            </span>
                                                         )}
                                                     </div>
-                                                ) : (
-                                                    <span className="text-stone-400">-</span>
                                                 )}
                                             </td>
-                                            <td className={`p-3 text-right font-extrabold whitespace-nowrap tabular-nums ${isVoid ? 'line-through text-stone-400' : 'text-stone-900'}`}>
+                                            <td className={`px-3 py-3 bg-stone-50/70 group-hover:bg-[#fbf4ee] transition-colors text-right font-extrabold whitespace-nowrap tabular-nums align-top ${isVoid ? 'line-through text-stone-400' : 'text-stone-900'}`}>
                                                 Rp {Number(tx.total || 0).toLocaleString('id-ID')}
                                             </td>
-                                            <td className="p-3 text-center whitespace-nowrap">
-                                                <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 text-[10px] font-bold uppercase">
-                                                    {tx.payment_method || 'CASH'}
+                                            <td className="px-3 py-3 bg-stone-50/70 group-hover:bg-[#fbf4ee] transition-colors text-center whitespace-nowrap align-top">
+                                                <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide ${PAYMENT_METHOD_STYLE[method] || 'bg-stone-100 text-stone-600 border-stone-200'}`}>
+                                                    {method}
                                                 </span>
                                             </td>
-                                            <td className="p-3 text-center whitespace-nowrap">
+                                            <td className="px-3 py-3 bg-stone-50/70 group-hover:bg-[#fbf4ee] rounded-r-2xl transition-colors text-center whitespace-nowrap align-top">
                                                 {isVoid ? (
-                                                    <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
-                                                        VOID
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[10px] font-bold border border-rose-200">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Void
                                                     </span>
                                                 ) : (
-                                                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
-                                                        LUNAS
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Lunas
                                                     </span>
                                                 )}
                                             </td>
@@ -4170,81 +4215,79 @@ export default function Dashboard() {
                                 })}
                             </tbody>
                         </table>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
-            {/* 6. OPERASIONAL & RETENSI CRM PASIEN */}
+            {/* 6. OPERASIONAL HARIAN & CRM PASIEN */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between pb-1">
-                    <div>
-                        <h3 className="text-sm font-extrabold text-stone-900">Operasional Harian & CRM Pasien</h3>
-                        <p className="text-xs text-stone-500 font-medium">Status janji temu, antrean follow-up, dan retensi klinik</p>
-                    </div>
+                <div>
+                    <p className="text-[10.5px] font-bold text-stone-500 uppercase tracking-[0.12em]">Operasional & CRM</p>
+                    <h3 className="text-base font-extrabold text-stone-900 mt-0.5">Hari ini di klinik</h3>
+                    <p className="text-[11px] text-stone-500 font-medium mt-0.5">Janji temu, antrean follow-up, dan retensi pasien</p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <div onClick={() => router.push('/appointments')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
-                        <p className="text-[11px] font-bold text-stone-500">Janji Temu Hari Ini</p>
-                        <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statAppointments}</h4>
-                    </div>
-                    <div onClick={() => router.push('/crm')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
-                        <p className="text-[11px] font-bold text-stone-500">Follow-Up Pending</p>
-                        <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statFollowups}</h4>
-                    </div>
-                    <div onClick={() => router.push('/crm')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
-                        <p className="text-[11px] font-bold text-stone-500">Ultah Bulan Ini</p>
-                        <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statBirthdays}</h4>
-                    </div>
-                    <div onClick={() => router.push('/patients')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
-                        <p className="text-[11px] font-bold text-stone-500">Pasien Baru</p>
-                        <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statNewPatients}</h4>
-                    </div>
-                    <div onClick={() => router.push('/crm')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
-                        <p className="text-[11px] font-bold text-stone-500">Dormant (&gt;60h)</p>
-                        <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statDormant}</h4>
-                    </div>
-                    <div onClick={() => router.push('/coupons')} className="p-4 rounded-xl bg-white border border-stone-200/90 hover:border-stone-400 transition-all cursor-pointer">
-                        <p className="text-[11px] font-bold text-stone-500">Kupon Expired (30h)</p>
-                        <h4 className="text-xl font-black text-stone-900 mt-1 tabular-nums">{statExpiringCoupons}</h4>
-                    </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                    {[
+                        { key: 'apt', label: 'Janji Temu Hari Ini', value: statAppointments, href: '/appointments', tone: 'from-sky-400 to-blue-600', icon: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M8 3v4M16 3v4M3.5 10h17" /><path d="M9 14.5l2 2 4-4" /></> },
+                        { key: 'fu', label: 'Follow-Up Pending', value: statFollowups, href: '/crm', tone: 'from-orange-400 to-rose-500', icon: <><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20.5l1.4-4.6A8.4 8.4 0 1121 11.5z" /><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" /></> },
+                        { key: 'bday', label: 'Ultah Bulan Ini', value: statBirthdays, href: '/crm', tone: 'from-pink-400 to-fuchsia-600', icon: <><rect x="3.5" y="11" width="17" height="9.5" rx="2" /><path d="M3.5 15c1.4 0 1.4-1 2.8-1s1.4 1 2.9 1 1.4-1 2.8-1 1.4 1 2.9 1 1.4-1 2.8-1 1.4 1 2.8 1" /><path d="M8 11V8.5M12 11V8.5M16 11V8.5" /><path d="M8 5.5c0-.8.5-1.5 0-2.5M12 5.5c0-.8.5-1.5 0-2.5M16 5.5c0-.8.5-1.5 0-2.5" /></> },
+                        { key: 'new', label: 'Pasien Baru', value: statNewPatients, href: '/patients', tone: 'from-emerald-400 to-teal-600', icon: <><circle cx="10" cy="8" r="3.5" /><path d="M3.5 20a6.5 6.5 0 0113 0" /><path d="M19 8v6M16 11h6" /></> },
+                        { key: 'dormant', label: 'Dormant (>60 hari)', value: statDormant, href: '/crm', tone: 'from-amber-400 to-orange-600', icon: <><circle cx="12" cy="12.5" r="8.5" /><path d="M12 8v4.5l3 2" /><path d="M5 3.5L2.5 6M19 3.5L21.5 6" /></> },
+                        { key: 'coupon', label: 'Kupon Expired (30 hari)', value: statExpiringCoupons, href: '/coupons', tone: 'from-violet-400 to-indigo-600', icon: <><path d="M2 9a3 3 0 010 6v2a2 2 0 002 2h16a2 2 0 002-2v-2a3 3 0 010-6V7a2 2 0 00-2-2H4a2 2 0 00-2 2z" /><path d="M13 5v2M13 11v2M13 17v2" /><path d="M6.5 9.5v3l1.5 1" /></> }
+                    ].map(stat => (
+                        <button
+                            key={stat.key}
+                            type="button"
+                            onClick={() => router.push(stat.href)}
+                            className="group text-left p-4 rounded-2xl bg-white border border-stone-200/80 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer"
+                        >
+                            <span className={`relative w-9 h-9 rounded-xl bg-gradient-to-br ${stat.tone} text-white shadow-md ring-1 ring-inset ring-white/25 flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}>
+                                <span aria-hidden="true" className="absolute inset-x-1 top-0.5 h-1/2 rounded-t-lg bg-gradient-to-b from-white/30 to-transparent"></span>
+                                <svg className="relative w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">{stat.icon}</svg>
+                            </span>
+                            <p className="text-2xl font-black text-stone-900 tabular-nums mt-3 leading-none">{Number(stat.value || 0).toLocaleString('id-ID')}</p>
+                            <p className="text-[11px] font-bold text-stone-500 mt-1.5 leading-snug">{stat.label}</p>
+                        </button>
+                    ))}
                 </div>
 
-                {/* Grid 2 Kolom: Janji Temu Hari Ini & Antrean Follow Up */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                    {/* Janji Temu Terdekat */}
-                    <div className="card-ayumi p-5 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-3">
-                        <div className="flex justify-between items-center pb-2 border-b border-stone-100">
-                            <h4 className="text-xs font-extrabold text-stone-900 uppercase tracking-wider">Jadwal Janji Temu Hari Ini</h4>
-                            <Link href="/appointments" className="text-xs font-bold text-[#5c3316] hover:underline">Kelola ➔</Link>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Jadwal janji temu hari ini */}
+                    <div className="p-5 bg-white border border-stone-200/80 rounded-3xl shadow-sm space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-sm font-extrabold text-stone-900">Jadwal Janji Temu Hari Ini</h4>
+                            <Link href="/appointments" className="text-xs font-bold text-[#5c3316] hover:underline">Kelola →</Link>
                         </div>
                         {recentAppointments.length === 0 ? (
-                            <p className="text-xs text-stone-400 font-medium py-6 text-center">Belum ada appointment terjadwal hari ini.</p>
+                            <p className="text-xs text-stone-400 font-medium py-8 text-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60">Belum ada janji temu hari ini.</p>
                         ) : (
                             <div className="space-y-2">
                                 {recentAppointments.map(apt => {
                                     const aptPatientId = apt.patient_id || apt.patients?.id
+                                    const st = APPOINTMENT_STATUS[apt.status] || { label: apt.status || '-', cls: 'bg-stone-100 text-stone-600 border-stone-200' }
                                     return (
-                                        <div key={apt.id} onClick={() => router.push('/appointments')} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer text-xs">
-                                            <div>
+                                        <div key={apt.id} onClick={() => router.push('/appointments')} className="flex items-center gap-3 p-2.5 rounded-2xl bg-stone-50/70 hover:bg-[#fbf4ee] transition-colors cursor-pointer">
+                                            <div className="w-14 shrink-0 text-center py-1.5 rounded-xl bg-white border border-stone-200/80">
+                                                <p className="text-sm font-black text-stone-900 tabular-nums leading-none">{apt.start_time?.slice(0, 5) || '--:--'}</p>
+                                                <p className="text-[9.5px] font-bold text-stone-400 mt-0.5 tabular-nums">s/d {apt.end_time?.slice(0, 5) || '--:--'}</p>
+                                            </div>
+                                            <div className="min-w-0 flex-1">
                                                 {aptPatientId ? (
-                                                    <Link 
+                                                    <Link
                                                         href={`/patients/${aptPatientId}`}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="font-extrabold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/apt"
-                                                        title="Buka Profil & Riwayat Pasien"
+                                                        className="text-xs font-extrabold text-stone-900 hover:text-ayumi-primary transition-colors block truncate"
+                                                        title="Buka profil pasien"
                                                     >
-                                                        <span>{apt.patients?.full_name || 'Pasien'}</span>
-                                                        <span className="text-[10px] text-ayumi-primary font-bold group-hover/apt:translate-x-0.5 group-hover/apt:-translate-y-0.5 transition-transform">↗</span>
+                                                        {apt.patients?.full_name || 'Pasien'}
                                                     </Link>
                                                 ) : (
-                                                    <p className="font-extrabold text-stone-900">{apt.patients?.full_name || 'Pasien'}</p>
+                                                    <p className="text-xs font-extrabold text-stone-900 truncate">{apt.patients?.full_name || 'Pasien'}</p>
                                                 )}
-                                                <p className="text-[11px] text-stone-500">{apt.start_time?.slice(0, 5)} - {apt.end_time?.slice(0, 5)} WIB</p>
+                                                <p className="text-[11px] text-stone-500 font-medium tabular-nums">{apt.patients?.whatsapp || 'Tanpa nomor WA'}</p>
                                             </div>
-                                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase border border-blue-200">
-                                                {apt.status}
-                                            </span>
+                                            <span className={`shrink-0 px-2.5 py-0.5 rounded-full border text-[10.5px] font-bold ${st.cls}`}>{st.label}</span>
                                         </div>
                                     )
                                 })}
@@ -4252,39 +4295,43 @@ export default function Dashboard() {
                         )}
                     </div>
 
-                    {/* Antrean Follow-Up CRM */}
-                    <div className="card-ayumi p-5 bg-white border border-stone-200/90 rounded-2xl shadow-sm space-y-3">
-                        <div className="flex justify-between items-center pb-2 border-b border-stone-100">
-                            <h4 className="text-xs font-extrabold text-stone-900 uppercase tracking-wider">Antrean Follow-Up CRM</h4>
-                            <Link href="/crm" className="text-xs font-bold text-[#5c3316] hover:underline">Buka CRM ➔</Link>
+                    {/* Antrean follow-up CRM */}
+                    <div className="p-5 bg-white border border-stone-200/80 rounded-3xl shadow-sm space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-sm font-extrabold text-stone-900">Antrean Follow-Up CRM</h4>
+                            <Link href="/crm" className="text-xs font-bold text-[#5c3316] hover:underline">Buka CRM →</Link>
                         </div>
                         {recentFollowups.length === 0 ? (
-                            <p className="text-xs text-stone-400 font-medium py-6 text-center">Semua tugas follow up pasien sudah selesai.</p>
+                            <p className="text-xs text-stone-400 font-medium py-8 text-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60">Semua follow-up pasien sudah selesai.</p>
                         ) : (
                             <div className="space-y-2">
                                 {recentFollowups.map(fu => {
                                     const fuPatientId = fu.patient_id || fu.patients?.id
+                                    const name = fu.patients?.full_name || 'Pasien'
+                                    const pr = PRIORITY_STYLE[fu.priority] || PRIORITY_STYLE.normal
                                     return (
-                                        <div key={fu.id} onClick={() => router.push('/crm')} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer text-xs">
-                                            <div>
+                                        <div key={fu.id} onClick={() => router.push('/crm')} className="flex items-center gap-3 p-2.5 rounded-2xl bg-stone-50/70 hover:bg-[#fbf4ee] transition-colors cursor-pointer">
+                                            <span className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-rose-500 text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                                                {getInitials(name)}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
                                                 {fuPatientId ? (
-                                                    <Link 
+                                                    <Link
                                                         href={`/patients/${fuPatientId}`}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="font-extrabold text-stone-900 hover:text-ayumi-primary hover:underline transition-colors inline-flex items-center gap-1 group/fu"
-                                                        title="Buka Profil & Riwayat Pasien"
+                                                        className="text-xs font-extrabold text-stone-900 hover:text-ayumi-primary transition-colors block truncate"
+                                                        title="Buka profil pasien"
                                                     >
-                                                        <span>{fu.patients?.full_name || 'Pasien'}</span>
-                                                        <span className="text-[10px] text-ayumi-primary font-bold group-hover/fu:translate-x-0.5 group-hover/fu:-translate-y-0.5 transition-transform">↗</span>
+                                                        {name}
                                                     </Link>
                                                 ) : (
-                                                    <p className="font-extrabold text-stone-900">{fu.patients?.full_name || 'Pasien'}</p>
+                                                    <p className="text-xs font-extrabold text-stone-900 truncate">{name}</p>
                                                 )}
-                                                <p className="text-[11px] text-stone-500">Tipe: {fu.followup_type?.replace(/_/g, ' ') || 'Pesan'}</p>
+                                                <p className="text-[11px] text-stone-500 font-medium">
+                                                    {FOLLOWUP_TYPE_LABEL[fu.followup_type] || (fu.followup_type ? fu.followup_type.replace(/_/g, ' ') : 'Follow-up')}
+                                                </p>
                                             </div>
-                                            <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-700 text-[10px] font-bold uppercase border border-orange-200">
-                                                {fu.priority || 'Normal'}
-                                            </span>
+                                            <span className={`shrink-0 px-2.5 py-0.5 rounded-full border text-[10.5px] font-bold ${pr.cls}`}>{pr.label}</span>
                                         </div>
                                     )
                                 })}
