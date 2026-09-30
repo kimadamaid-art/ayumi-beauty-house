@@ -1812,12 +1812,13 @@ export default function Dashboard() {
                                         const redeemTotal = rows.reduce((acc, row) => acc + row.redeem, 0)
                                         const netTotal = rows.reduce((acc, row) => acc + row.net, 0)
                                         const rp = (n) => Math.round(n).toLocaleString('id-ID')
-                                        const discCell = (n) => n > 0
-                                            ? <span className="text-rose-600">-{rp(n)}</span>
-                                            : <span className="text-gray-300">0</span>
-                                        const redeemCell = (n) => n > 0
-                                            ? <span className="text-amber-600">-{rp(n)}</span>
-                                            : <span className="text-gray-300">0</span>
+                                        // Tanda minus tipografis agar sejajar dengan angka; nilai 0 ditampilkan redup.
+                                        const discCell = (n) => Math.round(n) > 0
+                                            ? <span className="text-rose-600">−{rp(n)}</span>
+                                            : <span className="text-gray-300">—</span>
+                                        const redeemCell = (n) => Math.round(n) > 0
+                                            ? <span className="text-amber-600">−{rp(n)}</span>
+                                            : <span className="text-gray-300">—</span>
                                         const hasActivity = (b.transactionCount || 0) > 0 || (b.couponUsedSessions || 0) > 0
                                         return (
                                         <div key={b.branchId} className="p-4 sm:p-5 rounded-2xl bg-white border border-gray-200 hover:border-pink-300 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
@@ -1828,49 +1829,56 @@ export default function Dashboard() {
 
                                             {hasActivity ? (
                                                 <>
-                                                    <div className="overflow-x-auto -mx-1 px-1">
-                                                    <table className="w-full table-fixed min-w-[26rem] text-[10.5px] sm:text-xs tabular-nums">
+                                                    {/* Ukuran huruf & label mengikuti lebar kartu (container query), bukan lebar layar. */}
+                                                    <div className="@container">
+                                                    <table className="w-full table-fixed text-[10px] @md:text-[11.5px] @xl:text-[12.5px] tabular-nums">
                                                         <colgroup>
-                                                            <col className="w-[30%]" />
-                                                            <col className="w-[17.5%]" />
-                                                            <col className="w-[17.5%]" />
-                                                            <col className="w-[17.5%]" />
-                                                            <col className="w-[17.5%]" />
+                                                            <col className="w-[25%] @md:w-[22%] @xl:w-[26%]" />
+                                                            <col className="w-[19%] @md:w-[20%] @xl:w-[18%]" />
+                                                            <col className="w-[19%] @xl:w-[18%]" />
+                                                            <col className="w-[18%] @xl:w-[20%]" />
+                                                            <col className="w-[19%] @md:w-[21%] @xl:w-[18%]" />
                                                         </colgroup>
                                                         <thead>
-                                                            <tr className="text-[10px] uppercase tracking-wider text-gray-400 align-bottom">
-                                                                <th className="text-left font-bold pb-2">Kategori</th>
-                                                                <th className="text-right font-bold pb-2">Kotor</th>
-                                                                <th className="text-right font-bold pb-2">Diskon</th>
-                                                                <th className="text-right font-bold pb-2 leading-tight" title="Nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual">Redeem<br />Kupon</th>
-                                                                <th className="text-right font-bold pb-2">Bersih</th>
+                                                            <tr className="text-[9.5px] @xl:text-[10.5px] font-semibold uppercase tracking-[0.06em] text-gray-400">
+                                                                <th className="text-left font-semibold pb-2">Kategori</th>
+                                                                <th className="text-right font-semibold pb-2 pl-1 @md:pl-2">Kotor</th>
+                                                                <th className="text-right font-semibold pb-2 pl-1 @md:pl-2">Diskon</th>
+                                                                <th className="text-right font-semibold pb-2 pl-1 @md:pl-2 whitespace-nowrap" title="Redeem Kupon: nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual">
+                                                                    <span className="inline-flex items-center gap-1 text-amber-600/80">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                                                                        <span className="@xl:hidden">Redeem</span>
+                                                                        <span className="hidden @xl:inline">Redeem Kupon</span>
+                                                                    </span>
+                                                                </th>
+                                                                <th className="text-right font-semibold pb-2 pl-1 @md:pl-2">Bersih</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
                                                             {rows.map(row => (
                                                                 <tr key={row.key} className="border-t border-gray-100">
-                                                                    <td className="py-2 pr-2 font-bold text-gray-700">
+                                                                    <td className="py-2.5 pr-2 font-semibold text-gray-800">
                                                                         <span className="flex items-center gap-1.5 min-w-0">
                                                                             <span className={`w-2 h-2 rounded-full shrink-0 ${row.dot}`}></span>
                                                                             {row.shortLabel ? (
-                                                                                <span className="truncate"><span className="sm:hidden">{row.shortLabel}</span><span className="hidden sm:inline">{row.label}</span></span>
+                                                                                <span className="truncate"><span className="@xl:hidden">{row.shortLabel}</span><span className="hidden @xl:inline">{row.label}</span></span>
                                                                             ) : (
                                                                                 <span className="truncate">{row.label}</span>
                                                                             )}
                                                                         </span>
                                                                     </td>
-                                                                    <td className="py-2 text-right text-gray-500 whitespace-nowrap">{rp(row.gross)}</td>
-                                                                    <td className="py-2 text-right font-semibold whitespace-nowrap">{discCell(row.gross - row.net - row.redeem)}</td>
-                                                                    <td className="py-2 text-right font-semibold whitespace-nowrap">{redeemCell(row.redeem)}</td>
-                                                                    <td className="py-2 text-right font-extrabold text-gray-900 whitespace-nowrap">{rp(row.net)}</td>
+                                                                    <td className="py-2.5 pl-1 @md:pl-2 text-right font-medium text-gray-600 whitespace-nowrap">{rp(row.gross)}</td>
+                                                                    <td className="py-2.5 pl-1 @md:pl-2 text-right font-medium whitespace-nowrap">{discCell(row.gross - row.net - row.redeem)}</td>
+                                                                    <td className="py-2.5 pl-1 @md:pl-2 text-right font-medium whitespace-nowrap">{redeemCell(row.redeem)}</td>
+                                                                    <td className="py-2.5 pl-1 @md:pl-2 text-right font-bold text-gray-900 whitespace-nowrap">{rp(row.net)}</td>
                                                                 </tr>
                                                             ))}
-                                                            <tr className="border-t-2 border-gray-200">
-                                                                <td className="pt-2.5 font-extrabold text-gray-900">Total</td>
-                                                                <td className="pt-2.5 text-right font-bold text-gray-700 whitespace-nowrap">{rp(grossTotal)}</td>
-                                                                <td className="pt-2.5 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal - redeemTotal)}</td>
-                                                                <td className="pt-2.5 text-right font-bold whitespace-nowrap">{redeemCell(redeemTotal)}</td>
-                                                                <td className="pt-2.5 text-right font-black text-[#5c3316] whitespace-nowrap">{rp(netTotal)}</td>
+                                                            <tr className="border-t border-gray-300">
+                                                                <td className="pt-3 font-bold text-gray-900">Total</td>
+                                                                <td className="pt-3 pl-1 @md:pl-2 text-right font-bold text-gray-800 whitespace-nowrap">{rp(grossTotal)}</td>
+                                                                <td className="pt-3 pl-1 @md:pl-2 text-right font-bold whitespace-nowrap">{discCell(grossTotal - netTotal - redeemTotal)}</td>
+                                                                <td className="pt-3 pl-1 @md:pl-2 text-right font-bold whitespace-nowrap">{redeemCell(redeemTotal)}</td>
+                                                                <td className="pt-3 pl-1 @md:pl-2 text-right font-extrabold text-[#5c3316] whitespace-nowrap">{rp(netTotal)}</td>
                                                             </tr>
                                                         </tbody>
                                                     </table>
