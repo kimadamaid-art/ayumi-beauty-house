@@ -524,7 +524,7 @@ export default function Dashboard() {
                             .select('patient_id')
                             .in('patient_id', chunk)
                             .lt('created_at', retentionBeforeIso)
-                            .neq('payment_status', 'void')
+                            .eq('payment_status', 'paid')
                             .order('id', { ascending: true })
                             .range(from, from + 999)
                         if (error) throw error
@@ -548,7 +548,7 @@ export default function Dashboard() {
                             .range(from, from + 999)
                         if (error) throw error
                         ;(data || []).forEach(tx => {
-                            if (tx.patient_id && tx.branch_id && targetBranchIds.has(tx.branch_id) && tx.payment_status !== 'void') {
+                            if (tx.patient_id && tx.branch_id && targetBranchIds.has(tx.branch_id) && tx.payment_status === 'paid') {
                                 ids.add(tx.patient_id)
                             }
                         })
@@ -666,7 +666,9 @@ export default function Dashboard() {
 
             if (rangeTrx) {
                 rangeTrx.forEach(tx => {
-                    const isPaid = tx.payment_status !== 'void'
+                    // Hanya nota lunas, sama seperti Riwayat Transaksi & Riwayat Kasir. Dulu semua
+                    // status selain void (termasuk pending/unpaid/cancelled) ikut dihitung.
+                    const isPaid = tx.payment_status === 'paid'
                     if (tx && tx.branch_id && rangeMap[tx.branch_id] && isPaid) {
                         const branchObj = rangeMap[tx.branch_id]
                         branchObj.transactionCount += 1
@@ -789,7 +791,7 @@ export default function Dashboard() {
             if (isOwner) {
                 // Retensi: pasien yang sudah pernah bertransaksi sebelum periode ini.
                 const uniquePatIds = [...new Set(insightRows
-                    .filter(tx => tx.payment_status !== 'void' && tx.patients?.id)
+                    .filter(tx => tx.payment_status === 'paid' && tx.patients?.id)
                     .map(tx => tx.patients.id))]
                 if (uniquePatIds.length > 0) {
                     try {

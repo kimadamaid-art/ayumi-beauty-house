@@ -6,9 +6,8 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { toast } from 'react-hot-toast'
-import { getQrisFee } from '@/lib/paymentUtils'
 import { COUPON_REDEEM_SELECT, getCouponRedeemItemIds } from '@/lib/couponRedeem'
-import { getTransactionRevenueBreakdown, isGdCashierTransaction } from '@/lib/revenueBreakdown'
+import { getTransactionPricingSummary } from '@/lib/revenueBreakdown'
 
 export default function ReceiptPage() {
     const { id } = useParams()
@@ -353,31 +352,19 @@ export default function ReceiptPage() {
         return 0
     }
 
-    const getItemOrigPrice = (item) => {
-        const price = Number(item.price) || 0
-        const orig = Number(item.original_price) || getCatalogPrice(item) || (item.discount_percent && item.discount_percent < 100 ? Math.round(price / (1 - item.discount_percent / 100)) : price)
-        return Math.max(orig, price)
-    }
-
     // Ringkasan struk: Sebelum Diskon - Diskon - Redeem Kupon (+ biaya QRIS) = Total Bayar.
     // Redeem kupon = nilai sesi kupon yang dipakai; sudah dibayar saat paket dijual, jadi
     // tidak dicatat sebagai diskon.
     const getReceiptSummary = (trx) => {
-        const redeemIds = getCouponRedeemItemIds(trx)
-        let gross = 0
-        let redeem = 0
-        ;(trx?.transaction_items || []).forEach(i => {
-            const qty = Math.max(1, Number(i.quantity) || 1)
-            const orig = getItemOrigPrice(i)
-            gross += orig * qty
-            if (redeemIds.has(i.id)) redeem += (orig - (Number(i.price) || 0)) * qty
-        })
-        if (isGdCashierTransaction(trx)) redeem += getTransactionRevenueBreakdown(trx).couponRedeemedValue
-        const qrisFee = getQrisFee(trx)
-        const payable = Math.max(0, Number(trx?.total || 0) - qrisFee)
-        gross = Math.max(gross, payable + redeem)
-        const discount = Math.max(0, gross - redeem - payable)
-        return { gross, discount, redeem, qrisFee, redeemIds }
+        // Rumus yang sama dengan dashboard & Riwayat Transaksi (lib/revenueBreakdown.js).
+        const p = getTransactionPricingSummary(trx)
+        return {
+            gross: p.sebelumDiskon,
+            discount: p.discount,
+            redeem: p.couponRedeem,
+            qrisFee: p.qrisFee,
+            redeemIds: getCouponRedeemItemIds(trx)
+        }
     }
 
     const handleDownloadPdf = async () => {

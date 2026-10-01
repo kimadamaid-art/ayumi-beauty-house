@@ -7,9 +7,7 @@ import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../../components/DateRangePicker"
 import { getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
-import { getTransactionRevenueBreakdown, isGdCashierTransaction } from '@/lib/revenueBreakdown'
-import { getCouponRedeemItemIds } from '@/lib/couponRedeem'
-import { getProductVariants, getProductOriginalPrice } from '@/lib/productVariants'
+import { getTransactionPricingSummary } from '@/lib/revenueBreakdown'
 import toast from 'react-hot-toast'
 
 const getLocalYYYYMMDD = (d = new Date()) => {
@@ -36,29 +34,7 @@ export default function TransactionsHistoryPage() {
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize, setPageSize] = useState(25)
     const [patientFirstTxMap, setPatientFirstTxMap] = useState({})
-    const [productCatalogMap, setProductCatalogMap] = useState(() => new Map())
 
-    // Load active product catalog once for accurate original price before discount lookup
-    useEffect(() => {
-        let isMounted = true
-        async function loadProductCatalog() {
-            try {
-                const { data } = await supabase.from('products').select('id, name, price, description')
-                if (data && data.length > 0 && isMounted) {
-                    const map = new Map()
-                    data.forEach(p => {
-                        map.set(p.id, p)
-                        if (p.name) map.set(p.name.trim().toLowerCase(), p)
-                    })
-                    setProductCatalogMap(map)
-                }
-            } catch (err) {
-                console.warn('Could not load products catalog for pricing in kasir history:', err)
-            }
-        }
-        loadProductCatalog()
-        return () => { isMounted = false }
-    }, [])
 
     const isInitializedRef = useRef(false)
 
@@ -273,102 +249,10 @@ export default function TransactionsHistoryPage() {
         return parts.length > 0 ? parts.join(' • ') : null
     }
 
-    // Helper kalkulasi akurat harga sebelum diskon, total diskon, dan total bayar
-    // Sebelum Diskon - Diskon - Redeem Kupon = Total Bayar (sama dengan Riwayat Transaksi).
-    const getCleanTxPricing = (tx) => {
-        if (!tx) return { sebelumDiskon: 0, total: 0, discount: 0, couponRedeem: 0 }
-        const redeemItemIds = getCouponRedeemItemIds(tx)
-
-        const subtotal = Number(tx.subtotal) || 0
-        const total = Number(tx.total) || 0
-        const cartDiscount = Number(tx.discount) || 0
-
-        // 1. Treatment record items map (menampung promo/diskon tindakan yang dimasukkan terapis)
-        const triList = tx.treatment_records?.treatment_record_items || []
-        const triMap = new Map()
-        for (const tri of triList) {
-            const orig = Number(tri.original_price) || Number(tri.treatments?.price) || Number(tri.price_at_time) || 0
-            const charged = Number(tri.price_at_time) || 0
-            const key = (tri.treatments?.name || tri.notes || '').trim().toLowerCase()
-            if (key) triMap.set(key, { orig, charged })
-        }
-
-        // 2. Gross items sum from transaction_items
-        let sumGrossItems = 0
-        let sumChargedItems = 0
-        let sumRedeem = 0
-        if (tx.transaction_items && tx.transaction_items.length > 0) {
-            for (const item of tx.transaction_items) {
-                const qty = Number(item.quantity) || 1
-                const charged = Number(item.price) || 0
-                let orig = Number(item.original_price) || 0
-
-                const key = (item.name || '').trim().toLowerCase()
-                if (orig <= charged && triMap.has(key)) {
-                    const tri = triMap.get(key)
-                    if (tri.orig > charged) {
-                        orig = tri.orig
-                    }
-                }
-
-                // Kalkulasi harga asli sebelum diskon untuk produk skincare
-                if (item.item_type === 'product') {
-                    const prod = item.products || productCatalogMap?.get(item.product_id) || productCatalogMap?.get(key)
-                    if (prod) {
-                        const pOrig = getProductOriginalPrice(item, prod)
-                        if (pOrig > charged && (orig <= charged || pOrig > orig)) {
-                            orig = pOrig
-                        }
-                    }
-                }
-
-                const unitGross = orig > charged ? orig : charged
-                sumGrossItems += unitGross * qty
-                sumChargedItems += charged * qty
-                if (redeemItemIds.has(item.id)) sumRedeem += (unitGross - charged) * qty
-            }
-        }
-        if (isGdCashierTransaction(tx)) sumRedeem += getTransactionRevenueBreakdown(tx).couponRedeemedValue
-
-        const itemDiscount = Math.max(0, sumGrossItems - sumChargedItems - sumRedeem)
-
-        let sebelumDiskon = 0
-        let finalDiscount = 0
-
-        if (cartDiscount > 0) {
-            if (subtotal > total) {
-                sebelumDiskon = Math.max(sumGrossItems, subtotal)
-                finalDiscount = cartDiscount + itemDiscount
-            } else {
-                sebelumDiskon = Math.max(sumGrossItems, total + cartDiscount)
-                finalDiscount = cartDiscount + itemDiscount
-            }
-        } else if (itemDiscount > 0 || sumRedeem > 0) {
-            sebelumDiskon = sumGrossItems
-            finalDiscount = itemDiscount
-        } else {
-            sebelumDiskon = subtotal > 0 ? subtotal : total
-            finalDiscount = 0
-        }
-
-        if (sebelumDiskon < total && finalDiscount === 0) {
-            sebelumDiskon = subtotal > 0 ? subtotal : total
-        }
-
-        // Diskon tidak boleh melebihi selisih harga sebelum diskon dan pendapatan nota.
-        // Pada nota migrasi GD yang sebagian dibayar kupon, kolom diskon mencatat diskon
-        // kupon dua kali sehingga diskonnya tampil lebih besar dari harga sebelum diskon.
-        const couponRedeem = Math.min(sumRedeem, Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx)))
-        const maxDiscount = Math.max(0, sebelumDiskon - getNetTransactionRevenue(tx) - couponRedeem)
-        if (finalDiscount > maxDiscount) finalDiscount = maxDiscount
-
-        return {
-            sebelumDiskon,
-            total,
-            discount: finalDiscount,
-            couponRedeem
-        }
-    }
+    // Sebelum Diskon - Diskon - Redeem Kupon = Total Bayar, dihitung dengan rumus yang sama
+    // dengan dashboard (lib/revenueBreakdown.js). Dulu halaman ini punya rumus sendiri yang
+    // mengambil harga katalog saat ini, sehingga angkanya bisa berbeda dari dashboard.
+    const getCleanTxPricing = (tx) => getTransactionPricingSummary(tx)
 
     const getCustomerStatus = (tx) => {
         if (!tx || !tx.patient_id) {
