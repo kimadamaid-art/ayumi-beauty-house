@@ -126,13 +126,16 @@ export async function POST(request) {
         }
 
         // Record audit log to user_branch_assignments if assigned to a branch
+        // Query Supabase tidak punya .catch(); hasilnya dicek lewat { error }. Catatan riwayat
+        // ini pelengkap, jadi kegagalannya hanya dicatat dan tidak membatalkan penyimpanan user.
         if (branch_id && role !== 'owner') {
-            await supabaseAdmin.from('user_branch_assignments').insert([{
+            const { error: assignErr } = await supabaseAdmin.from('user_branch_assignments').insert([{
                 user_id: authData.user.id,
                 branch_id: branch_id,
                 assigned_at: new Date().toISOString(),
                 assigned_by: user.id
-            }]).catch(e => console.warn('Audit assignment log error:', e.message))
+            }])
+            if (assignErr) console.warn('Audit assignment log error:', assignErr.message)
         }
 
         return NextResponse.json({ success: true, user: authData.user })
@@ -341,21 +344,25 @@ export async function PUT(request) {
 
         // 3. Record audit log if branch assignment changed
         if (existingUser && existingUser.branch_id !== targetBranchId && targetBranchId) {
+            // Query Supabase tidak punya .catch() -- dulu memicu error "catch is not a function"
+            // setelah data user sudah tersimpan. Riwayat penempatan ini pelengkap, jadi
+            // kegagalannya hanya dicatat dan tidak menggagalkan perubahan cabang.
             // End previous assignment log if any
-            await supabaseAdmin
+            const { error: endErr } = await supabaseAdmin
                 .from('user_branch_assignments')
                 .update({ ended_at: new Date().toISOString() })
                 .eq('user_id', id)
                 .is('ended_at', null)
-                .catch(e => console.warn('Audit update error:', e.message))
+            if (endErr) console.warn('Audit update error:', endErr.message)
 
             // Insert new assignment log
-            await supabaseAdmin.from('user_branch_assignments').insert([{
+            const { error: insErr } = await supabaseAdmin.from('user_branch_assignments').insert([{
                 user_id: id,
                 branch_id: targetBranchId,
                 assigned_at: new Date().toISOString(),
                 assigned_by: user.id
-            }]).catch(e => console.warn('Audit insert error:', e.message))
+            }])
+            if (insErr) console.warn('Audit insert error:', insErr.message)
         }
 
         return NextResponse.json({ success: true })
