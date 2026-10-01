@@ -11,11 +11,14 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
-    // Dikeluarkan otomatis oleh lib/cachedUser.js karena profil user tidak terbaca.
+    // Dikeluarkan otomatis oleh lib/cachedUser.js: profil tidak terbaca atau akun dinonaktifkan.
     useEffect(() => {
-        if (new URLSearchParams(window.location.search).get('reason') === 'profile') {
+        const reason = new URLSearchParams(window.location.search).get('reason')
+        if (reason === 'profile') {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setError('Data akun Anda tidak dapat dimuat, jadi sesi diakhiri demi keamanan. Silakan login kembali; bila berulang, hubungi Owner.')
+        } else if (reason === 'inactive') {
+            setError('Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.')
         }
     }, [])
 
@@ -30,7 +33,10 @@ export default function LoginPage() {
         })
         
         if (error) {
-            setError('Email atau password salah.')
+            // Akun yang dinonaktifkan owner diblokir (ban) di sistem login Supabase.
+            setError(/banned/i.test(error.message || '')
+                ? 'Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.'
+                : 'Email atau password salah.')
             setLoading(false)
         } else {
             const { data: { user } } = await supabase.auth.getUser()

@@ -62,6 +62,11 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Validation Error: Role tidak valid. Pilihan yang diizinkan: owner, admin, therapist.' }, { status: 400 })
         }
 
+        // Admin & terapis wajib punya cabang; tanpa cabang mereka tidak melihat data apa pun.
+        if (role !== 'owner' && !branch_id) {
+            return NextResponse.json({ error: 'Penempatan cabang wajib diisi untuk Admin dan Terapis.' }, { status: 400 })
+        }
+
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
         
         if (!serviceRoleKey) {
@@ -212,8 +217,19 @@ export async function DELETE(request) {
         // Delete from auth.users (this will cascade to public.users if fk constraints are set up that way,
         // but let's delete from public.users explicitly just in case)
         
+        if (id === user.id) {
+            return NextResponse.json({ error: 'Anda tidak bisa menghapus akun Anda sendiri.' }, { status: 400 })
+        }
+
         const { error: dbError } = await supabaseAdmin.from('users').delete().eq('id', id)
-        if (dbError) throw dbError
+        if (dbError) {
+            // Staf yang sudah tercatat di transaksi, rekam medis, atau log tidak bisa dihapus
+            // tanpa merusak riwayat; arahkan owner untuk menonaktifkannya.
+            if (dbError.code === '23503') {
+                return NextResponse.json({ error: 'User ini sudah punya riwayat (transaksi, rekam medis, atau log), jadi tidak bisa dihapus. Nonaktifkan saja akunnya agar tidak bisa login.' }, { status: 409 })
+            }
+            throw dbError
+        }
 
         const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
         if (authError) throw authError
@@ -292,19 +308,51 @@ export async function PUT(request) {
             { auth: { autoRefreshToken: false, persistSession: false } }
         )
 
+        // Data lama dibaca dulu: semua validasi dilakukan sebelum ada yang diubah, agar
+        // permintaan yang ditolak tidak sempat mengganti password atau email.
+        const { data: existingUser, error: existingErr } = await supabaseAdmin
+            .from('users').select('branch_id, role, is_active').eq('id', id).maybeSingle()
+        if (existingErr) throw existingErr
+        if (!existingUser) {
+            return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 })
+        }
+
+        const currentRole = role !== undefined ? role : existingUser.role
+        const targetBranchId = currentRole === 'owner' ? null : (branch_id !== undefined ? (branch_id || null) : existingUser.branch_id)
+
+        // Owner tidak boleh mengunci dirinya sendiri dari sistem.
+        if (id === user.id) {
+            if (currentRole !== 'owner') {
+                return NextResponse.json({ error: 'Anda tidak bisa mengubah role akun Anda sendiri. Minta owner lain untuk melakukannya.' }, { status: 400 })
+            }
+            if (is_active === false) {
+                return NextResponse.json({ error: 'Anda tidak bisa menonaktifkan akun Anda sendiri.' }, { status: 400 })
+            }
+        }
+
+        // Admin & terapis wajib punya cabang; tanpa cabang mereka tidak melihat data apa pun.
+        // Hanya dicek bila role/cabang ikut diubah, agar user lama tanpa cabang tetap bisa
+        // dinonaktifkan lewat tombol aktif/nonaktif.
+        if ((role !== undefined || branch_id !== undefined) && currentRole !== 'owner' && !targetBranchId) {
+            return NextResponse.json({ error: 'Penempatan cabang wajib diisi untuk Admin dan Terapis.' }, { status: 400 })
+        }
+
+        if (password && password.length < 8) {
+            return NextResponse.json({ error: 'Password baru minimal harus 8 karakter.' }, { status: 400 })
+        }
+
         // 1. Update auth.users if password, email, or full_name provided
         const authUpdates = {}
-        if (password) {
-            if (password.length < 8) {
-                return NextResponse.json({ error: 'Password baru minimal harus 8 karakter.' }, { status: 400 })
-            }
-            authUpdates.password = password
-        }
+        if (password) authUpdates.password = password
         if (full_name !== undefined) authUpdates.user_metadata = { full_name }
         if (email !== undefined && email) {
             authUpdates.email = email.trim().toLowerCase()
             authUpdates.email_confirm = true
         }
+        // Akun nonaktif diblokir di sistem login (ban), sehingga sesi yang sedang berjalan
+        // tidak bisa diperpanjang. Dulu status nonaktif hanya dicek saat login.
+        if (is_active === false) authUpdates.ban_duration = '876000h'
+        if (is_active === true) authUpdates.ban_duration = 'none'
 
         if (Object.keys(authUpdates).length > 0) {
             const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdates)
@@ -317,12 +365,6 @@ export async function PUT(request) {
                 throw authError
             }
         }
-
-        // Fetch existing user to check branch change
-        const { data: existingUser } = await supabaseAdmin.from('users').select('branch_id, role').eq('id', id).single()
-
-        const currentRole = role !== undefined ? role : existingUser?.role
-        const targetBranchId = currentRole === 'owner' ? null : (branch_id !== undefined ? (branch_id || null) : existingUser?.branch_id)
 
         // 2. Update public.users (dynamic fields to support partial updates)
         const dbUpdates = {
@@ -343,7 +385,7 @@ export async function PUT(request) {
         if (dbError) throw dbError
 
         // 3. Record audit log if branch assignment changed
-        if (existingUser && existingUser.branch_id !== targetBranchId && targetBranchId) {
+        if (existingUser.branch_id !== targetBranchId && targetBranchId) {
             // Query Supabase tidak punya .catch() -- dulu memicu error "catch is not a function"
             // setelah data user sudah tersimpan. Riwayat penempatan ini pelengkap, jadi
             // kegagalannya hanya dicatat dan tidak menggagalkan perubahan cabang.
