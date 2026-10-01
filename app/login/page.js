@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { clearUserCache } from '@/lib/cachedUser'
 
@@ -10,6 +10,14 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+
+    // Dikeluarkan otomatis oleh lib/cachedUser.js karena profil user tidak terbaca.
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get('reason') === 'profile') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setError('Data akun Anda tidak dapat dimuat, jadi sesi diakhiri demi keamanan. Silakan login kembali; bila berulang, hubungi Owner.')
+        }
+    }, [])
 
     const handleLogin = async (e) => {
         e.preventDefault()
