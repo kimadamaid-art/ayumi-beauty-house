@@ -144,6 +144,10 @@ export default function TreatmentsPage() {
             if (!error) fetchData()
             else alert('Gagal menyimpan data: ' + error.message)
         } else if (modalMode === 'edit' && selectedTreatment) {
+            if (selectedTreatment.is_active && !payload.is_active && !(await confirmDeactivateWithCoupons(selectedTreatment))) {
+                setIsSaving(false)
+                return
+            }
             const { error } = await supabase.from('treatments').update(payload).eq('id', selectedTreatment.id)
             if (!error) fetchData()
             else alert('Gagal mengupdate data: ' + error.message)
@@ -153,7 +157,33 @@ export default function TreatmentsPage() {
         handleCloseModal()
     }
 
+    // Sebelum menonaktifkan: beri tahu bila treatment ini masih dipakai kupon. Sesi kupon
+    // pasien tetap bisa dipakai (tombol "Pakai Sesi" di kasir / "Pakai Kupon" di terapis),
+    // tetapi paket aktif yang berisi treatment ini sebaiknya diperbarui.
+    const confirmDeactivateWithCoupons = async (treatment) => {
+        const [itemsRes, pkgRes] = await Promise.all([
+            supabase.from('patient_coupon_items')
+                .select('id, remaining_sessions', { count: 'exact' })
+                .eq('treatment_id', treatment.id)
+                .eq('status', 'active')
+                .gt('remaining_sessions', 0),
+            supabase.from('coupon_package_items')
+                .select('coupon_packages!inner(name, is_active)')
+                .eq('treatment_id', treatment.id)
+                .eq('coupon_packages.is_active', true)
+        ])
+        const sessionCount = (itemsRes.data || []).reduce((sum, it) => sum + Number(it.remaining_sessions || 0), 0)
+        const packageNames = [...new Set((pkgRes.data || []).map(r => r.coupon_packages?.name).filter(Boolean))]
+        if (sessionCount === 0 && packageNames.length === 0) return true
+
+        const lines = []
+        if (sessionCount > 0) lines.push(`• ${sessionCount} sesi kupon pasien masih tersisa. Sesi ini TETAP bisa dipakai lewat tombol "Pakai Sesi" di Kasir (riwayat pasien) atau "Pakai Kupon" di input terapis.`)
+        if (packageNames.length > 0) lines.push(`• Masih ada di paket kupon aktif: ${packageNames.join(', ')}. Sebaiknya ganti isi paket itu atau nonaktifkan paketnya agar penjualan baru tidak memakai treatment nonaktif.`)
+        return window.confirm(`Treatment "${treatment.name}" masih dipakai kupon:\n\n${lines.join('\n')}\n\nTetap nonaktifkan treatment ini?`)
+    }
+
     const handleToggleActive = async (treatment) => {
+        if (treatment.is_active && !(await confirmDeactivateWithCoupons(treatment))) return
         const { error } = await supabase
             .from('treatments')
             .update({ is_active: !treatment.is_active })

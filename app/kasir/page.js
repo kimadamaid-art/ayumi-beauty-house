@@ -627,7 +627,7 @@ function PosPageContent() {
                 .from('patient_coupon_items')
                 .select(`
                     id, patient_coupon_id, treatment_id, total_sessions, used_sessions, remaining_sessions, status,
-                    treatments (name),
+                    treatments (id, name, price, commission_percent, worker_fee, is_active),
                     patient_coupons (status, coupon_packages(name))
                 `)
                 .eq('status', 'active')
@@ -1506,6 +1506,28 @@ function PosPageContent() {
                 }]
             }
         })
+    }
+
+    // Pakai sesi kupon langsung dari data kupon pasien. Katalog kasir hanya memuat treatment
+    // aktif, sehingga sesi kupon untuk treatment yang sudah dinonaktifkan dulu tidak bisa
+    // dipakai sama sekali. Kupon yang sudah dibeli pasien harus selalu bisa dipakai.
+    const handleUseCouponSession = (c) => {
+        if (!c || (c.remaining_sessions || 0) <= 0) {
+            toast.error('Sisa sesi kupon ini sudah habis.')
+            return
+        }
+        const fromCatalog = treatments.find(t => t.id === c.treatment_id)
+        const treatment = fromCatalog || {
+            id: c.treatment_id,
+            name: c.treatments?.name || 'Treatment',
+            price: Number(c.treatments?.price) || 0,
+            commission_percent: c.treatments?.commission_percent,
+            worker_fee: c.treatments?.worker_fee,
+            discount_percent: 0
+        }
+        addToCart(treatment, 'treatment')
+        setIsPatientHistoryModalOpen(false)
+        toast.success(`Sesi kupon ${treatment.name} masuk ke keranjang`)
     }
 
     // --- Item Variant Modal Handlers ---
@@ -4775,12 +4797,23 @@ function PosPageContent() {
                                                     <div key={c.id} className="p-2.5 bg-white rounded-xl border border-amber-200 shadow-2xs flex items-center justify-between gap-2">
                                                         <div>
                                                             <p className="font-extrabold text-xs text-gray-900">{c.treatments?.name}</p>
+                                                            {c.treatments?.is_active === false && (
+                                                                <p className="text-[9.5px] font-bold text-amber-700">Treatment nonaktif di master, tetap bisa dipakai</p>
+                                                            )}
                                                             <p className="text-[10px] text-gray-500">{c.patient_coupons?.coupon_packages?.name}</p>
                                                         </div>
-                                                        <div className="text-right shrink-0">
+                                                        <div className="text-right shrink-0 flex flex-col items-end gap-1">
                                                             <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold">
                                                                 Sisa {c.remaining_sessions} Sesi
                                                             </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleUseCouponSession(c)}
+                                                                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10.5px] font-extrabold transition-colors cursor-pointer"
+                                                                title="Masukkan satu sesi kupon ini ke keranjang"
+                                                            >
+                                                                Pakai Sesi
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 ))}
