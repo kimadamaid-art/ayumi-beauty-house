@@ -143,7 +143,16 @@ function PosPageContent() {
             const activeDraft = localStorage.getItem('ayumi_pos_active_draft')
             if (activeDraft) {
                 const parsed = JSON.parse(activeDraft)
-                if (parsed.cart?.length > 0 || parsed.selectedPatient) {
+                // Keranjang yang belum selesai hanya dipulihkan pada hari yang sama. Dulu
+                // keranjang sisa hari sebelumnya muncul lagi tanpa pemberitahuan dan terlihat
+                // seperti tagihan (contoh: Karin, Oxy Infusin, 1 Okt 2026).
+                const savedDay = parsed.timestamp ? getLocalYYYYMMDD(new Date(parsed.timestamp)) : null
+                const isStale = savedDay !== getLocalYYYYMMDD()
+                if (isStale) {
+                    localStorage.removeItem('ayumi_pos_active_draft')
+                } else if (parsed.cart?.length > 0 || parsed.selectedPatient) {
+                    const who = parsed.selectedPatient?.full_name || 'tanpa pasien'
+                    toast(`Keranjang yang belum selesai (${who}) dipulihkan. Hapus lewat ikon tong sampah bila tidak diperlukan.`, { duration: 6000 })
                     setCart(parsed.cart || [])
                     setSelectedPatient(parsed.selectedPatient || null)
                     setSelectedPatientDetails(parsed.selectedPatientDetails || null)
@@ -1072,7 +1081,7 @@ function PosPageContent() {
         let query = supabase
             .from('treatment_records')
             .select(`
-                id, treatment_time, treatment_date, branch_id, performed_by,
+                id, treatment_time, treatment_date, branch_id, performed_by, result_notes,
                 branches(name),
                 patients(id, full_name, whatsapp),
                 treatment_record_items(notes, treatment_id, price_at_time, discount_percent, original_price, commission_percent, worker_id, worker_fee_at_time, treatments(name, price, commission_percent, worker_fee)),
@@ -1081,6 +1090,9 @@ function PosPageContent() {
             `)
             .order('treatment_date', { ascending: false })
             .order('treatment_time', { ascending: false })
+            // Rekam migrasi GD tidak ikut diambil, agar tidak memakan jatah 100 rekam terbaru
+            // dan menyingkirkan tagihan asli. Catatan kosong tetap diambil.
+            .or('result_notes.is.null,result_notes.not.ilike.Migrasi GD Cashier*')
             .limit(100)
 
         if (branchId) {
@@ -1095,6 +1107,9 @@ function PosPageContent() {
         for (const tr of trData) {
             const hasPaidTx = tr.transactions && tr.transactions.some(tx => tx.payment_status === 'paid')
             if (hasPaidTx) continue
+            // Rekam hasil migrasi GD Cashier sudah dibayar di GD; bila tidak tersambung ke
+            // notanya, dulu ia muncul di sini sebagai tagihan (contoh: Karin, Oxy Infusin).
+            if ((tr.result_notes || '').startsWith('Migrasi GD Cashier')) continue
 
             // Auto-heal check HANYA untuk kasus orphan kasir langsung:
             // Kasir checkout langsung lebih dulu (dummy 'Tindakan Kasir Langsung' tanpa appointment_id)
