@@ -26,6 +26,17 @@ const getLocalYYYYMMDD = (d = new Date()) => {
     return `${year}-${month}-${day}`
 }
 
+// Isi awal form "Tambah Pasien Cepat" dari kata kunci pencarian: nomor telepon masuk ke
+// kolom WhatsApp, selain itu ke kolom nama. Dulu nomor yang dicari ikut masuk ke nama.
+const quickAddPrefillFromSearch = (query = '') => {
+    const q = String(query || '').trim()
+    const digits = q.replace(/\D/g, '')
+    const looksLikePhone = /^[+\d][\d\s\-().]*$/.test(q) && digits.length >= 6
+    return looksLikePhone
+        ? { full_name: '', whatsapp: q.replace(/[^\d+]/g, '') }
+        : { full_name: q, whatsapp: '' }
+}
+
 const isCouponEligibleForTreatment = (c, trId, trName = '') => {
     if (!c || (c.remaining_sessions || 0) <= 0) return false
     if (c.treatment_id === trId) return true
@@ -3475,7 +3486,7 @@ function PosPageContent() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setQuickAddForm({ full_name: searchPatientQuery || '', whatsapp: '' })
+                                        setQuickAddForm(quickAddPrefillFromSearch(searchPatientQuery))
                                         setIsQuickAddInlineOpen(true)
                                         setIsPatientDropdownOpen(false)
                                     }}
@@ -3793,7 +3804,7 @@ function PosPageContent() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setQuickAddForm({ full_name: searchPatientQuery, whatsapp: '' })
+                                                    setQuickAddForm(quickAddPrefillFromSearch(searchPatientQuery))
                                                     setIsQuickAddInlineOpen(true)
                                                     setIsPatientDropdownOpen(false)
                                                 }}
