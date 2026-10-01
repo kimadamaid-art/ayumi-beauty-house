@@ -12,6 +12,16 @@ import { compressImageForMedical } from '@/lib/imageCompression'
 import { notifyTreatmentCompleted } from '@/lib/notifications'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 
+// Persen komisi tindakan terapis: persen yang ada; bila kosong/0 memakai persen master
+// treatment; bila master juga kosong, 5%. Aturan yang sama dipakai kasir
+// (resolveItemCommission) agar komisi terapis tidak tersimpan 0% tanpa sengaja.
+const therapistCommission = (...candidates) => {
+    for (const c of candidates) {
+        if (Number(c) > 0) return Number(c)
+    }
+    return 5
+}
+
 export default function TreatmentInputPage() {
     const router = useRouter()
     const params = useParams()
@@ -178,7 +188,9 @@ export default function TreatmentInputPage() {
 
                 if (existingRecord.treatment_record_items?.length > 0) {
                     setSelectedTreatments(existingRecord.treatment_record_items.map(item => {
-                        const isWorkerItem = item.notes?.includes('[WORKER]') || isInfusionTreatment(item.treatments?.name || item.notes || '') || Number(item.commission_percent) === 0
+                        // Komisi 0% bukan tanda tindakan worker: dulu item 0% dianggap worker
+                        // sehingga 0% itu terkunci setiap kali rekam dibuka ulang.
+                        const isWorkerItem = item.notes?.includes('[WORKER]') || isInfusionTreatment(item.treatments?.name || item.notes || '')
                         return {
                             treatment_id: item.treatment_id,
                             name: item.treatments?.name || 'Treatment',
@@ -187,7 +199,7 @@ export default function TreatmentInputPage() {
                             discount_percent: item.discount_percent || 0,
                             followup_days: item.treatments?.followup_days || 0,
                             notes: item.notes || '',
-                            commission_percent: isWorkerItem ? 0 : (item.commission_percent || 0),
+                            commission_percent: isWorkerItem ? 0 : therapistCommission(item.commission_percent, item.treatments?.commission_percent),
                             performer_type: isWorkerItem ? 'worker' : 'therapist',
                             // Worker dan upahnya ditentukan admin di kasir. Nilainya dibawa apa
                             // adanya agar penyimpanan dari halaman terapis tidak menghapusnya.
@@ -278,7 +290,7 @@ export default function TreatmentInputPage() {
                             discount_percent: discountVal,
                             followup_days: t.followup_days || 0,
                             notes: isInfus ? '[WORKER]' : '',
-                            commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                            commission_percent: isInfus ? 0 : therapistCommission(t.commission_percent),
                             performer_type: isInfus ? 'worker' : 'therapist',
                             mode: 'regular'
                         }
@@ -433,7 +445,7 @@ export default function TreatmentInputPage() {
                 discount_percent: discountVal,
                 followup_days: t.followup_days || 0,
                 notes: isInfus ? '[WORKER]' : '',
-                commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                commission_percent: isInfus ? 0 : therapistCommission(t.commission_percent),
                 performer_type: isInfus ? 'worker' : 'therapist',
                 mode: 'regular'
             }
@@ -448,7 +460,7 @@ export default function TreatmentInputPage() {
                 return item
             }
             const nextType = item.performer_type === 'worker' ? 'therapist' : 'worker'
-            const baseComm = treatmentsMaster.find(t => t.id === item.treatment_id)?.commission_percent || 5
+            const baseComm = therapistCommission(treatmentsMaster.find(t => t.id === item.treatment_id)?.commission_percent)
             return {
                 ...item,
                 performer_type: nextType,
@@ -489,7 +501,7 @@ export default function TreatmentInputPage() {
                     discount_percent: 100,
                     followup_days: t.followup_days || 14,
                     notes: `${isInfus ? '[WORKER] ' : ''}[KUPON_BARU:${pkg.id}:${pkg.name}:${pkg.price}] Sesi 1/${firstItem.quantity} - Beli Paket ${pkg.name}`,
-                    commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                    commission_percent: isInfus ? 0 : therapistCommission(t.commission_percent),
                     performer_type: isInfus ? 'worker' : 'therapist',
                     is_new_package: true,
                     package_id: pkg.id,
@@ -541,7 +553,7 @@ export default function TreatmentInputPage() {
                 discount_percent: 100,
                 followup_days: t.followup_days || 14,
                 notes: `${isInfus ? '[WORKER] ' : ''}[KUPON_LAMA:${item.id}:${coupon.coupon_packages?.name || 'Paket'}] Sisa ${item.remaining_sessions} Sesi`,
-                commission_percent: isInfus ? 0 : (t.commission_percent || 0),
+                commission_percent: isInfus ? 0 : therapistCommission(t.commission_percent),
                 performer_type: isInfus ? 'worker' : 'therapist',
                 is_existing_coupon: true,
                 used_coupon_item_id: item.id,
@@ -754,7 +766,7 @@ export default function TreatmentInputPage() {
                     discount_percent: t.discount_percent,
                     notes: finalNotes,
                     sort_order: index + 1,
-                    commission_percent: isWorkerItem ? 0 : (t.commission_percent || 0),
+                    commission_percent: isWorkerItem ? 0 : therapistCommission(t.commission_percent, treatmentsMaster.find(m => m.id === t.treatment_id)?.commission_percent),
                     worker_id: t.worker_id || null,
                     worker_fee_at_time: Number(t.worker_fee_at_time || 0)
                 })

@@ -844,7 +844,8 @@ function PosPageContent() {
                     id: historyItem.id || `hist-tr-${Date.now()}`,
                     name: historyItem.name,
                     price: historyItem.price || 0,
-                    commission_percent: 0,
+                    // Kosong: persen komisi ditentukan saat bayar (master treatment / 5%).
+                    commission_percent: null,
                     discount_percent: 0
                 }, 'treatment')
             }
@@ -1891,10 +1892,35 @@ function PosPageContent() {
         }))
     }
 
+    // Persen komisi yang disimpan untuk satu item keranjang. Tindakan infus/worker selalu 0.
+    // Tindakan terapis memakai persen di item; bila kosong atau 0, memakai persen master
+    // treatment (cadangan 5%). Dulu angka 0 dari jalur mana pun (pilih "Worker" lalu
+    // diganti terapis, tambah dari riwayat pasien, rekam lama) ikut tersimpan, sehingga
+    // terapis tidak mendapat komisi (contoh: IPL Acne & Repair pasien sufi, 1 Okt 2026).
+    const resolveItemCommission = (it) => {
+        if (it.item_type !== 'treatment') return Number(it.commission_percent) || 0
+        const isInfus = isInfusionTreatment(it.name, it.notes)
+        if (isInfus || it.is_worker || it.therapist_id === 'worker') return 0
+        const own = Number(it.commission_percent)
+        if (own > 0) return own
+        const trId = it.treatment_id || (typeof it.id === 'string' && it.id.includes('_') ? it.id.split('_')[0] : it.id)
+        const master = treatments.find(t => t.id === trId)?.commission_percent
+        return master !== undefined && master !== null && Number(master) > 0 ? Number(master) : 5
+    }
+
     const handleCartItemTherapistChange = (id, therapistId) => {
         setCart(prev => prev.map(x => {
             if (x.id === id && x.item_type === 'treatment') {
-                return { ...x, therapist_id: therapistId }
+                // Ganti ke/dari Worker ikut memperbarui tanda worker. Dulu tanda ini tertinggal
+                // setelah pelaksana diganti ke terapis, sehingga komisinya tetap 0.
+                const isInfus = isInfusionTreatment(x.name, x.notes)
+                const toWorker = therapistId === 'worker'
+                return {
+                    ...x,
+                    therapist_id: therapistId,
+                    is_worker: toWorker || isInfus,
+                    notes: (toWorker || isInfus) ? x.notes : (x.notes || '').replace(/\[WORKER\]\s*/g, '').trim()
+                }
             }
             return x
         }))
@@ -2096,7 +2122,7 @@ function PosPageContent() {
                             price_at_time: it.price,
                             original_price: it.original_price || it.price,
                             discount_percent: it.discount_percent || 0,
-                            commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
+                            commission_percent: isWorker ? 0 : resolveItemCommission(it),
                             notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
                             // Upah worker dicatat hanya bila workernya memang ditunjuk, dan
                             // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
@@ -2220,7 +2246,7 @@ function PosPageContent() {
                             price_at_time: it.price,
                             original_price: it.original_price || it.price,
                             discount_percent: it.discount_percent || 0,
-                            commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
+                            commission_percent: isWorker ? 0 : resolveItemCommission(it),
                             notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
                             // Upah worker dicatat hanya bila workernya memang ditunjuk, dan
                             // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
@@ -2270,7 +2296,7 @@ function PosPageContent() {
                                 price_at_time: it.price,
                                 original_price: it.original_price || it.price,
                                 discount_percent: it.discount_percent || 0,
-                                commission_percent: isWorker ? 0 : (it.commission_percent !== undefined && it.commission_percent !== null ? Number(it.commission_percent) : 5),
+                                commission_percent: isWorker ? 0 : resolveItemCommission(it),
                                 notes: isWorker ? (it.notes?.includes('[WORKER]') ? it.notes : `[WORKER] ${it.name}`.trim()) : (it.notes || it.name),
                             // Upah worker dicatat hanya bila workernya memang ditunjuk, dan
                             // nominalnya disalin apa adanya saat itu -- tidak terpengaruh harga,
@@ -2298,7 +2324,7 @@ function PosPageContent() {
                 quantity: item.quantity,
                 original_price: item.original_price || 0,
                 discount_percent: item.discount_percent || 0,
-                commission_percent: item.commission_percent || 0
+                commission_percent: resolveItemCommission(item)
             }))
 
             const actualDiscountAmount = discountType === 'percent'
