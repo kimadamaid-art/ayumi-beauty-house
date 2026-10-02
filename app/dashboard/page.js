@@ -1402,7 +1402,6 @@ export default function Dashboard() {
                         collapsedSections={collapsedSections}
                         endDate={endDate}
                         isMounted={isMounted}
-                        openCouponUsageModal={openCouponUsageModal}
                         setEndDate={setEndDate}
                         setStartDate={setStartDate}
                         startDate={startDate}

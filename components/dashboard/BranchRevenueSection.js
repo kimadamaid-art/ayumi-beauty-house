@@ -12,7 +12,6 @@ export default function BranchRevenueSection({
     collapsedSections,
     endDate,
     isMounted,
-    openCouponUsageModal,
     setEndDate,
     setStartDate,
     startDate,
@@ -153,17 +152,6 @@ export default function BranchRevenueSection({
                                             >
                                                 Kotor − Diskon − Redeem Kupon = Bersih
                                             </span>
-                                            {(b.couponUsedSessions || 0) > 0 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openCouponUsageModal(b.branchId, b.branchName)}
-                                                    className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-full px-2.5 py-0.5 transition-colors cursor-pointer"
-                                                    title="Rincian sesi kupon yang dipakai pada periode ini"
-                                                >
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                                    {b.couponUsedSessions} sesi kupon dipakai · Rincian ↗
-                                                </button>
-                                            )}
                                         </div>
                                     </>
                                 ) : (
