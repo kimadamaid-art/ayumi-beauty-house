@@ -26,8 +26,7 @@ export default function PatientDetailPage() {
     const [branches, setBranches] = useState([]) // For the filter dropdown
     const [photos, setPhotos] = useState([])
     const [galleryViewMode, setGalleryViewMode] = useState('sessions') // 'sessions' | 'compare'
-    const [comparePhoto1, setComparePhoto1] = useState(null)
-    const [comparePhoto2, setComparePhoto2] = useState(null)
+    const [compareSessionKeys, setCompareSessionKeys] = useState({ before: '', after: '' })
     const [photoAngleFilter, setPhotoAngleFilter] = useState('all') // 'all' | 'depan' | 'kiri' | 'kanan'
     const [selectedPhotoZoom, setSelectedPhotoZoom] = useState(null)
     const [crmHistory, setCrmHistory] = useState([])
@@ -54,8 +53,6 @@ export default function PatientDetailPage() {
         const applyRotation = (rotation) => {
             const patch = (p) => (p && p.id === photo.id ? { ...p, rotation } : p)
             setPhotos(prev => prev.map(patch))
-            setComparePhoto1(patch)
-            setComparePhoto2(patch)
             setSelectedPhotoZoom(patch)
         }
         applyRotation(nextRotation)
@@ -278,12 +275,6 @@ export default function PatientDetailPage() {
                     }
                 })
                 setPhotos(photosWithUrls)
-                if (photosWithUrls.length >= 2) {
-                    setComparePhoto1(photosWithUrls[photosWithUrls.length - 1])
-                    setComparePhoto2(photosWithUrls[0])
-                } else if (photosWithUrls.length === 1) {
-                    setComparePhoto1(photosWithUrls[0])
-                }
             }
 
             // 4. Fetch CRM Follow-up Logs & Pending Queue
@@ -693,41 +684,13 @@ export default function PatientDetailPage() {
                         </div>
                     )
 
-                    const renderComparePane = ({ title, photo, value, onChange, accent }) => (
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                                <span className={`text-[10px] font-black uppercase tracking-wider ${accent}`}>{title}</span>
-                            </div>
-                            <select
-                                value={value}
-                                onChange={onChange}
-                                className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-2 bg-white text-slate-800 outline-none focus:border-ayumi-primary"
-                            >
-                                <option value="" disabled>Pilih foto</option>
-                                {photos.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {formatShortDate(photoDate(p))} · {formatPhotoLabel(p.caption, p.storage_path)}
-                                    </option>
-                                ))}
-                            </select>
-                            {photo ? renderPhotoTile({
-                                photo,
-                                caption: (
-                                    <div className="flex items-center justify-between text-[11px]">
-                                        <span className="font-bold text-slate-700">{formatPhotoLabel(photo.caption, photo.storage_path)}</span>
-                                        <span className="text-slate-400">{formatShortDate(photoDate(photo))}</span>
-                                    </div>
-                                )
-                            }) : renderEmptyTile({ label: 'Belum dipilih' })}
-                        </div>
-                    )
-
                     // Kelompokkan per sesi treatment (atau per tanggal bila foto tanpa rekam).
                     const sessionsMap = {}
                     photos.forEach(photo => {
                         const key = photo.treatment_record_id || (photo.created_at ? photo.created_at.split('T')[0] : 'other')
                         if (!sessionsMap[key]) {
                             sessionsMap[key] = {
+                                key,
                                 id: photo.treatment_record_id,
                                 date: photoDate(photo),
                                 branch: photo.treatment_records?.branches?.name || null,
@@ -778,39 +741,80 @@ export default function PatientDetailPage() {
                                     <p className="text-xs text-slate-400 mt-1">Foto tersimpan otomatis saat terapis mengisi rekam medis (SOAP).</p>
                                 </div>
                             ) : galleryViewMode === 'compare' ? (
-                                /* MODE BANDINGKAN */
-                                <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-5 space-y-4">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="text-xs text-slate-500">Pilih dua foto dari sesi atau sudut berbeda.</p>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const temp = comparePhoto1
-                                                setComparePhoto1(comparePhoto2)
-                                                setComparePhoto2(temp)
-                                            }}
-                                            className="shrink-0 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                                        >
-                                            ⇄ Tukar
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3 sm:gap-5">
-                                        {renderComparePane({
-                                            title: 'Sebelum',
-                                            accent: 'text-indigo-600',
-                                            photo: comparePhoto1,
-                                            value: comparePhoto1?.id || '',
-                                            onChange: (e) => { const m = photos.find(p => p.id === e.target.value); if (m) setComparePhoto1(m) }
-                                        })}
-                                        {renderComparePane({
-                                            title: 'Sesudah',
-                                            accent: 'text-ayumi-primary',
-                                            photo: comparePhoto2,
-                                            value: comparePhoto2?.id || '',
-                                            onChange: (e) => { const m = photos.find(p => p.id === e.target.value); if (m) setComparePhoto2(m) }
-                                        })}
-                                    </div>
-                                </div>
+                                /* MODE BANDINGKAN: pilih tanggal sebelum & sesudah, lalu tiap sudut
+                                   ditampilkan berdampingan (Depan, Kiri, Kanan). */
+                                (() => {
+                                    const oldest = sessions[sessions.length - 1]
+                                    const newest = sessions[0]
+                                    const beforeSession = sessions.find(s => s.key === compareSessionKeys.before) || oldest
+                                    const afterSession = sessions.find(s => s.key === compareSessionKeys.after) || newest
+                                    const sessionLabel = (s) => `${formatShortDate(s.date)}${s.branch ? ` · ${s.branch.replace('Ayumi ', '')}` : ''} (${s.photos.length} foto)`
+                                    const findAngle = (session, key) => session?.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === key)
+                                    const sessionSelect = (side, value, accent) => (
+                                        <div className="min-w-0">
+                                            <label className={`block text-[10px] font-black uppercase tracking-wider mb-1 ${accent}`}>
+                                                {side === 'before' ? 'Sebelum' : 'Sesudah'}
+                                            </label>
+                                            <select
+                                                value={value}
+                                                onChange={(e) => setCompareSessionKeys(prev => ({
+                                                    before: prev.before || beforeSession.key,
+                                                    after: prev.after || afterSession.key,
+                                                    [side]: e.target.value
+                                                }))}
+                                                className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-2 bg-white text-slate-800 outline-none focus:border-ayumi-primary"
+                                            >
+                                                {sessions.map(s => (
+                                                    <option key={s.key} value={s.key}>{sessionLabel(s)}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )
+
+                                    return (
+                                        <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-5 space-y-4">
+                                            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-3">
+                                                {sessionSelect('before', beforeSession.key, 'text-indigo-600')}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCompareSessionKeys({ before: afterSession.key, after: beforeSession.key })}
+                                                    className="h-[34px] px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                                                    title="Tukar sebelum dan sesudah"
+                                                >
+                                                    ⇄
+                                                </button>
+                                                {sessionSelect('after', afterSession.key, 'text-ayumi-primary')}
+                                            </div>
+
+                                            {sessions.length === 1 && (
+                                                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                                    Baru ada 1 sesi foto. Perbandingan akan berguna setelah ada foto dari treatment berikutnya.
+                                                </p>
+                                            )}
+
+                                            <div className="space-y-4">
+                                                {angleSpecs.map(angle => {
+                                                    const beforePhoto = findAngle(beforeSession, angle.key)
+                                                    const afterPhoto = findAngle(afterSession, angle.key)
+                                                    if (!beforePhoto && !afterPhoto) return null
+                                                    return (
+                                                        <div key={angle.key}>
+                                                            <h5 className="text-xs font-extrabold text-slate-700 mb-2">{angle.label}</h5>
+                                                            <div className="grid grid-cols-2 gap-3 sm:gap-5">
+                                                                {beforePhoto
+                                                                    ? renderPhotoTile({ key: 'before', photo: beforePhoto, badge: formatShortDate(beforeSession.date) })
+                                                                    : renderEmptyTile({ key: 'before', label: angle.label })}
+                                                                {afterPhoto
+                                                                    ? renderPhotoTile({ key: 'after', photo: afterPhoto, badge: formatShortDate(afterSession.date) })
+                                                                    : renderEmptyTile({ key: 'after', label: angle.label })}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )
+                                })()
                             ) : (
                                 /* MODE PER SESI */
                                 <div className="space-y-4">
