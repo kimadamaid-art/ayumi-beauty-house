@@ -44,72 +44,89 @@ export default function PatientDetailPage() {
     const [userBranchId, setUserBranchId] = useState(null)
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, confirmName: '' })
     const [isDeleting, setIsDeleting] = useState(false)
-    const [rotatingPhotoId, setRotatingPhotoId] = useState(null)
+    const [positionEditor, setPositionEditor] = useState(null) // { title, ids, drafts: { [id]: { rotation, angle } } }
+    const [isSavingPositions, setIsSavingPositions] = useState(false)
 
-    // Putar foto klinis 90° dan simpan ke patient_photos.rotation (file asli tidak diubah).
     const photoSessionKey = (p) => p.treatment_record_id || (p.created_at ? p.created_at.split('T')[0] : 'other')
 
-    // Koreksi sudut foto (mis. kiri/kanan tertukar saat input). Sudut disimpan di caption
-    // (foto_depan / foto_kiri / foto_kanan). Kalau di sesi yang sama sudah ada foto dengan
-    // sudut tujuan, keduanya ditukar agar tiap sudut tetap satu foto.
-    const handleSetPhotoAngle = async (photo, angle) => {
-        if (!photo || rotatingPhotoId) return
-        const currentAngle = getPhotoAngleCategory(photo.caption, photo.storage_path)
-        if (currentAngle === angle) return
-        const other = photos.find(p => p.id !== photo.id
-            && photoSessionKey(p) === photoSessionKey(photo)
-            && getPhotoAngleCategory(p.caption, p.storage_path) === angle)
-        const changes = [{ id: photo.id, from: photo.caption, to: `foto_${angle}` }]
-        if (other) {
-            changes.push({ id: other.id, from: other.caption, to: currentAngle === 'other' ? (photo.caption || 'foto_lain') : `foto_${currentAngle}` })
-        }
-        const applyCaptions = (field) => {
-            const map = Object.fromEntries(changes.map(c => [c.id, c[field]]))
-            const patch = (p) => (p && p.id in map ? { ...p, caption: map[p.id] } : p)
-            setPhotos(prev => prev.map(patch))
-            setSelectedPhotoZoom(patch)
-        }
-        applyCaptions('to')
-        setRotatingPhotoId(photo.id)
-        try {
-            for (const c of changes) {
-                const { error } = await supabase.from('patient_photos').update({ caption: c.to }).eq('id', c.id)
-                if (error) throw error
-            }
-            toast.success(other ? 'Posisi foto ditukar.' : 'Sudut foto diperbarui.')
-        } catch (err) {
-            console.warn('Set photo angle error:', err)
-            applyCaptions('from')
-            // Kembalikan juga yang sempat tersimpan.
-            for (const c of changes) {
-                await supabase.from('patient_photos').update({ caption: c.from }).eq('id', c.id)
-            }
-            toast.error(getFriendlyErrorMessage(err))
-        } finally {
-            setRotatingPhotoId(null)
-        }
+    // Editor "Atur Posisi Foto": semua foto satu sesi diatur sekaligus (putar & sudut),
+    // baru disimpan saat tombol Simpan ditekan.
+    const openPositionEditor = (photo) => {
+        const sessionPhotos = photos.filter(p => photoSessionKey(p) === photoSessionKey(photo))
+        const drafts = {}
+        sessionPhotos.forEach(p => {
+            drafts[p.id] = { rotation: normalizeRotation(p.rotation), angle: getPhotoAngleCategory(p.caption, p.storage_path) }
+        })
+        const d = photo.treatment_records?.treatment_date || photo.created_at?.split('T')[0]
+        setSelectedPhotoZoom(null)
+        const order = { depan: 0, kiri: 1, kanan: 2, other: 3 }
+        setPositionEditor({
+            title: d ? new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Foto Treatment',
+            // Urutan dikunci saat dibuka agar kartu tidak berpindah ketika sudutnya diganti.
+            ids: sessionPhotos.map(p => p.id).sort((a, b) => order[drafts[a].angle] - order[drafts[b].angle]),
+            drafts
+        })
     }
 
-    const handleRotatePhoto = async (photo, delta) => {
-        if (!photo || rotatingPhotoId) return
-        const prevRotation = normalizeRotation(photo.rotation)
-        const nextRotation = normalizeRotation(prevRotation + delta)
-        const applyRotation = (rotation) => {
-            const patch = (p) => (p && p.id === photo.id ? { ...p, rotation } : p)
-            setPhotos(prev => prev.map(patch))
-            setSelectedPhotoZoom(patch)
+    const rotateDraft = (id, delta) => setPositionEditor(prev => ({
+        ...prev,
+        drafts: { ...prev.drafts, [id]: { ...prev.drafts[id], rotation: normalizeRotation(prev.drafts[id].rotation + delta) } }
+    }))
+
+    // Pilih sudut untuk satu foto saja; foto lain di sesi ini tidak ikut berubah.
+    const setDraftAngle = (id, angle) => setPositionEditor(prev => ({
+        ...prev,
+        drafts: { ...prev.drafts, [id]: { ...prev.drafts[id], angle } }
+    }))
+
+    const swapDraftSides = () => setPositionEditor(prev => {
+        const drafts = { ...prev.drafts }
+        Object.keys(drafts).forEach(k => {
+            if (drafts[k].angle === 'kiri') drafts[k] = { ...drafts[k], angle: 'kanan' }
+            else if (drafts[k].angle === 'kanan') drafts[k] = { ...drafts[k], angle: 'kiri' }
+        })
+        return { ...prev, drafts }
+    })
+
+    const savePositions = async () => {
+        if (!positionEditor || isSavingPositions) return
+        const updates = []
+        positionEditor.ids.forEach(id => {
+            const photo = photos.find(p => p.id === id)
+            const draft = positionEditor.drafts[id]
+            if (!photo || !draft) return
+            const payload = {}
+            if (draft.rotation !== normalizeRotation(photo.rotation)) payload.rotation = draft.rotation
+            if (draft.angle !== getPhotoAngleCategory(photo.caption, photo.storage_path)) {
+                payload.caption = draft.angle === 'other' ? 'foto_lain' : `foto_${draft.angle}`
+            }
+            if (Object.keys(payload).length > 0) updates.push({ id, payload })
+        })
+        if (updates.length === 0) {
+            setPositionEditor(null)
+            return
         }
-        applyRotation(nextRotation)
-        setRotatingPhotoId(photo.id)
-        const { error } = await supabase.from('patient_photos').update({ rotation: nextRotation }).eq('id', photo.id)
-        setRotatingPhotoId(null)
-        if (error) {
-            console.warn('Rotate photo error:', error)
-            applyRotation(prevRotation)
-            const missingColumn = error.code === 'PGRST204' || error.code === '42703' || /rotation/i.test(error.message || '')
+
+        setIsSavingPositions(true)
+        try {
+            for (const u of updates) {
+                // .select() memastikan baris benar-benar berubah (update yang ditolak RLS tidak memberi error).
+                const { data, error } = await supabase.from('patient_photos').update(u.payload).eq('id', u.id).select('id')
+                if (error) throw error
+                if (!data || data.length === 0) throw new Error('Perubahan foto tidak tersimpan. Akun ini mungkin tidak punya izin mengubah foto.')
+            }
+            const byId = Object.fromEntries(updates.map(u => [u.id, u.payload]))
+            setPhotos(prev => prev.map(p => (byId[p.id] ? { ...p, ...byId[p.id] } : p)))
+            toast.success('Posisi foto tersimpan.')
+            setPositionEditor(null)
+        } catch (err) {
+            console.warn('Save photo positions error:', err)
+            const missingColumn = err?.code === 'PGRST204' || err?.code === '42703'
             toast.error(missingColumn
-                ? 'Fitur putar foto belum aktif di database. Jalankan SQL 20261002_patient_photos_rotation.sql terlebih dahulu.'
-                : getFriendlyErrorMessage(error))
+                ? 'Fitur posisi foto belum aktif di database. Jalankan SQL 20261002_patient_photos_rotation.sql.'
+                : (err?.message?.startsWith('Perubahan foto') ? err.message : getFriendlyErrorMessage(err)))
+        } finally {
+            setIsSavingPositions(false)
         }
     }
 
@@ -694,21 +711,12 @@ export default function PatientDetailPage() {
                                 onKeyDown={(e) => { if (e.key === 'Enter') setSelectedPhotoZoom(photo) }}
                                 className="relative rounded-2xl overflow-hidden bg-slate-100 ring-1 ring-slate-200 group-hover:ring-ayumi-primary/40 transition-all cursor-zoom-in"
                             >
-                                <RotatedPhoto src={photo.fullUrl} alt={formatPhotoLabel(photo.caption, photo.storage_path)} rotation={photo.rotation} imgClassName="group-hover:scale-[1.03]" />
+                                <RotatedPhoto src={photo.fullUrl} alt={formatPhotoLabel(photo.caption, photo.storage_path)} rotation={photo.rotation} fit="auto" imgClassName="group-hover:scale-[1.03]" />
                                 {badge && (
                                     <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur-sm">
                                         {badge}
                                     </span>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleRotatePhoto(photo, 90) }}
-                                    disabled={rotatingPhotoId === photo.id}
-                                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-700 shadow-sm backdrop-blur-sm flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer disabled:opacity-60"
-                                    title="Putar foto 90° searah jarum jam"
-                                >
-                                    <svg className={`w-4 h-4 ${rotatingPhotoId === photo.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                                </button>
                             </div>
                             {caption && <div className="mt-1.5 px-0.5">{caption}</div>}
                         </div>
@@ -749,7 +757,7 @@ export default function PatientDetailPage() {
                                 <div>
                                     <h3 className="text-base font-extrabold text-slate-900">Foto Treatment</h3>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                        {photos.length} foto dari {sessions.length} sesi · ketuk ikon putar bila posisi foto terbalik
+                                        {photos.length} foto dari {sessions.length} sesi · foto terbalik atau tertukar? klik Atur Posisi Foto
                                     </p>
                                 </div>
                                 {photos.length >= 2 && (
@@ -903,7 +911,11 @@ export default function PatientDetailPage() {
                                             const dateDisplay = session.date
                                                 ? new Date(session.date + (session.date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
                                                 : 'Dokumentasi Klinis'
-                                            const extraPhotos = session.photos.filter(p => getPhotoAngleCategory(p.caption, p.storage_path) === 'other')
+                                            // Foto tanpa sudut standar, atau foto kedua dengan sudut yang sama, tetap ditampilkan.
+                                            const slotPhotoIds = new Set(angleSpecs
+                                                .map(slot => session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === slot.key)?.id)
+                                                .filter(Boolean))
+                                            const extraPhotos = session.photos.filter(p => !slotPhotoIds.has(p.id))
                                             return (
                                                 <div key={session.id || sIdx} className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-5">
                                                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5">
@@ -917,23 +929,14 @@ export default function PatientDetailPage() {
                                                             <span className="text-[11px] text-slate-400">{session.photos.length} foto</span>
                                                         </div>
                                                         <div className="flex items-center gap-3">
-                                                            {(() => {
-                                                                const sidePhoto = session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === 'kiri')
-                                                                    || session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === 'kanan')
-                                                                if (!sidePhoto) return null
-                                                                const target = getPhotoAngleCategory(sidePhoto.caption, sidePhoto.storage_path) === 'kiri' ? 'kanan' : 'kiri'
-                                                                return (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleSetPhotoAngle(sidePhoto, target)}
-                                                                        disabled={!!rotatingPhotoId}
-                                                                        className="text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
-                                                                        title="Gunakan bila foto samping kiri dan kanan tertukar saat input"
-                                                                    >
-                                                                        ⇄ Tukar Kiri–Kanan
-                                                                    </button>
-                                                                )
-                                                            })()}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openPositionEditor(session.photos[0])}
+                                                                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+                                                            >
+                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                                                Atur Posisi Foto
+                                                            </button>
                                                             {session.id && (
                                                                 <Link
                                                                     href={`/treatment-records/${session.id}`}
@@ -1495,6 +1498,117 @@ export default function PatientDetailPage() {
                     </div>
                 </div>
             )}
+            {/* Modal Atur Posisi Foto (per sesi) */}
+            {positionEditor && (
+                <div
+                    className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm"
+                    onClick={() => !isSavingPositions && setPositionEditor(null)}
+                >
+                    <div
+                        className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[94vh]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 className="font-extrabold text-slate-900">Atur Posisi Foto</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">{positionEditor.title} · putar foto agar tegak, lalu pastikan sudutnya benar</p>
+                            </div>
+                            {Object.values(positionEditor.drafts).some(d => d.angle === 'kiri' || d.angle === 'kanan') && (
+                                <button
+                                    type="button"
+                                    onClick={swapDraftSides}
+                                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+                                >
+                                    ⇄ Tukar Kiri–Kanan
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="p-4 sm:p-5 overflow-y-auto">
+                            {(() => {
+                                const used = Object.values(positionEditor.drafts).map(d => d.angle).filter(a => a !== 'other')
+                                const dup = ['depan', 'kiri', 'kanan'].filter(a => used.filter(u => u === a).length > 1)
+                                return dup.length > 0 && (
+                                    <p className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                        Ada lebih dari satu foto bersudut {dup.map(a => ({ depan: 'Depan', kiri: 'Kiri', kanan: 'Kanan' })[a]).join(' dan ')}. Boleh disimpan, tapi pastikan memang begitu.
+                                    </p>
+                                )
+                            })()}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {positionEditor.ids
+                                    .map(id => {
+                                        const photo = photos.find(p => p.id === id)
+                                        const draft = positionEditor.drafts[id]
+                                        if (!photo) return null
+                                        return (
+                                            <div key={id} className="rounded-2xl border border-slate-200 p-3 space-y-3">
+                                                <div className="grid grid-cols-3 p-0.5 bg-slate-100 rounded-xl">
+                                                    {[
+                                                        { key: 'depan', label: 'Depan' },
+                                                        { key: 'kiri', label: 'Kiri' },
+                                                        { key: 'kanan', label: 'Kanan' }
+                                                    ].map(a => (
+                                                        <button
+                                                            key={a.key}
+                                                            type="button"
+                                                            onClick={() => setDraftAngle(id, a.key)}
+                                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                                draft.angle === a.key ? 'bg-white text-ayumi-primary shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                                                            }`}
+                                                        >
+                                                            {a.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <RotatedPhoto
+                                                    src={photo.fullUrl}
+                                                    alt={formatPhotoLabel(photo.caption, photo.storage_path)}
+                                                    rotation={draft.rotation}
+                                                    className="w-full max-w-[280px] mx-auto rounded-xl bg-slate-900"
+                                                />
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {[
+                                                        { delta: -90, label: 'Putar Kiri', path: 'M3 10h11a5 5 0 015 5v2M3 10l5-5M3 10l5 5' },
+                                                        { delta: 90, label: 'Putar Kanan', path: 'M21 10H10a5 5 0 00-5 5v2m16-7l-5-5m5 5l-5 5' }
+                                                    ].map(btn => (
+                                                        <button
+                                                            key={btn.delta}
+                                                            type="button"
+                                                            onClick={() => rotateDraft(id, btn.delta)}
+                                                            className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={btn.path} /></svg>
+                                                            {btn.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                            </div>
+                        </div>
+
+                        <div className="px-5 py-4 border-t border-slate-100 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPositionEditor(null)}
+                                disabled={isSavingPositions}
+                                className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={savePositions}
+                                disabled={isSavingPositions}
+                                className="px-5 py-2.5 text-sm font-bold text-white bg-ayumi-primary hover:opacity-90 disabled:opacity-60 rounded-xl transition-colors cursor-pointer"
+                            >
+                                {isSavingPositions ? 'Menyimpan...' : 'Simpan Posisi'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Modal Zoom / Preview Foto Dokumentasi */}
             {selectedPhotoZoom && (
                 <div
@@ -1535,49 +1649,15 @@ export default function PatientDetailPage() {
                                 className="w-[min(100%,calc(66vh*3/4))]"
                             />
                         </div>
-                        <div className="px-4 pt-3 bg-white border-t border-gray-100 flex items-center gap-2">
-                            <span className="text-[11px] font-semibold text-slate-500">Sudut foto:</span>
-                            <div className="inline-flex p-0.5 bg-slate-100 rounded-lg">
-                                {[
-                                    { key: 'depan', label: 'Depan' },
-                                    { key: 'kiri', label: 'Kiri' },
-                                    { key: 'kanan', label: 'Kanan' }
-                                ].map(a => {
-                                    const active = getPhotoAngleCategory(selectedPhotoZoom.caption, selectedPhotoZoom.storage_path) === a.key
-                                    return (
-                                        <button
-                                            key={a.key}
-                                            type="button"
-                                            onClick={() => handleSetPhotoAngle(selectedPhotoZoom, a.key)}
-                                            disabled={!!rotatingPhotoId}
-                                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer disabled:opacity-60 ${
-                                                active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                                            }`}
-                                        >
-                                            {a.label}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                        <div className="px-4 py-3 bg-white flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5">
-                                {[
-                                    { delta: -90, label: 'Putar Kiri', path: 'M3 10h11a5 5 0 015 5v2M3 10l5-5M3 10l5 5' },
-                                    { delta: 90, label: 'Putar Kanan', path: 'M21 10H10a5 5 0 00-5 5v2m16-7l-5-5m5 5l-5 5' }
-                                ].map(btn => (
-                                    <button
-                                        key={btn.delta}
-                                        type="button"
-                                        onClick={() => handleRotatePhoto(selectedPhotoZoom, btn.delta)}
-                                        disabled={rotatingPhotoId === selectedPhotoZoom.id}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer disabled:opacity-50"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={btn.path} /></svg>
-                                        {btn.label}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="px-4 py-3 bg-white border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={() => openPositionEditor(selectedPhotoZoom)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                Atur Posisi Foto
+                            </button>
                             {selectedPhotoZoom.treatment_record_id && (
                                 <Link
                                     href={`/treatment-records/${selectedPhotoZoom.treatment_record_id}`}
