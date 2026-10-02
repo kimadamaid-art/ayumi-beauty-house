@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 
 const isInfusWithoutTherapist = (apt) => {
     if (!apt || apt.therapist_id) return false
@@ -70,8 +71,13 @@ function EditAppointmentForm() {
             }
 
             // 2. Fetch Patients
-            const { data: ptData } = await supabase.from('patients').select('id, full_name, whatsapp')
-            if (ptData) setPatients(ptData)
+            // Dimuat per 1.000 baris sampai lengkap: dulu satu permintaan berhenti di 1.000 dari
+            // 10.807 pasien, sehingga sebagian besar pasien tidak bisa dipilih.
+            const { data: ptData, error: ptErr } = await fetchAllPaginated(() =>
+                supabase.from('patients').select('id, full_name, whatsapp').order('id', { ascending: true })
+            )
+            if (ptErr) toast.error('Daftar pasien gagal dimuat: ' + getFriendlyErrorMessage(ptErr), { id: 'patients-load-error' })
+            else setPatients(ptData)
 
             // 3. Fetch Branches
             let branchQuery = supabase.from('branches').select('id, name').eq('is_active', true)

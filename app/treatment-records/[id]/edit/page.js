@@ -10,6 +10,7 @@ import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import { syncTreatmentFollowupsAfterEdit } from '@/lib/followupQueue'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 
 function EditRecordForm() {
     const router = useRouter()
@@ -96,8 +97,14 @@ function EditRecordForm() {
             setIsOwner(userData?.role === 'owner')
 
             // 3. Fetch Master Data
-            const { data: pts } = await supabase.from('patients').select('id, full_name, whatsapp, skin_type, allergies, medical_notes, notes').order('full_name', { ascending: true })
-            if (pts) setPatients(pts)
+            // Dimuat per 1.000 baris sampai lengkap: dulu satu permintaan berhenti di 1.000 dari
+            // 10.807 pasien, sehingga sebagian besar pasien tidak bisa dipilih.
+            const { data: pts, error: ptsErr } = await fetchAllPaginated(() =>
+                supabase.from('patients').select('id, full_name, whatsapp, skin_type, allergies, medical_notes, notes')
+                    .order('full_name', { ascending: true }).order('id', { ascending: true })
+            )
+            if (ptsErr) toast.error('Daftar pasien gagal dimuat: ' + getFriendlyErrorMessage(ptsErr), { id: 'patients-load-error' })
+            else setPatients(pts)
 
             const { data: usrs } = await supabase.from('users').select('id, full_name, role, branch_id').eq('role', 'therapist').eq('is_active', true).order('full_name')
             if (usrs) setProviders(usrs)

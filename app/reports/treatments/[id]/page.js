@@ -8,6 +8,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsToolti
 import DateRangePicker from "../../../../components/DateRangePicker"
 import { formatWhatsAppNumber, getWhatsAppUrl } from '@/lib/whatsapp'
 import { toLocalYYYYMMDD } from '@/lib/localDate'
+import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 
 export default function TreatmentDetailReportPage() {
     const params = useParams()
@@ -121,7 +122,9 @@ export default function TreatmentDetailReportPage() {
     const fetchDetailData = async () => {
         setIsLoading(true)
 
-        // 1. Fetch treatment records in the date range
+        // 1. Fetch treatment records in the date range. Dimuat per 1.000 baris: treatment
+        // populer (mis. New Mesotherapy, 2.900+ item) melewati batas satu permintaan.
+        const buildItemsQuery = () => {
         let query = supabase
             .from('treatment_record_items')
             .select(`
@@ -149,8 +152,10 @@ export default function TreatmentDetailReportPage() {
         if (selectedBranch !== 'all') {
             query = query.eq('treatment_records.branch_id', selectedBranch)
         }
+        return query.order('id', { ascending: true })
+        }
 
-        const { data: items, error: err } = await query
+        const { data: items, error: err } = await fetchAllPaginated(buildItemsQuery)
 
         if (err) {
             console.error('Error fetching details:', err)
@@ -159,7 +164,8 @@ export default function TreatmentDetailReportPage() {
         }
 
         // 2. Fetch ALL historical treatment records for this treatment to calculate repeat indexes
-        const { data: history, error: histErr } = await supabase
+        // (dimuat lengkap; dulu terpotong di 1.000 sehingga urutan "Repeat ke-X" keliru).
+        const { data: history, error: histErr } = await fetchAllPaginated(() => supabase
             .from('treatment_record_items')
             .select(`
                 id,
@@ -171,6 +177,7 @@ export default function TreatmentDetailReportPage() {
                 )
             `)
             .eq('treatment_id', treatmentId)
+            .order('id', { ascending: true }))
 
         if (histErr) {
             console.error('Error fetching history:', histErr)
