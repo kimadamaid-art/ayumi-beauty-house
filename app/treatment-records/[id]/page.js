@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
+import RotatedPhoto from '@/components/ui/RotatedPhoto'
 
 // Helper to convert an image URL to a base64 string
 const getBase64ImageFromUrl = async (url) => {
@@ -28,6 +29,7 @@ export default function TreatmentRecordDetailPage() {
 
     const [record, setRecord] = useState(null)
     const [items, setItems] = useState([])
+    const [photoRotations, setPhotoRotations] = useState({})
     const [photoUrls, setPhotoUrls] = useState({
         before_depan: null,
         before_kiri: null,
@@ -233,6 +235,7 @@ export default function TreatmentRecordDetailPage() {
 
             if (photosData && photosData.length > 0) {
                 const urls = {}
+                const rotations = {}
                 for (let i = 0; i < photosData.length; i++) {
                     const photo = photosData[i]
                     let photoUrl = null
@@ -263,6 +266,7 @@ export default function TreatmentRecordDetailPage() {
                     }
 
                     if (photoUrl) {
+                        rotations[photoUrl] = photo.rotation || 0
                         const rawCaption = (photo.caption || '').toLowerCase()
                         const fileName = (photo.storage_path.split('/').pop() || '').toLowerCase()
                         const rawKey = rawCaption || fileName.split('.')[0] || `foto_${i + 1}`
@@ -285,6 +289,7 @@ export default function TreatmentRecordDetailPage() {
                     }
                 }
                 setPhotoUrls(prev => ({ ...prev, ...urls }))
+                setPhotoRotations(rotations)
             }
 
             setIsLoading(false)
@@ -970,11 +975,14 @@ export default function TreatmentRecordDetailPage() {
                                     <div key={slot.key} className="bg-gray-50 rounded-xl p-3 border border-gray-100 text-center flex flex-col items-center">
                                         <span className="text-xs font-bold text-gray-500 block mb-2">{slot.label}</span>
                                         {photoUrls[slot.key] ? (
-                                            <div className="w-full h-48 sm:h-56 bg-gray-950/5 rounded-lg overflow-hidden flex items-center justify-center border border-gray-100 shadow-inner">
-                                                <img src={photoUrls[slot.key]} alt={slot.label} className="w-full h-full object-contain" />
-                                            </div>
+                                            <RotatedPhoto
+                                                src={photoUrls[slot.key]}
+                                                alt={slot.label}
+                                                rotation={photoRotations[photoUrls[slot.key]]}
+                                                className="w-full bg-gray-950/5 rounded-lg border border-gray-100 shadow-inner"
+                                            />
                                         ) : (
-                                            <div className="w-full h-48 sm:h-56 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs font-semibold">Tidak ada foto</div>
+                                            <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs font-semibold">Tidak ada foto</div>
                                         )}
                                     </div>
                                 ))}
