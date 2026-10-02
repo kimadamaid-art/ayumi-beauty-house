@@ -803,14 +803,24 @@ export default function CRMPage() {
         const selectedPatient = selectedManualPatient?.id === manualForm.patientId ? selectedManualPatient : null
         const finalBranchId = manualForm.branchId || selectedPatient?.branch_id || userBranchId || branches[0]?.id || null
 
+        // Constraint followup_queue hanya menerima treatment_reminder, birthday,
+        // dormant_reactivation, dan manual. Jenis lain dari form (Cek 2 Minggu, Dormant,
+        // Kustom, ...) disimpan sebagai 'manual' dengan jenis aslinya di awal catatan, mis.
+        // "[followup_2minggu] ...", lalu dibaca kembali oleh getEffectiveFollowupType.
+        const chosenType = manualForm.followupType
+        const dbType = chosenType === 'treatment_reminder' ? 'treatment_reminder' : 'manual'
+        const dbNotes = dbType === chosenType
+            ? manualForm.notes
+            : `[${chosenType}]${manualForm.notes ? ' ' + manualForm.notes : ''}`
+
         const { error } = await supabase.from('followup_queue').insert([{
             patient_id: manualForm.patientId,
             branch_id: finalBranchId,
-            followup_type: manualForm.followupType,
+            followup_type: dbType,
             scheduled_date: manualForm.scheduledDate,
             priority: manualForm.priority,
             status: 'pending',
-            notes: manualForm.notes,
+            notes: dbNotes,
             created_by: user?.id
         }])
 
@@ -867,6 +877,11 @@ export default function CRMPage() {
 
     // Helper to determine effective followup type (supports fallback treatment_reminder)
     const getEffectiveFollowupType = (q) => {
+        // Follow-up manual menyimpan jenis aslinya di awal catatan, mis. "[followup_2minggu] ..."
+        if (q.followup_type === 'manual') {
+            const notePrefix = q.notes?.match(/^\[([a-z0-9_]+)\]/)
+            if (notePrefix) return notePrefix[1]
+        }
         if (q.followup_type && q.followup_type !== 'treatment_reminder') {
             return q.followup_type
         }
@@ -1325,6 +1340,7 @@ export default function CRMPage() {
                                                                             'reminder_besok': { label: 'Reminder Besok', bg: 'bg-red-50 text-red-700 border-red-200' },
                                                                             'treatment_reminder': { label: 'Pengingat Perawatan', bg: 'bg-pink-50 text-ayumi-primary border-pink-200' },
                                                                             'dormant_reminder': { label: 'Sapaan Dormant', bg: 'bg-orange-50 text-orange-700 border-orange-200' },
+                                                                            'custom_reminder': { label: 'Follow Up Kustom', bg: 'bg-gray-50 text-gray-700 border-gray-200' },
                                                                             'birthday': { label: 'Ulang Tahun', bg: 'bg-rose-50 text-rose-700 border-rose-200' }
                                                                         }
                                                                         const info = typeLabels[effType] || { label: effType?.replace(/_/g, ' ') || '-', bg: 'bg-gray-50 text-gray-700 border-gray-200' }
