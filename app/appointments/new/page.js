@@ -249,15 +249,17 @@ function NewAppointmentForm() {
         }
     }
 
-    // Auto calculate End Time (+2 hours) when start_time changes
+    // Jam selesai otomatis: infus oleh worker 30 menit (satu jam bisa diisi dua pasien,
+    // seperti jadwal GD Cashier); treatment biasa 2 jam.
     useEffect(() => {
         if (!formData.start_time) return
         const [hours, minutes] = formData.start_time.split(':').map(Number)
-        const endHours = (hours + 2) % 24
-        const formattedHours = String(endHours).padStart(2, '0')
-        const formattedMins = String(minutes).padStart(2, '0')
+        const durationMinutes = formData.therapist_id === 'worker' ? 30 : 120
+        const endTotal = (hours * 60 + minutes + durationMinutes) % (24 * 60)
+        const formattedHours = String(Math.floor(endTotal / 60)).padStart(2, '0')
+        const formattedMins = String(endTotal % 60).padStart(2, '0')
         setFormData(prev => ({ ...prev, end_time: `${formattedHours}:${formattedMins}` }))
-    }, [formData.start_time])
+    }, [formData.start_time, formData.therapist_id])
 
     const handleSave = async (e) => {
         e.preventDefault()
@@ -620,19 +622,15 @@ function NewAppointmentForm() {
                             required
                             className="input-ayumi focus:bg-white"
                         >
-                            <option value="08:00">08:00</option>
-                            <option value="09:00">09:00</option>
-                            <option value="10:00">10:00</option>
-                            <option value="11:00">11:00</option>
-                            <option value="12:00">12:00</option>
-                            <option value="13:00">13:00</option>
-                            <option value="14:00">14:00</option>
-                            <option value="15:00">15:00</option>
-                            <option value="16:00">16:00</option>
-                            <option value="17:00">17:00</option>
-                            <option value="18:00">18:00</option>
-                            <option value="19:00">19:00</option>
-                            <option value="20:00">20:00</option>
+                            {/* Infus (worker) per 30 menit agar satu jam muat dua pasien; treatment per jam. */}
+                            {Array.from({ length: 13 }, (_, i) => 8 + i).flatMap(h => {
+                                const hh = String(h).padStart(2, '0')
+                                return formData.therapist_id === 'worker' || formData.start_time === `${hh}:30`
+                                    ? [`${hh}:00`, `${hh}:30`]
+                                    : [`${hh}:00`]
+                            }).map(t => (
+                                <option key={t} value={t}>{t}</option>
+                            ))}
                         </select>
                     </div>
                 </div>
