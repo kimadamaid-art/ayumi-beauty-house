@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 // Pendapatan terapis = komisi treatment saja. Fee penjualan kupon dihapus (keputusan
 // owner, 1 Okt 2026); komisi atas sesi kupon tetap dihitung saat terapis mengerjakannya.
@@ -26,19 +27,12 @@ export default function TherapistsReportPage() {
     const [userBranchId, setUserBranchId] = useState(null)
     const [userLoaded, setUserLoaded] = useState(false)
 
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
-
     // Filters
     const [startDate, setStartDate] = useState(() => {
-        return getLocalYYYYMMDD()
+        return toLocalYYYYMMDD()
     })
     const [endDate, setEndDate] = useState(() => {
-        return getLocalYYYYMMDD()
+        return toLocalYYYYMMDD()
     })
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [selectedTherapistFilter, setSelectedTherapistFilter] = useState('all')

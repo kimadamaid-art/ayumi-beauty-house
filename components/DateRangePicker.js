@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function DateRangePicker({ startDate, endDate, onChange, inputClassName = '', autoOpen = false, align = 'left', singleDate = false }) {
     const [isOpen, setIsOpen] = useState(autoOpen)
@@ -43,13 +44,6 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
-
     const handleQuickSelect = (type) => {
         const now = new Date()
         let start = new Date()
@@ -70,8 +64,8 @@ export default function DateRangePicker({ startDate, endDate, onChange, inputCla
             end = new Date(now.getFullYear(), now.getMonth(), 0)
         }
 
-        const startStr = getLocalYYYYMMDD(start)
-        const endStr = getLocalYYYYMMDD(end)
+        const startStr = toLocalYYYYMMDD(start)
+        const endStr = toLocalYYYYMMDD(end)
 
         setTempStart(startStr)
         setTempEnd(endStr)

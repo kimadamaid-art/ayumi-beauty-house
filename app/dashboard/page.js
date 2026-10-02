@@ -16,6 +16,7 @@ import { getTransactionRevenueBreakdown } from '@/lib/revenueBreakdown'
 import { COUPON_REDEEM_SELECT } from '@/lib/couponRedeem'
 import { computeDashboardInsights } from '@/lib/dashboardInsights'
 import LazyRecharts from '@/components/charts/LazyRecharts'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 // Module-level persistent caches (preserved across client navigation within session)
 let globalCategoriesCache = null
@@ -82,19 +83,13 @@ export default function Dashboard() {
     const [selectedBranch, setSelectedBranch] = useState('')
 
     // Date Range State (Defaults to current month: from 1st of month to today)
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
 
     const [startDate, setStartDate] = useState(() => {
         const now = new Date()
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
     })
     const [endDate, setEndDate] = useState(() => {
-        return getLocalYYYYMMDD()
+        return toLocalYYYYMMDD()
     })
 
     // Selected Target Month State
@@ -1011,7 +1006,7 @@ export default function Dashboard() {
             const currentUser = userObj || dbUser
             const isOwner = currentUser?.role === 'owner'
             const effectiveBranch = isOwner ? selectedBranch : (currentUser?.branch_id || '')
-            const todayDateStr = getLocalYYYYMMDD()
+            const todayDateStr = toLocalYYYYMMDD()
             const now = new Date()
 
             const applyBranch = (query, col = 'branch_id') => {

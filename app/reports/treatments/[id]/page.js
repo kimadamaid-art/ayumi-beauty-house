@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
-import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { formatWhatsAppNumber, getWhatsAppUrl } from '@/lib/whatsapp'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function TreatmentDetailReportPage() {
     const params = useParams()
@@ -35,13 +36,6 @@ export default function TreatmentDetailReportPage() {
     const [treatmentRecords, setTreatmentRecords] = useState([])
     const [allHistory, setAllHistory] = useState([])
 
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
-
     useEffect(() => {
         // Read initial filters from query string if available
         const qStart = searchParams.get('start')
@@ -49,7 +43,7 @@ export default function TreatmentDetailReportPage() {
         const qBranch = searchParams.get('branch')
         
         const now = new Date()
-        const todayStr = getLocalYYYYMMDD(now)
+        const todayStr = toLocalYYYYMMDD(now)
 
         setStartDate(qStart || todayStr)
         setEndDate(qEnd || todayStr)
@@ -417,13 +411,6 @@ export default function TreatmentDetailReportPage() {
         XLSX.writeFile(wb, filename)
     }
 
-    const formatWA = (wa) => {
-        if (!wa) return null
-        let num = wa.replace(/[^0-9]/g, '')
-        if (num.startsWith('0')) num = '62' + num.substring(1)
-        return num
-    }
-
     if (!userLoaded || !treatmentInfo) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -709,7 +696,7 @@ export default function TreatmentDetailReportPage() {
                                     <tr><td colSpan="8" className="px-6 py-12 text-center text-gray-400 font-medium">Belum ada riwayat tindakan pasien untuk filter ini.</td></tr>
                                 ) : (
                                     filteredRecords.map((r) => {
-                                        const waNumber = formatWA(r.treatment_records?.patients?.whatsapp)
+                                        const waNumber = formatWhatsAppNumber(r.treatment_records?.patients?.whatsapp)
                                         return (
                                             <tr key={r.id} className="hover:bg-ayumi-table-hover transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">

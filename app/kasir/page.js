@@ -16,13 +16,7 @@ import { notifyLowStock } from '@/lib/notifications'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
 import { getCachedPosCatalog } from '@/lib/cachedPosCatalog'
-
-const getLocalYYYYMMDD = (d = new Date()) => {
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-}
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 // Isi awal form "Tambah Pasien Cepat" dari kata kunci pencarian: nomor telepon masuk ke
 // kolom WhatsApp, selain itu ke kolom nama. Dulu nomor yang dicari ikut masuk ke nama.
@@ -153,8 +147,8 @@ function PosPageContent() {
                 // Keranjang yang belum selesai hanya dipulihkan pada hari yang sama. Dulu
                 // keranjang sisa hari sebelumnya muncul lagi tanpa pemberitahuan dan terlihat
                 // seperti tagihan (contoh: Karin, Oxy Infusin, 1 Okt 2026).
-                const savedDay = parsed.timestamp ? getLocalYYYYMMDD(new Date(parsed.timestamp)) : null
-                const isStale = savedDay !== getLocalYYYYMMDD()
+                const savedDay = parsed.timestamp ? toLocalYYYYMMDD(new Date(parsed.timestamp)) : null
+                const isStale = savedDay !== toLocalYYYYMMDD()
                 if (isStale) {
                     localStorage.removeItem('ayumi_pos_active_draft')
                 } else if (parsed.cart?.length > 0 || parsed.selectedPatient) {
@@ -1437,7 +1431,7 @@ function PosPageContent() {
         setTreatmentRecordId(bill.id)
 
         // Otomatis sinkronisasi Mode Backdate jika tindakan berasal dari tanggal lalu (Khusus Owner)
-        const todayStr = getLocalYYYYMMDD()
+        const todayStr = toLocalYYYYMMDD()
         if (bill.treatment_date && bill.treatment_date < todayStr && dbUser?.role === 'owner') {
             setIsBackdateEnabled(true)
             setBackdateDate(bill.treatment_date)
@@ -2585,7 +2579,7 @@ function PosPageContent() {
             if (!effectiveBackdateDate && finalTrId) {
                 const linkedBill = pendingBills.find(b => b.id === finalTrId)
                 const candidateDate = linkedBill?.treatment_date
-                const todayStr = getLocalYYYYMMDD()
+                const todayStr = toLocalYYYYMMDD()
                 if (candidateDate && candidateDate < todayStr) {
                     effectiveBackdateDate = candidateDate
                     effectiveBackdateTime = linkedBill.treatment_time ? linkedBill.treatment_time.substring(0, 5) : '15:00'
@@ -4461,7 +4455,7 @@ function PosPageContent() {
                                     type="button"
                                     onClick={() => {
                                         if (!isBackdateEnabled) {
-                                            const yesterday = getLocalYYYYMMDD(new Date(Date.now() - 86400000))
+                                            const yesterday = toLocalYYYYMMDD(new Date(Date.now() - 86400000))
                                             setBackdateDate(yesterday)
                                             setBackdateTime('15:00')
                                             setIsBackdateEnabled(true)
@@ -4487,8 +4481,8 @@ function PosPageContent() {
                                             <input
                                                 type="date"
                                                 value={backdateDate}
-                                                min={dbUser?.role === 'owner' ? undefined : getLocalYYYYMMDD(new Date(Date.now() - 86400000))}
-                                                max={getLocalYYYYMMDD()}
+                                                min={dbUser?.role === 'owner' ? undefined : toLocalYYYYMMDD(new Date(Date.now() - 86400000))}
+                                                max={toLocalYYYYMMDD()}
                                                 onChange={(e) => setBackdateDate(e.target.value)}
                                                 className="w-full text-xs font-black p-0.5 bg-white border border-[#F2D8C3] rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#D46221]"
                                             />

@@ -9,13 +9,7 @@ import DateRangePicker from "../../../components/DateRangePicker"
 import { getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 import { getTransactionPricingSummary } from '@/lib/revenueBreakdown'
 import toast from 'react-hot-toast'
-
-const getLocalYYYYMMDD = (d = new Date()) => {
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-}
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function TransactionsHistoryPage() {
     const [transactions, setTransactions] = useState([])
@@ -25,8 +19,8 @@ export default function TransactionsHistoryPage() {
     const [isDeletingId, setIsDeletingId] = useState(null)
 
     // Filters
-    const [startDate, setStartDate] = useState(() => getLocalYYYYMMDD())
-    const [endDate, setEndDate] = useState(() => getLocalYYYYMMDD())
+    const [startDate, setStartDate] = useState(() => toLocalYYYYMMDD())
+    const [endDate, setEndDate] = useState(() => toLocalYYYYMMDD())
     const [selectedBranch, setSelectedBranch] = useState('')
     const [paymentMethod, setPaymentMethod] = useState('')
 

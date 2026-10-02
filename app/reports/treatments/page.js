@@ -19,6 +19,7 @@ import {
     Legend 
 } from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function TreatmentsReportPage() {
     const router = useRouter()
@@ -36,19 +37,12 @@ export default function TreatmentsReportPage() {
     const [userBranchId, setUserBranchId] = useState(null)
     const [userLoaded, setUserLoaded] = useState(false)
 
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
-
     // Filters
     const [customStart, setCustomStart] = useState(() => {
-        return getLocalYYYYMMDD()
+        return toLocalYYYYMMDD()
     })
     const [customEnd, setCustomEnd] = useState(() => {
-        return getLocalYYYYMMDD()
+        return toLocalYYYYMMDD()
     })
 
     const [selectedBranch, setSelectedBranch] = useState('all')
@@ -123,8 +117,8 @@ export default function TreatmentsReportPage() {
 
     const fetchReportData = async () => {
         setIsLoading(true)
-        const sDate = customStart || getLocalYYYYMMDD()
-        const eDate = customEnd || getLocalYYYYMMDD()
+        const sDate = customStart || toLocalYYYYMMDD()
+        const eDate = customEnd || toLocalYYYYMMDD()
 
         try {
             // 1. Fetch POS Transaction Items (Treatments & Products)

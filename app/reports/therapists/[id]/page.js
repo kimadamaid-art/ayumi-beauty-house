@@ -8,9 +8,10 @@ import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../../components/DateRangePicker"
-import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { formatWhatsAppNumber, getWhatsAppUrl } from '@/lib/whatsapp'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function TherapistDetailPage() {
     const params = useParams()
@@ -36,17 +37,10 @@ export default function TherapistDetailPage() {
     const [treatmentRecords, setTreatmentRecords] = useState([])
     // Penjualan paket kupon oleh terapis ini pada periode terpilih
 
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
-
     useEffect(() => {
         // Initialize default dates (today to today)
         const now = new Date()
-        const todayStr = getLocalYYYYMMDD(now)
+        const todayStr = toLocalYYYYMMDD(now)
         setStartDate(todayStr)
         setEndDate(todayStr)
     }, [])
@@ -552,13 +546,6 @@ export default function TherapistDetailPage() {
         }
     }
 
-    const formatWA = (wa) => {
-        if (!wa) return null
-        let num = wa.replace(/[^0-9]/g, '')
-        if (num.startsWith('0')) num = '62' + num.substring(1)
-        return num
-    }
-
     if (!userLoaded || !therapistInfo) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -760,7 +747,7 @@ export default function TherapistDetailPage() {
                                     <tr><td colSpan="8" className="px-6 py-12 text-center text-gray-400">Tidak ada riwayat tindakan terapis ditemukan untuk filter ini.</td></tr>
                                 ) : (
                                     filteredRecords.map((r) => {
-                                        const waNumber = formatWA(r.treatment_records?.patients?.whatsapp)
+                                        const waNumber = formatWhatsAppNumber(r.treatment_records?.patients?.whatsapp)
                                         return (
                                             <tr key={r.id} className="hover:bg-ayumi-table-hover transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">

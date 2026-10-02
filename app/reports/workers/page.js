@@ -6,6 +6,7 @@ import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import { useRouter } from 'next/navigation'
 import DateRangePicker from '../../../components/DateRangePicker'
 import BranchFilter from '@/components/ui/BranchFilter'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 // Laporan upah worker (tenaga infus dan tindakan sejenis).
 //
@@ -25,20 +26,13 @@ export default function WorkersReportPage() {
     const [branches, setBranches] = useState([])
     const [userLoaded, setUserLoaded] = useState(false)
 
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
-
     const firstDayOfMonth = () => {
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
     }
 
     const [startDate, setStartDate] = useState(firstDayOfMonth)
-    const [endDate, setEndDate] = useState(() => getLocalYYYYMMDD())
+    const [endDate, setEndDate] = useState(() => toLocalYYYYMMDD())
     const [selectedBranch, setSelectedBranch] = useState('all')
     const [items, setItems] = useState([])
     const [expandedWorkerId, setExpandedWorkerId] = useState(null)

@@ -8,6 +8,7 @@ import DateRangePicker from '../../components/DateRangePicker'
 import { notifyPatientArrived } from '@/lib/notifications'
 import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([])
@@ -15,16 +16,10 @@ export default function AppointmentsPage() {
     const [loading, setLoading] = useState(true)
     
     // Filters & States
-    const getLocalYYYYMMDD = (d = new Date()) => {
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-    }
     const [filterBranch, setFilterBranch] = useState('')
     const [filterStatus, setFilterStatus] = useState('')
-    const [startDate, setStartDate] = useState(getLocalYYYYMMDD())
-    const [endDate, setEndDate] = useState(getLocalYYYYMMDD())
+    const [startDate, setStartDate] = useState(toLocalYYYYMMDD())
+    const [endDate, setEndDate] = useState(toLocalYYYYMMDD())
     const [searchQuery, setSearchQuery] = useState('')
     const [isOwner, setIsOwner] = useState(false)
     const SCHEDULE_HOURS = ['08.00', '09.00', '10.00', '11.00', '12.00', '13.00', '14.00', '15.00', '16.00', '17.00', '18.00', '19.00', '20.00']
