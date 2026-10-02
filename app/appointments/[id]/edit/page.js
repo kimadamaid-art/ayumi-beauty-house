@@ -7,6 +7,14 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
+const isInfusWithoutTherapist = (apt) => {
+    if (!apt || apt.therapist_id) return false
+    const names = (apt.appointment_treatments || [])
+        .map(at => `${at.treatments?.name || ''} ${at.treatments?.treatment_categories?.name || ''}`)
+        .join(' ')
+    return `${names} ${apt.notes || ''}`.toLowerCase().includes('infus')
+}
+
 function EditAppointmentForm() {
     const router = useRouter()
     const params = useParams()
@@ -80,7 +88,7 @@ function EditAppointmentForm() {
             // 5. Fetch Existing Appointment Data
             const { data: aptData, error: aptErr } = await supabase
                 .from('appointments')
-                .select(`*, patients (full_name)`)
+                .select(`*, patients (full_name), appointment_treatments (treatments (name, treatment_categories (name)))`)
                 .eq('id', id)
                 .single()
 
@@ -103,7 +111,8 @@ function EditAppointmentForm() {
                 appointment_date: aptData.appointment_date,
                 start_time: aptData.start_time ? aptData.start_time.substring(0, 5) : '08:00',
                 end_time: aptData.end_time ? aptData.end_time.substring(0, 5) : '10:00',
-                therapist_id: aptData.therapist_id || (aptData.notes?.includes('[INFUS - WORKER]') ? 'worker' : ''),
+                // Infus tanpa terapis = dikerjakan worker (sama dengan isInfusAppointment di halaman jadwal).
+                therapist_id: aptData.therapist_id || (isInfusWithoutTherapist(aptData) ? 'worker' : ''),
                 notes: aptData.notes || ''
             })
             setIsPlusInfus(Boolean(aptData.notes?.includes('[PLUS-INFUS]')))
