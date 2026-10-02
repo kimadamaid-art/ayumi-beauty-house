@@ -351,7 +351,7 @@ export default function AppointmentsPage() {
                 : (infusTreatmentsList.find(t => t.id === selectedInfusTreatmentId) || infusTreatmentsList[0])
 
             // 1. Check if a treatment_record already exists for this appointment or patient today
-            const todayDate = apt.appointment_date || new Date().toISOString().split('T')[0]
+            const todayDate = apt.appointment_date || toLocalYYYYMMDD()
             const { data: existingRecs } = await supabase
                 .from('treatment_records')
                 .select('id, appointment_id, transactions(id, payment_status)')

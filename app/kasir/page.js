@@ -2100,7 +2100,7 @@ function PosPageContent() {
             }
 
             const canBackdate = isBackdateEnabled && dbUser?.role === 'owner' && backdateDate
-            const effectiveDateStr = canBackdate ? backdateDate : new Date().toISOString().split('T')[0]
+            const effectiveDateStr = canBackdate ? backdateDate : toLocalYYYYMMDD()
             const effectiveTimeStr = canBackdate ? (backdateTime || new Date().toLocaleTimeString('en-US', { hour12: false })) : new Date().toLocaleTimeString('en-US', { hour12: false })
             const effectiveCustomIso = canBackdate ? new Date(`${backdateDate}T${backdateTime || '12:00'}:00`).toISOString() : undefined
 
@@ -2936,7 +2936,7 @@ function PosPageContent() {
                                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                     <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
                                                         {(() => {
-                                                            const today = new Date().toISOString().split('T')[0]
+                                                            const today = toLocalYYYYMMDD()
                                                             if (bill.treatment_date === today) {
                                                                 return `Hari ini, ${bill.treatment_time?.substring(0,5) || '-'} WIB`
                                                             }

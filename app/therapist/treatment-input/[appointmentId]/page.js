@@ -12,6 +12,7 @@ import { compressImageForMedical } from '@/lib/imageCompression'
 import { notifyTreatmentCompleted } from '@/lib/notifications'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import { getPhotoAngle } from '@/lib/photoAngle'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 // Persen komisi tindakan terapis: persen yang ada; bila kosong/0 memakai persen master
 // treatment; bila master juga kosong, 5%. Aturan yang sama dipakai kasir
@@ -142,7 +143,7 @@ export default function TreatmentInputPage() {
 
             // Jika belum ada by appointment_id, cek apakah kasir sudah membuat transaksi/tindakan langsung untuk pasien ini di tanggal yang sama
             if (!existingRecord && aptData.patient_id) {
-                const targetDate = aptData.appointment_date || new Date().toISOString().split('T')[0]
+                const targetDate = aptData.appointment_date || toLocalYYYYMMDD()
                 const { data: candidateRecords } = await supabase
                     .from('treatment_records')
                     .select(`
@@ -630,7 +631,7 @@ export default function TreatmentInputPage() {
 
             // Fallback safety check: jika existingRecordId belum terisi, cek apakah kasir/sistem sudah membuat rekam medis hari ini untuk janji temu atau pasien ini
             if (!recordId && targetPatientId) {
-                const targetDate = appointment.appointment_date || new Date().toISOString().split('T')[0]
+                const targetDate = appointment.appointment_date || toLocalYYYYMMDD()
                 const { data: doubleCheck } = await supabase
                     .from('treatment_records')
                     .select('id, appointment_id, result_notes, transactions(id, payment_status)')
@@ -696,7 +697,7 @@ export default function TreatmentInputPage() {
                     branch_id: appointment.branch_id,
                     performed_by: performer,
                     therapist_id: performer,
-                    treatment_date: new Date().toISOString().split('T')[0],
+                    treatment_date: toLocalYYYYMMDD(),
                     treatment_time: new Date().toTimeString().substring(0, 5),
                     skin_condition: formData.skin_condition,
                     complaints: formData.complaints,
@@ -781,7 +782,7 @@ export default function TreatmentInputPage() {
                     treatmentRecordId: recordId,
                     branchId: appointment.branch_id || dbUser?.branch_id || null,
                     assignedTo: dbUser.id,
-                    treatmentDate: appointment.appointment_date || new Date().toISOString().split('T')[0]
+                    treatmentDate: appointment.appointment_date || toLocalYYYYMMDD()
                 })
                 if (queueErr) {
                     console.warn('Followup queue note:', queueErr.message || queueErr)
@@ -832,7 +833,7 @@ export default function TreatmentInputPage() {
             // 4.1 Sinkronisasi otomatis HANYA jika kasir sudah checkout lunas duluan untuk tindakan yang cocok
             if (targetPatientId && recordId) {
                 try {
-                    const targetDate = appointment.appointment_date || new Date().toISOString().split('T')[0]
+                    const targetDate = appointment.appointment_date || toLocalYYYYMMDD()
                     const { data: paidTxs } = await supabase
                         .from('transactions')
                         .select(`

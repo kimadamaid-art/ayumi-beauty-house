@@ -7,6 +7,7 @@ import { getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 export default function TreatmentRecordsPage() {
 
@@ -21,14 +22,8 @@ export default function TreatmentRecordsPage() {
     const [userRole, setUserRole] = useState(null)
     const [branches, setBranches] = useState([])
     const [selectedBranchFilter, setSelectedBranchFilter] = useState('all')
-    const [startDate, setStartDate] = useState(() => {
-        const now = new Date()
-        return now.toISOString().split('T')[0]
-    })
-    const [endDate, setEndDate] = useState(() => {
-        const now = new Date()
-        return now.toISOString().split('T')[0]
-    })
+    const [startDate, setStartDate] = useState(() => toLocalYYYYMMDD())
+    const [endDate, setEndDate] = useState(() => toLocalYYYYMMDD())
     const [userLoaded, setUserLoaded] = useState(false)
     
     // Therapist filter & pagination states

@@ -10,6 +10,7 @@ import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import { ensureTreatmentFollowups } from '@/lib/followupQueue'
+import { toLocalYYYYMMDD } from '@/lib/localDate'
 
 function AddRecordForm() {
     const router = useRouter()
@@ -34,7 +35,7 @@ function AddRecordForm() {
         patient_id: urlPatientId || '',
         branch_id: '',
         performed_by: '',
-        treatment_date: new Date().toISOString().split('T')[0],
+        treatment_date: toLocalYYYYMMDD(),
         treatment_time: new Date().toTimeString().substring(0, 5),
         skin_type: '',
         contraindications: '',
@@ -415,8 +416,8 @@ function AddRecordForm() {
         // Anti-Fraud Guardrail: Batasi staf biasa maksimal H-1
         const yesterdayObj = new Date()
         yesterdayObj.setDate(yesterdayObj.getDate() - 1)
-        const yesterday = yesterdayObj.toISOString().split('T')[0]
-        const today = new Date().toISOString().split('T')[0]
+        const yesterday = toLocalYYYYMMDD(yesterdayObj)
+        const today = toLocalYYYYMMDD()
 
         if (currentUserRole !== 'owner' && (formData.treatment_date < yesterday || formData.treatment_date > today)) {
             setError('Akses Terkunci (Anti-Fraud): Staf cabang hanya diizinkan menginput rekam medis untuk hari ini atau maksimal H-1 (kemarin). Hubungi Owner jika ada tindakan lampau.')
@@ -676,8 +677,8 @@ function AddRecordForm() {
                                     onChange={handleChange}
                                     required
                                     readOnly={!!urlAppointmentId}
-                                    min={currentUserRole === 'owner' ? undefined : new Date(Date.now() - 86400000).toISOString().split('T')[0]}
-                                    max={new Date().toISOString().split('T')[0]}
+                                    min={currentUserRole === 'owner' ? undefined : toLocalYYYYMMDD(new Date(Date.now() - 86400000))}
+                                    max={toLocalYYYYMMDD()}
                                     className="input-ayumi bg-white read-only:bg-gray-100 read-only:text-gray-500"
                                 />
                             </div>

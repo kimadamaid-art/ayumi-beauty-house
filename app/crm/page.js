@@ -280,7 +280,7 @@ export default function CRMPage() {
         if (showManualModal) {
             setManualForm(prev => ({
                 ...prev,
-                scheduledDate: new Date().toISOString().split('T')[0],
+                scheduledDate: toLocalYYYYMMDD(),
                 branchId: userBranchId || ''
             }))
         }
@@ -600,7 +600,7 @@ export default function CRMPage() {
             patient_id: dormantPatient.patient_id,
             branch_id: finalBranch,
             followup_type: 'treatment_reminder',
-            scheduled_date: new Date().toISOString().split('T')[0],
+            scheduled_date: toLocalYYYYMMDD(),
             priority: 'high',
             status: 'pending',
             notes: 'Sapaan pasien dormant',
@@ -877,7 +877,7 @@ export default function CRMPage() {
                 patientId: '',
                 branchId: userBranchId || '',
                 followupType: 'treatment_reminder',
-                scheduledDate: new Date().toISOString().split('T')[0],
+                scheduledDate: toLocalYYYYMMDD(),
                 priority: 'normal',
                 notes: ''
             })
