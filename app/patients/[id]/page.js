@@ -88,6 +88,42 @@ export default function PatientDetailPage() {
         return { ...prev, drafts }
     })
 
+    // Tukar foto Samping Kiri <-> Samping Kanan satu sesi, langsung tersimpan.
+    const [swappingSessionKey, setSwappingSessionKey] = useState(null)
+    const swapSessionSides = async (session) => {
+        if (swappingSessionKey) return
+        const sidePhotos = session.photos.filter(p => ['kiri', 'kanan'].includes(getPhotoAngleCategory(p.caption, p.storage_path)))
+        if (sidePhotos.length === 0) return
+        const updates = sidePhotos.map(p => ({
+            id: p.id,
+            from: p.caption,
+            to: getPhotoAngleCategory(p.caption, p.storage_path) === 'kiri' ? 'foto_kanan' : 'foto_kiri'
+        }))
+        const apply = (field) => {
+            const map = Object.fromEntries(updates.map(u => [u.id, u[field]]))
+            setPhotos(prev => prev.map(p => (p.id in map ? { ...p, caption: map[p.id] } : p)))
+        }
+        apply('to')
+        setSwappingSessionKey(session.key)
+        try {
+            for (const u of updates) {
+                const { data, error } = await supabase.from('patient_photos').update({ caption: u.to }).eq('id', u.id).select('id')
+                if (error) throw error
+                if (!data || data.length === 0) throw new Error('Perubahan foto tidak tersimpan. Akun ini mungkin tidak punya izin mengubah foto.')
+            }
+            toast.success('Foto kiri dan kanan sudah ditukar.')
+        } catch (err) {
+            console.warn('Swap photo sides error:', err)
+            apply('from')
+            for (const u of updates) {
+                await supabase.from('patient_photos').update({ caption: u.from }).eq('id', u.id)
+            }
+            toast.error(err?.message?.startsWith('Perubahan foto') ? err.message : getFriendlyErrorMessage(err))
+        } finally {
+            setSwappingSessionKey(null)
+        }
+    }
+
     const savePositions = async () => {
         if (!positionEditor || isSavingPositions) return
         const updates = []
@@ -757,7 +793,7 @@ export default function PatientDetailPage() {
                                 <div>
                                     <h3 className="text-base font-extrabold text-slate-900">Foto Treatment</h3>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                        {photos.length} foto dari {sessions.length} sesi · foto terbalik atau tertukar? klik Atur Posisi Foto
+                                        {photos.length} foto dari {sessions.length} sesi · kiri–kanan tertukar? klik ⇄ di antara fotonya
                                     </p>
                                 </div>
                                 {photos.length >= 2 && (
@@ -844,9 +880,9 @@ export default function PatientDetailPage() {
                                                     const afterPhoto = findAngle(afterSession, angle.key)
                                                     if (!beforePhoto && !afterPhoto) return null
                                                     return (
-                                                        <div key={angle.key}>
+                                                        <div key={angle.key} className="max-w-2xl mx-auto">
                                                             <h5 className="text-xs font-extrabold text-slate-700 mb-2">{angle.label}</h5>
-                                                            <div className="grid grid-cols-2 gap-3 sm:gap-5">
+                                                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
                                                                 {beforePhoto
                                                                     ? renderPhotoTile({ key: 'before', photo: beforePhoto, badge: formatShortDate(beforeSession.date) })
                                                                     : renderEmptyTile({ key: 'before', label: angle.label })}
@@ -948,12 +984,38 @@ export default function PatientDetailPage() {
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-                                                        {angleSpecs.map(slot => {
-                                                            const photo = session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === slot.key)
-                                                            return photo
-                                                                ? renderPhotoTile({ key: slot.key, photo, badge: slot.short })
-                                                                : renderEmptyTile({ key: slot.key, label: slot.label })
-                                                        })}
+                                                        {(() => {
+                                                            const slotTile = (slot) => {
+                                                                const photo = session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === slot.key)
+                                                                return photo
+                                                                    ? renderPhotoTile({ key: slot.key, photo, badge: slot.short })
+                                                                    : renderEmptyTile({ key: slot.key, label: slot.label })
+                                                            }
+                                                            const hasSide = session.photos.some(p => ['kiri', 'kanan'].includes(getPhotoAngleCategory(p.caption, p.storage_path)))
+                                                            const swapping = swappingSessionKey === session.key
+                                                            return (
+                                                                <>
+                                                                    {slotTile(angleSpecs[0])}
+                                                                    {/* Kiri & Kanan dengan tombol tukar di tengahnya */}
+                                                                    <div className="col-span-2 relative grid grid-cols-2 gap-2.5 sm:gap-4">
+                                                                        {slotTile(angleSpecs[1])}
+                                                                        {slotTile(angleSpecs[2])}
+                                                                        {hasSide && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => swapSessionSides(session)}
+                                                                                disabled={swapping}
+                                                                                className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white text-slate-800 border-2 border-slate-200 shadow-lg hover:bg-ayumi-primary hover:text-white hover:border-ayumi-primary flex items-center justify-center transition-colors cursor-pointer disabled:opacity-70"
+                                                                                title="Tukar foto Samping Kiri dan Samping Kanan"
+                                                                                aria-label="Tukar foto Samping Kiri dan Samping Kanan"
+                                                                            >
+                                                                                <svg className={`w-5 h-5 ${swapping ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" /></svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </>
+                                                            )
+                                                        })()}
                                                         {extraPhotos.map(photo => renderPhotoTile({
                                                             key: photo.id,
                                                             photo,

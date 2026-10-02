@@ -7,7 +7,8 @@ import { useState } from 'react'
 // lebar-tingginya agar foto tetap memenuhi bingkai.
 //
 // fit: 'contain' = foto utuh (bisa ada ruang kosong), 'cover' = penuh (tepi bisa terpotong),
-// 'auto' = penuh bila bentuk foto (setelah diputar) mirip bingkai, utuh bila tidak.
+// 'auto' = penuh bila bentuk foto (setelah diputar) hampir sama dengan bingkai (selisih <= 8%,
+// jadi yang terpotong hanya tepi tipis), selain itu utuh agar dahi/dagu tidak hilang.
 export const normalizeRotation = (deg) => ((Math.round((Number(deg) || 0) / 90) * 90) % 360 + 360) % 360
 
 export default function RotatedPhoto({ src, alt = '', rotation = 0, aspect = 3 / 4, fit = 'contain', className = '', imgClassName = '' }) {
@@ -18,7 +19,7 @@ export default function RotatedPhoto({ src, alt = '', rotation = 0, aspect = 3 /
     let objectFit = fit
     if (fit === 'auto') {
         const shownRatio = naturalRatio ? (sideways ? 1 / naturalRatio : naturalRatio) : null
-        objectFit = shownRatio && Math.abs(shownRatio - aspect) / aspect <= 0.25 ? 'cover' : 'contain'
+        objectFit = shownRatio && Math.abs(shownRatio - aspect) / aspect <= 0.08 ? 'cover' : 'contain'
     }
 
     return (
