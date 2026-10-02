@@ -38,6 +38,8 @@ Klinik beroperasi di 4 cabang:
   - Trigger `trigger_auto_followup` (AFTER INSERT treatment_records) membaca `treatment_record_items` saat rekam medis dibuat; karena aplikasi menyimpan item setelahnya, trigger ini praktis tidak menghasilkan antrean.
   - Kasir yang membuat rekam medis langsung ("Tindakan Kasir Langsung") sengaja TIDAK membuat antrean: rekam dummy ini dihapus oleh auto-heal (kasir, input terapis, janji temu) dan oleh API hapus transaksi tanpa membersihkan `followup_queue`, padahal FK `followup_queue.treatment_record_id` menolak penghapusan selama antrean masih ada. Per 2 Okt 2026, 199 rekam dummy sudah punya antrean dari generate massal 30 Sep; penghapusannya oleh auto-heal kemungkinan gagal diam-diam (error Supabase tidak dicek).
   - Isi ulang antrean yang terlewat: `node scripts/backfill-followup-queue.mjs` (dry-run; `--apply` menulis dan mencatat ID ke `backups/`; `--rollback <log>` membatalkan). Dijalankan 2 Okt 2026: 415 baris untuk 173 rekam medis.
+  - CRM mulai dipakai tim Oktober 2026. Antrean `pending` berjadwal sebelum 1 Okt 2026 (1.770 baris, sisa data riwayat) ditandai `skipped` dengan `skip_reason` lewat `node scripts/skip-stale-followups.mjs` (dry-run; `--apply`; `--rollback <log>`). Semua halaman hanya menampilkan antrean `pending`/`rescheduled`.
+  - CRM memuat antrean lengkap per 1.000 baris (`fetchAllRows`); kartu KPI dihitung dari query ringan tersendiri, bukan dari daftar yang sedang tampil.
 - **`transaction_items`**:
   - Hindari baris yatim (orphan rows). Pastikan `product_id` atau `treatment_id` valid.
 - **Supabase Limit**:
