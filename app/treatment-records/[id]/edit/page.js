@@ -9,6 +9,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
+import { syncTreatmentFollowupsAfterEdit } from '@/lib/followupQueue'
 
 function EditRecordForm() {
     const router = useRouter()
@@ -24,6 +25,9 @@ function EditRecordForm() {
     const [treatmentsMaster, setTreatmentsMaster] = useState([])
     const [branches, setBranches] = useState([])
     const [isOwner, setIsOwner] = useState(false)
+
+    // Tanggal treatment saat rekam medis dimuat, untuk menggeser jadwal follow-up bila diubah.
+    const originalTreatmentDateRef = useRef(null)
 
     // Form State
     const [formData, setFormData] = useState({
@@ -124,6 +128,7 @@ function EditRecordForm() {
                 return
             }
 
+            originalTreatmentDateRef.current = recData.treatment_date
             setFormData({
                 patient_id: recData.patient_id,
                 branch_id: recData.branch_id || '',
@@ -439,37 +444,23 @@ function EditRecordForm() {
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)
             if (itemsErr) throw itemsErr
 
-            // 3. Delete old followup queue & insert new ones
-            await supabase.from('followup_queue').delete().eq('treatment_record_id', id)
-
-            const queuesToInsert = []
-            selectedTreatments.forEach(t => {
-                // Auto-schedule follow-up bertahap: 2 minggu, 3 minggu & 1 bulan
-                const followupSteps = [
-                    { days: 14, type: 'followup_2minggu', priority: 'normal' },
-                    { days: 21, type: 'followup_3minggu', priority: 'normal' },
-                    { days: 30, type: 'followup_1bulan', priority: 'normal' }
-                ]
-                followupSteps.forEach(step => {
-                    const scheduledDate = new Date(formData.treatment_date)
-                    scheduledDate.setDate(scheduledDate.getDate() + step.days)
-                    
-                    queuesToInsert.push({
-                        patient_id: formData.patient_id,
-                        treatment_record_id: id,
-                        branch_id: formData.branch_id,
-                        assigned_to: formData.performed_by || null,
-                        followup_type: step.type,
-                        scheduled_date: scheduledDate.toISOString().split('T')[0],
-                        priority: step.priority,
-                        status: 'pending'
-                    })
-                })
+            // 3. Selaraskan antrean follow-up. Antrean lama TIDAK dihapus: dulu antrean dihapus
+            // lalu dibuat ulang dengan tipe yang ditolak database, sehingga antrean pasien hilang
+            // setiap kali rekam medis diedit. Sekarang hanya antrean 'pending' yang disesuaikan
+            // (jadwal digeser bila tanggal treatment berubah); yang sudah selesai tetap utuh.
+            const { error: queueErr } = await syncTreatmentFollowupsAfterEdit(supabase, {
+                patientId: formData.patient_id,
+                treatmentRecordId: id,
+                branchId: formData.branch_id,
+                assignedTo: formData.performed_by || null,
+                treatmentDate: formData.treatment_date,
+                previousTreatmentDate: originalTreatmentDateRef.current
             })
-
-            if (queuesToInsert.length > 0) {
-                const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
-                if (queueErr) console.warn('Followup queue note:', queueErr.message || queueErr)
+            if (queueErr) {
+                console.warn('Followup queue note:', queueErr.message || queueErr)
+                toast.error('Rekam medis tersimpan, tetapi jadwal follow-up CRM gagal diperbarui: ' + (queueErr.message || 'kesalahan tidak diketahui'))
+            } else {
+                originalTreatmentDateRef.current = formData.treatment_date
             }
 
             // 4. Upload Photos if updated (via Server API)
