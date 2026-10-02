@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
-import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
@@ -227,7 +226,7 @@ export default function TreatmentInputPage() {
                                 .from('patient-photos')
                                 .createSignedUrl(photo.storage_path, 60 * 60)
                             return signedData?.signedUrl || null
-                        } catch (e) {
+                        } catch {
                             return null
                         }
                     }))
@@ -241,7 +240,7 @@ export default function TreatmentInputPage() {
                             try {
                                 const { data: pubData } = supabase.storage.from('patient-photos').getPublicUrl(photo.storage_path)
                                 if (pubData?.publicUrl) photoUrl = pubData.publicUrl
-                            } catch (e) {}
+                            } catch {}
                         }
 
                         if (photoUrl) {
@@ -638,7 +637,6 @@ export default function TreatmentInputPage() {
                     .eq('treatment_date', targetDate)
                     .order('created_at', { ascending: false })
 
-                const aptTreatmentIds = selectedTreatments.map(t => t.treatment_id)
                 const foundRecord = doubleCheck?.find(r => {
                     // 1. Cocok persis berdasarkan appointment_id
                     if (r.appointment_id === appointment.id) return true

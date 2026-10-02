@@ -19,7 +19,7 @@ export async function GET(request) {
                             cookiesToSet.forEach(({ name, value, options }) =>
                                 cookieStore.set(name, value, options)
                             )
-                        } catch (error) {
+                        } catch {
                             // Ignored in API routes
                         }
                     },
@@ -155,7 +155,7 @@ export async function GET(request) {
                         .from('patient-photos')
                         .createSignedUrl(p.storage_path, 60 * 60)
                     if (signedData?.signedUrl) fullUrl = signedData.signedUrl
-                } catch (e) {}
+                } catch {}
 
                 if (!fullUrl) {
                     try {
@@ -163,7 +163,7 @@ export async function GET(request) {
                             .from('patient-photos')
                             .getPublicUrl(p.storage_path)
                         if (pubData?.publicUrl) fullUrl = pubData.publicUrl
-                    } catch (e) {}
+                    } catch {}
                 }
             }
             return {

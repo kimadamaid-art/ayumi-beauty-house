@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { usePathname } from 'next/navigation'
 
 const NAV_SECTIONS = [
     {
@@ -137,7 +136,6 @@ export default function GlobalSidebar({
     onMouseLeave 
 }) {
     const pathname = usePathname()
-    const router = useRouter()
 
     const [dbUser, setDbUser] = useState(null)
     const [settingsOpen, setSettingsOpen] = useState(false)

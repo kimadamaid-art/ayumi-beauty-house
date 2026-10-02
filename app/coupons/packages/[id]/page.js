@@ -123,7 +123,6 @@ export default function EditCouponPackagePage() {
     }
 
     const removeItem = async (index) => {
-        const itemToRemove = items[index]
         // If it's an existing item, we might need to delete it from DB on save, 
         // but for simplicity we'll just track current items and delete missing ones on save.
         const newItems = [...items]

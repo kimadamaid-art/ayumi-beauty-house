@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
     BarChart, 
@@ -20,7 +19,6 @@ import {
     Legend 
 } from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
-import BranchFilter from '@/components/ui/BranchFilter'
 
 export default function TreatmentsReportPage() {
     const router = useRouter()

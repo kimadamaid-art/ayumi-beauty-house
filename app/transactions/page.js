@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
 import BranchFilter from "@/components/ui/BranchFilter"
@@ -15,7 +14,7 @@ import { openWhatsApp } from '@/lib/whatsapp'
 import { parsePaymentSplits, getNetTransactionRevenue, getQrisFee } from '@/lib/paymentUtils'
 import { getTransactionRevenueBreakdown, getTransactionPricingSummary } from '@/lib/revenueBreakdown'
 import { getCouponRedeemItemIds } from '@/lib/couponRedeem'
-import { getProductVariants, getProductOriginalPrice } from '@/lib/productVariants'
+import { getProductOriginalPrice } from '@/lib/productVariants'
 
 // Recharts components (we only render them on client side to avoid hydration errors)
 import {
@@ -25,7 +24,6 @@ import {
     YAxis,
     CartesianGrid,
     Tooltip,
-    Legend,
     ResponsiveContainer,
     LineChart,
     Line,
@@ -152,8 +150,6 @@ async function queryTransactionsWithRange(supabaseClient, {
 }
 
 export default function TransactionsPage() {
-    const router = useRouter()
-
     // Auth & UI States
     const [dbUser, setDbUser] = useState(null)
     const [branches, setBranches] = useState([])
@@ -1193,7 +1189,6 @@ export default function TransactionsPage() {
             const primaryColor = [212, 98, 33]    // #D46221 (Oranye Ayumi)
             const secondaryColor = [78, 42, 18]   // #4E2A12 (Cokelat Tua)
             const accentColor = [242, 216, 195]    // #F2D8C3 (Krem Aksen)
-            const bgMuted = [250, 246, 240]        // #FAF6F0 (Warm Off-White)
             const darkText = [44, 30, 22]          // #2C1E16 (Kehitaman)
             const mutedText = [140, 125, 115]      // #8C7D73 (Cokelat Abu-abu)
 
@@ -1303,7 +1298,6 @@ export default function TransactionsPage() {
             let totalTxCount = validDataset.length
             let treatmentQty = 0
             let productQty = 0
-            let couponQty = 0
             const paymentBreakdown = { cash: 0, transfer: 0, qris: 0, debit: 0, credit: 0 }
 
             validDataset.forEach(tx => {
@@ -1317,7 +1311,6 @@ export default function TransactionsPage() {
                 tx.transaction_items?.forEach(i => {
                     if (i.item_type === 'treatment') treatmentQty += i.quantity
                     if (i.item_type === 'product') productQty += i.quantity
-                    if (i.item_type === 'coupon') couponQty += i.quantity
                 })
             })
 

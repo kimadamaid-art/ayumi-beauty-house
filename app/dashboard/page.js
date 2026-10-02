@@ -154,7 +154,6 @@ export default function Dashboard() {
     const [recentBranchTransactions, setRecentBranchTransactions] = useState([])
 
     // Performance Caching & Lifecycle Refs
-    const cachedCategoriesRef = useRef(null)
     const isInitializedRef = useRef(false)
     // Periode terakhir yang metriknya dimuat, untuk menghindari memuat ulang metrik saat
     // yang berubah hanya filter cabang (metrik tidak bergantung padanya).
@@ -191,15 +190,6 @@ export default function Dashboard() {
     // Executive Section Collapsible / Accordion States (Owner)
     const [collapsedSections, setCollapsedSections] = useState({})
     const toggleSection = (key) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }))
-    const expandAllSections = () => setCollapsedSections({})
-    const collapseAllSections = () => setCollapsedSections({
-        branchComparison: true,
-        targetMonitoring: true,
-        topBottom: true,
-        salesInsights: true,
-        categoryAnalytics: true,
-        customerIntelligence: true
-    })
 
     const [branchTotals, setBranchTotals] = useState({
         monthlyTarget: 0,
@@ -2147,7 +2137,6 @@ export default function Dashboard() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5">
                             {branchMonthlyTargetData.map(item => {
                                 const rawPct = Number(item.rawPercent || 0)
-                                const isTargetSet = item.monthlyTarget > 0
 
                                 let barColor = 'bg-rose-500'
                                 let badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200'

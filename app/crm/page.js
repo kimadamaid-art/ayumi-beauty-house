@@ -6,8 +6,6 @@ import { toLocalYYYYMMDD } from '@/lib/localDate'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
-import BranchFilter from '@/components/ui/BranchFilter'
-import ConfirmModal from '@/components/ui/ConfirmModal'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { getCachedUser } from '@/lib/cachedUser'
@@ -921,19 +919,6 @@ export default function CRMPage() {
             return matchSearch && matchBranch;
         })
     }, [dormant, searchTerm, effectiveBranchFilter])
-
-    // Filter logs by effective branch
-    const filteredLogs = useMemo(() => {
-        return logs.filter(l => effectiveBranchFilter === 'All' || l.branch_id === effectiveBranchFilter)
-    }, [logs, effectiveBranchFilter])
-
-    // Analytics Calculations
-    const totalLogs = filteredLogs.length
-    const respondedCount = filteredLogs.filter(l => l.outcome === 'responded' || l.outcome === 'booked').length
-    const bookedCount = filteredLogs.filter(l => l.outcome === 'booked').length
-    
-    const responseRate = totalLogs > 0 ? Math.round((respondedCount / totalLogs) * 100) : 0
-    const conversionRate = totalLogs > 0 ? Math.round((bookedCount / totalLogs) * 100) : 0
 
     const todayDateStr = toLocalYYYYMMDD()
     const d7Date = new Date()

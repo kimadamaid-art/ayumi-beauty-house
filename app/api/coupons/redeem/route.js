@@ -31,7 +31,7 @@ export async function POST(request) {
                             cookiesToSet.forEach(({ name, value, options }) =>
                                 cookieStore.set(name, value, options)
                             )
-                        } catch (error) {
+                        } catch {
                             // Diabaikan di API route
                         }
                     },

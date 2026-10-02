@@ -12,6 +12,13 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Non-app folders: one-off scripts, SQL, data dumps and backups.
+    "scratch/**",
+    "migrations/**",
+    "migrations_archive/**",
+    "backups/**",
+    "data_dump/**",
+    "scripts/**",
   ]),
 ]);
 

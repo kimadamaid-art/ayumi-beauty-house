@@ -6,13 +6,11 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
-import BranchFilter from '@/components/ui/BranchFilter'
-import LoadingSkeleton from '@/components/ui/LoadingSkeleton'
 import { usePatientSearch } from '@/hooks/usePatientSearch'
 import { validatePatientData } from '@/lib/patientValidation'
 import HorizontalCategoryRow from '@/components/pos/HorizontalCategoryRow'
 import ItemVariantModal from '@/components/pos/ItemVariantModal'
-import { getItemInitials, getItemCategory, getProductVariants, formatProductDescription, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
+import { getItemCategory, getProductVariants, formatProductDescription, DEFAULT_CATEGORY_ORDER } from '@/lib/productVariants'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import { notifyLowStock } from '@/lib/notifications'
 import { getCachedUser } from '@/lib/cachedUser'
@@ -86,9 +84,7 @@ function PosPageContent() {
         searchQuery: searchPatientQuery,
         setSearchQuery: setSearchPatientQuery,
         results: patientSearchResults,
-        isSearching: isSearchingPatient,
-        hasSearched: hasSearchedPatient,
-        resetSearch: resetPatientSearch
+        isSearching: isSearchingPatient
     } = usePatientSearch({ debounceMs: 150, limit: 50 })
 
     // UI State
@@ -516,7 +512,6 @@ function PosPageContent() {
     }
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchInitialData()
     }, [supabase])
 
@@ -1004,7 +999,6 @@ function PosPageContent() {
     // When branch changes, fetch available products for that branch and refresh pending bills
     useEffect(() => {
         if (selectedBranch) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             fetchProducts(selectedBranch)
             fetchPendingBills(selectedBranch)
             setCart(prev => prev.filter(item => item.item_type !== 'product')) // Clear products from cart if branch changes
@@ -1218,11 +1212,6 @@ function PosPageContent() {
         setPendingBills(prev => prev.filter(b => b.id !== bill.id))
         toast.success(`Tagihan ${bill.patients?.full_name || 'Pasien'} berhasil dibatalkan.`)
         fetchPendingBills(selectedBranch)
-    }
-
-    const handleOpenPendingModal = () => {
-        fetchPendingBills(selectedBranch)
-        setIsPendingModalOpen(true)
     }
 
     const loadPendingBillToCart = async (bill) => {
@@ -2686,12 +2675,12 @@ function PosPageContent() {
             }
             try {
                 sessionStorage.setItem(`ayumi_receipt_${trxData.id}`, JSON.stringify(preloadedReceipt))
-            } catch (e) {}
+            } catch {}
 
             // Clear active draft from localStorage & reset all cart states
             try {
                 localStorage.removeItem('ayumi_pos_active_draft')
-            } catch (e) {}
+            } catch {}
 
             setCart([])
             setSelectedPatient(null)
@@ -2743,11 +2732,11 @@ function PosPageContent() {
                 }
                 try {
                     sessionStorage.setItem(`ayumi_receipt_${savedTrxData.id}`, JSON.stringify(preloadedReceipt))
-                } catch (e) {}
+                } catch {}
 
                 try {
                     localStorage.removeItem('ayumi_pos_active_draft')
-                } catch (e) {}
+                } catch {}
                 setCart([])
                 setSelectedPatient(null)
                 setSelectedPatientDetails(null)
@@ -2773,9 +2762,6 @@ function PosPageContent() {
             setIsProcessing(false)
         }
     }
-
-    // Additional UI state for collapsible add-item panel
-    const [showAddItemPanel, setShowAddItemPanel] = useState(false)
 
     if (isLoading) {
         return <div className="p-5 md:p-8 text-center animate-pulse text-ayumi-text-muted">Memuat antarmuka kasir...</div>

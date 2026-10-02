@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
-import { toast } from 'react-hot-toast'
-import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 
 export default function AppointmentDetailPage() {
     const router = useRouter()
@@ -150,7 +148,7 @@ export default function AppointmentDetailPage() {
         try {
             const date = new Date(isoString)
             return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
-        } catch (e) {
+        } catch {
             return ''
         }
     }

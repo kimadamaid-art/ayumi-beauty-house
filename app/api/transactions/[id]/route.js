@@ -24,7 +24,7 @@ export async function DELETE(request, { params }) {
                             cookiesToSet.forEach(({ name, value, options }) =>
                                 cookieStore.set(name, value, options)
                             )
-                        } catch (error) {
+                        } catch {
                             // Ignored in API routes
                         }
                     },
@@ -231,7 +231,7 @@ export async function PATCH(request, { params }) {
                             cookiesToSet.forEach(({ name, value, options }) =>
                                 cookieStore.set(name, value, options)
                             )
-                        } catch (error) {}
+                        } catch {}
                     },
                 },
             }

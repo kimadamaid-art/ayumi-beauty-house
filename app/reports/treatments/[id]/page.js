@@ -49,7 +49,6 @@ export default function TreatmentDetailReportPage() {
         const qBranch = searchParams.get('branch')
         
         const now = new Date()
-        const firstDay = getLocalYYYYMMDD(new Date(now.getFullYear(), now.getMonth(), 1))
         const todayStr = getLocalYYYYMMDD(now)
 
         setStartDate(qStart || todayStr)

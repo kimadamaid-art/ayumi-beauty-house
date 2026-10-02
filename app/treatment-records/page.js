@@ -6,7 +6,6 @@ import { getCachedUser } from '@/lib/cachedUser'
 import { getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
-import BranchFilter from '@/components/ui/BranchFilter'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 
 export default function TreatmentRecordsPage() {

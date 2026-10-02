@@ -39,7 +39,7 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
                 const devices = await navigator.mediaDevices.enumerateDevices()
                 const videoDevices = devices.filter(d => d.kind === 'videoinput')
                 setHasMultipleCameras(videoDevices.length > 1)
-            } catch (e) {
+            } catch {
                 // Ignore enumerate devices error
             }
 

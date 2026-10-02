@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { toast } from 'react-hot-toast'
 
 export default function NewCouponPackagePage() {
     const router = useRouter()

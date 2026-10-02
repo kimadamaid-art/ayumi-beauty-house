@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useState, useEffect, Fragment } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
 import Link from 'next/link'
 import DateRangePicker from "../../components/DateRangePicker"
-import BranchFilter from '@/components/ui/BranchFilter'
 import { escapePostgrestFilter } from '@/lib/searchSanitizer'
 
 export default function CouponsDashboardPage() {

@@ -319,36 +319,6 @@ export default function GlobalHeader({ onMenuToggle }) {
         window.location.replace('/login')
     }
 
-    // Determine Page Title
-    const getPageTitle = () => {
-        if (pathname.startsWith('/dashboard')) return 'Dashboard Overview'
-        if (pathname.startsWith('/patients/new')) return 'Tambah Pasien Baru'
-        if (pathname.match(/^\/patients\/[^/]+$/)) return 'Detail Pasien'
-        if (pathname.startsWith('/patients')) return 'Manajemen Pasien'
-        if (pathname.startsWith('/appointments/new')) return 'Buat Jadwal Janji Temu'
-        if (pathname.startsWith('/appointments')) return 'Jadwal Janji Temu Pasien'
-        if (pathname.startsWith('/treatment-records/new')) return 'Buat Rekam Medis'
-        if (pathname.startsWith('/treatment-records')) return 'Rekam Medis & Riwayat'
-        if (pathname.startsWith('/kasir/history')) return 'Riwayat Transaksi Kasir'
-        if (pathname.startsWith('/kasir')) return 'Kasir & POS Penjualan'
-        if (pathname.startsWith('/transactions')) return 'Laporan Transaksi'
-        if (pathname.startsWith('/crm')) return 'Customer Relationship (CRM)'
-        if (pathname.startsWith('/coupons')) return 'Kupon & Loyalty'
-        if (pathname.startsWith('/reports/therapists')) return 'Laporan Komisi Terapis'
-        if (pathname.startsWith('/reports/treatments')) return 'Laporan Treatment'
-        if (pathname.startsWith('/reports')) return 'Laporan & Analitik'
-        if (pathname.startsWith('/settings/branches')) return 'Manajemen Cabang'
-        if (pathname.startsWith('/settings/users')) return 'Manajemen Karyawan'
-        if (pathname.startsWith('/settings/treatments')) return 'Master Layanan'
-        if (pathname.startsWith('/settings/products')) return 'Master Produk'
-        if (pathname.startsWith('/settings/product-stock')) return 'Stok Produk Cabang'
-        if (pathname.startsWith('/settings/backup')) return 'Backup & Keamanan Data'
-        if (pathname.startsWith('/settings')) return 'Pengaturan Sistem'
-        if (pathname.startsWith('/therapist/dashboard')) return 'Dashboard Terapis'
-        if (pathname.startsWith('/therapist/appointments')) return 'Riwayat & Komisi Terapis'
-        return 'Ayumi Beauty House'
-    }
-
     return (
         <header className="bg-white border-b border-gray-100 h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
             <div className="flex items-center gap-3">

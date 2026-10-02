@@ -1,14 +1,11 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { toLocalYYYYMMDD } from '@/lib/localDate'
 import { getCachedUser, getCachedBranches } from '@/lib/cachedBranches'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from "../../../components/DateRangePicker"
-import BranchFilter from '@/components/ui/BranchFilter'
 import { toast } from 'react-hot-toast'
 import { getLogoBase64 } from '@/lib/pdfLogo'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
@@ -196,7 +193,6 @@ export default function TherapistsReportPage() {
 
         treatmentItems.forEach(item => {
             const therapistId = item.treatment_records?.performed_by
-            const commissionPercent = Number(item.commission_percent !== undefined && item.commission_percent !== null ? item.commission_percent : 5)
             const isWorker = item.notes?.includes('[WORKER]') ||
                              isInfusionTreatment(item.treatments?.name || item.name || '', item.notes || '')
             
@@ -296,16 +292,12 @@ export default function TherapistsReportPage() {
         }
     }
 
-    const fileInputRef = useRef(null)
-
     const handleExcelExport = async () => {
         if (therapistMetrics.length === 0) {
             alert('Tidak ada data untuk diexpor.')
             return
         }
 
-        const todayStr = toLocalYYYYMMDD()
-        
         const rows = therapistMetrics.map((t, idx) => ({
             "Rank": idx + 1,
             "Nama Terapis": t.name,
@@ -361,7 +353,6 @@ export default function TherapistsReportPage() {
             const primaryColor = [212, 98, 33]
             const secondaryColor = [78, 42, 18]
             const accentColor = [242, 216, 195]
-            const bgMuted = [250, 246, 240]
             const darkText = [44, 30, 22]
             const mutedText = [140, 125, 115]
 

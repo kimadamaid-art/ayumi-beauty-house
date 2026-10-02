@@ -18,7 +18,7 @@ export default function ReceiptPage() {
             try {
                 const cached = sessionStorage.getItem(`ayumi_receipt_${id}`)
                 if (cached) return JSON.parse(cached)
-            } catch (e) {}
+            } catch {}
         }
         return null
     })
@@ -27,7 +27,7 @@ export default function ReceiptPage() {
             try {
                 const cached = sessionStorage.getItem(`ayumi_receipt_${id}`)
                 if (cached) return false
-            } catch (e) {}
+            } catch {}
         }
         return true
     })
@@ -67,7 +67,7 @@ export default function ReceiptPage() {
             setTransaction(data)
             try {
                 sessionStorage.setItem(`ayumi_receipt_${id}`, JSON.stringify(data))
-            } catch (e) {}
+            } catch {}
         } else if (!transaction) {
             console.error(error)
             alert('Transaksi tidak ditemukan!')
@@ -501,7 +501,7 @@ export default function ReceiptPage() {
                     dlLink.download = fileName
                     dlLink.href = URL.createObjectURL(blob)
                     dlLink.click()
-                } catch (e) {}
+                } catch {}
 
                 const customerName = transaction.patients?.full_name || 'Pelanggan Ayumi'
                 const receiptSummary = getReceiptSummary(transaction)

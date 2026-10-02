@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-import BranchFilter from '@/components/ui/BranchFilter'
 import { getProductVariants, getItemCategory, formatProductDescription } from '@/lib/productVariants'
 import { notifyLowStock } from '@/lib/notifications'
 
