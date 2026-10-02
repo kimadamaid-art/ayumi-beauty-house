@@ -51,6 +51,10 @@ export default function BranchesPage() {
             .from('branches')
             .select('*')
             .order('name', { ascending: true })
+        if (error) {
+            console.error('Gagal memuat cabang:', error)
+            toast.error('Gagal memuat daftar cabang: ' + getFriendlyErrorMessage(error), { id: 'branches-load-error' })
+        }
         if (data) setBranches(data)
         setLoading(false)
     }

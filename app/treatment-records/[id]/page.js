@@ -234,6 +234,12 @@ export default function TreatmentRecordDetailPage() {
                 .select('*')
                 .eq('treatment_record_id', id)
 
+            // Dulu error diabaikan: foto tidak tampil dan staf mengira belum diunggah.
+            if (photosErr) {
+                console.error('Gagal memuat foto rekam medis:', photosErr)
+                toast.error('Foto rekam medis gagal dimuat. Muat ulang halaman untuk mencoba lagi.', { id: 'record-photos-error' })
+            }
+
             if (photosData && photosData.length > 0) {
                 const urls = {}
                 const rotations = {}

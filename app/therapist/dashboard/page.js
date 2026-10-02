@@ -197,6 +197,14 @@ export default function TherapistDashboard() {
 
         const { data, error } = await query
 
+        // Dulu error diabaikan: jadwal tampil kosong tanpa pesan dan terapis mengira tidak
+        // ada jadwal. Refresh senyap (realtime/interval) tidak memunculkan pesan; jadwal
+        // terakhir tetap tampil.
+        if (error) {
+            console.error('Gagal memuat jadwal terapis:', error)
+            if (!silent) toast.error('Gagal memuat jadwal: ' + getFriendlyErrorMessage(error), { id: 'therapist-schedule-error' })
+        }
+
         if (data) {
             const allPatientIds = Array.from(new Set(data.map(a => a.patient_id).filter(Boolean)))
             if (allPatientIds.length > 0) {

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { fetchAllPaginated } from '@/lib/fetchAllPaginated'
+import { toast } from 'react-hot-toast'
+import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import DateRangePicker from '@/components/DateRangePicker'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { getCommissionBasePrice, calculateTherapistCommission, buildCouponPriceMap, isInfusionTreatment } from '@/lib/commissionUtils'
@@ -92,6 +94,10 @@ function TherapistHistoryContent() {
         }
 
         const { data, error } = await fetchAllPaginated(buildQuery)
+        if (error) {
+            console.error('Gagal memuat riwayat treatment terapis:', error)
+            toast.error('Gagal memuat riwayat treatment: ' + getFriendlyErrorMessage(error), { id: 'therapist-history-error' })
+        }
         if (data) {
             const allPatientIds = Array.from(new Set(data.map(r => r.patient_id).filter(Boolean)))
 
