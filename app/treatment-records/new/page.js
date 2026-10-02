@@ -9,6 +9,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
+import { ensureTreatmentFollowups } from '@/lib/followupQueue'
 
 function AddRecordForm() {
     const router = useRouter()
@@ -518,7 +519,6 @@ function AddRecordForm() {
 
             // 2. Insert Record Items & Followup Queue & Coupon Logs
             const itemsToInsert = []
-            const queuesToInsert = []
             const couponLogsToInsert = []
             const couponsToUpdate = []
 
@@ -551,36 +551,24 @@ function AddRecordForm() {
                     })
                     couponsToUpdate.push(t.used_coupon_item_id)
                 }
-
-                // Auto-schedule follow-up bertahap: 2 minggu, 3 minggu & 1 bulan
-                const followupSteps = [
-                    { days: 14, type: 'followup_2minggu', priority: 'normal' },
-                    { days: 21, type: 'followup_3minggu', priority: 'normal' },
-                    { days: 30, type: 'followup_1bulan', priority: 'normal' }
-                ]
-                followupSteps.forEach(step => {
-                    const scheduledDate = new Date(formData.treatment_date)
-                    scheduledDate.setDate(scheduledDate.getDate() + step.days)
-                    
-                    queuesToInsert.push({
-                        patient_id: formData.patient_id,
-                        treatment_record_id: recordId,
-                        branch_id: formData.branch_id,
-                        assigned_to: formData.performed_by || null,
-                        followup_type: step.type,
-                        scheduled_date: scheduledDate.toISOString().split('T')[0],
-                        priority: step.priority,
-                        status: 'pending'
-                    })
-                })
             })
 
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)
             if (itemsErr) throw itemsErr
 
-            if (queuesToInsert.length > 0) {
-                const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
-                if (queueErr) console.warn('Followup queue note:', queueErr.message || queueErr)
+            // Antrean follow-up 2 minggu, 3 minggu & 1 bulan: satu set per rekam medis.
+            if (selectedTreatments.length > 0) {
+                const { error: queueErr } = await ensureTreatmentFollowups(supabase, {
+                    patientId: formData.patient_id,
+                    treatmentRecordId: recordId,
+                    branchId: formData.branch_id,
+                    assignedTo: formData.performed_by || null,
+                    treatmentDate: formData.treatment_date
+                })
+                if (queueErr) {
+                    console.warn('Followup queue note:', queueErr.message || queueErr)
+                    toast.error('Rekam medis tersimpan, tetapi jadwal follow-up CRM gagal dibuat: ' + (queueErr.message || 'kesalahan tidak diketahui'))
+                }
             }
 
             if (couponLogsToInsert.length > 0) {
