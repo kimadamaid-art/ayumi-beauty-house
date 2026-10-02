@@ -31,10 +31,12 @@ Klinik beroperasi di 4 cabang:
 - **`followup_queue` & `followup_logs`**:
   - Kolom `branch_id` wajib terisi. Jangan pernah meng-insert `null` (selalu berikan fallback ke `item.branch_id || patient.branch_id || userBranchId`).
   - Check constraint `followup_type` **berbeda per tabel**:
-    - `followup_queue`: `'treatment_reminder'`, `'birthday'`, `'manual'`. Tipe tahap seperti `followup_2minggu`/`3minggu`/`1bulan`, `dormant_reminder`, `custom_reminder` ditolak (error `23514`). Bukti: per 2 Okt 2026 tabel ini hanya berisi `treatment_reminder` dan `birthday`, padahal 653 rekam medis sejak 1 Sep mencoba menyisipkan tipe tahap.
+    - `followup_queue`: `'treatment_reminder'`, `'birthday'`, `'dormant_reactivation'`, `'manual'` (menurut `scripts/migration/schema_dump.sql`, dump 22 Sep). Tipe tahap seperti `followup_2minggu`/`3minggu`/`1bulan`, `dormant_reminder`, `custom_reminder` ditolak (error `23514`).
     - `followup_logs` (migrasi `20261001_crm_treatment_targets.sql`): `'treatment_reminder'`, `'birthday'`, `'dormant_reactivation'`, `'manual'`, `'treatment_specific'`. Tabel ini juga punya kolom `treatment_id` (boleh kosong).
-  - Sub-tipe pesan disimpan sebagai prefix `notes` (e.g. `[followup_2minggu] Catatan...`), seperti yang dilakukan `app/crm/page.js` saat menulis log.
-  - **Bug yang diketahui (belum diperbaiki)**: `app/treatment-records/new/page.js` dan `app/treatment-records/[id]/edit/page.js` menyisipkan antrean dengan tipe `followup_2minggu`/`3minggu`/`1bulan`, sehingga selalu gagal dan error-nya hanya di-`console.warn`. Halaman edit juga menghapus antrean lama rekam medis itu lebih dulu, jadi antreannya hilang. Form "Tambah Follow Up Manual" di CRM menawarkan tipe yang ditolak dan hanya `treatment_reminder` yang berhasil.
+  - Sub-tipe pesan disimpan sebagai prefix `notes` (e.g. `[followup_2minggu] Catatan...`): log WA di CRM, dan antrean manual bertipe `manual` yang dibaca kembali oleh `getEffectiveFollowupType`.
+  - **Antrean setelah treatment** dibuat lewat `lib/followupQueue.js`: tiga baris `treatment_reminder` per rekam medis (+14/+21/+30 hari), tidak ditambah bila rekam medis sudah punya antrean. CRM menurunkan label 2 Minggu/3 Minggu/1 Bulan dari selisih hari jadwal terhadap tanggal treatment. Edit rekam medis memakai `syncTreatmentFollowupsAfterEdit` (tidak menghapus antrean; hanya yang `pending` disesuaikan). Antrean lama hasil generate massal 30 Sep berjarak +13/+20/+29 hari karena geseran zona waktu; labelnya tetap benar.
+  - Trigger `trigger_auto_followup` (AFTER INSERT treatment_records) membaca `treatment_record_items` saat rekam medis dibuat; karena aplikasi menyimpan item setelahnya, trigger ini praktis tidak menghasilkan antrean.
+  - Kasir yang membuat rekam medis langsung tidak membuat antrean follow-up.
 - **`transaction_items`**:
   - Hindari baris yatim (orphan rows). Pastikan `product_id` atau `treatment_id` valid.
 - **Supabase Limit**:
