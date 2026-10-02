@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import { ensureTreatmentFollowups } from '@/lib/followupQueue'
 import CameraCaptureModal from '@/components/ui/CameraCaptureModal'
 import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistoryModal'
 import { compressImageForMedical } from '@/lib/imageCompression'
@@ -743,7 +744,7 @@ export default function TreatmentInputPage() {
 
             // 2. Insert Treatment Record Items + Followup Queue
             const itemsToInsert = []
-            const queuesToInsert = []
+            let hasTherapistItem = false
 
             selectedTreatments.forEach((t, index) => {
                 const isInfusItem = isInfusionTreatment(t.name, t.notes)
@@ -765,38 +766,26 @@ export default function TreatmentInputPage() {
                     worker_fee_at_time: Number(t.worker_fee_at_time || 0)
                 })
 
-                // Auto-schedule follow-up bertahap hanya untuk tindakan terapis (skip worker infus)
-                if (!isWorkerItem) {
-                    const baseDateStr = appointment.appointment_date || new Date().toISOString().split('T')[0]
-                    const followupSteps = [
-                        { days: 14, type: 'followup_2minggu', priority: 'normal' },
-                        { days: 21, type: 'followup_3minggu', priority: 'normal' },
-                        { days: 30, type: 'followup_1bulan', priority: 'normal' }
-                    ]
-                    followupSteps.forEach(step => {
-                        const scheduledDate = new Date(baseDateStr + 'T00:00:00')
-                        scheduledDate.setDate(scheduledDate.getDate() + step.days)
-                        queuesToInsert.push({
-                            patient_id: appointment.patient_id,
-                            treatment_record_id: recordId,
-                            branch_id: appointment.branch_id || dbUser?.branch_id || null,
-                            assigned_to: dbUser.id,
-                            followup_type: step.type,
-                            scheduled_date: scheduledDate.toISOString().split('T')[0],
-                            priority: step.priority,
-                            status: 'pending'
-                        })
-                    })
-                }
+                // Follow-up bertahap hanya untuk tindakan terapis (skip worker infus)
+                if (!isWorkerItem) hasTherapistItem = true
             })
 
             const { error: itemsErr } = await supabase.from('treatment_record_items').insert(itemsToInsert)
             if (itemsErr) throw itemsErr
 
-            if (queuesToInsert.length > 0) {
-                const { error: queueErr } = await supabase.from('followup_queue').insert(queuesToInsert)
+            // Antrean follow-up 2 minggu, 3 minggu & 1 bulan: satu set per rekam medis, dan
+            // tidak ditambah lagi bila rekam medis ini sudah punya antrean (simpan ulang).
+            if (hasTherapistItem) {
+                const { error: queueErr } = await ensureTreatmentFollowups(supabase, {
+                    patientId: targetPatientId,
+                    treatmentRecordId: recordId,
+                    branchId: appointment.branch_id || dbUser?.branch_id || null,
+                    assignedTo: dbUser.id,
+                    treatmentDate: appointment.appointment_date || new Date().toISOString().split('T')[0]
+                })
                 if (queueErr) {
                     console.warn('Followup queue note:', queueErr.message || queueErr)
+                    toast.error('Rekam medis tersimpan, tetapi jadwal follow-up CRM gagal dibuat: ' + (queueErr.message || 'kesalahan tidak diketahui'))
                 }
             }
 
