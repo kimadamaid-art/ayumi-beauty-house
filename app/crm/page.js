@@ -22,6 +22,9 @@ const PAGE_SIZE = 1000
 // di bawah batas umum 8 KB -- sambil menekan jumlah permintaan (670 pasien = 4 permintaan).
 const IN_BATCH = 200
 const DAY_MS = 1000 * 60 * 60 * 24
+// Baris antrean yang dirender sekaligus. Antrean bisa ribuan baris; merender semuanya
+// membuat halaman berat, terutama di HP.
+const QUEUE_RENDER_STEP = 200
 
 // Mengembalikan null bila salah satu halaman gagal: data sebagian terlihat wajar padahal
 // kurang, jadi lebih baik tidak memperbarui tampilan sama sekali.
@@ -211,6 +214,10 @@ export default function CRMPage() {
     const [priorityFilter, setPriorityFilter] = useState('All')
     const [typeFilter, setTypeFilter] = useState('All')
     const [timeframeFilter, setTimeframeFilter] = useState('due')
+    // Antrean pending (s/d 7 hari ke depan) untuk kartu KPI, terlepas dari filter jadwal.
+    const [kpiQueue, setKpiQueue] = useState([])
+    // Jumlah baris antrean yang dirender; sisanya lewat tombol "Tampilkan lebih banyak".
+    const [queueVisibleCount, setQueueVisibleCount] = useState(QUEUE_RENDER_STEP)
     const [branchFilter, setBranchFilter] = useState('All')
 
     // Modal States
@@ -281,6 +288,7 @@ export default function CRMPage() {
 
     const fetchData = async () => {
         setLoading(true)
+        setQueueVisibleCount(QUEUE_RENDER_STEP)
 
         // 1. Get cached user & branches instantly (0ms)
         const [{ user: currentUser, dbUser: userData }, brData] = await Promise.all([
@@ -296,75 +304,111 @@ export default function CRMPage() {
         if (brData) setBranches(brData)
 
         const todayDateStr = toLocalYYYYMMDD()
-
-        // 1. Follow Up Queue Query
-        let qQuery = supabase
-            .from('followup_queue')
-            .select(`
-                *,
-                patients!inner(full_name, whatsapp, branch_id),
-                treatment_records (treatment_date, branch_id)
-            `)
-            .in('status', ['pending', 'rescheduled'])
-
-        if (!ownerFlag && userBranch) {
-            qQuery = qQuery.eq('branch_id', userBranch)
-        }
-
-        if (timeframeFilter === 'due') {
-            qQuery = qQuery.lte('scheduled_date', todayDateStr).order('scheduled_date', { ascending: false })
-        } else if (timeframeFilter === 'upcoming_7') {
+        // Tanggal WIB n hari dari hari ini. toISOString() memberi tanggal UTC yang
+        // tertinggal sehari bila halaman dibuka antara 00:00 dan 06:59 WIB.
+        const localDatePlus = (days) => {
             const d = new Date()
-            d.setDate(d.getDate() + 7)
-            qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', d.toISOString().split('T')[0]).order('scheduled_date', { ascending: true })
-        } else if (timeframeFilter === 'upcoming_14') {
-            const d = new Date()
-            d.setDate(d.getDate() + 14)
-            qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', d.toISOString().split('T')[0]).order('scheduled_date', { ascending: true })
-        } else if (timeframeFilter === 'upcoming_30') {
-            const d = new Date()
-            d.setDate(d.getDate() + 30)
-            qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', d.toISOString().split('T')[0]).order('scheduled_date', { ascending: true })
-        } else {
-            qQuery = qQuery.order('scheduled_date', { ascending: false })
+            d.setDate(d.getDate() + days)
+            return toLocalYYYYMMDD(d)
         }
+        const next7Str = localDatePlus(7)
 
-        // 5. Logs for Analytics Query
-        const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-        let logsQuery = supabase
-            .from('followup_logs')
-            .select('*')
-            .gte('created_at', firstDayOfMonth)
-        if (!ownerFlag && userBranch) {
-            logsQuery = logsQuery.eq('branch_id', userBranch)
-        }
-
-        // Antrean dan log dimuat bersamaan. Ulang tahun & dormant dimuat terpisah oleh
-        // loadBirthdaysAndDormant, jadi halaman bisa dipakai tanpa menunggu keduanya.
-        const [
-            qRes,
-            logRes
-        ] = await Promise.all([
-            qQuery,
-            logsQuery
-        ])
-
-        const rawQData = qRes?.data
-        const logData = logRes?.data
-
-        // Process Queue
-        let qData = []
-        if (rawQData) {
+        // Admin cabang: antrean miliknya juga mencakup antrean yang rekam treatment-nya
+        // dilakukan di cabangnya.
+        const scopeToUserBranch = (rows) => {
             if (!ownerFlag && userBranch) {
-                qData = rawQData.filter(q => {
+                return rows.filter(q => {
                     if (q.branch_id === userBranch) return true
                     if (q.treatment_records && q.treatment_records.branch_id === userBranch) return true
                     if (!q.branch_id && !q.treatment_records && q.patients?.branch_id === userBranch) return true
                     return false
                 })
-            } else {
-                qData = rawQData
             }
+            return rows
+        }
+
+        // 1. Follow Up Queue Query. Dibangun ulang per halaman (builder Supabase tidak aman
+        // dipakai ulang) dan dimuat lengkap: dulu satu permintaan terpotong di 1000 baris,
+        // sehingga antrean yang paling lama terlambat tidak pernah tampil.
+        const buildQueueQuery = () => {
+            let qQuery = supabase
+                .from('followup_queue')
+                .select(`
+                    *,
+                    patients!inner(full_name, whatsapp, branch_id),
+                    treatment_records (treatment_date, branch_id)
+                `)
+                .in('status', ['pending', 'rescheduled'])
+
+            if (!ownerFlag && userBranch) {
+                qQuery = qQuery.eq('branch_id', userBranch)
+            }
+
+            if (timeframeFilter === 'due') {
+                qQuery = qQuery.lte('scheduled_date', todayDateStr).order('scheduled_date', { ascending: false })
+            } else if (timeframeFilter === 'upcoming_7') {
+                qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', localDatePlus(7)).order('scheduled_date', { ascending: true })
+            } else if (timeframeFilter === 'upcoming_14') {
+                qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', localDatePlus(14)).order('scheduled_date', { ascending: true })
+            } else if (timeframeFilter === 'upcoming_30') {
+                qQuery = qQuery.gte('scheduled_date', todayDateStr).lte('scheduled_date', localDatePlus(30)).order('scheduled_date', { ascending: true })
+            } else {
+                qQuery = qQuery.order('scheduled_date', { ascending: false })
+            }
+            // Urutan kedua yang unik agar batas antarhalaman stabil (tidak dobel/terlewat).
+            return qQuery.order('id', { ascending: true })
+        }
+
+        // Data ringan untuk kartu "Perlu Dihubungi" & "7 Hari Mendatang". Dulu kartu dihitung
+        // dari daftar yang sedang tampil, sehingga ikut terpotong 1000 baris dan "7 Hari
+        // Mendatang" selalu 0 saat filter jadwal "Jatuh Tempo" aktif.
+        const buildKpiQuery = () => {
+            let kQuery = supabase
+                .from('followup_queue')
+                .select('id, scheduled_date, branch_id, patients!inner(branch_id), treatment_records (branch_id)')
+                .in('status', ['pending', 'rescheduled'])
+                .lte('scheduled_date', next7Str)
+            if (!ownerFlag && userBranch) {
+                kQuery = kQuery.eq('branch_id', userBranch)
+            }
+            return kQuery.order('id', { ascending: true })
+        }
+
+        // 5. Logs for Analytics Query
+        const firstDayOfMonth = toLocalYYYYMMDD(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+        const buildLogsQuery = () => {
+            let logsQuery = supabase
+                .from('followup_logs')
+                .select('*')
+                .gte('created_at', firstDayOfMonth)
+            if (!ownerFlag && userBranch) {
+                logsQuery = logsQuery.eq('branch_id', userBranch)
+            }
+            return logsQuery.order('id', { ascending: true })
+        }
+
+        // Antrean, data KPI, dan log dimuat bersamaan. Ulang tahun & dormant dimuat terpisah
+        // oleh loadBirthdaysAndDormant, jadi halaman bisa dipakai tanpa menunggu keduanya.
+        // fetchAllRows mengembalikan null bila ada halaman yang gagal; tampilan lalu tidak
+        // diperbarui, sama seperti sebelumnya saat query gagal.
+        const [
+            rawQData,
+            kpiData,
+            logData
+        ] = await Promise.all([
+            fetchAllRows(buildQueueQuery),
+            fetchAllRows(buildKpiQuery),
+            fetchAllRows(buildLogsQuery)
+        ])
+
+        if (kpiData) {
+            setKpiQueue(scopeToUserBranch(kpiData))
+        }
+
+        // Process Queue
+        let qData = []
+        if (rawQData) {
+            qData = scopeToUserBranch(rawQData)
         }
             
         if (qData) {
@@ -941,24 +985,24 @@ export default function CRMPage() {
     const next7DaysStr = toLocalYYYYMMDD(d7Date)
 
     const dueTodayCount = useMemo(() => {
-        return queue.filter(q => {
+        return kpiQueue.filter(q => {
             const matchBranch = effectiveBranchFilter === 'All' || 
                 q.branch_id === effectiveBranchFilter || 
                 (q.treatment_records && q.treatment_records.branch_id === effectiveBranchFilter) ||
                 (q.patients && q.patients.branch_id === effectiveBranchFilter);
             return matchBranch && q.scheduled_date && q.scheduled_date <= todayDateStr;
         }).length
-    }, [queue, effectiveBranchFilter, todayDateStr])
+    }, [kpiQueue, effectiveBranchFilter, todayDateStr])
 
     const upcoming7Count = useMemo(() => {
-        return queue.filter(q => {
+        return kpiQueue.filter(q => {
             const matchBranch = effectiveBranchFilter === 'All' || 
                 q.branch_id === effectiveBranchFilter || 
                 (q.treatment_records && q.treatment_records.branch_id === effectiveBranchFilter) ||
                 (q.patients && q.patients.branch_id === effectiveBranchFilter);
             return matchBranch && q.scheduled_date && q.scheduled_date > todayDateStr && q.scheduled_date <= next7DaysStr;
         }).length
-    }, [queue, effectiveBranchFilter, todayDateStr, next7DaysStr])
+    }, [kpiQueue, effectiveBranchFilter, todayDateStr, next7DaysStr])
 
     return (
         <div className="space-y-6">
@@ -1273,7 +1317,7 @@ export default function CRMPage() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100 text-sm bg-white">
-                                                {filteredQueue.map(q => {
+                                                {filteredQueue.slice(0, queueVisibleCount).map(q => {
                                                     const todayStr = toLocalYYYYMMDD();
                                                     const isDue = q.scheduled_date && q.scheduled_date <= todayStr;
                                                     return (
@@ -1390,6 +1434,20 @@ export default function CRMPage() {
                                                 })}
                                             </tbody>
                                         </table>
+                                        {filteredQueue.length > queueVisibleCount && (
+                                            <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-center justify-center gap-2">
+                                                <span className="text-xs text-gray-500 font-medium">
+                                                    Menampilkan {queueVisibleCount} dari {filteredQueue.length} antrean
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setQueueVisibleCount(c => c + QUEUE_RENDER_STEP)}
+                                                    className="px-4 py-2 bg-white border border-gray-200 hover:border-ayumi-primary hover:text-ayumi-primary text-gray-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                                                >
+                                                    Tampilkan {Math.min(QUEUE_RENDER_STEP, filteredQueue.length - queueVisibleCount)} lagi
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
