@@ -9,6 +9,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import { getCachedUser } from '@/lib/cachedUser'
 import RotatedPhoto, { normalizeRotation } from '@/components/ui/RotatedPhoto'
+import { getPhotoAngle } from '@/lib/photoAngle'
 
 export default function PatientDetailPage() {
     const params = useParams()
@@ -46,6 +47,49 @@ export default function PatientDetailPage() {
     const [rotatingPhotoId, setRotatingPhotoId] = useState(null)
 
     // Putar foto klinis 90° dan simpan ke patient_photos.rotation (file asli tidak diubah).
+    const photoSessionKey = (p) => p.treatment_record_id || (p.created_at ? p.created_at.split('T')[0] : 'other')
+
+    // Koreksi sudut foto (mis. kiri/kanan tertukar saat input). Sudut disimpan di caption
+    // (foto_depan / foto_kiri / foto_kanan). Kalau di sesi yang sama sudah ada foto dengan
+    // sudut tujuan, keduanya ditukar agar tiap sudut tetap satu foto.
+    const handleSetPhotoAngle = async (photo, angle) => {
+        if (!photo || rotatingPhotoId) return
+        const currentAngle = getPhotoAngleCategory(photo.caption, photo.storage_path)
+        if (currentAngle === angle) return
+        const other = photos.find(p => p.id !== photo.id
+            && photoSessionKey(p) === photoSessionKey(photo)
+            && getPhotoAngleCategory(p.caption, p.storage_path) === angle)
+        const changes = [{ id: photo.id, from: photo.caption, to: `foto_${angle}` }]
+        if (other) {
+            changes.push({ id: other.id, from: other.caption, to: currentAngle === 'other' ? (photo.caption || 'foto_lain') : `foto_${currentAngle}` })
+        }
+        const applyCaptions = (field) => {
+            const map = Object.fromEntries(changes.map(c => [c.id, c[field]]))
+            const patch = (p) => (p && p.id in map ? { ...p, caption: map[p.id] } : p)
+            setPhotos(prev => prev.map(patch))
+            setSelectedPhotoZoom(patch)
+        }
+        applyCaptions('to')
+        setRotatingPhotoId(photo.id)
+        try {
+            for (const c of changes) {
+                const { error } = await supabase.from('patient_photos').update({ caption: c.to }).eq('id', c.id)
+                if (error) throw error
+            }
+            toast.success(other ? 'Posisi foto ditukar.' : 'Sudut foto diperbarui.')
+        } catch (err) {
+            console.warn('Set photo angle error:', err)
+            applyCaptions('from')
+            // Kembalikan juga yang sempat tersimpan.
+            for (const c of changes) {
+                await supabase.from('patient_photos').update({ caption: c.from }).eq('id', c.id)
+            }
+            toast.error(getFriendlyErrorMessage(err))
+        } finally {
+            setRotatingPhotoId(null)
+        }
+    }
+
     const handleRotatePhoto = async (photo, delta) => {
         if (!photo || rotatingPhotoId) return
         const prevRotation = normalizeRotation(photo.rotation)
@@ -101,13 +145,7 @@ export default function PatientDetailPage() {
         }
     }
 
-    const getPhotoAngleCategory = (caption, storagePath) => {
-        const raw = (caption || storagePath || '').toLowerCase()
-        if (raw.includes('depan') || raw.includes('front')) return 'depan'
-        if (raw.includes('kiri') || raw.includes('left')) return 'kiri'
-        if (raw.includes('kanan') || raw.includes('right')) return 'kanan'
-        return 'other'
-    }
+    const getPhotoAngleCategory = (caption, storagePath) => getPhotoAngle(caption, storagePath) || 'other'
 
     const formatPhotoLabel = (caption, storagePath) => {
         const cat = getPhotoAngleCategory(caption, storagePath)
@@ -878,14 +916,33 @@ export default function PatientDetailPage() {
                                                             )}
                                                             <span className="text-[11px] text-slate-400">{session.photos.length} foto</span>
                                                         </div>
-                                                        {session.id && (
-                                                            <Link
-                                                                href={`/treatment-records/${session.id}`}
-                                                                className="text-xs font-bold text-ayumi-primary hover:underline"
-                                                            >
-                                                                Rekam Medis (SOAP) →
-                                                            </Link>
-                                                        )}
+                                                        <div className="flex items-center gap-3">
+                                                            {(() => {
+                                                                const sidePhoto = session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === 'kiri')
+                                                                    || session.photos.find(p => getPhotoAngleCategory(p.caption, p.storage_path) === 'kanan')
+                                                                if (!sidePhoto) return null
+                                                                const target = getPhotoAngleCategory(sidePhoto.caption, sidePhoto.storage_path) === 'kiri' ? 'kanan' : 'kiri'
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSetPhotoAngle(sidePhoto, target)}
+                                                                        disabled={!!rotatingPhotoId}
+                                                                        className="text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                                                                        title="Gunakan bila foto samping kiri dan kanan tertukar saat input"
+                                                                    >
+                                                                        ⇄ Tukar Kiri–Kanan
+                                                                    </button>
+                                                                )
+                                                            })()}
+                                                            {session.id && (
+                                                                <Link
+                                                                    href={`/treatment-records/${session.id}`}
+                                                                    className="text-xs font-bold text-ayumi-primary hover:underline"
+                                                                >
+                                                                    Rekam Medis (SOAP) →
+                                                                </Link>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
                                                         {angleSpecs.map(slot => {
@@ -1478,7 +1535,32 @@ export default function PatientDetailPage() {
                                 className="w-[min(100%,calc(66vh*3/4))]"
                             />
                         </div>
-                        <div className="px-4 py-3 bg-white border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                        <div className="px-4 pt-3 bg-white border-t border-gray-100 flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-slate-500">Sudut foto:</span>
+                            <div className="inline-flex p-0.5 bg-slate-100 rounded-lg">
+                                {[
+                                    { key: 'depan', label: 'Depan' },
+                                    { key: 'kiri', label: 'Kiri' },
+                                    { key: 'kanan', label: 'Kanan' }
+                                ].map(a => {
+                                    const active = getPhotoAngleCategory(selectedPhotoZoom.caption, selectedPhotoZoom.storage_path) === a.key
+                                    return (
+                                        <button
+                                            key={a.key}
+                                            type="button"
+                                            onClick={() => handleSetPhotoAngle(selectedPhotoZoom, a.key)}
+                                            disabled={!!rotatingPhotoId}
+                                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer disabled:opacity-60 ${
+                                                active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                        >
+                                            {a.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                        <div className="px-4 py-3 bg-white flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5">
                                 {[
                                     { delta: -90, label: 'Putar Kiri', path: 'M3 10h11a5 5 0 015 5v2M3 10l5-5M3 10l5 5' },

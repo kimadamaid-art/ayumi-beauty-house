@@ -11,6 +11,7 @@ import TherapistPatientHistoryModal from '@/components/ui/TherapistPatientHistor
 import { compressImageForMedical } from '@/lib/imageCompression'
 import { notifyTreatmentCompleted } from '@/lib/notifications'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
+import { getPhotoAngle } from '@/lib/photoAngle'
 
 // Persen komisi tindakan terapis: persen yang ada; bila kosong/0 memakai persen master
 // treatment; bila master juga kosong, 5%. Aturan yang sama dipakai kasir
@@ -244,15 +245,10 @@ export default function TreatmentInputPage() {
                         }
 
                         if (photoUrl) {
-                            const rawCaption = (photo.caption || '').toLowerCase()
-                            const fileName = (photo.storage_path.split('/').pop() || '').toLowerCase()
+                            const angle = getPhotoAngle(photo.caption, photo.storage_path)
 
-                            if (rawCaption.includes('depan') || fileName.includes('depan') || rawCaption.includes('front')) {
-                                previews['foto_depan'] = photoUrl
-                            } else if (rawCaption.includes('kiri') || fileName.includes('kiri') || rawCaption.includes('left')) {
-                                previews['foto_kiri'] = photoUrl
-                            } else if (rawCaption.includes('kanan') || fileName.includes('kanan') || rawCaption.includes('right')) {
-                                previews['foto_kanan'] = photoUrl
+                            if (angle) {
+                                previews[`foto_${angle}`] = photoUrl
                             } else {
                                 if (i === 0 && !previews['foto_depan']) previews['foto_depan'] = photoUrl
                                 else if (i === 1 && !previews['foto_kiri']) previews['foto_kiri'] = photoUrl

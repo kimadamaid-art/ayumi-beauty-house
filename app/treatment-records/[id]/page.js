@@ -9,6 +9,7 @@ import { getLogoBase64 } from '@/lib/pdfLogo'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
 import RotatedPhoto from '@/components/ui/RotatedPhoto'
+import { getPhotoAngle } from '@/lib/photoAngle'
 
 // Helper to convert an image URL to a base64 string
 const getBase64ImageFromUrl = async (url) => {
@@ -273,13 +274,10 @@ export default function TreatmentRecordDetailPage() {
 
                         urls[rawKey] = photoUrl
 
-                        // Mapping cerdas ke slot standar UI (Depan, Samping Kiri, Samping Kanan)
-                        if (rawCaption.includes('depan') || fileName.includes('depan') || rawCaption.includes('front')) {
-                            urls['foto_depan'] = photoUrl
-                        } else if (rawCaption.includes('kiri') || fileName.includes('kiri') || rawCaption.includes('left')) {
-                            urls['foto_kiri'] = photoUrl
-                        } else if (rawCaption.includes('kanan') || fileName.includes('kanan') || rawCaption.includes('right')) {
-                            urls['foto_kanan'] = photoUrl
+                        // Mapping ke slot standar UI (Depan, Samping Kiri, Samping Kanan); caption diutamakan.
+                        const angle = getPhotoAngle(photo.caption, photo.storage_path)
+                        if (angle) {
+                            urls[`foto_${angle}`] = photoUrl
                         } else {
                             // Fallback berdasarkan urutan index jika caption tidak bernama standar
                             if (i === 0 && !urls['foto_depan']) urls['foto_depan'] = photoUrl
