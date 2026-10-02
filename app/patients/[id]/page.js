@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { getFriendlyErrorMessage } from '@/lib/errorMessages'
 import { isInfusionTreatment } from '@/lib/commissionUtils'
+import { getCachedUser } from '@/lib/cachedUser'
 
 export default function PatientDetailPage() {
     const params = useParams()
@@ -38,6 +39,42 @@ export default function PatientDetailPage() {
     const [editExpiryModal, setEditExpiryModal] = useState({ isOpen: false, coupon: null, newDate: '' })
     const [editSessionModal, setEditSessionModal] = useState({ isOpen: false, item: null, coupon: null, usedSessions: 0, totalSessions: 0 })
     const [isUpdating, setIsUpdating] = useState(false)
+    const [userRole, setUserRole] = useState(null)
+    const [userBranchId, setUserBranchId] = useState(null)
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, confirmName: '' })
+    const [isDeleting, setIsDeleting] = useState(false)
+
+    useEffect(() => {
+        getCachedUser().then(({ dbUser }) => {
+            setUserRole(dbUser?.role || null)
+            setUserBranchId(dbUser?.branch_id || null)
+        }).catch(() => {})
+    }, [])
+
+    // Owner: semua pasien. Admin: pasien cabangnya sendiri. Pasien yang sudah punya
+    // riwayat transaksi/treatment/kupon ditolak oleh fungsi delete_patient di database.
+    const canDeletePatient = userRole === 'owner' || (userRole === 'admin' && patient?.branch_id === userBranchId)
+    const hasPatientHistory = treatmentHistory.length > 0 || patientTransactions.length > 0 || patientCoupons.length > 0
+
+    const handleDeletePatient = async () => {
+        if (!patient || isDeleting) return
+        setIsDeleting(true)
+        try {
+            const { error } = await supabase.rpc('delete_patient', { p_patient_id: patient.id })
+            if (error) throw error
+            toast.success(`Data pasien ${patient.full_name} berhasil dihapus.`)
+            router.push('/patients')
+        } catch (err) {
+            console.warn('Delete patient error:', err)
+            const msg = err?.code === 'PGRST202'
+                ? 'Fitur hapus pasien belum aktif di database. Jalankan SQL 20261002_delete_patient.sql terlebih dahulu.'
+                : (err?.message?.includes('tidak bisa dihapus') || err?.message?.includes('Hanya') || err?.message?.includes('cabang lain'))
+                    ? err.message
+                    : getFriendlyErrorMessage(err)
+            toast.error(msg, { duration: 7000 })
+            setIsDeleting(false)
+        }
+    }
 
     const getPhotoAngleCategory = (caption, storagePath) => {
         const raw = (caption || storagePath || '').toLowerCase()
@@ -367,11 +404,22 @@ export default function PatientDetailPage() {
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">CRM STATUS</span>
                         {getCRMStatusBadge(crmStatus)}
                     </div>
-                    <Link href={`/patients/${patient.id}/edit`}>
-                        <button className="text-xs bg-pink-50 text-ayumi-primary border border-pink-200/60 hover:bg-ayumi-primary hover:text-white px-4 py-2 rounded-xl font-bold transition-all shadow-sm">
-                            Edit Profil
-                        </button>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Link href={`/patients/${patient.id}/edit`}>
+                            <button className="text-xs bg-pink-50 text-ayumi-primary border border-pink-200/60 hover:bg-ayumi-primary hover:text-white px-4 py-2 rounded-xl font-bold transition-all shadow-sm">
+                                Edit Profil
+                            </button>
+                        </Link>
+                        {canDeletePatient && (
+                            <button
+                                type="button"
+                                onClick={() => setDeleteModal({ isOpen: true, confirmName: '' })}
+                                className="text-xs bg-white text-red-600 border border-red-200 hover:bg-red-600 hover:text-white px-4 py-2 rounded-xl font-bold transition-all shadow-sm cursor-pointer"
+                            >
+                                Hapus Pasien
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -1361,6 +1409,72 @@ export default function PatientDetailPage() {
                 )}
 
             </div>
+
+            {/* Modal Hapus Pasien */}
+            {deleteModal.isOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !isDeleting && setDeleteModal({ isOpen: false, confirmName: '' })}>
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900">Hapus Data Pasien</h3>
+                        </div>
+
+                        {hasPatientHistory ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 space-y-1">
+                                <p className="font-bold">Pasien ini tidak bisa dihapus.</p>
+                                <p>
+                                    Sudah ada riwayat: {[
+                                        patientTransactions.length > 0 && `${patientTransactions.length} transaksi`,
+                                        treatmentHistory.length > 0 && `${treatmentHistory.length} treatment`,
+                                        patientCoupons.length > 0 && `${patientCoupons.length} kupon paket`
+                                    ].filter(Boolean).join(', ')}. Riwayat ini dipakai laporan omzet dan komisi, jadi datanya harus tetap ada.
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                <p className="text-sm text-gray-600">
+                                    Data pasien <span className="font-bold text-gray-900">{patient.full_name}</span> akan dihapus permanen,
+                                    beserta jadwal, antrean follow-up CRM, dan fotonya. Tindakan ini tidak bisa dibatalkan.
+                                </p>
+                                <label className="block text-xs font-semibold text-gray-500 mt-4 mb-1.5">
+                                    Ketik nama pasien untuk konfirmasi
+                                </label>
+                                <input
+                                    type="text"
+                                    value={deleteModal.confirmName}
+                                    onChange={(e) => setDeleteModal(prev => ({ ...prev, confirmName: e.target.value }))}
+                                    placeholder={patient.full_name}
+                                    className="input-ayumi focus:bg-white"
+                                    autoFocus
+                                />
+                            </>
+                        )}
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteModal({ isOpen: false, confirmName: '' })}
+                                disabled={isDeleting}
+                                className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
+                            >
+                                {hasPatientHistory ? 'Tutup' : 'Batal'}
+                            </button>
+                            {!hasPatientHistory && (
+                                <button
+                                    type="button"
+                                    onClick={handleDeletePatient}
+                                    disabled={isDeleting || deleteModal.confirmName.trim().toLowerCase() !== (patient.full_name || '').trim().toLowerCase()}
+                                    className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed rounded-xl transition-colors cursor-pointer"
+                                >
+                                    {isDeleting ? 'Menghapus...' : 'Hapus Permanen'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal Edit Expired Date */}
             {editExpiryModal.isOpen && (
